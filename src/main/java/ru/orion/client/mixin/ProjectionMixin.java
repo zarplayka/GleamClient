@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfig;
+import ru.orion.client.effect.OrionZoom;
 
 @Mixin(Projection.class)
 public class ProjectionMixin {
@@ -19,16 +20,17 @@ public class ProjectionMixin {
         }
 
         OrionConfig config = OrionClient.getConfigOrNull();
-        if (config == null || !config.isAspectEnabled()) {
-            return;
-        }
-
-        float stretch = config.getAspectStretch();
-        if (stretch <= 0.0F || stretch == 1.0F) {
+        if (config == null) {
             return;
         }
 
         Matrix4f projection = cir.getReturnValue();
-        projection.m00(projection.m00() / stretch);
+        float zoom = OrionZoom.factor(config);
+        projection.m00(projection.m00() * zoom);
+        projection.m11(projection.m11() * zoom);
+        if (config.isAspectEnabled()) {
+            float stretch = config.getAspectStretch();
+            if (stretch > 0.0F && stretch != 1.0F) projection.m00(projection.m00() / stretch);
+        }
     }
 }

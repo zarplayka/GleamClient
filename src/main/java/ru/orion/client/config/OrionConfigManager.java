@@ -66,6 +66,24 @@ public final class OrionConfigManager {
         return config;
     }
 
+    public void setZoomEnabled(boolean value) { config.setZoomEnabled(value); save(); }
+    public void setZoomFactor(float value) { config.setZoomFactor(value); save(); }
+    public void setChatFilterEnabled(boolean value) { config.setChatFilterEnabled(value); save(); }
+    public void setChatFilterWords(String value) { config.setChatFilterWords(value); save(); }
+    public void setChatHighlightEnabled(boolean value) { config.setChatHighlightEnabled(value); save(); }
+    public void setChatHighlightWords(String value) { config.setChatHighlightWords(value); save(); }
+    public void setChatHighlightColor(String value) { config.setChatHighlightColor(value); save(); }
+    public void setWaypointsEnabled(boolean value) { config.setWaypointsEnabled(value); save(); }
+    public void setDeathPointEnabled(boolean value) { config.setDeathPointEnabled(value); save(); }
+
+    public void setBasketballPassPower(float value) { config.setBasketballPassPower(value); save(); }
+    public void setBasketballSpin(float value) { config.setBasketballSpin(value); save(); }
+    public void setBasketballAutoCatch(boolean value) { config.setBasketballAutoCatch(value); save(); }
+    public void setBasketballAutoDribble(boolean value) { config.setBasketballAutoDribble(value); save(); }
+    public void setBasketballHands(boolean value) { config.setBasketballHands(value); save(); }
+    public void setBasketballCourtLines(boolean value) { config.setBasketballCourtLines(value); save(); }
+    public void setBasketballTrajectory(boolean value) { config.setBasketballTrajectory(value); save(); }
+
     public void setHudEnabled(boolean hudEnabled) {
         config.setHudEnabled(hudEnabled);
         save();
@@ -127,6 +145,34 @@ public final class OrionConfigManager {
         save();
     }
 
+    public void setMotionBlurEnabled(boolean value) { config.setMotionBlurEnabled(value); save(); }
+    public void setBlockHighlightEnabled(boolean value) { config.setBlockHighlightEnabled(value); save(); }
+    public void setBlockHighlightColor(String value) { config.setBlockHighlightColor(value); save(); }
+    public void setBlockHighlightMoveSpeed(float value) { config.setBlockHighlightMoveSpeed(value); save(); }
+    public void setBlockHighlightFadeSpeed(float value) { config.setBlockHighlightFadeSpeed(value); save(); }
+    public void setBlockHighlightLineWidth(float value) { config.setBlockHighlightLineWidth(value); save(); }
+    public void setBlockHighlightOpacity(int value) { config.setBlockHighlightOpacity(value); save(); }
+    public void setBlockHighlightGlow(boolean value) { config.setBlockHighlightGlow(value); save(); }
+    public void setBlockHighlightGlowWidth(float value) { config.setBlockHighlightGlowWidth(value); save(); }
+    public void setBlockHighlightGlowOpacity(int value) { config.setBlockHighlightGlowOpacity(value); save(); }
+    public void setBlockHighlightOffset(float value) { config.setBlockHighlightOffset(value); save(); }
+    public void setItemPhysicsEnabled(boolean value) { config.setItemPhysicsEnabled(value); save(); }
+    public void setHitParticlesEnabled(boolean value) { config.setHitParticlesEnabled(value); save(); }
+
+    public void setProjectileTrailEnabled(boolean value) { config.setProjectileTrailEnabled(value); save(); }
+    public void setProjectileTrailColor(String value) { config.setProjectileTrailColor(value); save(); }
+    public void setProjectileTrailDuration(float value) { config.setProjectileTrailDuration(value); save(); }
+    public void setProjectileTrailGlow(boolean value) { config.setProjectileTrailGlow(value); save(); }
+    public void setDamageIndicatorsEnabled(boolean value) { config.setDamageIndicatorsEnabled(value); save(); }
+    public void setDamageIndicatorsLowColor(String value) { config.setDamageIndicatorsLowColor(value); save(); }
+    public void setDamageIndicatorsHighColor(String value) { config.setDamageIndicatorsHighColor(value); save(); }
+    public void setDamageIndicatorsThreshold(float value) { config.setDamageIndicatorsThreshold(value); save(); }
+
+    public void setBreadcrumbsEnabled(boolean value) {
+        config.setBreadcrumbsEnabled(value);
+        save();
+    }
+
     public void setWorldParticlesEnabled(boolean worldParticlesEnabled) {
         config.setWorldParticlesEnabled(worldParticlesEnabled);
         save();
@@ -136,6 +182,43 @@ public final class OrionConfigManager {
         config.setWorldParticlesColor(worldParticlesColor);
         save();
     }
+
+    public void setFootballEnabled(boolean value) { config.setFootballEnabled(value); save(); }
+    public void setFootballGoalkeeperDifficulty(int value) { config.setFootballGoalkeeperDifficulty(value); save(); }
+    public void setFootballGoalkeeperEnabled(boolean value) { config.setFootballGoalkeeperEnabled(value); save(); }
+    public void setFootballPenaltyMode(boolean value) { config.setFootballPenaltyMode(value); save(); }
+    public void setBasketballEnabled(boolean value) { config.setBasketballEnabled(value); save(); }
+    public void setBasketballHud(boolean value) { config.setBasketballHud(value); save(); }
+    public void setAnimationsEnabled(boolean value) { config.setAnimationsEnabled(value); save(); }
+    public void setAnimationsDuration(int value) { config.setAnimationsDuration(value); save(); }
+    public void setEnchantGlintEnabled(boolean value) { config.setEnchantGlintEnabled(value); save(); }
+    public void setEnchantGlintMode(int value) { config.setEnchantGlintMode(value); save(); }
+    public void setInventoryHudEnabled(boolean value) { config.setInventoryHudEnabled(value); save(); }
+    public void setSelfTagEnabled(boolean value) { config.setSelfTagEnabled(value); save(); }
+    public void setArmorIndicatorEnabled(boolean value) { config.setArmorIndicatorEnabled(value); save(); }
+    public void setLockSlotEnabled(boolean value) { config.setLockSlotEnabled(value); save(); }
+    public void setLockSlotMask(long value) { config.setLockSlotMask(value); save(); }
+    public void setPvpSafeEnabled(boolean value) { config.setPvpSafeEnabled(value); save(); }
+    public void setPvpSafeSeconds(int value) { config.setPvpSafeSeconds(value); save(); }
+    public void setKeystrokesEnabled(boolean value) { config.setKeystrokesEnabled(value); save(); }
+    public void setSaturationEnabled(boolean value) { config.setSaturationEnabled(value); save(); }
+    public void setChatHistoryEnabled(boolean value) { config.setChatHistoryEnabled(value); if (value) ru.orion.client.effect.OrionChatHistory.ensureLoaded(); save(); }
+    public void setChatTimeEnabled(boolean value) { config.setChatTimeEnabled(value); save(); }
+    public void setCustomTimeEnabled(boolean value) { config.setCustomTimeEnabled(value); save(); }
+    public void setCustomTimeTicks(int value) { config.setCustomTimeTicks(value); save(); }
+    public void setItemScalingEnabled(boolean value) { config.setItemScalingEnabled(value); save(); }
+    public void setItemScaling(float value) { config.setItemScaling(value); save(); }
+    public void setSmallShieldEnabled(boolean value) { config.setSmallShieldEnabled(value); save(); }
+    public void setSmallShieldScale(float value) { config.setSmallShieldScale(value); save(); }
+    public void setViewModelEnabled(boolean value) { config.setViewModelEnabled(value); save(); }
+    public void setViewModelX(float value) { config.setViewModelX(value); save(); }
+    public void setViewModelY(float value) { config.setViewModelY(value); save(); }
+    public void setViewModelZ(float value) { config.setViewModelZ(value); save(); }
+
+    public void setNoParticlesEnabled(boolean value) { config.setNoParticlesEnabled(value); save(); }
+    public void setNoParticlesExplosions(boolean value) { config.setNoParticlesExplosions(value); save(); }
+    public void setNoParticlesAmbient(boolean value) { config.setNoParticlesAmbient(value); save(); }
+    public void setNoParticlesCombat(boolean value) { config.setNoParticlesCombat(value); save(); }
 
     public void setNoWeatherEnabled(boolean noWeatherEnabled) {
         config.setNoWeatherEnabled(noWeatherEnabled);
@@ -169,6 +252,7 @@ public final class OrionConfigManager {
 
     public void setMediaPlayerCorner(String mediaPlayerCorner) {
         config.setMediaPlayerCorner(mediaPlayerCorner);
+        config.setMediaPlayerPositionCustom(false);
         config.sanitize();
         save();
     }

@@ -49,6 +49,7 @@ public final class OrionHudRenderer {
 
     private final OrionConfigManager configManager;
 
+    private final OrionHudDrag drag = new OrionHudDrag("watermark");
     private DynamicTexture dynamicTexture;
     private int textureWidth;
     private int textureHeight;
@@ -81,7 +82,7 @@ public final class OrionHudRenderer {
         String username = ru.orion.client.effect.OrionNameProtect.replace(client.getUser().getName());
         String fpsValue = Integer.toString(client.getFps());
         int scale = Math.max(1, Math.min(MAX_TEXTURE_SCALE, client.getWindow().getGuiScale()));
-        float hudScale = config.getHudScale();
+        float hudScale = config.getHudScale() * config.getHudElementScale("watermark");
 
         List<Object> fingerprint = new ArrayList<>(6);
         fingerprint.add(scale);
@@ -99,8 +100,10 @@ public final class OrionHudRenderer {
             return;
         }
 
-        int x = config.getHudX();
-        int y = config.getHudY();
+        int x = Math.max(0,Math.min(config.getHudX(),context.guiWidth()-guiWidth));
+        int y = Math.max(0,Math.min(config.getHudY(),context.guiHeight()-guiHeight));
+        var position=drag.update(context,x,y,guiWidth,guiHeight,configManager,(nx,ny)->{config.setHudX(nx);config.setHudY(ny);});
+        x=position.x(); y=position.y();
         if (!OrionGlassCompositor.INSTANCE.submit(HUD_TEXTURE, context, dynamicTexture, x, y, guiWidth, guiHeight)) {
             context.blit(HUD_TEXTURE, x, y, x + guiWidth, y + guiHeight, 0.0F, 1.0F, 0.0F, 1.0F);
         }
@@ -273,6 +276,7 @@ public final class OrionHudRenderer {
     }
 
     private void releaseTextures() {
+        drag.cancel(configManager);
         if (dynamicTexture != null) {
             Minecraft.getInstance().getTextureManager().release(HUD_TEXTURE);
             dynamicTexture = null;
@@ -313,7 +317,7 @@ public final class OrionHudRenderer {
         return null;
     }
 
-    private static Color parseColor(String color) {
+    static Color parseColor(String color) {
         try {
             int rgb = Integer.parseUnsignedInt(color.substring(1), 16);
             return new Color(rgb >> 16 & 255, rgb >> 8 & 255, rgb & 255);

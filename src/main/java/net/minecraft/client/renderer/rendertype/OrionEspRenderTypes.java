@@ -20,7 +20,7 @@ public final class OrionEspRenderTypes {
     // ESP_DEPTH_TESTED — с тестом глубины: ghost/chain/crystals/marker прячутся
     // за моделькой и блоками; глубину не пишем, чтобы не резать чужую прозрачность.
     private static final DepthStencilState ESP_DEPTH = new DepthStencilState(CompareOp.ALWAYS_PASS, false);
-    private static final DepthStencilState ESP_DEPTH_TESTED = new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false);
+    private static final DepthStencilState ESP_DEPTH_TESTED = new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false);
 
     private static final RenderPipeline ESP_COLOR_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/targetesp_color"))

@@ -11,13 +11,20 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
+import ru.orion.client.hud.OrionGlassCompositor;
 import ru.orion.client.effect.OrionHitSound;
 import ru.orion.client.effect.OrionTargetEsp;
+import ru.orion.client.keybind.OrionKeybinds;
+import net.minecraft.client.KeyMapping;
 
 import java.awt.BasicStroke;
+import java.awt.AlphaComposite;
+import java.awt.Composite;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.GradientPaint;
@@ -30,8 +37,10 @@ import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import javax.imageio.ImageIO;
 import java.util.Arrays;
@@ -44,6 +53,7 @@ import java.util.function.Supplier;
 
 public final class OrionClickGuiScreen extends Screen {
     private static final Component TITLE = Component.literal(OrionClient.VERSION_TEXT);
+    private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
     private static final Identifier GUI_TEXTURE = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "click_gui_dynamic");
 
     // Макет из Figma (окно 770x850, коэффициент 0.588 -> gui-юниты 453x501).
@@ -69,6 +79,7 @@ public final class OrionClickGuiScreen extends Screen {
     private static final int TOGGLE_ANIMATION_MS = 180;
     private static final int HOVER_ANIMATION_MS = 160;
     private static final int MAX_TEXTURE_SCALE = 6;
+    private static final long TEXTURE_UPDATE_INTERVAL_NANOS = 16_666_667L;
     private static final float ORION_TARGET_SCALE = 1.3F;
     private static final float ORION2_TARGET_SCALE = 0.8F;
     private static final float ORION3_TARGET_SCALE = 1.15F;
@@ -103,11 +114,26 @@ public final class OrionClickGuiScreen extends Screen {
     );
 
     private static final Layout ORION3_LAYOUT = new Layout(
-            210, 300, 9, 60,
-            4, 74, 52, 22, 26,
-            68, 50, 134, 34, 39,
-            24, 13, 16, 16, 12,
-            42, 48, 8, 10
+            360, 300, 10, 84,
+            6, 73, 72, 23, 27,
+            96, 61, 252, 33, 38,
+            27, 14, 18, 17, 16,
+            76, 96, 10, 13
+    );
+
+    private static final Layout PARADOX_LAYOUT = new Layout(
+            660, 416, 10, 126,
+            8, 79, 110, 24, 29,
+            248, 80, 394, 40, 44,
+            26, 14, 18, 18, 20,
+            110, 100, 10, 13
+    );
+    private static final Layout PARADOX_MODULE_LAYOUT = new Layout(
+            660, 416, 8, 124,
+            8, 190, 110, 18, 19,
+            138, 64, 506, 30, 34,
+            18, 11, 16, 10, 14,
+            82, 112, 10, 13
     );
 
     private static final String[] COLOR_PRESETS = {
@@ -158,19 +184,52 @@ public final class OrionClickGuiScreen extends Screen {
             new Color(0x6A, 0x6A, 0x72)
     );
 
-    private static final String[] THEME_OPTIONS = {"Orion", "Orion2", "Orion3"};
+    private static final Palette PARADOX_PALETTE = new Palette(
+            false, new Color(0xF0, 0x00, 0xD7), new Color(0xBA, 0x00, 0xAD),
+            new Color(0x1E, 0x1E, 0x1C), new Color(0x16, 0x16, 0x15),
+            new Color(0x24, 0x24, 0x22), new Color(0x2A, 0x2A, 0x28),
+            new Color(0x35, 0x35, 0x35), new Color(0xEB, 0xEB, 0xEB),
+            new Color(0xB8, 0xB8, 0xB6), new Color(0x26, 0x26, 0x26),
+            new Color(0xA3, 0xA3, 0xA0));
+
+    private static final Palette PARADOX_LIGHT_PALETTE = new Palette(
+            false, new Color(0x34, 0x7F, 0xF5), new Color(0x2B, 0x6D, 0xDB),
+            new Color(0xFA, 0xFA, 0xF8), new Color(0xF1, 0xF1, 0xEF),
+            Color.WHITE, new Color(0xF5, 0xF7, 0xFC),
+            new Color(0xE2, 0xE2, 0xDF), new Color(0x1B, 0x1B, 0x19),
+            new Color(0x79, 0x79, 0x77), new Color(0xEE, 0xEE, 0xEC),
+            new Color(0x9A, 0x9A, 0x97));
+    private static final String[] THEME_OPTIONS = {"Orion", "Orion2", "Orion3", "Paradox", "Paradox Light"};
 
     private static int lastSelectedCategory;
 
     private final OrionConfigManager configManager;
     private int selectedCategory;
+    private boolean paradoxAll;
+    private boolean paradoxFavoritesOnly;
+    private final java.util.Set<Action> paradoxFavorites = java.util.EnumSet.noneOf(Action.class);
     private int hoveredCategory = -1;
     private int hoveredModule = -1;
+    private int settingsScroll;
+    private int moduleScroll;
+    private boolean draggingSettingsScroll;
+    private boolean draggingModuleScroll;
     private ModuleRow settingsFor;
     private Setting[] settingsRows = new Setting[0];
     private final Setting[] globalSettings;
     private int draggingSlider = -1;
     private int editingText = -1;
+    private int editingBind = -1;
+    private String hitSoundFolderStatus = "Папка";
+    private String waypointName = "Метка";
+    private String waypointX = "0", waypointY = "64", waypointZ = "0";
+    private String waypointColor = "#FF9B38";
+    private String waypointStatus = "Укажите название";
+    private int waypointSelected;
+    private long bindAcceptedAt;
+    private int textCaret;
+    private int textAnchor;
+    private float textScrollX;
     // Раскрытая палитра цвета: индекс ColorSetting и текущее HSV-состояние пикера.
     private int expandedColor = -1;
     private float pickerHue;
@@ -180,6 +239,7 @@ public final class OrionClickGuiScreen extends Screen {
     private boolean draggingHue;
     private String searchQuery = "";
     private boolean orion3;
+    private boolean paradox;
     private Layout L = CLASSIC_LAYOUT;
     private float sc = 1.0F; // множитель внутренних отступов/шрифтов карточек (ORION3 мельче)
     private Palette pal = ORION_PALETTE;
@@ -195,19 +255,54 @@ public final class OrionClickGuiScreen extends Screen {
     private Color SEARCH_BG = ORION_PALETTE.inset;
     private Color PLACEHOLDER = ORION_PALETTE.placeholder;
     private DynamicTexture dynamicTexture;
+    private BufferedImage canvas;
+    private int[] uploadPixels;
+    private long lastTextureUpdateNanos;
     private int textureWidth;
     private int textureHeight;
     private List<Integer> lastFingerprint;
     private long lastFrameNanos;
     private final float[] toggleAnim = new float[Action.VALUES.length];
     private final float[] categoryHoverAnim = new float[Category.VALUES.length];
-    private final float[] moduleHoverAnim = new float[8];
+    private final float[] moduleHoverAnim = new float[18];
+    private long pageStartedAt;
+    private List<Object> pageIdentity;
+    private float pageAnimation = 1F;
+    private float cardsAnimation = 1F;
+    private float scrollAnimation;
+    private float[] settingToggleAnimation = new float[0];
+
+    /** Подготавливает Java2D и шрифты вне игрового потока до первого открытия меню. */
+    public static void prepareInBackground() {
+        Thread worker = new Thread(() -> {
+            BufferedImage image = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D graphics = image.createGraphics();
+            try {
+                setupGraphics(graphics);
+                for (Font font : new Font[]{OrionInterfaceFonts.face(0, 8.5F), OrionInterfaceFonts.face(2, 10F)}) {
+                    graphics.setFont(font);
+                    graphics.drawString("Orion Настройки ё", 0.0F, 16.0F);
+                    textWidth(graphics, font, "Orion Настройки ё");
+                }
+                orion3Logo();
+            } catch (RuntimeException exception) {
+                LOGGER.warn("Не удалось заранее подготовить интерфейс Orion", exception);
+            } finally {
+                graphics.dispose();
+            }
+        }, "Orion GUI preparation");
+        worker.setDaemon(true);
+        worker.start();
+    }
 
     public OrionClickGuiScreen(OrionConfigManager configManager) {
         super(TITLE);
         this.configManager = configManager;
         applyPalette();
         OrionConfig config = configManager.getConfig();
+        for (String favorite : config.getFavoriteModules()) {
+            try { paradoxFavorites.add(Action.valueOf(favorite)); } catch (IllegalArgumentException ignored) { }
+        }
         globalSettings = new Setting[]{
                 new ChoiceSetting("Тема", THEME_OPTIONS, config::getClickGuiTheme, configManager::setClickGuiTheme)
         };
@@ -247,7 +342,11 @@ public final class OrionClickGuiScreen extends Screen {
         Minecraft.getInstance().onTextInputFocusChange(this, false);
         configManager.save();
         Minecraft.getInstance().getTextureManager().release(GUI_TEXTURE);
+        OrionGlassCompositor.INSTANCE.releaseMask(GUI_TEXTURE);
         dynamicTexture = null;
+        canvas = null;
+        uploadPixels = null;
+        lastTextureUpdateNanos = 0L;
         textureWidth = 0;
         textureHeight = 0;
         lastFingerprint = null;
@@ -264,13 +363,15 @@ public final class OrionClickGuiScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
         super.extractRenderState(context, mouseX, mouseY, deltaTicks);
 
+        applyPalette();
         updateAnimations();
         updateHover(toLocalX(mouseX), toLocalY(mouseY));
         updateTextureIfNeeded();
 
         int x = guiX();
         int y = guiY();
-        context.blit(GUI_TEXTURE, x, y, x + guiDisplayWidth(), y + guiDisplayHeight(), 0.0F, 1.0F, 0.0F, 1.0F);
+        if(dynamicTexture!=null && !OrionGlassCompositor.INSTANCE.submit(GUI_TEXTURE,context,dynamicTexture,x,y,guiDisplayWidth(),guiDisplayHeight(),true))
+            context.blit(GUI_TEXTURE, x, y, x + guiDisplayWidth(), y + guiDisplayHeight(), 0.0F, 1.0F, 0.0F, 1.0F);
     }
 
     @Override
@@ -282,11 +383,52 @@ public final class OrionClickGuiScreen extends Screen {
         int localX = toLocalX(event.x());
         int localY = toLocalY(event.y());
 
+        if (paradox) {
+            if (isInside(localX, localY, L.guiW - 22, 7, 16, 16)) { onClose(); return true; }
+            if (isInside(localX, localY, 8, 54, 110, 18) || isInside(localX, localY, 8, 177, 110, 18)) {
+                closeSettings(); paradoxAll = true; paradoxFavoritesOnly = false;
+                selectedCategory = 0; moduleScroll = 0; searchQuery = ""; lastFingerprint = null; return true;
+            }
+            if (isInside(localX, localY, 8, 196, 110, 18)) {
+                closeSettings(); paradoxAll = false; paradoxFavoritesOnly = true;
+                selectedCategory = 0; moduleScroll = 0; searchQuery = ""; lastFingerprint = null; return true;
+            }
+            if (isInside(localX, localY, 8, 73, 110, 18)) {
+                closeSettings(); paradoxAll = false; paradoxFavoritesOnly = false;
+                selectedCategory = Category.SETTINGS.ordinal(); moduleScroll = 0; lastFingerprint = null; return true;
+            }
+            for (int shortcut = 0; shortcut < 4; shortcut++) {
+                if (isInside(localX, localY, 8, 92 + shortcut * 19, 110, 18)) {
+                    closeSettings(); paradoxAll = false; paradoxFavoritesOnly = false; moduleScroll = 0;
+                    selectedCategory = shortcut == 0 ? Category.PLAYER.ordinal() : shortcut == 1 ? Category.RENDER.ordinal() : Category.MISC.ordinal();
+                    searchQuery = shortcut == 2 ? "Chat" : shortcut == 3 ? "HitSound" : "";
+                    lastFingerprint = null; return true;
+                }
+            }
+        }
+
+        if (scrollBarHit(localX, localY)) {
+            if (settingsFor != null && settingsMaxScroll(settingsRows) > 0) {
+                draggingSettingsScroll = true;
+                applyScrollBar(localY, true);
+                return true;
+            }
+            int maximum = Math.max(0, rowsForSelectedCategory().length - maxVisibleRows());
+            if (settingsFor == null && maximum > 0 && (Category.VALUES[selectedCategory] != Category.SETTINGS || !searchQuery.isBlank())) {
+                draggingModuleScroll = true;
+                applyScrollBar(localY, false);
+                return true;
+            }
+        }
+
         int category = categoryAt(localX, localY);
         if (category >= 0) {
+            paradoxAll = false;
+            paradoxFavoritesOnly = false;
             selectedCategory = category;
             lastSelectedCategory = category;
             searchQuery = "";
+            moduleScroll = 0;
             closeSettings();
             Arrays.fill(moduleHoverAnim, 0.0F);
             lastFingerprint = null;
@@ -294,13 +436,44 @@ public final class OrionClickGuiScreen extends Screen {
         }
 
         if (settingsFor != null) {
+            if (paradox && settingsFor.action == Action.BASKETBALL) {
+                if (isInside(localX, localY, 370, 43, 76, 22)) {
+                    editingBind = settingsRows.length - 1;
+                    lastFingerprint = null; return true;
+                }
+                if (isInside(localX, localY, 451, 43, 95, 22)) {
+                    OrionConfig defaults = OrionConfig.createDefault();
+                    OrionConfig config = configManager.getConfig();
+                    config.setBasketballThrowPower(defaults.getBasketballThrowPower());
+                    config.setBasketballChargeSpeed(defaults.getBasketballChargeSpeed());
+                    config.setBasketballBounce(defaults.getBasketballBounce());
+                    config.setBasketballGravity(defaults.getBasketballGravity());
+                    config.setBasketballDribbleSpeed(defaults.getBasketballDribbleSpeed());
+                    config.setBasketballBallScale(defaults.getBasketballBallScale());
+                    config.setBasketballVolume(defaults.getBasketballVolume());
+                    config.setBasketballHud(defaults.isBasketballHud());
+                    config.setBasketballPassPower(defaults.getBasketballPassPower());
+                    config.setBasketballSpin(defaults.getBasketballSpin());
+                    config.setBasketballAutoCatch(defaults.isBasketballAutoCatch());
+                    config.setBasketballAutoDribble(defaults.isBasketballAutoDribble());
+                    config.setBasketballHands(defaults.isBasketballHands());
+                    config.setBasketballCourtLines(defaults.isBasketballCourtLines());
+                    config.setBasketballTrajectory(defaults.isBasketballTrajectory());
+                    configManager.save(); lastFingerprint = null; return true;
+                }
+            }
+            if (paradox && isInside(localX, localY, L.guiW - 110, 43, 92, 24)) {
+                toggle(settingsFor.action);
+                lastFingerprint = null;
+                return true;
+            }
             if (settingsClick(localX, localY)) {
                 return true;
             }
             return super.mouseClicked(event, doubleClick);
         }
 
-        if (Category.VALUES[selectedCategory] == Category.SETTINGS) {
+        if (Category.VALUES[selectedCategory] == Category.SETTINGS && searchQuery.isBlank()) {
             if (settingsClick(localX, localY, globalSettings)) {
                 return true;
             }
@@ -311,8 +484,29 @@ public final class OrionClickGuiScreen extends Screen {
         ModuleRow[] rows = rowsForSelectedCategory();
         if (module >= 0 && module < rows.length) {
             ModuleRow row = rows[module];
-            int rowY = L.moduleY + module * L.moduleStep;
+            if (paradox) {
+                int index = module - moduleScroll;
+                int cx = gridCardX(index), cy = gridCardY(index);
+                if (isInside(localX, localY, cx + gridCardWidth() - 49, cy + 7, 16, 16)) {
+                    if (!paradoxFavorites.add(row.action)) paradoxFavorites.remove(row.action);
+                    configManager.getConfig().setFavoriteModules(paradoxFavorites.stream().map(Enum::name).toList());
+                    configManager.save(); lastFingerprint = null;
+                } else if (isInside(localX, localY, cx + gridCardWidth() - 30, cy + 7, 24, 16)) {
+                    toggle(row.action);
+                } else if (hasSettings(row.action)) {
+                    openSettings(row);
+                } else {
+                    toggle(row.action);
+                }
+                return true;
+            }
+            int rowY = L.moduleY + (module - moduleScroll) * L.moduleStep;
             if (hasSettings(row.action) && isInside(localX, localY, gearX(), rowY + gearOffsetY(), L.gearSize, L.gearSize)) {
+                openSettings(row);
+                return true;
+            }
+            if (paradox && hasSettings(row.action)
+                    && !isInside(localX, localY, toggleX(), rowY, L.toggleW + 8, L.moduleH)) {
                 openSettings(row);
                 return true;
             }
@@ -327,6 +521,10 @@ public final class OrionClickGuiScreen extends Screen {
     public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return super.mouseDragged(event, dragX, dragY);
+        }
+        if (draggingSettingsScroll || draggingModuleScroll) {
+            applyScrollBar(toLocalY(event.y()), draggingSettingsScroll);
+            return true;
         }
         Setting[] rows = editableRows();
         if ((draggingSV || draggingHue) && expandedColor >= 0 && expandedColor < rows.length
@@ -347,9 +545,44 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
+        TextSetting activeText = editingTextSetting();
+        int localX = toLocalX(mouseX), localY = toLocalY(mouseY);
+        if (activeText != null && isInside(localX, localY, textBoxX(), settingRowY(editingText) + arrowOffsetY(), textBoxW(), L.arrowSize)) {
+            String value = activeText.get.get();
+            int steps = (int) Math.signum(vertical) * 5;
+            while (steps > 0 && textCaret > 0) { textCaret = value.offsetByCodePoints(textCaret, -1); steps--; }
+            while (steps < 0 && textCaret < value.length()) { textCaret = value.offsetByCodePoints(textCaret, 1); steps++; }
+            textAnchor = textCaret;
+            lastFingerprint = null;
+            return true;
+        }
+        if (settingsFor != null && localX >= L.moduleX && localY >= L.moduleY) {
+            int maxScroll = settingsMaxScroll(settingsRows);
+            settingsScroll = Math.max(0, Math.min(maxScroll, settingsScroll - (int) Math.signum(vertical) * L.moduleStep));
+            return true;
+        }
+        if (settingsFor == null && (Category.VALUES[selectedCategory] != Category.SETTINGS || !searchQuery.isBlank())
+                && toLocalX(mouseX) >= L.moduleX && toLocalX(mouseX) < L.moduleX + L.moduleW
+                && toLocalY(mouseY) >= L.moduleY && toLocalY(mouseY) < L.guiH - 8) {
+            int maxScroll = Math.max(0, rowsForSelectedCategory().length - maxVisibleRows());
+            moduleScroll = Math.max(0, Math.min(maxScroll, moduleScroll - (int) Math.signum(vertical) * (paradox ? 2 : 1)));
+            Arrays.fill(moduleHoverAnim, 0.0F);
+            lastFingerprint = null;
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
+    }
+
+    @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return super.mouseReleased(event);
+        }
+        if (draggingSettingsScroll || draggingModuleScroll) {
+            draggingSettingsScroll = false;
+            draggingModuleScroll = false;
+            return true;
         }
         if (draggingSlider >= 0 || draggingSV || draggingHue) {
             draggingSlider = -1;
@@ -380,22 +613,34 @@ public final class OrionClickGuiScreen extends Screen {
         return null;
     }
 
+    private void replaceTextSelection(TextSetting setting, String inserted) {
+        String current = setting.get.get();
+        int start = Math.min(textCaret, textAnchor);
+        int end = Math.max(textCaret, textAnchor);
+        int available = Math.max(0, setting.maxLength() - (current.length() - (end - start)));
+        int length = Math.min(available, inserted.length());
+        if (length > 0 && length < inserted.length() && Character.isHighSurrogate(inserted.charAt(length - 1))
+                && Character.isLowSurrogate(inserted.charAt(length))) length--;
+        String replacement = inserted.substring(0, length);
+        setting.set.accept(current.substring(0, start) + replacement + current.substring(end));
+        textCaret = start + length;
+        textAnchor = textCaret;
+        lastFingerprint = null;
+    }
+
     @Override
     public boolean charTyped(CharacterEvent event) {
+        if (bindAcceptedAt != 0 && System.nanoTime() - bindAcceptedAt < 150_000_000L) { bindAcceptedAt = 0; return true; }
+        bindAcceptedAt = 0;
         TextSetting editing = editingTextSetting();
         if (editing != null) {
-            if (event.isAllowedChatCharacter()) {
-                String current = editing.get.get();
-                if (current.length() < editing.maxLength()) {
-                    editing.set.accept(current + event.codepointAsString());
-                    lastFingerprint = null;
-                }
-            }
+            if (event.isAllowedChatCharacter()) replaceTextSelection(editing, event.codepointAsString());
             return true;
         }
         if (event.isAllowedChatCharacter() && searchQuery.length() < 24) {
             closeSettings();
             searchQuery += event.codepointAsString();
+            moduleScroll = 0;
             Arrays.fill(moduleHoverAnim, 0.0F);
             lastFingerprint = null;
             return true;
@@ -405,63 +650,75 @@ public final class OrionClickGuiScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        Setting[] bindRows = editableRows();
+        if (editingBind >= 0 && editingBind < bindRows.length && bindRows[editingBind] instanceof KeybindSetting bind) {
+            KeyMapping key = bind.get.get();
+            if (key != null && event.key() != InputConstants.KEY_ESCAPE) {
+                key.setKey(event.key() == InputConstants.KEY_DELETE || event.key() == InputConstants.KEY_BACKSPACE
+                        ? InputConstants.UNKNOWN : InputConstants.getKey(event));
+                KeyMapping.resetMapping();
+                minecraft.options.save();
+                bindAcceptedAt = System.nanoTime();
+            }
+            editingBind = -1;
+            lastFingerprint = null;
+            return true;
+        }
         TextSetting editing = editingTextSetting();
         if (editing != null) {
+            String value = editing.get.get();
+            textCaret = Math.max(0, Math.min(value.length(), textCaret));
+            textAnchor = Math.max(0, Math.min(value.length(), textAnchor));
             if (event.isSelectAll()) {
-                editing.set.accept("");
-                lastFingerprint = null;
-                return true;
-            }
-            if (event.isCopy() || event.isCut()) {
-                minecraft.keyboardHandler.setClipboard(editing.get.get());
-                if (event.isCut()) {
-                    editing.set.accept("");
-                    lastFingerprint = null;
+                textAnchor = 0;
+                textCaret = value.length();
+            } else if (event.isCopy() || event.isCut()) {
+                int start = Math.min(textCaret, textAnchor), end = Math.max(textCaret, textAnchor);
+                if (start != end) {
+                    minecraft.keyboardHandler.setClipboard(value.substring(start, end));
+                    if (event.isCut()) replaceTextSelection(editing, "");
                 }
-                return true;
-            }
-            if (event.isPaste()) {
-                String current = editing.get.get();
+            } else if (event.isPaste()) {
                 String clipboard = minecraft.keyboardHandler.getClipboard().codePoints()
                         .filter(codepoint -> codepoint >= 32 && codepoint != 127)
                         .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
                         .toString();
-                int available = Math.max(0, editing.maxLength() - current.length());
-                int end = Math.min(available, clipboard.length());
-                if (end > 0 && end < clipboard.length()
-                        && Character.isHighSurrogate(clipboard.charAt(end - 1))
-                        && Character.isLowSurrogate(clipboard.charAt(end))) {
-                    end--;
+                replaceTextSelection(editing, clipboard);
+            } else if (event.key() == InputConstants.KEY_LEFT || event.key() == InputConstants.KEY_RIGHT
+                    || event.key() == InputConstants.KEY_HOME || event.key() == InputConstants.KEY_END) {
+                if (!event.hasShiftDown() && textCaret != textAnchor && event.key() == InputConstants.KEY_LEFT) {
+                    textCaret = Math.min(textCaret, textAnchor);
+                } else if (!event.hasShiftDown() && textCaret != textAnchor && event.key() == InputConstants.KEY_RIGHT) {
+                    textCaret = Math.max(textCaret, textAnchor);
+                } else if (event.key() == InputConstants.KEY_HOME) textCaret = 0;
+                else if (event.key() == InputConstants.KEY_END) textCaret = value.length();
+                else if (event.key() == InputConstants.KEY_LEFT && textCaret > 0) textCaret = value.offsetByCodePoints(textCaret, -1);
+                else if (event.key() == InputConstants.KEY_RIGHT && textCaret < value.length()) textCaret = value.offsetByCodePoints(textCaret, 1);
+                if (!event.hasShiftDown()) textAnchor = textCaret;
+            } else if (event.key() == InputConstants.KEY_BACKSPACE || event.key() == InputConstants.KEY_DELETE) {
+                if (textCaret == textAnchor) {
+                    if (event.key() == InputConstants.KEY_BACKSPACE && textCaret > 0) textAnchor = value.offsetByCodePoints(textCaret, -1);
+                    if (event.key() == InputConstants.KEY_DELETE && textCaret < value.length()) textAnchor = value.offsetByCodePoints(textCaret, 1);
                 }
-                if (end > 0) {
-                    editing.set.accept(current + clipboard.substring(0, end));
-                    lastFingerprint = null;
-                }
-                return true;
-            }
-            if (event.key() == InputConstants.KEY_BACKSPACE) {
-                String current = editing.get.get();
-                if (!current.isEmpty()) {
-                    editing.set.accept(current.substring(0, current.length() - 1));
-                    lastFingerprint = null;
-                }
-                return true;
-            }
-            if (event.key() == InputConstants.KEY_RETURN || event.key() == InputConstants.KEY_NUMPADENTER
+                if (textCaret != textAnchor) replaceTextSelection(editing, "");
+            } else if (event.key() == InputConstants.KEY_RETURN || event.key() == InputConstants.KEY_NUMPADENTER
                     || event.key() == InputConstants.KEY_ESCAPE) {
                 editingText = -1;
-                lastFingerprint = null;
-                return true;
+                configManager.save();
             }
+            lastFingerprint = null;
+            return true;
         }
         if (event.key() == InputConstants.KEY_BACKSPACE && !searchQuery.isEmpty()) {
             searchQuery = searchQuery.substring(0, searchQuery.length() - 1);
+            moduleScroll = 0;
             Arrays.fill(moduleHoverAnim, 0.0F);
             lastFingerprint = null;
             return true;
         }
         if (event.key() == InputConstants.KEY_ESCAPE && !searchQuery.isEmpty()) {
             searchQuery = "";
+            moduleScroll = 0;
             Arrays.fill(moduleHoverAnim, 0.0F);
             lastFingerprint = null;
             return true;
@@ -470,9 +727,25 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void openSettings(ModuleRow row) {
+        if (paradox) {
+            ModuleRow[][] categories = {ModuleRow.COMBAT, ModuleRow.PLAYER, ModuleRow.MOVEMENT,
+                    ModuleRow.RENDER, ModuleRow.WORLD, ModuleRow.MISC, ModuleRow.SETTINGS};
+            for (int i = 0; i < categories.length; i++) {
+                if (Arrays.asList(categories[i]).contains(row)) selectedCategory = i;
+            }
+        }
+        settingsScroll = 0;
         settingsFor = row;
+        if (row.action == Action.WAYPOINTS) {
+            waypointSelected = 0;
+            waypointName = "Метка";
+            waypointColor = "#FF9B38";
+            waypointStatus = "Укажите название";
+            waypointCurrentPosition();
+        }
         settingsRows = buildSettings(row.action);
         draggingSlider = -1;
+        editingBind = -1;
         expandedColor = -1;
         draggingSV = false;
         draggingHue = false;
@@ -480,6 +753,9 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void closeSettings() {
+        settingsScroll = 0;
+        draggingSettingsScroll = false;
+        draggingModuleScroll = false;
         expandedColor = -1;
         draggingSV = false;
         draggingHue = false;
@@ -488,21 +764,37 @@ public final class OrionClickGuiScreen extends Screen {
             settingsRows = new Setting[0];
             draggingSlider = -1;
             editingText = -1;
+            editingBind = -1;
             lastFingerprint = null;
         }
     }
 
     private boolean settingsClick(int localX, int localY) {
-        if (isInside(localX, localY, L.moduleX, L.backY, L.gearSize, L.gearSize)) {
+        if (isInside(localX, localY, paradox ? L.sidebarW + 12 : L.moduleX, L.backY, L.gearSize, L.gearSize)) {
             closeSettings();
             return true;
+        }
+
+        if (paradox && localX >= L.sidebarW + 10 && localX < L.moduleX - 8) {
+            int[] starts = paradoxGroupStarts(settingsRows);
+            for (int group = 0; group < starts.length; group++) {
+                if (isInside(localX, localY, L.sidebarW + 10, 99 + group * 18, L.moduleX - L.sidebarW - 20, 18)) {
+                    settingsScroll = Math.max(0, Math.min(settingsMaxScroll(settingsRows),
+                            settingRowY(starts[group]) + currentSettingsScroll() - L.moduleY - 20));
+                    lastFingerprint = null;
+                    return true;
+                }
+            }
         }
 
         return settingsClick(localX, localY, settingsRows);
     }
 
     private boolean settingsClick(int localX, int localY, Setting[] rows) {
+        if (localY < L.moduleY || localY >= L.guiH - 8) return false;
+        int previousEditingText = editingText;
         editingText = -1;
+        editingBind = -1;
 
         if (expandedColor >= 0 && expandedColor < rows.length
                 && rows[expandedColor] instanceof ColorSetting expanded
@@ -539,9 +831,18 @@ public final class OrionClickGuiScreen extends Screen {
                     lastFingerprint = null;
                     return true;
                 }
-            } else if (setting instanceof TextSetting) {
+            } else if (setting instanceof KeybindSetting) {
                 if (isInside(localX, localY, textBoxX(), y + arrowOffsetY(), textBoxW(), L.arrowSize)) {
+                    editingBind = i;
+                    lastFingerprint = null;
+                    return true;
+                }
+            } else if (setting instanceof TextSetting text) {
+                if (isInside(localX, localY, textBoxX(), y + arrowOffsetY(), textBoxW(), L.arrowSize)) {
+                    if (previousEditingText != i) textScrollX = 0.0F;
                     editingText = i;
+                    textCaret = textIndexAt(text.get.get(), localX - textBoxX() - 6 * sc + textScrollX);
+                    textAnchor = textCaret;
                     lastFingerprint = null;
                     return true;
                 }
@@ -556,11 +857,35 @@ public final class OrionClickGuiScreen extends Screen {
         return false;
     }
 
+    private int textIndexAt(String value, float x) {
+        BufferedImage probe = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = probe.createGraphics();
+        try {
+            setupGraphics(g);
+            Font font = bodyFont(8.5F * sc);
+            int previous = 0;
+            for (int next = 0; next < value.length();) {
+                next = value.offsetByCodePoints(next, 1);
+                float left = textWidth(g, font, value.substring(0, previous));
+                float right = textWidth(g, font, value.substring(0, next));
+                if (x < (left + right) * 0.5F) return previous;
+                previous = next;
+            }
+            return value.length();
+        } finally {
+            g.dispose();
+        }
+    }
+
     private void cycleChoice(ChoiceSetting choice, int direction) {
         int count = choice.options.length;
         int next = ((choice.get.getAsInt() + direction) % count + count) % count;
         choice.set.accept(next);
         lastFingerprint = null;
+    }
+
+    private static int timePreset(int ticks) {
+        return switch(ticks) { case 0 -> 0; case 6000 -> 1; case 12000 -> 2; case 15000 -> 3; case 18000 -> 4; default -> 5; };
     }
 
     private void applySlider(SliderSetting slider, float localX) {
@@ -574,6 +899,7 @@ public final class OrionClickGuiScreen extends Screen {
     private void toggleColorExpand(int index, ColorSetting color) {
         if (expandedColor == index) {
             expandedColor = -1;
+            settingsScroll = 0;
             configManager.save();
         } else {
             expandedColor = index;
@@ -645,12 +971,19 @@ public final class OrionClickGuiScreen extends Screen {
 
     /** Y строки настроек с учётом раскрытой палитры: строки ниже неё сдвигаются вниз. */
     private int settingRowY(int index) {
-        int y = L.moduleY + index * L.moduleStep;
+        int y = L.moduleY + index * L.moduleStep - currentSettingsScroll();
+        if (paradox && settingsFor != null) {
+            for (int start : paradoxGroupStarts(settingsRows)) {
+                if (start > 0 && start <= index) y += 24;
+            }
+        }
         if (expandedColor >= 0 && index > expandedColor) {
             y += pickerPanelHeight() + (L.moduleStep - L.moduleH);
         }
         return y;
     }
+
+    private int currentSettingsScroll() { return paradox ? Math.round(scrollAnimation) : settingsScroll; }
 
     private int expandedPanelY() {
         return settingRowY(expandedColor) + L.moduleH + (L.moduleStep - L.moduleH);
@@ -692,7 +1025,7 @@ public final class OrionClickGuiScreen extends Screen {
 
     private boolean hasSettings(Action action) {
         return switch (action) {
-            case TARGET_ESP, JUMP_CIRCLE, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
+            case WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
                  FAKE_PREFIX,
                  HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW -> true;
             default -> false;
@@ -702,6 +1035,28 @@ public final class OrionClickGuiScreen extends Screen {
     private Setting[] buildSettings(Action action) {
         OrionConfig config = configManager.getConfig();
         return switch (action) {
+            case WAYPOINTS -> new Setting[]{
+                    new ValueSetting("Статус", () -> waypointStatus),
+                    new ChoiceSetting("Сохранённые метки", waypointOptions(), () -> waypointSelected, this::selectWaypoint),
+                    new TextSetting("Название", () -> waypointName, value -> waypointName = value, 32),
+                    new TextSetting("Координата X", () -> waypointX, value -> waypointX = value, 10),
+                    new TextSetting("Координата Y", () -> waypointY, value -> waypointY = value, 6),
+                    new TextSetting("Координата Z", () -> waypointZ, value -> waypointZ = value, 10),
+                    new ColorSetting("Цвет метки", COLOR_PRESETS, () -> waypointColor, value -> waypointColor = value),
+                    new ButtonSetting("Ваши координаты", "Взять", this::waypointCurrentPosition),
+                    new ButtonSetting("Новая метка", "Добавить", () -> saveWaypoint(false)),
+                    new ButtonSetting("Выбранная метка", "Сохранить", () -> saveWaypoint(true)),
+                    new ButtonSetting("Удалить метку", "Удалить", this::deleteWaypoint)
+            };
+            case ZOOM -> new Setting[]{
+                    new SliderSetting("Приближение", 1.5F, 12F, config::getZoomFactor, config::setZoomFactor, "x"),
+                    new KeybindSetting("Клавиша приближения", OrionKeybinds::getZoomKey)
+            };
+            case CHAT_FILTER -> new Setting[]{ new TextSetting("Слова через запятую", config::getChatFilterWords, configManager::setChatFilterWords, 512) };
+            case CHAT_HIGHLIGHT -> new Setting[]{
+                    new TextSetting("Слова через запятую", config::getChatHighlightWords, configManager::setChatHighlightWords, 512),
+                    new ColorSetting("Цвет", COLOR_PRESETS, config::getChatHighlightColor, configManager::setChatHighlightColor)
+            };
             case TARGET_ESP -> new Setting[]{
                     new ChoiceSetting("Текстура", OrionTargetEsp.TEXTURES,
                             config::getTargetEspTexture, configManager::setTargetEspTexture),
@@ -723,6 +1078,132 @@ public final class OrionClickGuiScreen extends Screen {
                             config::isScoreboardGlassEnabled, configManager::setScoreboardGlassEnabled),
                     new SliderSetting("Масштаб", 0.5F, 4.0F,
                             config::getHudScale, config::setHudScale, "x")
+            };
+            case MOTION_BLUR -> new Setting[]{
+                    new SliderSetting("Сила", 0.0F, 1.0F, config::getMotionBlurStrength, config::setMotionBlurStrength, "x")
+            };
+            case BLOCK_HIGHLIGHT -> new Setting[]{
+                    new ColorSetting("Цвет контура", COLOR_PRESETS, config::getBlockHighlightColor, config::setBlockHighlightColor),
+                    new SliderSetting("Скорость перехода", 1.0F, 40.0F, config::getBlockHighlightMoveSpeed, config::setBlockHighlightMoveSpeed, ""),
+                    new SliderSetting("Скорость появления", 1.0F, 40.0F, config::getBlockHighlightFadeSpeed, config::setBlockHighlightFadeSpeed, ""),
+                    new SliderSetting("Толщина контура", 0.5F, 5.0F, config::getBlockHighlightLineWidth, config::setBlockHighlightLineWidth, ""),
+                    new SliderSetting("Непрозрачность", 5.0F, 100.0F, () -> (float) config.getBlockHighlightOpacity(),
+                            value -> config.setBlockHighlightOpacity(Math.round(value)), "%", true),
+                    new ToggleSetting("Свечение", config::isBlockHighlightGlow, configManager::setBlockHighlightGlow),
+                    new SliderSetting("Ширина свечения", 1.0F, 16.0F, config::getBlockHighlightGlowWidth, config::setBlockHighlightGlowWidth, ""),
+                    new SliderSetting("Яркость свечения", 0.0F, 100.0F, () -> (float) config.getBlockHighlightGlowOpacity(),
+                            value -> config.setBlockHighlightGlowOpacity(Math.round(value)), "%", true),
+                    new SliderSetting("Отступ от блока", 0.0F, 0.1F, config::getBlockHighlightOffset, config::setBlockHighlightOffset, "м")
+            };
+            case FOOTBALL -> new Setting[]{
+                    new SliderSetting("Размер ворот", .5F, 2F, config::getFootballGoalScale, config::setFootballGoalScale, "x"),
+                    new ChoiceSetting("Сложность вратаря", new String[]{"Easy", "Normal", "Hard"}, config::getFootballGoalkeeperDifficulty, configManager::setFootballGoalkeeperDifficulty),
+                    new ToggleSetting("Вратарь", config::isFootballGoalkeeperEnabled, configManager::setFootballGoalkeeperEnabled),
+                    new ToggleSetting("Пенальти", config::isFootballPenaltyMode, configManager::setFootballPenaltyMode),
+                    new SliderSetting("Сила удара", .3F, 2F, config::getFootballKickPower, config::setFootballKickPower, "x"),
+                    new SliderSetting("Скорость зарядки", .3F, 3F, config::getFootballChargeSpeed, config::setFootballChargeSpeed, "x")
+            };
+            case BASKETBALL -> new Setting[]{
+                    new ValueSetting("Колец в этом мире", () -> {
+                        var basketball = OrionClient.getBasketballOrNull();
+                        return basketball == null ? "0" : Integer.toString(basketball.hoopCount());
+                    }),
+                    new ButtonSetting("Снять все кольца здесь", "Снять кольца", () -> {
+                        var basketball = OrionClient.getBasketballOrNull();
+                        if (basketball != null) basketball.clearHoopsInCurrentWorld();
+                    }),
+                    new ButtonSetting("Обнулить счёт", "Обнулить счёт", () -> {
+                        var basketball = OrionClient.getBasketballOrNull();
+                        if (basketball != null) basketball.resetScore();
+                    }),
+                    new ButtonSetting("Убрать мяч", "Убрать мяч", () -> {
+                        var basketball = OrionClient.getBasketballOrNull();
+                        if (basketball != null) basketball.removeBall();
+                    }),
+                    new SliderSetting("Сила броска", 0.3F, 2F, config::getBasketballThrowPower, config::setBasketballThrowPower, "x"),
+                    new SliderSetting("Скорость зарядки", 0.3F, 3F, config::getBasketballChargeSpeed, config::setBasketballChargeSpeed, "x"),
+                    new SliderSetting("Сила паса", 6F, 30F, config::getBasketballPassPower, configManager::setBasketballPassPower, " м/с"),
+                    new SliderSetting("Вращение мяча", 0F, 3F, config::getBasketballSpin, configManager::setBasketballSpin, "x"),
+                    new ToggleSetting("Показывать дугу", config::isBasketballTrajectory, configManager::setBasketballTrajectory),
+                    new ToggleSetting("Ловить самому", config::isBasketballAutoCatch, configManager::setBasketballAutoCatch),
+                    new SliderSetting("Сила отскока", 0.1F, 2F, config::getBasketballBounce, config::setBasketballBounce, "x"),
+                    new SliderSetting("Гравитация", 2F, 25F, config::getBasketballGravity, config::setBasketballGravity, ""),
+                    new SliderSetting("Скорость дриблинга", 0.3F, 2F, config::getBasketballDribbleSpeed, config::setBasketballDribbleSpeed, "x"),
+                    new ToggleSetting("Ведение при ходьбе", config::isBasketballAutoDribble, configManager::setBasketballAutoDribble),
+                    new SliderSetting("Размер мяча", 0.5F, 1.5F, config::getBasketballBallScale, config::setBasketballBallScale, "x"),
+                    new SliderSetting("Громкость", 0F, 1F, config::getBasketballVolume, config::setBasketballVolume, "x"),
+                    new ToggleSetting("Показывать HUD", config::isBasketballHud, configManager::setBasketballHud),
+                    new ToggleSetting("Показывать руки", config::isBasketballHands, configManager::setBasketballHands),
+                    new ToggleSetting("Разметка площадки", config::isBasketballCourtLines, configManager::setBasketballCourtLines),
+                    new KeybindSetting("Клавиша мяча", () -> {
+                        var basketball = OrionClient.getBasketballOrNull();
+                        return basketball == null ? null : basketball.getBallKey();
+                    })
+            };
+            case LOCK_SLOT -> new Setting[]{new KeybindSetting("Клавиша блокировки", OrionKeybinds::getLockSlotKey)};
+            case ANIMATIONS -> new Setting[]{
+                    new SliderSetting("Плавность", 50F, 600F, () -> (float) config.getAnimationsDuration(),
+                            value -> config.setAnimationsDuration(Math.round(value)), " мс", true)
+            };
+            case ENCHANT_GLINT -> new Setting[]{
+                    new ChoiceSetting("Эффект", new String[]{"Orion", "Выкл", "Azure", "Rose", "Gold"}, config::getEnchantGlintMode, configManager::setEnchantGlintMode)
+            };
+            case PVP_SAFE -> new Setting[]{
+                    new SliderSetting("Время после удара", 1F, 300F, () -> (float) config.getPvpSafeSeconds(),
+                            value -> config.setPvpSafeSeconds(Math.round(value)), " с", true)
+            };
+            case CUSTOM_TIME -> new Setting[]{
+                    new ChoiceSetting("Пресет времени", new String[]{"Рассвет", "День", "Закат", "Ночь", "Лунная ночь", "Своё"},
+                            () -> timePreset(config.getCustomTimeTicks()), index -> {
+                                int[] values={0,6000,12000,15000,18000};
+                                if(index<values.length) configManager.setCustomTimeTicks(values[index]);
+                                else if(timePreset(config.getCustomTimeTicks())!=5)
+                                    configManager.setCustomTimeTicks((config.getCustomTimeTicks()+1)%24000);
+                            }),
+                    new SliderSetting("Время суток", 0F, 23999F, () -> (float) config.getCustomTimeTicks(), value -> config.setCustomTimeTicks(Math.round(value)), " тиков", true)
+            };
+            case ITEM_SCALING -> new Setting[]{
+                    new SliderSetting("Масштаб предмета", 0.2F, 2F, config::getItemScaling, config::setItemScaling, "x")
+            };
+            case SMALL_SHIELD -> new Setting[]{
+                    new SliderSetting("Размер щита", 0.2F, 1F, config::getSmallShieldScale, config::setSmallShieldScale, "x")
+            };
+            case VIEW_MODEL -> new Setting[]{
+                    new SliderSetting("Положение X", -1F, 1F, config::getViewModelX, config::setViewModelX, ""),
+                    new SliderSetting("Положение Y", -1F, 1F, config::getViewModelY, config::setViewModelY, ""),
+                    new SliderSetting("Положение Z", -1F, 1F, config::getViewModelZ, config::setViewModelZ, "")
+            };
+            case NO_PARTICLES -> new Setting[]{
+                    new ToggleSetting("Убирать взрывы", config::isNoParticlesExplosions, configManager::setNoParticlesExplosions),
+                    new ToggleSetting("Убирать фоновые", config::isNoParticlesAmbient, configManager::setNoParticlesAmbient),
+                    new ToggleSetting("Убирать боевые", config::isNoParticlesCombat, configManager::setNoParticlesCombat)
+            };
+            case HIT_PARTICLES -> new Setting[]{
+                    new ColorSetting("Цвет частиц", COLOR_PRESETS, config::getHitParticlesColor, config::setHitParticlesColor),
+                    new SliderSetting("Количество", 1.0F, 64.0F, () -> (float) config.getHitParticlesCount(),
+                            value -> config.setHitParticlesCount(Math.round(value)), "", true),
+                    new SliderSetting("Размер", 0.03F, 0.3F, config::getHitParticlesSize, config::setHitParticlesSize, "м"),
+                    new ChoiceSetting("Форма", new String[]{"Искра", "Ромб", "Круг"}, config::getHitParticlesShape, config::setHitParticlesShape)
+            };
+            case PROJECTILE_TRAIL -> new Setting[]{
+                    new ColorSetting("Цвет следа", COLOR_PRESETS, config::getProjectileTrailColor, config::setProjectileTrailColor),
+                    new SliderSetting("Длина", 0.25F, 5.0F, config::getProjectileTrailDuration, config::setProjectileTrailDuration, "с"),
+                    new ToggleSetting("Свечение", config::isProjectileTrailGlow, configManager::setProjectileTrailGlow)
+            };
+            case DAMAGE_INDICATORS -> new Setting[]{
+                    new ColorSetting("Малый урон", COLOR_PRESETS, config::getDamageIndicatorsLowColor, config::setDamageIndicatorsLowColor),
+                    new ColorSetting("Большой урон", COLOR_PRESETS, config::getDamageIndicatorsHighColor, config::setDamageIndicatorsHighColor),
+                    new SliderSetting("Большой урон от", 1.0F, 40.0F, config::getDamageIndicatorsThreshold, config::setDamageIndicatorsThreshold, "")
+            };
+            case BREADCRUMBS -> new Setting[]{
+                    new ToggleSetting("Акцентный цвет", config::isBreadcrumbsUseAccent, config::setBreadcrumbsUseAccent),
+                    new ColorSetting("Свой цвет", COLOR_PRESETS, config::getBreadcrumbsColor, config::setBreadcrumbsColor),
+                    new SliderSetting("Длина", 0.5F, 8.0F, config::getBreadcrumbsDuration, config::setBreadcrumbsDuration, "с"),
+                    new SliderSetting("Толщина", 0.02F, 0.3F, config::getBreadcrumbsWidth, config::setBreadcrumbsWidth, "м"),
+                    new SliderSetting("Непрозрачность", 5.0F, 100.0F, () -> (float) config.getBreadcrumbsOpacity(),
+                            value -> config.setBreadcrumbsOpacity(Math.round(value)), "%", true),
+                    new ToggleSetting("Свечение", config::isBreadcrumbsGlow, config::setBreadcrumbsGlow),
+                    new ToggleSetting("Сквозь блоки", config::isBreadcrumbsThroughWalls, config::setBreadcrumbsThroughWalls)
             };
             case WORLD_PARTICLES -> new Setting[]{
                     new ColorSetting("Цвет частиц", COLOR_PRESETS,
@@ -768,7 +1249,7 @@ public final class OrionClickGuiScreen extends Screen {
                     new ButtonSetting("Проверка", "Тест",
                             () -> OrionClient.getInstance().getHitSound().preview()),
                     new ButtonSetting("Свои звуки (.wav)", "Папка",
-                            () -> OrionClient.getInstance().getHitSound().openCustomFolder())
+                            this::openHitSoundFolder)
             };
             case CROSSHAIR -> new Setting[]{
                     new ColorSetting("Цвет прицела", COLOR_PRESETS,
@@ -807,6 +1288,15 @@ public final class OrionClickGuiScreen extends Screen {
         return Math.max(1, Math.min(MAX_TEXTURE_SCALE, scale));
     }
 
+    private void openHitSoundFolder() {
+        hitSoundFolderStatus = "Открываем…";
+        lastFingerprint = null;
+        OrionClient.getInstance().getHitSound().openCustomFolder(success -> Minecraft.getInstance().execute(() -> {
+            hitSoundFolderStatus = success ? "Открыто" : "Ошибка — см. лог";
+            lastFingerprint = null;
+        }));
+    }
+
     private void updateTextureIfNeeded() {
         applyPalette();
         int scale = textureScale();
@@ -817,7 +1307,16 @@ public final class OrionClickGuiScreen extends Screen {
 
         int imageWidth = guiDisplayWidth() * scale;
         int imageHeight = guiDisplayHeight() * scale;
+        long now = System.nanoTime();
+        if (dynamicTexture != null && textureWidth == imageWidth && textureHeight == imageHeight
+                && now - lastTextureUpdateNanos < TEXTURE_UPDATE_INTERVAL_NANOS) {
+            return;
+        }
+        long renderStart = System.nanoTime();
         BufferedImage image = renderImage(scale);
+        OrionGlassCompositor.INSTANCE.updateMask(GUI_TEXTURE,new OrionGlassCompositor.MaskLayout(imageWidth,imageHeight,L.guiW,L.guiH,
+                List.of(new OrionGlassCompositor.Panel(0,0,L.guiW,L.guiH,L.windowRadius*2F))));
+        long renderElapsed = System.nanoTime() - renderStart;
 
         if (dynamicTexture == null || textureWidth != imageWidth || textureHeight != imageHeight) {
             Minecraft.getInstance().getTextureManager().release(GUI_TEXTURE);
@@ -837,40 +1336,76 @@ public final class OrionClickGuiScreen extends Screen {
             dynamicTexture.upload();
         }
         lastFingerprint = fingerprint;
+        lastTextureUpdateNanos = System.nanoTime();
+        long totalElapsed = lastTextureUpdateNanos - renderStart;
+        if (totalElapsed > 250_000_000L) {
+            LOGGER.info("Подготовка меню Orion: Java2D {} мс, загрузка текстуры {} мс, размер {}x{}",
+                    renderElapsed / 1_000_000L, (totalElapsed - renderElapsed) / 1_000_000L,
+                    imageWidth, imageHeight);
+        }
     }
 
-    private static void copyPixels(BufferedImage source, NativeImage target) {
-        int w = source.getWidth();
-        int h = source.getHeight();
-        int[] argb = source.getRGB(0, 0, w, h, null, 0, w);
-        for (int y = 0; y < h; y++) {
-            int row = y * w;
-            for (int x = 0; x < w; x++) {
-                target.setPixel(x, y, argb[row + x]);
-            }
+    private void copyPixels(BufferedImage source, NativeImage target) {
+        int[] argb = ((DataBufferInt) source.getRaster().getDataBuffer()).getData();
+        if (uploadPixels == null || uploadPixels.length != argb.length) {
+            uploadPixels = new int[argb.length];
         }
+        for (int i = 0; i < argb.length; i++) {
+            int color = argb[i];
+            uploadPixels[i] = (color & 0xFF00FF00) | ((color & 0x00FF0000) >>> 16)
+                    | ((color & 0x000000FF) << 16);
+        }
+        target.getPixelBytes().order(ByteOrder.nativeOrder()).asIntBuffer().put(uploadPixels);
     }
 
     private BufferedImage renderImage(int scale) {
         int imageWidth = guiDisplayWidth() * scale;
         int imageHeight = guiDisplayHeight() * scale;
-        BufferedImage image = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_ARGB);
+        if (canvas == null || canvas.getWidth() != imageWidth || canvas.getHeight() != imageHeight) {
+            canvas = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_ARGB);
+        }
+        BufferedImage image = canvas;
         Graphics2D g = image.createGraphics();
+        g.setComposite(AlphaComposite.Clear);
+        g.fill(new Rectangle2D.Float(0, 0, imageWidth, imageHeight));
+        g.setComposite(AlphaComposite.SrcOver);
         setupGraphics(g);
         // Fractional content scale keeps texture pixels 1:1 with physical pixels at any theme size.
         g.scale(imageWidth / (double) L.guiW, imageHeight / (double) L.guiH);
 
         Shape window = new RoundRectangle2D.Float(0, 0, L.guiW, L.guiH, L.windowRadius * 2, L.windowRadius * 2);
+        Composite windowComposite=g.getComposite();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,0.78F));
         drawWindow(g, window);
+        g.setComposite(windowComposite);
         drawHeader(g, window);
         drawSidebar(g);
+        Composite contentComposite = g.getComposite();
+        if (paradox && settingsFor != null) g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                (float)Math.sin(pageAnimation * Math.PI / 2)));
         drawContent(g);
+        g.setComposite(contentComposite);
 
         g.dispose();
         return image;
     }
 
     private void drawWindow(Graphics2D g, Shape window) {
+        if (paradox) {
+            g.setColor(BG);
+            g.fill(window);
+            Shape clip = g.getClip();
+            g.clip(window);
+            g.setColor(SIDEBAR_BG);
+            g.fill(new Rectangle2D.Float(0, 0, L.sidebarW, L.guiH));
+            g.setColor(withAlpha(BORDER, 150));
+            g.setStroke(new BasicStroke(1));
+            g.draw(new Line2D.Float(L.sidebarW + .5F, 0, L.sidebarW + .5F, L.guiH));
+            g.setClip(clip);
+            g.setColor(withAlpha(BORDER, 200));
+            g.draw(new RoundRectangle2D.Float(.5F, .5F, L.guiW - 1, L.guiH - 1, 19, 19));
+            return;
+        }
         if (orion3) {
             g.setColor(BG);
             g.fill(window);
@@ -907,6 +1442,42 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void drawHeader(Graphics2D g, Shape window) {
+        if (paradox) {
+            drawLogo(g, 16, 15, 3.5F, TEXT, 1.1F);
+            drawText(g, "Orion Client", 27, 19, OrionInterfaceFonts.face(3, 10F), TEXT, false);
+            float x = 8, y = 30, w = 110, h = 17;
+            g.setColor(SEARCH_BG);
+            g.fill(new RoundRectangle2D.Float(x, y, w, h, 6, 6));
+            drawMagnifier(g, x + 7, y + h / 2, 2.4F, MUTED);
+            String query = searchQuery.isBlank() ? tr("Поиск") : searchQuery;
+            Font font = OrionInterfaceFonts.face(1, 9F);
+            drawText(g, ellipsize(g, font, query, w - 25), x + 21, y + 12, font,
+                    searchQuery.isBlank() ? MUTED : TEXT, false);
+            String[] destinations = {"Модули", "Настройки", "Косметика", "Интерфейс", "Чат", "Звуки"};
+            for (int i = 0; i < destinations.length; i++) {
+                int dy = 54 + i * 19;
+                if (i == 0 && selectedCategory != Category.SETTINGS.ordinal()) {
+                    g.setColor(SURFACE); g.fill(new RoundRectangle2D.Float(7, dy, 111, 17, 5, 5));
+                }
+                drawIcon(g, i == 1 ? Icon.SETTINGS : i == 4 ? Icon.CHAT : i == 5 ? Icon.MUSIC : Icon.GRID, 14, dy + 8.5F, MUTED, .9F, .25F);
+                Font navigationFont=OrionInterfaceFonts.face(2,9.5F);
+                drawText(g, ellipsize(g,navigationFont,tr(destinations[i]),88), 25, dy + 12.5F, navigationFont, TEXT, false);
+            }
+            drawText(g, tr("Разделы"), 10, 174, OrionInterfaceFonts.face(1,8F), MUTED, false);
+            if (paradoxAll || paradoxFavoritesOnly) {
+                g.setColor(SEARCH_BG);
+                g.fill(new RoundRectangle2D.Float(7, paradoxAll ? 177 : 196, 111, 18, 6, 6));
+            }
+            drawText(g, tr("Все"), 25, 190, OrionInterfaceFonts.face(1,9.5F), paradoxAll ? TEXT : MUTED, false);
+            drawText(g, tr("Избранное"), 25, 209, OrionInterfaceFonts.face(1,9.5F), paradoxFavoritesOnly ? TEXT : MUTED, false);
+            drawIcon(g, Icon.GRID, 14, 186, MUTED, .9F, .25F);
+            drawFavoriteStar(g, 14, 204, false);
+            g.setColor(MUTED);
+            g.setStroke(new BasicStroke(1F));
+            g.draw(new Line2D.Float(L.guiW - 15, 11, L.guiW - 10, 16));
+            g.draw(new Line2D.Float(L.guiW - 10, 11, L.guiW - 15, 16));
+            return;
+        }
         if (orion3) {
             drawOrion3Brand(g);
             return;
@@ -953,19 +1524,31 @@ public final class OrionClickGuiScreen extends Screen {
     private void drawSidebar(Graphics2D g) {
         for (int i = 0; i < Category.VALUES.length; i++) {
             Category category = Category.VALUES[i];
-            int y = L.sideY + i * L.sideStep;
+            int y = categoryRowY(i);
             boolean active = i == selectedCategory;
             float hover = categoryHoverAnim[i];
 
-            if (orion3) {
-                // В макете ORION3 пункты без подложки: активный целиком акцентный, остальные светлеют по ховеру.
-                if (hover > 0.01F && !active) {
-                    g.setColor(withAlpha(SURFACE, Math.round(120 * hover)));
-                    g.fill(new RoundRectangle2D.Float(L.sideX, y, L.sideW, L.sideH, 6, 6));
+            if (paradox) {
+                boolean selected = active && !paradoxAll && !paradoxFavoritesOnly;
+                if (selected || hover > .01F) {
+                    g.setColor(selected ? SEARCH_BG : withAlpha(SURFACE_HOVER, Math.round(150 * hover)));
+                    g.fill(new RoundRectangle2D.Float(L.sideX, y, L.sideW, 18, 5, 5));
+                }
+                Color color = active && !paradoxAll && !paradoxFavoritesOnly ? TEXT : MUTED;
+                drawIcon(g, category.icon, L.sideX + 7, y + 9, color, .9F, .25F);
+                drawText(g, category.title, L.sideX + 20, y + 12.5F, OrionInterfaceFonts.face(1,9.5F), color, false);
+            } else if (orion3) {
+                if (active || hover > 0.01F) {
+                    g.setColor(active ? withAlpha(PRIMARY, 28) : withAlpha(SURFACE_HOVER, Math.round(120 * hover)));
+                    g.fill(new RoundRectangle2D.Float(L.sideX, y, L.sideW, L.sideH, 8, 8));
+                }
+                if (active) {
+                    g.setColor(PRIMARY);
+                    g.fill(new RoundRectangle2D.Float(L.sideX, y + 5, 2.5F, L.sideH - 10, 2.5F, 2.5F));
                 }
                 Color color = active ? PRIMARY : mix(TEXT, Color.WHITE, hover * 0.4F);
-                drawIcon(g, category.icon, 14, y + L.sideH / 2.0F, color, 1.3F, 0.45F);
-                drawText(g, category.title, 24, y + L.sideH / 2.0F + 2.5F, bodyFont(7.0F), color, true);
+                drawIcon(g, category.icon, L.sideX + 13, y + L.sideH / 2.0F, color, 1.3F, 0.45F);
+                drawText(g, category.title, L.sideX + 24, y + L.sideH / 2.0F + 2.8F, bodyFont(7.5F), color, true);
             } else {
                 if (active) {
                     g.setColor(SURFACE);
@@ -981,8 +1564,12 @@ public final class OrionClickGuiScreen extends Screen {
             }
         }
 
-        if (orion3) {
-            drawText(g, "v1.0.0", 8, L.guiH - 8, bodyFont(5.5F), MUTED, false);
+        if (paradox) {
+            g.setColor(withAlpha(BORDER, 130));
+            g.draw(new Line2D.Float(8, L.guiH - 30.5F, L.sidebarW - 8, L.guiH - 30.5F));
+            drawText(g, "Orion Client", 12, L.guiH - 12, OrionInterfaceFonts.face(1,9F), MUTED, false);
+        } else if (orion3) {
+            drawText(g, "v1.0.0", 10, L.guiH - 9, bodyFont(5.5F), PLACEHOLDER, false);
         } else {
             drawText(g, "v1.0.0", 14, L.guiH - 12, bodyFont(7.0F), MUTED, false);
         }
@@ -994,36 +1581,94 @@ public final class OrionClickGuiScreen extends Screen {
             return;
         }
 
-        if (Category.VALUES[selectedCategory] == Category.SETTINGS) {
+        if (Category.VALUES[selectedCategory] == Category.SETTINGS && searchQuery.isBlank()) {
             drawGlobalSettings(g);
             return;
         }
 
         boolean searching = !searchQuery.isBlank();
-        if (!orion3) {
-            String title = searching ? "Поиск" : Category.VALUES[selectedCategory].title;
+        String title = tr(searching ? "Поиск" : paradox && paradoxAll ? "Все модули" : paradox && paradoxFavoritesOnly ? "Избранное" : Category.VALUES[selectedCategory].title);
+        if (paradox) {
+            drawText(g, tr("Модули") + " / " + title, L.moduleX, 18, OrionInterfaceFonts.face(1,9F), MUTED, false);
+            drawText(g, title, L.moduleX, 39, OrionInterfaceFonts.face(3,15F), TEXT, false);
+            Font subtitle=OrionInterfaceFonts.face(1,9F);
+            drawText(g, ellipsize(g,subtitle,tr("Выберите модуль, чтобы изменить его настройки"),L.moduleW), L.moduleX, 55, subtitle, MUTED, false);
+        } else if (orion3) {
+            drawText(g, title, L.moduleX, 24, headingFont(11.0F), TEXT, true);
+            drawText(g, tr(searching ? "Результаты поиска" : "Модули и настройки"), L.moduleX, 37, bodyFont(6.8F), MUTED, false);
+        } else {
             drawText(g, title, CONTENT_X, 62, headingFont(12.5F), PRIMARY, true);
         }
-        drawSearch(g);
+        if (!paradox) drawSearch(g);
 
         ModuleRow[] rows = rowsForSelectedCategory();
         if (rows.length == 0) {
-            String empty = searching ? "Ничего не найдено" : "В этой категории пока пусто";
+            String empty = tr(searching ? "Ничего не найдено" : "В этой категории пока пусто");
             drawText(g, empty, L.moduleX, L.moduleY + 18 * sc, bodyFont(8.5F * sc), MUTED, false);
             return;
         }
         int visible = Math.min(rows.length, maxVisibleRows());
+        moduleScroll = Math.max(0, Math.min(moduleScroll, Math.max(0, rows.length - visible)));
         for (int i = 0; i < visible; i++) {
             float hover = i < moduleHoverAnim.length ? moduleHoverAnim[i] : 0.0F;
-            drawModule(g, rows[i], L.moduleY + i * L.moduleStep, hover);
+            if (paradox) drawGridModule(g, rows[i + moduleScroll], i, hover);
+            else drawModule(g, rows[i + moduleScroll], L.moduleY + i * L.moduleStep, hover);
         }
-        if (rows.length > visible) {
-            drawText(g, "+ ещё " + (rows.length - visible), L.moduleX, L.moduleY + visible * L.moduleStep + 12 * sc, bodyFont(8.0F * sc), MUTED, false);
-        }
+        if (rows.length > visible) drawScrollIndicator(g, paradox ? moduleScroll * 56 : moduleScroll * L.moduleStep,
+                paradox ? (rows.length - visible) * 56 : (rows.length - visible) * L.moduleStep);
     }
 
     private int maxVisibleRows() {
+        if (paradox) return 2 * Math.max(1, (L.guiH - L.moduleY - 8 + 6) / 112);
         return (L.guiH - L.moduleY - 8) / L.moduleStep;
+    }
+
+    private int gridCardWidth() { return (L.moduleW - 6) / 2; }
+    private int gridCardX(int index) { return L.moduleX + index % 2 * (gridCardWidth() + 6); }
+    private int gridCardY(int index) { return L.moduleY + index / 2 * 112; }
+
+    private void drawGridModule(Graphics2D g, ModuleRow row, int index, float hover) {
+        float progress = Math.max(0F, Math.min(1F, (cardsAnimation * 600F - Math.min(index,18) * 22F) / 200F));
+        progress=1F-(1F-progress)*(1F-progress)*(1F-progress);
+        Composite old = g.getComposite();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, progress));
+        int x = gridCardX(index), y = gridCardY(index), w = gridCardWidth();
+        g.setColor(mix(SURFACE, SURFACE_HOVER, hover));
+        g.fill(new RoundRectangle2D.Float(x, y, w, 106, 7.5F, 7.5F));
+        g.setColor(mix(BORDER, PRIMARY, hover * .35F));
+        g.setStroke(new BasicStroke(.65F));
+        g.draw(new RoundRectangle2D.Float(x + .5F, y + .5F, w - 1, 105, 7.5F, 7.5F));
+        float active = toggleAnim[row.action.ordinal()];
+        g.setColor(mix(SEARCH_BG, PRIMARY, active));
+        g.fill(new RoundRectangle2D.Float(x + 8, y + 7, 17, 17, 5, 5));
+        drawIcon(g, row.icon, x + 16.5F, y + 15.5F, mix(MUTED, Color.WHITE, active), .9F, .28F);
+        drawToggle(g, x + w - 26, y + 11, active);
+        if (hover > .01F || paradoxFavorites.contains(row.action)) drawFavoriteStar(g, x + w - 41, y + 15,
+                paradoxFavorites.contains(row.action));
+        Font titleFont=OrionInterfaceFonts.face(2,13.5F);
+        drawText(g, ellipsize(g, titleFont, row.title, w - 16), x + 8, y + 42,
+                titleFont, TEXT, false);
+        Font font = OrionInterfaceFonts.face(1,12F);
+        String remaining = tr(row.description);
+        for (int line = 0; line < 2 && !remaining.isEmpty(); line++) {
+            int end = remaining.length();
+            while (end > 1 && textWidth(g, font, remaining.substring(0, end)) > w - 16) end--;
+            if (end < remaining.length()) {
+                int space = remaining.lastIndexOf(' ', end);
+                if (space > end / 2) end = space;
+            }
+            String text = remaining.substring(0, end);
+            if (line == 1 && end < remaining.length()) text = ellipsize(g, font, remaining, w - 16);
+            drawText(g, text, x + 8, y + 59 + line * 15, font, MUTED, false);
+            remaining = remaining.substring(end).stripLeading();
+        }
+        String category="Misc";
+        if (Arrays.asList(ModuleRow.COMBAT).contains(row)) category="Combat";
+        else if (Arrays.asList(ModuleRow.RENDER).contains(row)) category="Visuals";
+        else if (row.action==Action.HUD || row.action==Action.INVENTORY_HUD || row.action==Action.KEYSTROKES) category="HUD";
+        if (row.action==Action.BASKETBALL || row.action==Action.FOOTBALL) category="Games";
+        drawText(g,category,x+8,y+97,OrionInterfaceFonts.face(1,9F),MUTED,false);
+        g.setComposite(old);
     }
 
     private int gearOffsetY() {
@@ -1042,15 +1687,18 @@ public final class OrionClickGuiScreen extends Screen {
     private void drawGlobalSettings(Graphics2D g) {
         if (orion3) {
             drawText(g, "Settings", L.moduleX, 28, headingFont(9.0F), PRIMARY, true);
-            drawText(g, "Настройки клиента", L.moduleX, 40, bodyFont(6.0F), MUTED, false);
+            drawText(g, tr("Настройки интерфейса"), L.moduleX, 40, bodyFont(7.0F), MUTED, false);
         } else {
             drawText(g, "Settings", CONTENT_X, 62, headingFont(12.5F), PRIMARY, true);
-            drawText(g, "Настройки клиента", CONTENT_X, 73, bodyFont(7.0F), MUTED, false);
+            drawText(g, tr("Настройки клиента"), CONTENT_X, 73, bodyFont(7.0F), MUTED, false);
         }
         drawSettingRows(g, globalSettings);
     }
 
     private void drawSettingRows(Graphics2D g, Setting[] rows) {
+        Shape oldClip = g.getClip();
+        g.clip(new Rectangle2D.Float(L.moduleX, L.moduleY, L.moduleW, L.guiH - L.moduleY - 8));
+        if (paradox && settingsFor != null) drawParadoxGroups(g, rows);
         for (int i = 0; i < rows.length; i++) {
             int y = settingRowY(i);
             drawSettingRow(g, rows[i], y);
@@ -1058,9 +1706,54 @@ public final class OrionClickGuiScreen extends Screen {
                 drawColorPicker(g, color, y + L.moduleH + (L.moduleStep - L.moduleH));
             }
         }
+        g.setClip(oldClip);
+        int maxScroll = settingsMaxScroll(rows);
+        if (maxScroll > 0) drawScrollIndicator(g, currentSettingsScroll(), maxScroll);
+    }
+
+    private int settingsMaxScroll(Setting[] rows) {
+        int height = rows.length == 0 ? 0 : (rows.length - 1) * L.moduleStep + L.moduleH;
+        if (paradox && settingsFor != null && rows.length > 0) {
+            height += Math.max(0, paradoxGroupStarts(rows).length - 1) * 24;
+        }
+        if (expandedColor >= 0) height += pickerPanelHeight() + (L.moduleStep - L.moduleH);
+        return Math.max(0, height - (L.guiH - L.moduleY - 8));
+    }
+
+    private boolean scrollBarHit(int x, int y) {
+        return isInside(x, y, L.moduleX + L.moduleW, L.moduleY, 10, L.guiH - L.moduleY - 10);
+    }
+
+    private void applyScrollBar(int y, boolean settings) {
+        int moduleMaximum = Math.max(0, rowsForSelectedCategory().length - maxVisibleRows());
+        int maximum = settings ? settingsMaxScroll(settingsRows)
+                : moduleMaximum * (paradox ? 56 : L.moduleStep);
+        float trackHeight = L.guiH - L.moduleY - 10;
+        float thumbHeight = Math.max(16, trackHeight * trackHeight / (trackHeight + maximum));
+        float available = trackHeight - thumbHeight;
+        float progress = available <= 0 ? 0 : Math.max(0, Math.min(1, (y - L.moduleY - thumbHeight / 2) / available));
+        if (settings) { settingsScroll = Math.round(progress * maximum); if (paradox) scrollAnimation = settingsScroll; }
+        else moduleScroll = paradox ? Math.min(moduleMaximum,Math.round(progress * moduleMaximum / 2F) * 2)
+                : Math.round(progress * maximum / L.moduleStep);
+        lastFingerprint = null;
+    }
+
+    private void drawScrollIndicator(Graphics2D g, int scroll, int maximum) {
+        float x = L.moduleX + L.moduleW + 3;
+        float y = L.moduleY;
+        float h = L.guiH - L.moduleY - 10;
+        float thumb = Math.max(16, h * h / (h + maximum));
+        g.setColor(withAlpha(BORDER, 100));
+        g.fill(new RoundRectangle2D.Float(x, y, 2, h, 2, 2));
+        g.setColor(withAlpha(PRIMARY, 190));
+        g.fill(new RoundRectangle2D.Float(x, y + (h - thumb) * scroll / Math.max(1, maximum), 2, thumb, 2, 2));
     }
 
     private void drawSettings(Graphics2D g) {
+        if (paradox) {
+            drawParadoxSettings(g);
+            return;
+        }
         g.setColor(SEARCH_BG);
         g.fill(new RoundRectangle2D.Float(L.moduleX, L.backY, L.gearSize, L.gearSize, 5 * sc, 5 * sc));
         g.setColor(withAlpha(BORDER, 150));
@@ -1076,33 +1769,161 @@ public final class OrionClickGuiScreen extends Screen {
 
         if (orion3) {
             drawText(g, settingsFor.title, L.moduleX + L.gearSize + 6, L.backY + L.gearSize - 4, headingFont(9.0F), PRIMARY, true);
-            drawText(g, "Настройки", L.moduleX + L.gearSize + 6, L.backY + L.gearSize + 6, bodyFont(6.0F), MUTED, false);
+            drawText(g, tr("Настройки модуля · прокрутка колёсиком"), L.moduleX + L.gearSize + 6, L.backY + L.gearSize + 6, bodyFont(6.2F), MUTED, false);
         } else {
             drawText(g, settingsFor.title, CONTENT_X + GEAR_SIZE + 9, 62, headingFont(12.5F), PRIMARY, true);
-            drawText(g, "Настройки", CONTENT_X + GEAR_SIZE + 9, 73, bodyFont(7.0F), MUTED, false);
+            drawText(g, tr("Настройки"), CONTENT_X + GEAR_SIZE + 9, 73, bodyFont(7.0F), MUTED, false);
         }
 
         drawSettingRows(g, settingsRows);
     }
 
+    private void drawParadoxSettings(Graphics2D g) {
+        float backX = L.sidebarW + 12;
+        float backY = L.backY;
+        float cy = backY + L.gearSize / 2F;
+        g.setColor(MUTED);
+        g.setStroke(new BasicStroke(1.2F, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(new Line2D.Float(backX + 5, cy, backX + 12, cy));
+        g.draw(new Line2D.Float(backX + 5, cy, backX + 8, cy - 3));
+        g.draw(new Line2D.Float(backX + 5, cy, backX + 8, cy + 3));
+        Font crumb = bodyFont(6.5F);
+        String moduleTitle = settingsFor.action == Action.BASKETBALL ? "Баскетбол" : settingsFor.action == Action.FOOTBALL ? "Футбол" : settingsFor.title;
+        String section = settingsFor.action == Action.BASKETBALL || settingsFor.action == Action.FOOTBALL ? "Games" : Category.VALUES[selectedCategory].title;
+        String breadcrumb = tr("Модули") + " / " + section + " / " + tr(moduleTitle);
+        drawText(g, ellipsize(g, crumb, breadcrumb, 320), backX + 23, cy + 2, crumb, MUTED, false);
+
+        float iconX = L.sidebarW + 13;
+        g.setColor(PRIMARY);
+        g.fill(new RoundRectangle2D.Float(iconX, 43, 26, 26, 7, 7));
+        drawIcon(g, settingsFor.icon, iconX + 13, 56, Color.WHITE, 1.3F, .45F);
+        drawText(g, section, iconX + 36, 37, bodyFont(5.5F), MUTED, false);
+        Font moduleTitleFont=headingFont(10F);
+        drawText(g, ellipsize(g,moduleTitleFont,tr(moduleTitle),185), iconX + 36, 51, moduleTitleFont, TEXT, false);
+        Font description = bodyFont(6.1F);
+        drawText(g, ellipsize(g, description, tr(settingsFor.description), 185), iconX + 36, 64, description, MUTED, false);
+
+        if (settingsFor.action == Action.BASKETBALL) {
+            g.setColor(SEARCH_BG);
+            g.fill(new RoundRectangle2D.Float(370, 43, 76, 22, 6, 6));
+            g.fill(new RoundRectangle2D.Float(451, 43, 95, 22, 6, 6));
+            drawCenteredText(g, tr(editingBind >= 0 ? "Нажмите клавишу" : "Клавиша"), 408, 57, bodyFont(6F), TEXT);
+            Font resetFont=bodyFont(6F);
+            drawCenteredText(g, ellipsize(g,resetFont,tr("Сбросить модуль"),89), 498.5F, 57, resetFont, TEXT);
+        }
+
+        float switchX = L.guiW - 110;
+        g.setColor(SEARCH_BG);
+        g.fill(new RoundRectangle2D.Float(switchX, 43, 92, 24, 8, 8));
+        Font stateFont=bodyFont(6.4F);
+        String state=tr(isActive(settingsFor.action) ? "Включён" : "Выключен");
+        drawText(g, ellipsize(g,stateFont,state,51), switchX + 5, 58, stateFont, TEXT, false);
+        drawToggle(g, switchX + 61, 48, toggleAnim[settingsFor.action.ordinal()]);
+
+        g.setColor(withAlpha(BORDER, 110));
+        g.draw(new Line2D.Float(L.sidebarW, 80.5F, L.guiW - 10, 80.5F));
+        drawText(g, tr("На этой странице"), L.sidebarW + 13, 92, bodyFont(6.2F), MUTED, false);
+        int[] starts = paradoxGroupStarts(settingsRows);
+        int selectedGroup = 0;
+        for (int group = 0; group < starts.length; group++) {
+            if (settingRowY(starts[group]) <= L.moduleY + 36) selectedGroup = group;
+        }
+        for (int group = 0; group < starts.length; group++) {
+            int y = 99 + group * 18;
+            if (group == selectedGroup) {
+                g.setColor(PRIMARY);
+                g.fill(new RoundRectangle2D.Float(L.sidebarW + 12, y, 2, 16, 2, 2));
+            }
+            drawText(g, tr(paradoxGroupName(group)), L.sidebarW + 20, y + 11, bodyFont(7F),
+                    group == selectedGroup ? TEXT : MUTED, false);
+            int end = group + 1 < starts.length ? starts[group + 1] : settingsRows.length;
+            drawText(g, Integer.toString(end - starts[group]), L.moduleX - 22, y + 11, bodyFont(6F), MUTED, false);
+        }
+        drawSettingRows(g, settingsRows);
+    }
+
+    private int[] paradoxGroupStarts(Setting[] rows) {
+        if (rows.length == 0) return new int[0];
+        if (settingsFor != null && settingsFor.action == Action.BASKETBALL && rows.length >= 20) return new int[]{0, 4, 10, 14};
+        if (settingsFor != null && settingsFor.action == Action.FOOTBALL && rows.length >= 6) return new int[]{0, 4};
+        return new int[]{0};
+    }
+
+    private String paradoxGroupName(int group) {
+        if (settingsFor != null && settingsFor.action == Action.BASKETBALL) {
+            return new String[]{"Игра", "Бросок", "Физика", "Вид и звук"}[group];
+        }
+        if (settingsFor != null && settingsFor.action == Action.FOOTBALL) {
+            return new String[]{"Игра", "Удар"}[group];
+        }
+        return "Настройки";
+    }
+
+    private void drawParadoxGroups(Graphics2D g, Setting[] rows) {
+        int[] starts = paradoxGroupStarts(rows);
+        for (int group = 0; group < starts.length; group++) {
+            int first = starts[group];
+            int last = (group + 1 < starts.length ? starts[group + 1] : rows.length) - 1;
+            int top = settingRowY(first);
+            int bottom = settingRowY(last) + L.moduleH;
+            if (expandedColor == last) bottom += pickerPanelHeight() + L.moduleStep - L.moduleH;
+            if (group > 0) drawText(g, tr(paradoxGroupName(group)), L.moduleX + 6, top - 8, headingFont(7F), MUTED, false);
+            g.setColor(SURFACE);
+            g.fill(new RoundRectangle2D.Float(L.moduleX, top - 3, L.moduleW, bottom - top + 6, 8, 8));
+            g.setColor(BORDER);
+            g.setStroke(new BasicStroke(.65F));
+            g.draw(new RoundRectangle2D.Float(L.moduleX + .5F, top - 2.5F, L.moduleW - 1, bottom - top + 5, 8, 8));
+        }
+    }
+
     private void drawSettingRow(Graphics2D g, Setting setting, int y) {
         int radius = orion3 ? 8 : 6;
-        g.setColor(SURFACE);
-        g.fill(new RoundRectangle2D.Float(L.moduleX, y, L.moduleW, L.moduleH, radius, radius));
+        if (!paradox || settingsFor == null) {
+            g.setColor(SURFACE);
+            g.fill(new RoundRectangle2D.Float(L.moduleX, y, L.moduleW, L.moduleH, radius, radius));
+        }
+        if (paradox && settingsFor != null) {
+            int index = Arrays.asList(settingsRows).indexOf(setting);
+            boolean last = index == settingsRows.length - 1;
+            for (int start : paradoxGroupStarts(settingsRows)) if (start == index + 1) last = true;
+            if (!last) {
+                g.setColor(BORDER); g.setStroke(new BasicStroke(.55F));
+                g.draw(new Line2D.Float(L.moduleX + .5F, y + L.moduleStep - 2.5F,
+                        L.moduleX + L.moduleW - .5F, y + L.moduleStep - 2.5F));
+            }
+        }
         if (!orion3) {
             g.setColor(withAlpha(BORDER, 150));
             g.setStroke(new BasicStroke(1.0F));
             g.draw(new RoundRectangle2D.Float(L.moduleX + 0.5F, y + 0.5F, L.moduleW - 1, L.moduleH - 1, 6, 6));
         }
 
-        drawText(g, setting.label(), L.moduleX + 14 * sc, y + L.moduleH / 2.0F + 3.5F * sc, bodyFont(9.5F * sc), TEXT, true);
+        float labelX = L.moduleX + 14 * sc;
+        Font labelFont = bodyFont((paradox ? 9.2F : 9.5F) * sc);
+        String label = tr(setting.label());
+        if (paradox || setting instanceof SliderSetting) {
+            float right = setting instanceof SliderSetting ? sliderTrackX() : setting instanceof ToggleSetting ? toggleX() : textBoxX();
+            label = ellipsize(g, labelFont, label, Math.max(0, right - labelX - 8 * sc));
+        }
+        String description = paradox ? tr(paradoxSettingDescription(setting)) : "";
+        drawText(g, label, labelX, description.isEmpty() ? y + L.moduleH / 2.0F + 3.5F * sc : y + (paradox ? 16 : 14),
+                labelFont, setting instanceof ValueSetting ? MUTED : TEXT, !paradox);
+        if (!description.isEmpty()) {
+            Font detail = bodyFont(6F);
+            drawText(g, ellipsize(g, detail, description, Math.max(0, sliderTrackX() - labelX - 8)),
+                    labelX, y + (paradox ? 31 : 23), detail, MUTED, false);
+        }
 
-        if (setting instanceof ChoiceSetting choice) {
+        if (setting instanceof ValueSetting value) {
+            drawCenteredText(g, value.get.get(), textBoxX() + textBoxW() / 2F,
+                    y + L.moduleH / 2F + 2, bodyFont(6.5F), MUTED);
+        } else if (setting instanceof ChoiceSetting choice) {
             drawArrowBox(g, choiceLeftArrowX(), y + arrowOffsetY(), true);
             drawArrowBox(g, choiceRightArrowX(), y + arrowOffsetY(), false);
-            String value = choice.options[Math.floorMod(choice.get.getAsInt(), choice.options.length)];
+            String value = tr(choice.options[Math.floorMod(choice.get.getAsInt(), choice.options.length)]);
             float centerX = choiceLeftArrowX() + L.arrowSize + L.choiceValueW / 2.0F;
-            drawCenteredText(g, value, centerX, y + L.moduleH / 2.0F + 3.0F * sc, bodyFont(8.5F * sc), PRIMARY);
+            Font valueFont=bodyFont(8.5F * sc);
+            drawCenteredText(g, ellipsize(g,valueFont,value,L.choiceValueW-4), centerX, y + L.moduleH / 2.0F + 3.0F * sc, valueFont, PRIMARY);
         } else if (setting instanceof SliderSetting slider) {
             float t = (slider.get.get() - slider.min) / (slider.max - slider.min);
             t = Math.max(0.0F, Math.min(1.0F, t));
@@ -1112,17 +1933,22 @@ public final class OrionClickGuiScreen extends Screen {
             float knobR = 5 * sc;
             g.setColor(withAlpha(BORDER, 220));
             g.fill(new RoundRectangle2D.Float(tx, ty - trackH / 2, L.sliderTrackW, trackH, trackH, trackH));
+            Shape oldClip = g.getClip();
+            g.clip(new RoundRectangle2D.Float(tx, ty - trackH / 2, L.sliderTrackW, trackH, trackH, trackH));
             g.setPaint(new GradientPaint(tx, ty, PRIMARY_DARK, tx + L.sliderTrackW, ty, PRIMARY));
-            g.fill(new RoundRectangle2D.Float(tx, ty - trackH / 2, L.sliderTrackW * t, trackH, trackH, trackH));
+            g.fill(new Rectangle2D.Float(tx, ty - trackH / 2, L.sliderTrackW * t, trackH));
+            g.setClip(oldClip);
             float kx = tx + L.sliderTrackW * t;
             g.setColor(new Color(0, 0, 0, 60));
             g.fill(new Ellipse2D.Float(kx - knobR, ty - knobR + 0.8F, knobR * 2, knobR * 2));
             g.setColor(Color.WHITE);
             g.fill(new Ellipse2D.Float(kx - knobR, ty - knobR, knobR * 2, knobR * 2));
             String value = slider.integer
-                    ? String.format(Locale.ROOT, "%d%s", Math.round(slider.get.get()), slider.suffix)
-                    : String.format(Locale.ROOT, "%.2f%s", slider.get.get(), slider.suffix);
-            drawText(g, value, tx + L.sliderTrackW + 8 * sc, ty + 3.0F * sc, bodyFont(8.0F * sc), MUTED, false);
+                    ? String.format(Locale.ROOT, "%d%s", Math.round(slider.get.get()), tr(slider.suffix))
+                    : String.format(Locale.ROOT, "%.2f%s", slider.get.get(), tr(slider.suffix));
+            Font numberFont=bodyFont(8.0F * sc);
+            float numberX=tx+L.sliderTrackW+8*sc;
+            drawText(g, ellipsize(g,numberFont,value,L.moduleX+L.moduleW-numberX-5), numberX, ty + 3.0F * sc, numberFont, MUTED, false);
         } else if (setting instanceof ColorSetting color) {
             Setting[] rows = editableRows();
             boolean expanded = expandedColor >= 0 && expandedColor < rows.length && rows[expandedColor] == setting;
@@ -1143,8 +1969,20 @@ public final class OrionClickGuiScreen extends Screen {
             float hexWidth = (float) g.getFontMetrics(hexFont).getStringBounds(hex, g).getWidth();
             drawText(g, hex, chipX - 8 * sc - hexWidth, y + L.moduleH / 2.0F + 3.0F * sc, hexFont, MUTED, false);
         } else if (setting instanceof ToggleSetting toggle) {
+            int index = Arrays.asList(settingsRows).indexOf(setting);
+            float animation = paradox && index >= 0 && index < settingToggleAnimation.length
+                    ? settingToggleAnimation[index] : toggle.get.get() ? 1F : 0F;
             drawToggle(g, toggleX(), y + (L.moduleH - L.toggleH) / 2.0F,
-                    toggle.get.get() ? 1.0F : 0.0F);
+                    animation);
+        } else if (setting instanceof KeybindSetting bind) {
+            float bx=textBoxX(), by=y+arrowOffsetY(), bw=textBoxW();
+            g.setColor(SEARCH_BG);g.fill(new RoundRectangle2D.Float(bx,by,bw,L.arrowSize,5*sc,5*sc));
+            g.setColor(editingBind>=0 && editableRows()[editingBind]==setting ? PRIMARY : withAlpha(BORDER,150));
+            g.setStroke(new BasicStroke(1F));g.draw(new RoundRectangle2D.Float(bx+.5F,by+.5F,bw-1,L.arrowSize-1,5*sc,5*sc));
+            KeyMapping key=bind.get.get();
+            String text=editingBind>=0 && editableRows()[editingBind]==setting ? tr("Нажмите клавишу…") : key==null ? "—" : key.getTranslatedKeyMessage().getString();
+            Font f=bodyFont(8F*sc);
+            drawCenteredText(g,ellipsize(g,f,text,bw-8*sc),bx+bw/2,by+L.arrowSize/2F+3*sc,f,TEXT);
         } else if (setting instanceof TextSetting text) {
             boolean editing = editingTextSetting() == setting;
             float bx = textBoxX();
@@ -1160,14 +1998,36 @@ public final class OrionClickGuiScreen extends Screen {
             String value = text.get.get();
             Font valueFont = bodyFont(8.5F * sc);
             float baseline = by + L.arrowSize / 2.0F + 3.0F * sc;
-            String displayedValue = ellipsize(g, valueFont, value, bw - 12 * sc);
-            drawText(g, displayedValue, bx + 6 * sc, baseline, valueFont, TEXT, false);
-            if (editing && (System.currentTimeMillis() / 500L) % 2L == 0L) {
-                float valueWidth = textWidth(g, valueFont, displayedValue);
-                g.setColor(PRIMARY);
-                g.setStroke(new BasicStroke(1.0F));
-                float caretX = bx + 7 * sc + valueWidth;
-                g.draw(new Line2D.Float(caretX, by + 3 * sc, caretX, by + L.arrowSize - 3 * sc));
+            if (editing) {
+                textCaret = Math.max(0, Math.min(value.length(), textCaret));
+                textAnchor = Math.max(0, Math.min(value.length(), textAnchor));
+                float innerWidth = Math.max(1, bw - 12 * sc);
+                float caretWidth = textWidth(g, valueFont, value.substring(0, textCaret));
+                float fullWidth = textWidth(g, valueFont, value);
+                if (caretWidth - textScrollX > innerWidth - 2) textScrollX = caretWidth - innerWidth + 2;
+                if (caretWidth < textScrollX) textScrollX = caretWidth;
+                textScrollX = Math.max(0, Math.min(textScrollX, Math.max(0, fullWidth - innerWidth + 2)));
+                float textX = bx + 6 * sc - textScrollX;
+                Shape oldClip = g.getClip();
+                g.clip(new Rectangle2D.Float(bx + 4 * sc, by + 1, bw - 8 * sc, L.arrowSize - 2));
+                int selectionStart = Math.min(textCaret, textAnchor), selectionEnd = Math.max(textCaret, textAnchor);
+                if (selectionStart != selectionEnd) {
+                    float x0 = textX + textWidth(g, valueFont, value.substring(0, selectionStart));
+                    float x1 = textX + textWidth(g, valueFont, value.substring(0, selectionEnd));
+                    g.setColor(withAlpha(PRIMARY, 90));
+                    g.fill(new Rectangle2D.Float(x0, by + 2 * sc, Math.max(0, x1 - x0), L.arrowSize - 4 * sc));
+                }
+                drawText(g, value, textX, baseline, valueFont, TEXT, false);
+                if ((System.currentTimeMillis() / 500L) % 2L == 0L) {
+                    g.setColor(PRIMARY);
+                    g.setStroke(new BasicStroke(1.0F));
+                    float caretX = textX + caretWidth;
+                    g.draw(new Line2D.Float(caretX, by + 3 * sc, caretX, by + L.arrowSize - 3 * sc));
+                }
+                g.setClip(oldClip);
+            } else {
+                String displayedValue = ellipsize(g, valueFont, value, bw - 12 * sc);
+                drawText(g, displayedValue, bx + 6 * sc, baseline, valueFont, TEXT, false);
             }
         } else if (setting instanceof ButtonSetting button) {
             float bx = textBoxX();
@@ -1176,12 +2036,29 @@ public final class OrionClickGuiScreen extends Screen {
             float cornerRadius = 5 * sc;
             g.setColor(SEARCH_BG);
             g.fill(new RoundRectangle2D.Float(bx, by, bw, L.arrowSize, cornerRadius, cornerRadius));
-            g.setColor(withAlpha(PRIMARY, 190));
-            g.setStroke(new BasicStroke(1.2F));
-            g.draw(new RoundRectangle2D.Float(bx + 0.5F, by + 0.5F, bw - 1, L.arrowSize - 1, cornerRadius, cornerRadius));
-            drawCenteredText(g, button.buttonText, bx + bw / 2.0F,
-                    by + L.arrowSize / 2.0F + 3.0F * sc, bodyFont(8.5F * sc), PRIMARY);
+            if (!paradox) {
+                g.setColor(withAlpha(PRIMARY, 190));
+                g.setStroke(new BasicStroke(1.2F));
+                g.draw(new RoundRectangle2D.Float(bx + 0.5F, by + 0.5F, bw - 1, L.arrowSize - 1, cornerRadius, cornerRadius));
+            }
+            String buttonText = tr("Свои звуки (.wav)".equals(button.label) ? hitSoundFolderStatus : button.buttonText);
+            drawCenteredText(g, buttonText, bx + bw / 2.0F,
+                    by + L.arrowSize / 2.0F + 3.0F * sc, bodyFont((paradox ? 7F : 8.5F) * sc), paradox ? TEXT : PRIMARY);
         }
+    }
+
+    private String paradoxSettingDescription(Setting setting) {
+        if (settingsFor == null || settingsFor.action != Action.BASKETBALL) return "";
+        return switch (setting.label()) {
+            case "Сила броска" -> "Скорость мяча при броске";
+            case "Скорость зарядки" -> "Как быстро набирается сила броска";
+            case "Сила отскока" -> "Потеря энергии при ударе о поверхность";
+            case "Гравитация" -> "Сила притяжения мяча";
+            case "Скорость дриблинга" -> "Частота ударов мяча о землю";
+            case "Размер мяча" -> "Масштаб баскетбольного мяча";
+            case "Громкость" -> "Громкость звуков мяча";
+            default -> "";
+        };
     }
 
     /** Раскрытая палитра: SV-квадрат, вертикальная полоса тона, превью с hex и быстрые пресеты. */
@@ -1309,7 +2186,7 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private int sliderTrackX() {
-        return L.moduleX + L.moduleW - Math.round(14 * sc) - Math.round(38 * sc) - L.sliderTrackW;
+        return L.moduleX + L.moduleW - Math.round(14 * sc) - Math.round((paradox ? 75 : 38) * sc) - L.sliderTrackW;
     }
 
     private void drawSearch(Graphics2D g) {
@@ -1327,12 +2204,13 @@ public final class OrionClickGuiScreen extends Screen {
         g.setStroke(new BasicStroke(1.0F));
         g.draw(new RoundRectangle2D.Float(x + 0.5F, y + 0.5F, w - 1, h - 1, 6, 6));
         if (searchQuery.isEmpty()) {
-            drawText(g, "Поиск...", x + 10, y + 17.5F, bodyFont(8.2F), PLACEHOLDER, false);
+            drawText(g, tr("Поиск..."), x + 10, y + 17.5F, bodyFont(8.2F), PLACEHOLDER, false);
         } else {
             Font queryFont = bodyFont(8.2F);
-            drawText(g, searchQuery, x + 10, y + 17.5F, queryFont, TEXT, false);
+            String visibleQuery = ellipsize(g, queryFont, searchQuery, w - 42);
+            drawText(g, visibleQuery, x + 10, y + 17.5F, queryFont, TEXT, false);
             if ((System.currentTimeMillis() / 500L) % 2L == 0L) {
-                float queryWidth = (float) g.getFontMetrics(queryFont).getStringBounds(searchQuery, g).getWidth();
+                float queryWidth = textWidth(g, queryFont, visibleQuery);
                 g.setColor(PRIMARY);
                 g.setStroke(new BasicStroke(1.0F));
                 g.draw(new Line2D.Float(x + 11.5F + queryWidth, y + 8, x + 11.5F + queryWidth, y + h - 8));
@@ -1348,10 +2226,10 @@ public final class OrionClickGuiScreen extends Screen {
 
     /** Крупная строка поиска из макета ORION3: по центру лупа и надпись SEARCH в разрядку. */
     private void drawOrion3Search(Graphics2D g) {
-        float x = L.moduleX;
-        float y = 16;
-        float w = L.moduleW;
-        float h = 24;
+        float w = 126;
+        float x = L.moduleX + L.moduleW - w;
+        float y = 13;
+        float h = 25;
         g.setColor(SEARCH_BG);
         g.fill(new RoundRectangle2D.Float(x, y, w, h, 7, 7));
         g.setColor(withAlpha(BORDER, 150));
@@ -1360,8 +2238,8 @@ public final class OrionClickGuiScreen extends Screen {
 
         float centerY = y + h / 2.0F;
         if (searchQuery.isEmpty()) {
-            String placeholder = spaced("SEARCH");
-            Font font = headingFont(7.0F);
+            String placeholder = tr("Поиск модулей");
+            Font font = bodyFont(7.0F);
             float textWidth = (float) g.getFontMetrics(font).getStringBounds(placeholder, g).getWidth();
             float iconGap = 7;
             float iconRadius = 3.6F;
@@ -1373,9 +2251,10 @@ public final class OrionClickGuiScreen extends Screen {
             drawMagnifier(g, x + 9, centerY, 3.6F, MUTED);
             Font queryFont = bodyFont(6.5F);
             float textX = x + 22;
-            drawText(g, searchQuery, textX, centerY + 2.4F, queryFont, TEXT, false);
+            String visibleQuery = ellipsize(g, queryFont, searchQuery, w - 30);
+            drawText(g, visibleQuery, textX, centerY + 2.4F, queryFont, TEXT, false);
             if ((System.currentTimeMillis() / 500L) % 2L == 0L) {
-                float queryWidth = (float) g.getFontMetrics(queryFont).getStringBounds(searchQuery, g).getWidth();
+                float queryWidth = textWidth(g, queryFont, visibleQuery);
                 g.setColor(PRIMARY);
                 g.setStroke(new BasicStroke(1.0F));
                 g.draw(new Line2D.Float(textX + queryWidth + 1.5F, y + 7, textX + queryWidth + 1.5F, y + h - 7));
@@ -1408,6 +2287,22 @@ public final class OrionClickGuiScreen extends Screen {
         boolean active = isActive(row.action);
         float animation = toggleAnim[row.action.ordinal()];
 
+        if (paradox) {
+            g.setColor(mix(SURFACE, SURFACE_HOVER, hover));
+            g.fill(new RoundRectangle2D.Float(L.moduleX, y, L.moduleW, L.moduleH, 6, 6));
+            g.setColor(mix(SEARCH_BG, withAlpha(PRIMARY, 40), animation));
+            g.fill(new RoundRectangle2D.Float(L.moduleX + 7, y + 5, 20, 20, 5, 5));
+            drawIcon(g, row.icon, L.moduleX + 17, y + 15, active ? PRIMARY : MUTED, 1F, .32F);
+            Font name = headingFont(7.3F), detail = bodyFont(5.8F);
+            float max = gearX() - L.moduleX - 63;
+            drawText(g, ellipsize(g, name, row.title, max), L.moduleX + 35, y + 12, name, TEXT, false);
+            drawText(g, ellipsize(g, detail, tr(row.description), max), L.moduleX + 35, y + 22, detail, MUTED, false);
+            drawFavoriteStar(g, gearX() - 11, y + 15, paradoxFavorites.contains(row.action));
+            drawToggle(g, toggleX(), y + (L.moduleH - L.toggleH) / 2F, animation);
+            if (hasSettings(row.action)) drawGearButton(g, gearX(), y + gearOffsetY(), hover);
+            return;
+        }
+
         int radius = orion3 ? 10 : 6;
         g.setColor(mix(SURFACE, SURFACE_HOVER, hover));
         g.fill(new RoundRectangle2D.Float(L.moduleX, y, L.moduleW, L.moduleH, radius, radius));
@@ -1419,10 +2314,16 @@ public final class OrionClickGuiScreen extends Screen {
                 g.setStroke(new BasicStroke(1.0F));
                 g.draw(new RoundRectangle2D.Float(L.moduleX + 0.5F, y + 0.5F, L.moduleW - 1, L.moduleH - 1, radius, radius));
             }
-            // Компактная карточка: только иконка и название по центру, как пустые карточки макета.
             Color iconColor = mix(TEXT, PRIMARY, animation);
-            drawIcon(g, row.icon, L.moduleX + 15, y + L.moduleH / 2.0F, iconColor, 1.4F, 0.55F);
-            drawText(g, row.title, L.moduleX + 28, y + L.moduleH / 2.0F + 2.5F, headingFont(7.2F), TEXT, true);
+            g.setColor(withAlpha(active ? PRIMARY : BORDER, active ? 35 : 50));
+            g.fill(new RoundRectangle2D.Float(L.moduleX + 7, y + 5, 23, 23, 7, 7));
+            drawIcon(g, row.icon, L.moduleX + 18.5F, y + L.moduleH / 2.0F, iconColor, 1.4F, 0.48F);
+            float textX = L.moduleX + 37;
+            float textW = Math.max(10, gearX() - textX - 7);
+            Font titleFont = headingFont(8.2F);
+            Font descriptionFont = bodyFont(6.2F);
+            drawText(g, ellipsize(g, titleFont, row.title, textW), textX, y + 14, titleFont, TEXT, true);
+            drawText(g, ellipsize(g, descriptionFont, tr(row.description), textW), textX, y + 24, descriptionFont, MUTED, false);
         } else {
             if (active) {
                 g.setColor(PRIMARY);
@@ -1438,7 +2339,7 @@ public final class OrionClickGuiScreen extends Screen {
             int textX = L.moduleX + 23 + 12 + ICON_TEXT_GAP;
             drawText(g, row.title, textX, y + 22.5F, headingFont(10.8F), TEXT, true);
             // Описание всегда нейтрально-серое: акцентный оранжевый на тёмном фоне при таком кегле нечитаем.
-            drawText(g, row.description, textX, y + 36.5F, bodyFont(8.2F), mix(MUTED, TEXT, animation * 0.35F), false);
+            drawText(g, tr(row.description), textX, y + 36.5F, bodyFont(8.2F), mix(MUTED, TEXT, animation * 0.35F), false);
         }
 
         drawToggle(g, toggleX(), y + (L.moduleH - L.toggleH) / 2.0F, animation);
@@ -1449,6 +2350,15 @@ public final class OrionClickGuiScreen extends Screen {
 
     private void drawToggle(Graphics2D g, float x, float y, float animation) {
         float eased = easeInOutCubic(animation);
+        if (paradox) {
+            g.setColor(mix(BORDER, PRIMARY, eased));
+            g.fill(new RoundRectangle2D.Float(x, y, L.toggleW, L.toggleH, L.toggleH, L.toggleH));
+            float radius = (L.toggleH - 4) / 2F;
+            float cx = x + 2 + radius + (L.toggleW - 4 - radius * 2) * eased;
+            g.setColor(Color.WHITE);
+            g.fill(new Ellipse2D.Float(cx - radius, y + 2, radius * 2, radius * 2));
+            return;
+        }
         if (orion3) {
             // Контурный тумблер из макета: тёмная пилюля, обводка и круглый бегунок
             // перекрашиваются из серого в акцентный.
@@ -1480,6 +2390,20 @@ public final class OrionClickGuiScreen extends Screen {
         g.fill(new Ellipse2D.Float(cx - radius, cy - radius + 0.8F, radius * 2, radius * 2));
         g.setColor(mix(TEXT, Color.WHITE, eased));
         g.fill(new Ellipse2D.Float(cx - radius, cy - radius, radius * 2, radius * 2));
+    }
+
+    private void drawFavoriteStar(Graphics2D g, float cx, float cy, boolean active) {
+        Path2D.Float star = new Path2D.Float();
+        for (int i = 0; i < 10; i++) {
+            double angle = -Math.PI / 2 + i * Math.PI / 5;
+            float radius = i % 2 == 0 ? 3.7F : 1.7F;
+            float x = cx + (float)Math.cos(angle) * radius, y = cy + (float)Math.sin(angle) * radius;
+            if (i == 0) star.moveTo(x, y); else star.lineTo(x, y);
+        }
+        star.closePath();
+        g.setColor(active ? PRIMARY : MUTED);
+        g.setStroke(new BasicStroke(.8F, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        if (active) g.fill(star); else g.draw(star);
     }
 
     private void drawGearButton(Graphics2D g, float x, float y, float hover) {
@@ -1649,7 +2573,7 @@ public final class OrionClickGuiScreen extends Screen {
     private static BufferedImage orion3LogoImage;
     private static boolean orion3LogoLoadAttempted;
 
-    private static BufferedImage orion3Logo() {
+    private static synchronized BufferedImage orion3Logo() {
         if (!orion3LogoLoadAttempted) {
             orion3LogoLoadAttempted = true;
             try (InputStream in = OrionClickGuiScreen.class.getResourceAsStream(ORION3_LOGO_RESOURCE)) {
@@ -1682,36 +2606,144 @@ public final class OrionClickGuiScreen extends Screen {
 
     private void updateHover(int localX, int localY) {
         hoveredCategory = categoryAt(localX, localY);
-        hoveredModule = settingsFor == null ? moduleAt(localX, localY) : -1;
+        int module = settingsFor == null ? moduleAt(localX, localY) : -1;
+        hoveredModule = module < 0 ? -1 : module - moduleScroll;
     }
 
     private int categoryAt(int localX, int localY) {
         for (int i = 0; i < Category.VALUES.length; i++) {
-            int y = L.sideY + i * L.sideStep;
-            if (isInside(localX, localY, L.sideX, y, L.sideW, L.sideH)) {
+            int y = categoryRowY(i);
+            if (isInside(localX, localY, L.sideX, y, L.sideW, paradox ? 18 : L.sideH)) {
                 return i;
             }
         }
         return -1;
     }
+
+    private int categoryRowY(int index) { return paradox ? 215 + index * 19 : L.sideY + index * L.sideStep; }
 
     private int moduleAt(int localX, int localY) {
         ModuleRow[] rows = rowsForSelectedCategory();
         int visible = Math.min(rows.length, maxVisibleRows());
         for (int i = 0; i < visible; i++) {
+            if (paradox) {
+                if (isInside(localX, localY, gridCardX(i), gridCardY(i), gridCardWidth(), 106)) return i + moduleScroll;
+                continue;
+            }
             int y = L.moduleY + i * L.moduleStep;
             if (isInside(localX, localY, L.moduleX, y, L.moduleW, L.moduleH)) {
-                return i;
+                return i + moduleScroll;
             }
         }
         return -1;
     }
 
+    private List<OrionConfig.Waypoint> currentWaypoints() {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.level == null) return List.of();
+        String world = ru.orion.client.effect.OrionWaypoints.worldKey(client);
+        return configManager.getConfig().getWaypoints().stream().filter(point -> world.equals(point.world)).toList();
+    }
+
+    private String[] waypointOptions() {
+        List<OrionConfig.Waypoint> points = currentWaypoints();
+        waypointSelected = Math.max(0, Math.min(waypointSelected, points.size()));
+        List<String> labels = new ArrayList<>();
+        labels.add("Новая метка");
+        points.forEach(point -> labels.add(point.name));
+        return labels.toArray(String[]::new);
+    }
+
+    private void selectWaypoint(int index) {
+        List<OrionConfig.Waypoint> points = currentWaypoints();
+        waypointSelected = Math.floorMod(index, points.size() + 1);
+        if (waypointSelected == 0) {
+            waypointName = "Метка";
+            waypointColor = "#FF9B38";
+            waypointCurrentPosition();
+            editingText = -1;
+            return;
+        }
+        OrionConfig.Waypoint point = points.get(waypointSelected - 1);
+        waypointName = point.name;
+        waypointX = Integer.toString(point.x); waypointY = Integer.toString(point.y); waypointZ = Integer.toString(point.z);
+        waypointColor = point.color;
+        waypointStatus = "Выбрана";
+        editingText = -1;
+    }
+
+    private void waypointCurrentPosition() {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.level == null) { waypointStatus = "Войдите в мир"; return; }
+        var pos = client.player.blockPosition();
+        waypointX = Integer.toString(pos.getX()); waypointY = Integer.toString(pos.getY()); waypointZ = Integer.toString(pos.getZ());
+        waypointStatus = "Координаты взяты";
+        lastFingerprint = null;
+    }
+
+    private void saveWaypoint(boolean replace) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.level == null) { waypointStatus = "Войдите в мир"; return; }
+        String name = waypointName.trim();
+        if (name.isEmpty() || name.length() > 32) { waypointStatus = "Введите название"; return; }
+        List<OrionConfig.Waypoint> points = currentWaypoints();
+        OrionConfig.Waypoint selected = replace && waypointSelected > 0 && waypointSelected <= points.size() ? points.get(waypointSelected - 1) : null;
+        if (replace && selected == null) { waypointStatus = "Нет меток"; return; }
+        for (OrionConfig.Waypoint point : points) {
+            if (point != selected && point.name.equalsIgnoreCase(name)) { waypointStatus = "Название занято"; return; }
+        }
+        if (!replace && configManager.getConfig().getWaypoints().size() >= 512) { waypointStatus = "Слишком много меток"; return; }
+        int x, y, z;
+        try {
+            x = Integer.parseInt(waypointX.trim()); y = Integer.parseInt(waypointY.trim()); z = Integer.parseInt(waypointZ.trim());
+            if (Math.abs((long) x) > 30000000L || Math.abs((long) z) > 30000000L || y < -2048 || y > 2048) throw new NumberFormatException();
+        } catch (NumberFormatException ignored) { waypointStatus = "Неверные координаты"; return; }
+        if (selected == null) {
+            selected = new OrionConfig.Waypoint(name, ru.orion.client.effect.OrionWaypoints.worldKey(client), x, y, z);
+            configManager.getConfig().getWaypoints().add(selected);
+            waypointSelected = points.size() + 1;
+        } else { selected.name = name; selected.x = x; selected.y = y; selected.z = z; }
+        selected.color = waypointColor;
+        configManager.getConfig().setWaypointsEnabled(true);
+        configManager.save();
+        waypointStatus = replace ? "Сохранено" : "Добавлено";
+        refreshWaypointSettings();
+    }
+
+    private void deleteWaypoint() {
+        List<OrionConfig.Waypoint> points = currentWaypoints();
+        if (waypointSelected <= 0 || waypointSelected > points.size()) { waypointStatus = "Выберите метку"; return; }
+        configManager.getConfig().getWaypoints().remove(points.get(waypointSelected - 1));
+        configManager.save();
+        waypointSelected = 0;
+        waypointStatus = "Удалено";
+        refreshWaypointSettings();
+    }
+
+    private void refreshWaypointSettings() {
+        settingsRows = buildSettings(Action.WAYPOINTS);
+        editingText = -1;
+        expandedColor = -1;
+        lastFingerprint = null;
+    }
+
     private void toggle(Action action) {
         OrionConfig config = configManager.getConfig();
         switch (action) {
+            case ZOOM -> configManager.setZoomEnabled(!config.isZoomEnabled());
+            case CHAT_FILTER -> configManager.setChatFilterEnabled(!config.isChatFilterEnabled());
+            case CHAT_HIGHLIGHT -> configManager.setChatHighlightEnabled(!config.isChatHighlightEnabled());
+            case WAYPOINTS -> configManager.setWaypointsEnabled(!config.isWaypointsEnabled());
+            case DEATH_POINT -> configManager.setDeathPointEnabled(!config.isDeathPointEnabled());
             case TARGET_ESP -> configManager.setTargetEspEnabled(!config.isTargetEspEnabled());
             case CHINA_HEAD -> configManager.setChinaHeadEnabled(!config.isChinaHeadEnabled());
+            case MOTION_BLUR -> configManager.setMotionBlurEnabled(!config.isMotionBlurEnabled());
+            case BLOCK_HIGHLIGHT -> configManager.setBlockHighlightEnabled(!config.isBlockHighlightEnabled());
+            case ITEM_PHYSICS -> configManager.setItemPhysicsEnabled(!config.isItemPhysicsEnabled());
+            case HIT_PARTICLES -> configManager.setHitParticlesEnabled(!config.isHitParticlesEnabled());
+            case PROJECTILE_TRAIL -> configManager.setProjectileTrailEnabled(!config.isProjectileTrailEnabled());
+            case DAMAGE_INDICATORS -> configManager.setDamageIndicatorsEnabled(!config.isDamageIndicatorsEnabled());
+            case BREADCRUMBS -> configManager.setBreadcrumbsEnabled(!config.isBreadcrumbsEnabled());
             case JUMP_CIRCLE -> configManager.setJumpCircleEnabled(!config.isJumpCircleEnabled());
             case ASPECT -> configManager.setAspectEnabled(!config.isAspectEnabled());
             case MEDIA_PLAYER -> configManager.setMediaPlayerEnabled(!config.isMediaPlayerEnabled());
@@ -1722,6 +2754,24 @@ public final class OrionClickGuiScreen extends Screen {
             }
             case FULL_BRIGHT -> configManager.setFullBrightEnabled(!config.isFullBrightEnabled());
             case WORLD_PARTICLES -> configManager.setWorldParticlesEnabled(!config.isWorldParticlesEnabled());
+            case ANIMATIONS -> configManager.setAnimationsEnabled(!config.isAnimationsEnabled());
+            case ENCHANT_GLINT -> configManager.setEnchantGlintEnabled(!config.isEnchantGlintEnabled());
+            case INVENTORY_HUD -> configManager.setInventoryHudEnabled(!config.isInventoryHudEnabled());
+            case SELF_TAG -> configManager.setSelfTagEnabled(!config.isSelfTagEnabled());
+            case ARMOR_INDICATOR -> configManager.setArmorIndicatorEnabled(!config.isArmorIndicatorEnabled());
+            case FOOTBALL -> configManager.setFootballEnabled(!config.isFootballEnabled());
+            case BASKETBALL -> configManager.setBasketballEnabled(!config.isBasketballEnabled());
+            case LOCK_SLOT -> configManager.setLockSlotEnabled(!config.isLockSlotEnabled());
+            case PVP_SAFE -> configManager.setPvpSafeEnabled(!config.isPvpSafeEnabled());
+            case KEYSTROKES -> configManager.setKeystrokesEnabled(!config.isKeystrokesEnabled());
+            case SATURATION -> configManager.setSaturationEnabled(!config.isSaturationEnabled());
+            case CHAT_HISTORY -> configManager.setChatHistoryEnabled(!config.isChatHistoryEnabled());
+            case CHAT_TIME -> configManager.setChatTimeEnabled(!config.isChatTimeEnabled());
+            case CUSTOM_TIME -> configManager.setCustomTimeEnabled(!config.isCustomTimeEnabled());
+            case ITEM_SCALING -> configManager.setItemScalingEnabled(!config.isItemScalingEnabled());
+            case SMALL_SHIELD -> configManager.setSmallShieldEnabled(!config.isSmallShieldEnabled());
+            case VIEW_MODEL -> configManager.setViewModelEnabled(!config.isViewModelEnabled());
+            case NO_PARTICLES -> configManager.setNoParticlesEnabled(!config.isNoParticlesEnabled());
             case NO_WEATHER -> configManager.setNoWeatherEnabled(!config.isNoWeatherEnabled());
             case NO_FIRE -> configManager.setNoFireEnabled(!config.isNoFireEnabled());
             case WORLD_CHANGER -> configManager.setWorldChangerEnabled(!config.isWorldChangerEnabled());
@@ -1741,15 +2791,45 @@ public final class OrionClickGuiScreen extends Screen {
     private boolean isActive(Action action) {
         OrionConfig config = configManager.getConfig();
         return switch (action) {
+            case ZOOM -> config.isZoomEnabled();
+            case CHAT_FILTER -> config.isChatFilterEnabled();
+            case CHAT_HIGHLIGHT -> config.isChatHighlightEnabled();
+            case WAYPOINTS -> config.isWaypointsEnabled();
+            case DEATH_POINT -> config.isDeathPointEnabled();
             case TARGET_ESP -> config.isTargetEspEnabled();
             case CHINA_HEAD -> config.isChinaHeadEnabled();
             case JUMP_CIRCLE -> config.isJumpCircleEnabled();
+            case PROJECTILE_TRAIL -> config.isProjectileTrailEnabled();
+            case DAMAGE_INDICATORS -> config.isDamageIndicatorsEnabled();
+            case BREADCRUMBS -> config.isBreadcrumbsEnabled();
+            case MOTION_BLUR -> config.isMotionBlurEnabled();
+            case BLOCK_HIGHLIGHT -> config.isBlockHighlightEnabled();
+            case ITEM_PHYSICS -> config.isItemPhysicsEnabled();
+            case HIT_PARTICLES -> config.isHitParticlesEnabled();
             case ASPECT -> config.isAspectEnabled();
             case MEDIA_PLAYER -> config.isMediaPlayerEnabled();
             case HUD -> config.isHudEnabled();
             case DISCORD -> config.isDiscordRpcEnabled();
             case FULL_BRIGHT -> config.isFullBrightEnabled();
             case WORLD_PARTICLES -> config.isWorldParticlesEnabled();
+            case ANIMATIONS -> config.isAnimationsEnabled();
+            case ENCHANT_GLINT -> config.isEnchantGlintEnabled();
+            case INVENTORY_HUD -> config.isInventoryHudEnabled();
+            case SELF_TAG -> config.isSelfTagEnabled();
+            case ARMOR_INDICATOR -> config.isArmorIndicatorEnabled();
+            case FOOTBALL -> config.isFootballEnabled();
+            case BASKETBALL -> config.isBasketballEnabled();
+            case LOCK_SLOT -> config.isLockSlotEnabled();
+            case PVP_SAFE -> config.isPvpSafeEnabled();
+            case KEYSTROKES -> config.isKeystrokesEnabled();
+            case SATURATION -> config.isSaturationEnabled();
+            case CHAT_HISTORY -> config.isChatHistoryEnabled();
+            case CHAT_TIME -> config.isChatTimeEnabled();
+            case CUSTOM_TIME -> config.isCustomTimeEnabled();
+            case ITEM_SCALING -> config.isItemScalingEnabled();
+            case SMALL_SHIELD -> config.isSmallShieldEnabled();
+            case VIEW_MODEL -> config.isViewModelEnabled();
+            case NO_PARTICLES -> config.isNoParticlesEnabled();
             case NO_WEATHER -> config.isNoWeatherEnabled();
             case NO_FIRE -> config.isNoFireEnabled();
             case WORLD_CHANGER -> config.isWorldChangerEnabled();
@@ -1770,10 +2850,12 @@ public final class OrionClickGuiScreen extends Screen {
             String query = searchQuery.toLowerCase(Locale.ROOT).trim();
             return Arrays.stream(ModuleRow.ALL)
                     .filter(row -> row.title.toLowerCase(Locale.ROOT).contains(query)
-                            || row.description.toLowerCase(Locale.ROOT).contains(query))
+                            || (row.description.toLowerCase(Locale.ROOT).contains(query) || tr(row.description).toLowerCase(Locale.ROOT).contains(query)))
                     .toArray(ModuleRow[]::new);
         }
-        return switch (Category.VALUES[selectedCategory]) {
+        if (paradox && paradoxFavoritesOnly) return sortedThemeRows(Arrays.stream(ModuleRow.ALL).filter(row -> paradoxFavorites.contains(row.action)).toArray(ModuleRow[]::new));
+        if (paradox && paradoxAll) return sortedThemeRows(ModuleRow.ALL);
+        ModuleRow[] rows = switch (Category.VALUES[selectedCategory]) {
             case COMBAT -> ModuleRow.COMBAT;
             case PLAYER -> ModuleRow.PLAYER;
             case MOVEMENT -> ModuleRow.MOVEMENT;
@@ -1782,13 +2864,41 @@ public final class OrionClickGuiScreen extends Screen {
             case MISC -> ModuleRow.MISC;
             case SETTINGS -> ModuleRow.SETTINGS;
         };
+        return sortedThemeRows(rows);
+    }
+
+    private ModuleRow[] sortedThemeRows(ModuleRow[] rows) {
+        if (!paradox) return rows;
+        return Arrays.stream(rows).sorted(java.util.Comparator.comparing(row -> row.title.toLowerCase(Locale.ROOT))).toArray(ModuleRow[]::new);
     }
 
     private void updateAnimations() {
         long now = System.nanoTime();
         float dt = lastFrameNanos == 0L ? 0.0F : (now - lastFrameNanos) / 1_000_000_000.0F;
         lastFrameNanos = now;
-        float toggleStep = Math.min(1.0F, dt * 1000.0F / TOGGLE_ANIMATION_MS);
+        if (paradox) {
+            List<Object> identity = List.of(configManager.getConfig().getClickGuiTheme(), selectedCategory, paradoxAll, paradoxFavoritesOnly, searchQuery,
+                    settingsFor == null ? "" : settingsFor.action.name());
+            if (!identity.equals(pageIdentity)) {
+                pageIdentity = identity; pageStartedAt = now; pageAnimation = 0F; scrollAnimation = settingsScroll;
+                settingToggleAnimation = new float[0];
+            }
+            pageAnimation = Math.min(1F, (now - pageStartedAt) / 200_000_000F);
+            cardsAnimation = Math.min(1F, (now - pageStartedAt) / 600_000_000F);
+            float weight = 1F - (float)Math.exp(-20F * Math.min(dt, .1F));
+            scrollAnimation += (settingsScroll - scrollAnimation) * weight;
+            if (Math.abs(settingsScroll - scrollAnimation) < .3F) scrollAnimation = settingsScroll;
+            if (settingToggleAnimation.length != settingsRows.length) {
+                settingToggleAnimation = new float[settingsRows.length];
+                for (int i = 0; i < settingsRows.length; i++) {
+                    if (settingsRows[i] instanceof ToggleSetting toggle) settingToggleAnimation[i] = toggle.get.get() ? 1F : 0F;
+                }
+            }
+            for (int i = 0; i < settingsRows.length; i++) {
+                if (settingsRows[i] instanceof ToggleSetting toggle) settingToggleAnimation[i] = approach(settingToggleAnimation[i], toggle.get.get() ? 1F : 0F, dt * 7F);
+            }
+        }
+        float toggleStep = Math.min(1.0F, dt * 1000.0F / (paradox ? 280 : TOGGLE_ANIMATION_MS));
         float hoverStep = Math.min(1.0F, dt * 1000.0F / HOVER_ANIMATION_MS);
 
         for (Action action : Action.VALUES) {
@@ -1806,10 +2916,20 @@ public final class OrionClickGuiScreen extends Screen {
     private List<Integer> fingerprint(int scale) {
         List<Integer> values = new ArrayList<>(32);
         values.add(scale);
+        values.add(OrionGuiLanguage.english() ? 1 : 0);
         values.add(guiDisplayWidth());
         values.add(guiDisplayHeight());
         values.add(configManager.getConfig().getClickGuiTheme());
         values.add(selectedCategory);
+        if (paradox) {
+            values.add(Math.round(pageAnimation * 255));
+            values.add(Math.round(cardsAnimation * 255));
+            values.add(Math.round(scrollAnimation));
+            for (float value : settingToggleAnimation) values.add(Math.round(value * 255));
+        }
+        values.add(paradoxAll ? 1 : 0);
+        values.add(paradoxFavoritesOnly ? 1 : 0);
+        values.add(paradoxFavorites.hashCode());
         values.add(hoveredCategory);
         values.add(hoveredModule);
         for (Action action : Action.VALUES) {
@@ -1823,6 +2943,8 @@ public final class OrionClickGuiScreen extends Screen {
             values.add(Math.round(hover * 255));
         }
         values.add(settingsFor == null ? -1 : settingsFor.action.ordinal());
+        values.add(settingsScroll);
+        values.add(moduleScroll);
         values.add(searchQuery.hashCode());
         values.add(searchQuery.isEmpty() ? 0 : (int) ((System.currentTimeMillis() / 500L) % 2L));
         for (Setting setting : settingsRows) {
@@ -1830,15 +2952,24 @@ public final class OrionClickGuiScreen extends Screen {
                 values.add(choice.get.getAsInt());
             } else if (setting instanceof SliderSetting slider) {
                 values.add(Math.round(slider.get.get() * 1000));
+            } else if (setting instanceof KeybindSetting bind) {
+                KeyMapping key = bind.get.get();
+                values.add(key == null ? 0 : key.saveString().hashCode());
             } else if (setting instanceof ColorSetting color) {
                 values.add(color.get.get().hashCode());
             } else if (setting instanceof TextSetting text) {
                 values.add(text.get.get().hashCode());
             } else if (setting instanceof ToggleSetting toggle) {
                 values.add(toggle.get.get() ? 1 : 0);
+            } else if (setting instanceof ValueSetting value) {
+                values.add(value.get.get().hashCode());
             }
         }
         values.add(editingText);
+        values.add(editingBind);
+        values.add(textCaret);
+        values.add(textAnchor);
+        values.add(Math.round(textScrollX * 10));
         values.add(editingText >= 0 ? (int) ((System.currentTimeMillis() / 500L) % 2L) : -1);
         values.add(expandedColor);
         values.add(Math.round(pickerHue * 1000.0F));
@@ -1849,10 +2980,13 @@ public final class OrionClickGuiScreen extends Screen {
 
     private void applyPalette() {
         int theme = configManager.getConfig().getClickGuiTheme();
-        orion3 = theme == 2;
-        L = orion3 ? ORION3_LAYOUT : CLASSIC_LAYOUT;
-        sc = orion3 ? 0.65F : 1.0F;
+        paradox = theme == 3 || theme == 4;
+        orion3 = theme == 2 || paradox;
+        L = paradox ? (settingsFor != null ? PARADOX_LAYOUT : PARADOX_MODULE_LAYOUT) : orion3 ? ORION3_LAYOUT : CLASSIC_LAYOUT;
+        sc = orion3 ? 0.85F : 1.0F;
         pal = switch (theme) {
+            case 3 -> PARADOX_PALETTE;
+            case 4 -> PARADOX_LIGHT_PALETTE;
             case 1 -> PRIZRAK_PALETTE;
             case 2 -> ORION3_PALETTE;
             default -> ORION_PALETTE;
@@ -1882,6 +3016,8 @@ public final class OrionClickGuiScreen extends Screen {
         float factor = switch (configManager.getConfig().getClickGuiTheme()) {
             case 1 -> ORION2_TARGET_SCALE;
             case 2 -> ORION3_TARGET_SCALE;
+            case 3 -> 0.94F;
+            case 4 -> 0.94F;
             default -> ORION_TARGET_SCALE;
         };
         if (width > 0 && height > 0) {
@@ -1889,7 +3025,7 @@ public final class OrionClickGuiScreen extends Screen {
             factor = Math.min(factor, (width - SCREEN_FIT_MARGIN) / (float) L.guiW);
             factor = Math.min(factor, (height - SCREEN_FIT_MARGIN) / (float) L.guiH);
         }
-        return Math.max(0.4F, factor);
+        return Math.max(paradox ? 0.1F : 0.4F, factor);
     }
 
     private int guiDisplayWidth() {
@@ -1916,7 +3052,8 @@ public final class OrionClickGuiScreen extends Screen {
         g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
     }
 
-    private static Font headingFont(float size) {
+    private Font headingFont(float size) {
+        if (paradox) return OrionInterfaceFonts.face(3,Math.max(10F,size*1.25F));
         Font font = pickFont(size, Font.PLAIN, "Inter SemiBold", "Inter Semi Bold", "Segoe UI Semibold");
         if (font != null) {
             return font;
@@ -1925,7 +3062,8 @@ public final class OrionClickGuiScreen extends Screen {
         return font != null ? font : new Font(Font.SANS_SERIF, Font.BOLD, Math.round(size)).deriveFont(Font.BOLD, size);
     }
 
-    private static Font bodyFont(float size) {
+    private Font bodyFont(float size) {
+        if (paradox) return OrionInterfaceFonts.face(1,Math.max(9F,size*1.3F));
         Font font = pickFont(size, Font.PLAIN, "Inter", "SF Pro Display", "Segoe UI");
         return font != null ? font : new Font(Font.SANS_SERIF, Font.PLAIN, Math.round(size)).deriveFont(Font.PLAIN, size);
     }
@@ -1939,6 +3077,8 @@ public final class OrionClickGuiScreen extends Screen {
         }
         return null;
     }
+
+    private static String tr(String text) { return OrionGuiLanguage.translate(text); }
 
     private static void drawText(Graphics2D g, String text, float x, float baseline, Font font, Color color, boolean shadow) {
         g.setFont(font);
@@ -2029,17 +3169,20 @@ public final class OrionClickGuiScreen extends Screen {
         CROSSHAIR, PLAYER, MOVEMENT, EYE, CUBE, GRID, FOLDER, SETTINGS, HAT, RINGS, EXPAND, MUSIC, MONITOR, SUN, CHAT
     }
 
-    private sealed interface Setting permits ChoiceSetting, SliderSetting, ColorSetting, ToggleSetting, TextSetting,
-            ButtonSetting {
+    private sealed interface Setting permits ChoiceSetting, SliderSetting, ColorSetting, ToggleSetting, TextSetting, KeybindSetting,
+            ButtonSetting, ValueSetting {
         String label();
     }
 
     private record ButtonSetting(String label, String buttonText, Runnable onClick) implements Setting {
     }
+    private record ValueSetting(String label, Supplier<String> get) implements Setting { }
 
     private record TextSetting(String label, Supplier<String> get, Consumer<String> set, int maxLength)
             implements Setting {
     }
+
+    private record KeybindSetting(String label, Supplier<KeyMapping> get) implements Setting { }
 
     private record ChoiceSetting(String label, String[] options, IntSupplier get, IntConsumer set) implements Setting {
     }
@@ -2060,8 +3203,8 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private enum Action {
-        TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
-        WORLD_PARTICLES, NO_WEATHER, NO_FIRE, WORLD_CHANGER, HEALTH_TAGS, PROTECT_NAME, FAKE_PREFIX,
+        ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, WAYPOINTS, DEATH_POINT, TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, ITEM_PHYSICS, HIT_PARTICLES, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
+        WORLD_PARTICLES, FOOTBALL, BASKETBALL, ANIMATIONS, ENCHANT_GLINT, INVENTORY_HUD, SELF_TAG, ARMOR_INDICATOR, LOCK_SLOT, PVP_SAFE, KEYSTROKES, SATURATION, CHAT_HISTORY, CHAT_TIME, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, NO_PARTICLES, NO_WEATHER, NO_FIRE, WORLD_CHANGER, HEALTH_TAGS, PROTECT_NAME, FAKE_PREFIX,
         HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW;
 
         private static final Action[] VALUES = values();
@@ -2073,33 +3216,63 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("HitBox", "Перекрашивает хитбоксы (F3+B)", Icon.CUBE, Action.HIT_BOX),
                 new ModuleRow("HitColor", "Заливка хитбокса при ударе", Icon.CROSSHAIR, Action.HIT_COLOR),
                 new ModuleRow("HitSound", "Звук при ударе по цели", Icon.MUSIC, Action.HIT_SOUND),
-                new ModuleRow("BetterNear", "Игроки рядом: ник, дистанция, стрелка", Icon.PLAYER, Action.BETTER_NEAR)
+                new ModuleRow("BetterNear", "Игроки рядом: ник, дистанция, стрелка", Icon.PLAYER, Action.BETTER_NEAR),
+                new ModuleRow("ArmorIndicator", "Броня игроков над головой", Icon.PLAYER, Action.ARMOR_INDICATOR),
+                new ModuleRow("HitParticles", "Искры при ударе", Icon.GRID, Action.HIT_PARTICLES),
+                new ModuleRow("DamageIndicators", "Урон от ваших ударов", Icon.CROSSHAIR, Action.DAMAGE_INDICATORS),
+                new ModuleRow("PvpSafe", "Предупреждает о выходе во время боя", Icon.CROSSHAIR, Action.PVP_SAFE)
         };
         private static final ModuleRow[] PLAYER = {
                 new ModuleRow("ChinaHead", "Рисует шляпу над головой", Icon.HAT, Action.CHINA_HEAD),
                 new ModuleRow("Aspect", "Растягивает обзор (stretch)", Icon.EXPAND, Action.ASPECT),
                 new ModuleRow("ProtectName", "Прячет ваш ник за псевдонимом", Icon.PLAYER, Action.PROTECT_NAME),
-                new ModuleRow("FakePrefix", "Заменяет ваш донат-префикс", Icon.PLAYER, Action.FAKE_PREFIX)
+                new ModuleRow("FakePrefix", "Заменяет ваш донат-префикс", Icon.PLAYER, Action.FAKE_PREFIX),
+                new ModuleRow("LockSlot", "Защищает выбранные слоты", Icon.GRID, Action.LOCK_SLOT),
+                new ModuleRow("SelfTag", "Ник над вами в третьем лице", Icon.PLAYER, Action.SELF_TAG)
         };
         private static final ModuleRow[] MOVEMENT = {
-                new ModuleRow("JumpCircle", "Кольцо на земле при прыжке", Icon.RINGS, Action.JUMP_CIRCLE)
+                new ModuleRow("JumpCircle", "Кольцо на земле при прыжке", Icon.RINGS, Action.JUMP_CIRCLE),
+                new ModuleRow("Breadcrumbs", "Светящийся след за игроком", Icon.RINGS, Action.BREADCRUMBS)
         };
         private static final ModuleRow[] RENDER = {
+                new ModuleRow("Zoom", "Приближение при удержании клавиши", Icon.EYE, Action.ZOOM),
                 new ModuleRow("RainbowColor", "Все цвета переливаются радугой", Icon.SUN, Action.RAINBOW),
                 new ModuleRow("Crosshair", "Свой прицел: рисуется в редакторе", Icon.CROSSHAIR, Action.CROSSHAIR),
                 new ModuleRow("FullBright", "Повышает яркость мира", Icon.SUN, Action.FULL_BRIGHT),
                 new ModuleRow("HUD", "Отображает интерфейс клиента", Icon.MONITOR, Action.HUD),
+                new ModuleRow("Keystrokes", "Показывает нажатые клавиши", Icon.GRID, Action.KEYSTROKES),
+                new ModuleRow("InventoryHUD", "Содержимое инвентаря на экране", Icon.GRID, Action.INVENTORY_HUD),
+                new ModuleRow("Saturation", "Показывает насыщение", Icon.SUN, Action.SATURATION),
                 new ModuleRow("Health Indicator", "Показывает сердечки игроков", Icon.PLAYER, Action.HEALTH_TAGS),
-                new ModuleRow("NoFire", "Убирает огонь с экрана полностью", Icon.EYE, Action.NO_FIRE)
+                new ModuleRow("NoFire", "Убирает огонь с экрана полностью", Icon.EYE, Action.NO_FIRE),
+                new ModuleRow("NoParticles", "Скрывает лишние частицы", Icon.GRID, Action.NO_PARTICLES),
+                new ModuleRow("Animations", "Плавность хотбара и инвентаря", Icon.GRID, Action.ANIMATIONS),
+                new ModuleRow("ItemScaling", "Размер предмета в руке", Icon.CUBE, Action.ITEM_SCALING),
+                new ModuleRow("SmallShield", "Уменьшает щит", Icon.CUBE, Action.SMALL_SHIELD),
+                new ModuleRow("EnchantGlint", "Переливание зачарованных вещей", Icon.SUN, Action.ENCHANT_GLINT),
+                new ModuleRow("ViewModel", "Положение рук", Icon.PLAYER, Action.VIEW_MODEL)
         };
         private static final ModuleRow[] WORLD = {
+                new ModuleRow("Waypoints", "Метки мира и управление ими", Icon.RINGS, Action.WAYPOINTS),
+                new ModuleRow("DeathPoint", "Метка последнего места смерти", Icon.RINGS, Action.DEATH_POINT),
                 new ModuleRow("NoWeather", "Отключает дождь и снег", Icon.CUBE, Action.NO_WEATHER),
                 new ModuleRow("WorldChanger", "Меняет цвет неба и тумана", Icon.EYE, Action.WORLD_CHANGER),
-                new ModuleRow("WorldParticles", "Добавляет частицы в мире", Icon.GRID, Action.WORLD_PARTICLES)
+                new ModuleRow("CustomTime", "Свое время суток", Icon.SUN, Action.CUSTOM_TIME),
+                new ModuleRow("WorldParticles", "Добавляет частицы в мире", Icon.GRID, Action.WORLD_PARTICLES),
+                new ModuleRow("ProjectileTrail", "След стрел, перлов и трезубцев", Icon.RINGS, Action.PROJECTILE_TRAIL),
+                new ModuleRow("BlockHighlight", "Плавный контур блока", Icon.CUBE, Action.BLOCK_HIGHLIGHT),
+                new ModuleRow("ItemPhysics", "Предметы лежат на земле", Icon.CUBE, Action.ITEM_PHYSICS)
         };
         private static final ModuleRow[] MISC = {
+                new ModuleRow("ChatFilter", "Скрывает сообщения по словам", Icon.CHAT, Action.CHAT_FILTER),
+                new ModuleRow("ChatHighlight", "Подсвечивает слова в чате", Icon.CHAT, Action.CHAT_HIGHLIGHT),
+                new ModuleRow("Basketball", "Клиентский баскетбол", Icon.RINGS, Action.BASKETBALL),
+                new ModuleRow("Football", "Клиентский футбол", Icon.RINGS, Action.FOOTBALL),
                 new ModuleRow("Discord", "Показывает статус в Discord", Icon.CHAT, Action.DISCORD),
-                new ModuleRow("MediaPlayer", "Виджет проигрываемой музыки", Icon.MUSIC, Action.MEDIA_PLAYER)
+                new ModuleRow("ChatTime", "Время перед сообщениями", Icon.CHAT, Action.CHAT_TIME),
+                new ModuleRow("ChatHistory", "Сохраняет чат при переподключении", Icon.CHAT, Action.CHAT_HISTORY),
+                new ModuleRow("MediaPlayer", "Виджет проигрываемой музыки", Icon.MUSIC, Action.MEDIA_PLAYER),
+                new ModuleRow("MotionBlur", "Размытие при движении камеры", Icon.EYE, Action.MOTION_BLUR)
         };
         private static final ModuleRow[] SETTINGS = {};
 

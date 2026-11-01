@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.orion.client.hud.OrionGlassCompositor;
+import ru.orion.client.OrionClient;
 
 import java.util.function.Supplier;
 
@@ -17,11 +18,15 @@ public abstract class GuiRendererGlassMixin {
             at = @At("HEAD"))
     private void orion$captureGlassBackground(Supplier<String> label, RenderTarget target,
                                             GpuBufferSlice transforms, int from, int to, CallbackInfo callback) {
+        var motionBlur = OrionClient.getMotionBlurOrNull();
+        if (motionBlur != null) motionBlur.captureBeforeGui(target.getColorTexture());
         OrionGlassCompositor.INSTANCE.captureBeforeGui(target.getColorTexture());
     }
 
     @Inject(method = "close()V", at = @At("HEAD"))
     private void orion$releaseGlass(CallbackInfo callback) {
+        var motionBlur = OrionClient.getMotionBlurOrNull();
+        if (motionBlur != null) motionBlur.release();
         OrionGlassCompositor.INSTANCE.close();
     }
 }

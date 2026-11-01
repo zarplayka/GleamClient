@@ -1,0 +1,32 @@
+{
+  "basket.bounce": {
+    "sounds": [
+      "orion-client:basket_bounce"
+    ]
+  },
+  "basket.rim": {
+    "sounds": [
+      "orion-client:basket_rim"
+    ]
+  },
+  "basket.board": {
+    "sounds": [
+      "orion-client:basket_board"
+    ]
+  },
+  "basket.swish": {
+    "sounds": [
+      "orion-client:basket_swish"
+    ]
+  },
+  "basket.catch": {
+    "sounds": [
+      "orion-client:basket_catch"
+    ]
+  },
+  "basket.hand": {
+    "sounds": [
+      "orion-client:basket_hand"
+    ]
+  }
+}

@@ -30,6 +30,12 @@ public final class MultiPlayerGameModeMixin {
             hitColorFlash.recordHit(target);
         }
 
+        var indicators = OrionClient.getDamageIndicatorsOrNull();
+        if (indicators != null) indicators.onAttack(target);
+
+        var hitParticles = OrionClient.getHitParticlesOrNull();
+        if (hitParticles != null) hitParticles.onHit(target);
+
         OrionHitSound hitSound = OrionClient.getHitSoundOrNull();
         if (hitSound != null) {
             hitSound.onHit(target);

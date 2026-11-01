@@ -5,6 +5,8 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.KeyEvent;
+import ru.orion.client.effect.OrionLockSlot;
 import net.minecraft.resources.Identifier;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
@@ -18,6 +20,8 @@ public final class OrionKeybinds {
 
     private final OrionConfigManager configManager;
     private KeyMapping openClickGuiKey;
+    private static KeyMapping lockSlotKey;
+    private static KeyMapping zoomKey;
 
     public OrionKeybinds(OrionConfigManager configManager) {
         this.configManager = configManager;
@@ -31,10 +35,27 @@ public final class OrionKeybinds {
                 CATEGORY
         ));
 
+        lockSlotKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.orion-client.lock_slot", InputConstants.Type.KEYBOARD, InputConstants.KEY_L, CATEGORY));
+        zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.orion-client.zoom", InputConstants.Type.KEYBOARD, InputConstants.KEY_C, CATEGORY));
         ClientTickEvents.END_CLIENT_TICK.register(this::handleClientTick);
     }
 
+    public static KeyMapping getLockSlotKey() { return lockSlotKey; }
+    public static KeyMapping getZoomKey() { return zoomKey; }
+    public static boolean isZoomDown() { return zoomKey != null && zoomKey.isDown(); }
+
+    public static boolean isLockSlotKey(KeyEvent event) {
+        return lockSlotKey != null && lockSlotKey.matches(event);
+    }
+
     private void handleClientTick(Minecraft client) {
+        while (lockSlotKey.consumeClick()) {
+            if (client.player != null && client.gui.screen() == null && configManager.getConfig().isLockSlotEnabled()) {
+                OrionLockSlot.toggleIndex(client.player.getInventory().getSelectedSlot());
+            }
+        }
         while (openClickGuiKey.consumeClick()) {
             client.gui.setScreen(new OrionClickGuiScreen(configManager));
         }

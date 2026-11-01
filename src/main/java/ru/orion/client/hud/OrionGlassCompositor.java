@@ -98,11 +98,16 @@ public final class OrionGlassCompositor {
 
     public boolean submit(Identifier id, GuiGraphicsExtractor context, DynamicTexture foreground,
                           int x, int y, int width, int height) {
+        return submit(id,context,foreground,x,y,width,height,false);
+    }
+
+    public boolean submit(Identifier id, GuiGraphicsExtractor context, DynamicTexture foreground,
+                          int x, int y, int width, int height, boolean screenGlass) {
         Minecraft client = Minecraft.getInstance();
         MaskTexture entry = masks.get(id);
         // Экран меню может размывать весь GUI отдельным проходом: оставляем ему управление фоном.
-        if (entry == null || (client.gui.screen() != null && !(client.gui.screen() instanceof ChatScreen))
-                || ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState().isHudHidden) {
+        if (entry == null || (!screenGlass && client.gui.screen() != null && !(client.gui.screen() instanceof ChatScreen))
+                || (!screenGlass && ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState().isHudHidden)) {
             return false;
         }
         GpuTexture source = client.gameRenderer.mainRenderTarget().getColorTexture();
@@ -163,6 +168,7 @@ public final class OrionGlassCompositor {
             }
             return;
         }
+        if(source != Minecraft.getInstance().gameRenderer.mainRenderTarget().getColorTexture())return;
         captureRequested = false;
         // Между extraction и render framebuffer может быть пересоздан при resize или смене мира.
         // В этом кадре сохраняем прежний фон, не закрывая текстуры уже собранных GUI-состояний.

@@ -20,6 +20,8 @@ import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Target ESP rendered like the reference from zar.jar:
@@ -32,7 +34,6 @@ public final class OrionTargetEsp {
 
     private static final float TARGET_FPS = 60.0F;
     private static final float TARGET_FRAME_TIME = 1000.0F / TARGET_FPS;
-    private static final float POSITION_SMOOTHING = 1.5F;
     private static final float APPEAR_SPEED = 0.18F;
     private static final float DISAPPEAR_SPEED = 0.18F;
     private static final float BASE_SCALE = 0.50F;
@@ -45,12 +46,12 @@ public final class OrionTargetEsp {
     private static final float CHAIN_SCALE = 0.5F;
     private static final float CHAIN_BAND_HEIGHT = 1.5F;
     private static final float CHAIN_BOTTOM_Y = -0.5F;
-    private static final int CHAIN_PARTS = 18;
+    private static final int CHAIN_PARTS = 6;
     private static final int CHAIN_POINTS = 720;
     private static final float CHAIN_U_REPEATS = 8.0F;
     private static final float CHAIN_TOP_COLOR_MULTIPLIER = 1.15F;
     private static final int CHAIN_MAX_ALPHA = 128;
-    private static final int MARKER_SEGMENTS = 64;
+    private static final int MARKER_SEGMENTS = 128;
     private static final float MARKER_STEP_SPEED = 0.06F;
     private static final float MARKER_RADIUS_PULSE = 0.18F;
     private static final float MARKER_OUTER_RADIUS = 1.35F;
@@ -133,10 +134,11 @@ public final class OrionTargetEsp {
 
         updateAnim(hasTarget, deltaTime);
         if (!hasTarget) {
-            if (anim <= 0.0F) {
+            if (anim <= 0.0F || lastTarget == null || !lastTarget.isAlive()) {
                 clearTargetState();
+                return;
             }
-            return;
+            target = lastTarget;
         }
 
         if (anim <= 0.01F) {
@@ -149,7 +151,7 @@ public final class OrionTargetEsp {
             smoothedPosition = targetPosition;
             lastTarget = target;
         } else {
-            float smoothing = Math.min(1.0F, client.getDeltaTracker().getGameTimeDeltaTicks() * POSITION_SMOOTHING);
+            float smoothing = 1.0F - (float) Math.exp(-0.35F * deltaTime);
             smoothedPosition = smoothedPosition.lerp(targetPosition, smoothing);
         }
 
@@ -193,7 +195,7 @@ public final class OrionTargetEsp {
                     smoothedPosition.y - cameraPosition.y + target.getBbHeight() * 0.5F,
                     smoothedPosition.z - cameraPosition.z
             );
-            submitGhost(context, poseStack, camera, anim, hitAnimSmoothed, color1, color2, darken(color1, 0.8F));
+            submitGhost(context, poseStack, camera.position().subtract(smoothedPosition.add(0.0D, target.getBbHeight() * 0.5D, 0.0D)), anim, hitAnimSmoothed, color1, color2, darken(color1, 0.8F));
             poseStack.popPose();
             return;
         }
@@ -321,41 +323,31 @@ public final class OrionTargetEsp {
         );
     }
 
-    private static void submitGhost(LevelRenderContext context, PoseStack poseStack, Camera camera, float alpha, float hitAnim, int color1, int color2, int color3) {
-        RenderType renderType = OrionEspRenderTypes.texturedDepthTested(texture("ghost"));
-        submitGhostRibbon(context, poseStack, camera, renderType, alpha, hitAnim, color1, color2, 0);
-        submitGhostRibbon(context, poseStack, camera, renderType, alpha, hitAnim, color2, color3, 1);
-        submitGhostRibbon(context, poseStack, camera, renderType, alpha, hitAnim, color3, color1, 2);
-    }
-
-    private static void submitGhostRibbon(LevelRenderContext context, PoseStack parent, Camera camera, RenderType renderType, float alpha, float hitAnim, int fromColor, int toColor, int lane) {
+    private static void submitGhost(LevelRenderContext context, PoseStack poseStack, Vec3 camera,
+                                    float alpha, float hitAnim, int color1, int color2, int color3) {
         double radius = GHOST_OUTER_RADIUS * (1.0D - 0.25D * hitAnim);
-        double speed = 11.0D * (1.0D - 0.25D * hitAnim);
-        long now = System.currentTimeMillis();
-
-        for (int index = 0; index < 40.0F * alpha; index++) {
-            parent.pushPose();
-            double angle = 0.15D * (now * 0.5D - index * speed) / 30.0D;
-            double x = Math.sin(angle) * radius;
-            double y = Math.cos(angle) * radius;
-            Vec3 offset = ghostOffset(lane, x, y);
-            parent.translate(offset.x, offset.y, offset.z);
-            parent.rotate(camera.rotation());
-            parent.rotate(Axis.ZP.rotationDegrees(now * 0.1F - index * 10.0F));
-            parent.translate(0.25F, 0.25F, 0.0F);
-
-            float progress = index / 40.0F;
-            int color = lerpColor(fromColor, toColor, progress);
-            int alphaValue = Math.round(Math.max(0.0F, 255.0F - index * 15.0F) * alpha);
-            int particleColor = withAlpha(color, alphaValue);
-
-            context.submitNodeCollector().submitCustomGeometry(
-                    parent,
-                    renderType,
-                    (pose, vertexConsumer) -> buildGhostQuad(pose, vertexConsumer, particleColor)
-            );
-            parent.popPose();
+        double phase = (System.nanoTime() / 1_000_000_000.0D * 2.5D) % (Math.PI * 2.0D);
+        int[] colors = {color1, color2, color3};
+        List<List<OrionRibbon.Point>> ribbons = new ArrayList<>(3);
+        for (int lane = 0; lane < 3; lane++) {
+            List<OrionRibbon.Point> path = new ArrayList<>(65);
+            for (int i = 0; i <= 64; i++) {
+                float progress = i / 64.0F;
+                double angle = phase - progress * 2.2D;
+                Vec3 point = ghostOffset(lane, Math.sin(angle) * radius, Math.cos(angle) * radius);
+                float fade = (float) Math.sin(Math.PI * progress);
+                int color = withAlpha(lerpColor(colors[lane], colors[(lane + 1) % 3], progress),
+                        Math.round(190.0F * alpha * fade));
+                path.add(new OrionRibbon.Point(point, color));
+            }
+            ribbons.add(path);
         }
+        context.submitNodeCollector().submitCustomGeometry(poseStack, OrionEspRenderTypes.colorQuadsDepthTested(),
+                (pose, vertices) -> {
+                    for (List<OrionRibbon.Point> path : ribbons) {
+                        OrionRibbon.draw(pose, vertices, path, camera, 0.09F, true);
+                    }
+                });
     }
 
     private static Vec3 ghostOffset(int lane, double x, double y) {
@@ -541,8 +533,8 @@ public final class OrionTargetEsp {
         float radius = Math.max(target.getBbWidth() * MARKER_OUTER_RADIUS, target.getBbWidth() + 0.24F) * radiusScale;
         float height = target.getBbHeight();
 
-        markerSmoothY = lerp(markerSmoothY, smoothSinAnimation(circleStep) * height, 0.12D);
-        markerSmoothY2 = lerp(markerSmoothY2, smoothSinAnimation(circleStep - 0.35D) * height, 0.10D);
+        markerSmoothY = lerp(markerSmoothY, smoothSinAnimation(circleStep) * height, 1.0D - Math.pow(0.88D, deltaTime));
+        markerSmoothY2 = lerp(markerSmoothY2, smoothSinAnimation(circleStep - 0.35D) * height, 1.0D - Math.pow(0.90D, deltaTime));
 
         int color1 = lerpColor(baseColor, RED_HIT_COLOR, hitRedProgress);
         int color2 = lerpColor(lighten(baseColor, CHAIN_TOP_COLOR_MULTIPLIER), RED_HIT_COLOR, hitRedProgress);
@@ -584,11 +576,6 @@ public final class OrionTargetEsp {
             addColorVertex(pose, vc, lower1, solid1);
             addColorVertex(pose, vc, upper1, clear1);
             addColorVertex(pose, vc, upper0, clear0);
-
-            addColorVertex(pose, vc, upper0, clear0);
-            addColorVertex(pose, vc, upper1, clear1);
-            addColorVertex(pose, vc, lower1, solid1);
-            addColorVertex(pose, vc, lower0, solid0);
 
             addMarkerVerticalGlow(pose, vc, lower0, upper0, sideGlow0, clear0);
             addMarkerOutline(pose, vc, i, radius, lowerY, line0, line1);

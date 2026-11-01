@@ -1,4 +1,24 @@
 {
   "key.orion-client.open_click_gui": "Open Orion ClickGUI",
-  "key.categories.orion-client.orion_client": "Orion Client"
+  "key.orion-client.zoom": "Zoom",
+  "key.categories.orion-client.orion_client": "Orion Client",
+  "key.orion-client.lock_slot": "Toggle locked slot",
+  "key.categories.orion-client.basketball": "Basketball",
+  "key.orion-client.basketball.ball": "Take/create ball",
+  "key.orion-client.basketball.place": "Place/confirm hoop",
+  "key.orion-client.basketball.move": "Move/confirm hoop",
+  "key.orion-client.basketball.remove": "Remove nearest hoop",
+  "key.orion-client.basketball.pickup": "Pick up ball",
+  "key.orion-client.basketball.reset": "Reset score",
+  "key.orion-client.basketball.rotate_left": "Rotate hoop left",
+  "key.orion-client.basketball.rotate_right": "Rotate hoop right",
+  "key.categories.orion-client.football": "Football",
+  "key.orion-client.football.ball": "Reset ball",
+  "key.orion-client.football.goal": "Place goal",
+  "key.orion-client.football.keeper": "Toggle goalkeeper",
+  "key.orion-client.football.move": "Move goal",
+  "key.orion-client.football.remove": "Remove goal",
+  "key.orion-client.football.rotate_left": "Rotate goal left",
+  "key.orion-client.football.rotate_right": "Rotate goal right",
+  "key.orion-client.football.penalty": "Toggle penalty mode"
 }

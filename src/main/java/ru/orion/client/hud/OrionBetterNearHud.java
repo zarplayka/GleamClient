@@ -61,10 +61,7 @@ public final class OrionBetterNearHud {
     private int guiHeight;
     private List<Object> lastFingerprint;
     // Перетаскивание при открытом чате.
-    private boolean wasMouseDown;
-    private boolean dragging;
-    private double dragOffsetX;
-    private double dragOffsetY;
+    private final OrionHudDrag drag = new OrionHudDrag("nearby");
 
     private record NearPlayer(String name, int distance, int sector) {
     }
@@ -97,8 +94,7 @@ public final class OrionBetterNearHud {
         // При открытом чате панель видна даже пустой — чтобы её можно было перетащить.
         if (nearPlayers.isEmpty() && !chatOpen) {
             releaseTextures();
-            wasMouseDown = false;
-            dragging = false;
+            drag.cancel(configManager);
             return;
         }
 
@@ -106,6 +102,7 @@ public final class OrionBetterNearHud {
 
         List<Object> fingerprint = new ArrayList<>(nearPlayers.size() * 3 + 3);
         fingerprint.add(scale);
+        fingerprint.add(config.getHudElementScale("nearby"));
         fingerprint.add(config.getAccentColor());
         fingerprint.add(OrionRainbow.fingerprintStep());
         for (NearPlayer near : nearPlayers) {
@@ -122,10 +119,10 @@ public final class OrionBetterNearHud {
             return;
         }
 
-        handleDrag(client, context, config, chatOpen);
-
         int x = effectiveX(context, config);
         int y = effectiveY(context, config);
+        var position=drag.update(context,x,y,guiWidth,guiHeight,configManager,(nx,ny)->{config.setBetterNearX(nx);config.setBetterNearY(ny);});
+        x=position.x(); y=position.y();
         if (!OrionGlassCompositor.INSTANCE.submit(HUD_TEXTURE, context, dynamicTexture, x, y, guiWidth, guiHeight)) {
             context.blit(HUD_TEXTURE, x, y, x + guiWidth, y + guiHeight, 0.0F, 1.0F, 0.0F, 1.0F);
         }
@@ -141,39 +138,6 @@ public final class OrionBetterNearHud {
     private int effectiveY(GuiGraphicsExtractor context, OrionConfig config) {
         int y = config.getBetterNearY() < 0 ? SCREEN_MARGIN : config.getBetterNearY();
         return Mth.clamp(y, 0, Math.max(0, context.guiHeight() - guiHeight));
-    }
-
-    /** Перетаскивание мышью, пока открыт чат (курсор свободен только там). */
-    private void handleDrag(Minecraft client, GuiGraphicsExtractor context, OrionConfig config, boolean chatOpen) {
-        if (!chatOpen) {
-            wasMouseDown = false;
-            dragging = false;
-            return;
-        }
-
-        boolean down = client.mouseHandler.isLeftPressed();
-        double mouseX = client.mouseHandler.getScaledXPos(client.getWindow());
-        double mouseY = client.mouseHandler.getScaledYPos(client.getWindow());
-
-        if (down && !wasMouseDown) {
-            int x = effectiveX(context, config);
-            int y = effectiveY(context, config);
-            if (mouseX >= x && mouseX <= x + guiWidth && mouseY >= y && mouseY <= y + guiHeight) {
-                dragging = true;
-                dragOffsetX = mouseX - x;
-                dragOffsetY = mouseY - y;
-            }
-        } else if (down && dragging) {
-            int newX = Mth.clamp((int) Math.round(mouseX - dragOffsetX), 0, Math.max(0, context.guiWidth() - guiWidth));
-            int newY = Mth.clamp((int) Math.round(mouseY - dragOffsetY), 0, Math.max(0, context.guiHeight() - guiHeight));
-            config.setBetterNearX(newX);
-            config.setBetterNearY(newY);
-        } else if (!down && dragging) {
-            dragging = false;
-            configManager.save();
-        }
-
-        wasMouseDown = down;
     }
 
     private List<NearPlayer> collectNearPlayers(Minecraft client, LocalPlayer player, int radius) {
@@ -207,8 +171,8 @@ public final class OrionBetterNearHud {
         float designWidth = PANEL_WIDTH;
         float designHeight = HEADER_HEIGHT + Math.max(1, nearPlayers.size()) * ROW_HEIGHT + BOTTOM_PAD;
 
-        guiWidth = Math.max(1, Math.round(designWidth));
-        guiHeight = Math.max(1, Math.round(designHeight));
+        guiWidth = Math.max(1, Math.round(designWidth*config.getHudElementScale("nearby")));
+        guiHeight = Math.max(1, Math.round(designHeight*config.getHudElementScale("nearby")));
         int imageWidth = guiWidth * scale;
         int imageHeight = guiHeight * scale;
 
@@ -264,14 +228,15 @@ public final class OrionBetterNearHud {
     }
 
     private void releaseTextures() {
+        drag.cancel(configManager);
         if (dynamicTexture != null) {
             Minecraft.getInstance().getTextureManager().release(HUD_TEXTURE);
             dynamicTexture = null;
             lastFingerprint = null;
         }
         OrionGlassCompositor.INSTANCE.releaseMask(HUD_TEXTURE);
-        wasMouseDown = false;
-        dragging = false;
+
+        drag.cancel(configManager);
     }
 
     /** Стрелка-указатель, повёрнутая на angleDeg (0 — вверх, по часовой). */

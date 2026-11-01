@@ -28,6 +28,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -95,15 +96,26 @@ public final class OrionHitSound {
     }
 
     /** Открывает папку своих звуков в проводнике. */
-    public void openCustomFolder() {
-        executor.execute(() -> {
+    public void openCustomFolder(Consumer<Boolean> finished) {
+        Thread worker = new Thread(() -> {
             try {
-                Files.createDirectories(customDir());
-                Desktop.getDesktop().open(customDir().toFile());
+                Path directory = customDir().toAbsolutePath().normalize();
+                Files.createDirectories(directory);
+                if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("windows")) {
+                    new ProcessBuilder("explorer.exe", directory.toString()).start();
+                } else if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                    Desktop.getDesktop().open(directory.toFile());
+                } else {
+                    throw new IOException("Открытие папки не поддерживается на этой системе");
+                }
+                finished.accept(true);
             } catch (Exception exception) {
                 LOGGER.warn("HitSound: не удалось открыть папку {}.", customDir(), exception);
+                finished.accept(false);
             }
-        });
+        }, "orion-open-hitsounds");
+        worker.setDaemon(true);
+        worker.start();
     }
 
     private void play(int index, int volumePercent) {

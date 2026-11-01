@@ -10,6 +10,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import ru.orion.client.effect.OrionFakePrefix;
+import ru.orion.client.effect.OrionBadge;
+import ru.orion.client.effect.OrionBadgePresence;
+import net.minecraft.network.chat.Component;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,6 +30,13 @@ public abstract class PlayerTabOverlayMixin {
     @Shadow
     @Final
     private Minecraft minecraft;
+
+    @Inject(method = "getNameForDisplay", at = @At("RETURN"), cancellable = true)
+    private void orion$badgeLocalPlayer(PlayerInfo info, CallbackInfoReturnable<Component> callback) {
+        if (OrionBadgePresence.isOrion(info.getProfile().id())) {
+            callback.setReturnValue(OrionBadge.prepend(callback.getReturnValue()));
+        }
+    }
 
     @Inject(method = "getPlayerInfos", at = @At("HEAD"), cancellable = true)
     private void orion$prioritizeConfiguredPlayers(CallbackInfoReturnable<List<PlayerInfo>> callback) {

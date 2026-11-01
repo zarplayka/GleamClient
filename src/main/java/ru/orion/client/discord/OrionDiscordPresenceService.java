@@ -86,6 +86,10 @@ public final class OrionDiscordPresenceService {
             return;
         }
 
+        if (workerThread != null && workerThread.isAlive()) {
+            return;
+        }
+
         if (ticksUntilStartRetry > 0) {
             ticksUntilStartRetry--;
             return;
@@ -118,7 +122,7 @@ public final class OrionDiscordPresenceService {
         try (DiscordIpcConnection connection = DiscordIpcConnection.open()) {
             sendHandshake(connection, applicationId);
 
-            while (running) {
+            while (running && !Thread.currentThread().isInterrupted()) {
                 sendPresence(connection);
                 sleepQuietly(UPDATE_INTERVAL_MS);
             }
@@ -138,7 +142,10 @@ public final class OrionDiscordPresenceService {
         payload.addProperty("v", IPC_VERSION);
         payload.addProperty("client_id", applicationId);
         connection.write(OPCODE_HANDSHAKE, payload);
-        connection.read();
+        JsonObject response = connection.read();
+        if (!response.has("evt") || !"READY".equals(response.get("evt").getAsString())) {
+            throw new IOException("Discord rejected the handshake: " + response);
+        }
     }
 
     private void sendPresence(DiscordIpcConnection connection) throws IOException {
@@ -164,9 +171,22 @@ public final class OrionDiscordPresenceService {
         JsonObject payload = new JsonObject();
         payload.addProperty("cmd", "SET_ACTIVITY");
         payload.add("args", args);
-        payload.addProperty("nonce", UUID.randomUUID().toString());
+        String nonce = UUID.randomUUID().toString();
+        payload.addProperty("nonce", nonce);
 
         connection.write(OPCODE_FRAME, payload);
+        while (running && !Thread.currentThread().isInterrupted()) {
+            JsonObject response = connection.read();
+            if (!response.has("nonce") || response.get("nonce").isJsonNull()
+                    || !nonce.equals(response.get("nonce").getAsString())) {
+                continue;
+            }
+            if (response.has("evt") && !response.get("evt").isJsonNull()
+                    && "ERROR".equals(response.get("evt").getAsString())) {
+                throw new IOException("Discord rejected SET_ACTIVITY: " + response);
+            }
+            return;
+        }
     }
 
     private void stop() {
@@ -174,7 +194,6 @@ public final class OrionDiscordPresenceService {
 
         if (workerThread != null) {
             workerThread.interrupt();
-            workerThread = null;
         }
     }
 

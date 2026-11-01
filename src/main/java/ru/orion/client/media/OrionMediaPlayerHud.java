@@ -31,6 +31,7 @@ import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.hud.OrionGlassCompositor;
 import ru.orion.client.hud.OrionGlassStyle;
+import ru.orion.client.hud.OrionHudDrag;
 
 /**
  * "Now playing" widget pinned to a top corner, rendered off-screen with Java2D at native pixel
@@ -97,6 +98,8 @@ public final class OrionMediaPlayerHud {
 
     private final OrionConfigManager configManager;
     private final OrionMediaController controller;
+    private final OrionHudDrag drag = new OrionHudDrag("media");
+    private float elementScale=1F;
 
     private int appliedCoverGeneration = -1;
     private BufferedImage coverImage;
@@ -143,27 +146,50 @@ public final class OrionMediaPlayerHud {
         }
 
         Window window = client.getWindow();
+        elementScale=config.getHudElementScale("media");
         boolean cursorFree = client.gui.screen() != null && !client.mouseHandler.isMouseGrabbed();
         double mouseX = cursorFree ? client.mouseHandler.getScaledXPos(window) : -1;
         double mouseY = cursorFree ? client.mouseHandler.getScaledYPos(window) : -1;
 
         updateGeometry(config, window, mouseX, mouseY);
-        handleInput(client, config, mouseX, mouseY);
+        int contentX = contentGuiX(config);
+        double hitMouseX=cursorFree?panelGuiX+(mouseX-panelGuiX)/elementScale:-1;
+        double hitMouseY=cursorFree?panelGuiY+(mouseY-panelGuiY)/elementScale:-1;
+        boolean onProgress = eased >= 0.95F && controller.getDurationSeconds() > 0
+                && hitMouseX >= contentX + BAR_LEFT && hitMouseX <= contentX + BAR_RIGHT
+                && hitMouseY >= panelGuiY + BAR_CY - 4 && hitMouseY <= panelGuiY + BAR_CY + 5;
+        boolean onControl = eased >= 0.95F && (hoveredButton(config, hitMouseX, hitMouseY) >= 0
+                || isOnVolume(config, hitMouseX, hitMouseY) || onProgress);
+        int displayWidth=Math.max(1,Math.round(panelGuiWidth*elementScale));
+        int displayHeight=Math.max(1,Math.round(panelGuiHeight*elementScale));
+        var position=drag.update(context,panelGuiX,panelGuiY,displayWidth,displayHeight,configManager,(nx,ny)->{
+            config.setMediaPlayerPositionCustom(true);
+            config.setMediaPlayerX(nx);
+            config.setMediaPlayerY(Math.max(0,Math.min(ny,context.guiHeight()-displayHeight)));
+        }, !onControl);
+        panelGuiX=position.x();
+        panelGuiY=position.y();
+        boolean dragged=drag.consumeDragged();
+        double logicalMouseX=cursorFree?panelGuiX+(mouseX-panelGuiX)/elementScale:-1;
+        double logicalMouseY=cursorFree?panelGuiY+(mouseY-panelGuiY)/elementScale:-1;
+        handleInput(client, config, logicalMouseX, logicalMouseY, dragged);
         refreshCover();
-        updateTextureIfNeeded(config, window, mouseX, mouseY);
+        updateTextureIfNeeded(config, window, logicalMouseX, logicalMouseY);
 
         boolean topRight = isTopRight(config);
-        int blitX = topRight ? window.getGuiScaledWidth() - MARGIN - PANEL_WIDTH - PAD : MARGIN - PAD;
-        int blitY = MARGIN - PAD;
+        int blitX = topRight ? panelGuiX + displayWidth - Math.round((PANEL_WIDTH + PAD)*elementScale) : panelGuiX - Math.round(PAD*elementScale);
+        int blitY = panelGuiY - Math.round(PAD*elementScale);
+        int imageGuiW=Math.max(1,Math.round(IMG_WIDTH*elementScale));
+        int imageGuiH=Math.max(1,Math.round(IMG_HEIGHT*elementScale));
         if (dynamicTexture != null && !OrionGlassCompositor.INSTANCE.submit(
-                HUD_TEXTURE, context, dynamicTexture, blitX, blitY, IMG_WIDTH, IMG_HEIGHT)) {
-            context.blit(HUD_TEXTURE, blitX, blitY, blitX + IMG_WIDTH, blitY + IMG_HEIGHT, 0.0F, 1.0F, 0.0F, 1.0F);
+                HUD_TEXTURE, context, dynamicTexture, blitX, blitY, imageGuiW, imageGuiH)) {
+            context.blit(HUD_TEXTURE, blitX, blitY, blitX + imageGuiW, blitY + imageGuiH, 0.0F, 1.0F, 0.0F, 1.0F);
         }
     }
 
     private void updateGeometry(OrionConfig config, Window window, double mouseX, double mouseY) {
-        boolean hovered = mouseX >= panelGuiX - HOVER_PADDING && mouseX <= panelGuiX + panelGuiWidth + HOVER_PADDING
-                && mouseY >= panelGuiY - HOVER_PADDING && mouseY <= panelGuiY + panelGuiHeight + HOVER_PADDING;
+        boolean hovered = mouseX >= panelGuiX - HOVER_PADDING && mouseX <= panelGuiX + panelGuiWidth*elementScale + HOVER_PADDING
+                && mouseY >= panelGuiY - HOVER_PADDING && mouseY <= panelGuiY + panelGuiHeight*elementScale + HOVER_PADDING;
 
         if (!config.isMediaPlayerAnimated()) {
             expandAnim = 1.0F;
@@ -172,7 +198,7 @@ public final class OrionMediaPlayerHud {
             float dtMs = lastFrameNanos == 0L ? 0.0F : (now - lastFrameNanos) / 1_000_000.0F;
             lastFrameNanos = now;
             float step = Math.min(1.0F, dtMs / EXPAND_ANIMATION_MS);
-            float target = hovered ? 1.0F : 0.0F;
+            float target = hovered || drag.isDragging() || Minecraft.getInstance().gui.screen() instanceof ChatScreen ? 1.0F : 0.0F;
             expandAnim = expandAnim < target
                     ? Math.min(target, expandAnim + step)
                     : Math.max(target, expandAnim - step);
@@ -181,8 +207,11 @@ public final class OrionMediaPlayerHud {
         eased = easeInOutCubic(expandAnim);
         panelGuiWidth = Math.round(lerp(CAPSULE_WIDTH, PANEL_WIDTH, eased));
         panelGuiHeight = Math.round(lerp(CAPSULE_HEIGHT, PANEL_HEIGHT, eased));
-        panelGuiX = isTopRight(config) ? window.getGuiScaledWidth() - MARGIN - panelGuiWidth : MARGIN;
-        panelGuiY = MARGIN;
+        int displayWidth=Math.max(1,Math.round(panelGuiWidth*elementScale));
+        int displayHeight=Math.max(1,Math.round(panelGuiHeight*elementScale));
+        int defaultX = isTopRight(config) ? window.getGuiScaledWidth() - MARGIN - displayWidth : MARGIN;
+        panelGuiX = Math.max(0,Math.min(config.isMediaPlayerPositionCustom() ? config.getMediaPlayerX() : defaultX,window.getGuiScaledWidth()-displayWidth));
+        panelGuiY = Math.max(0,Math.min(config.isMediaPlayerPositionCustom() ? config.getMediaPlayerY() : MARGIN,window.getGuiScaledHeight()-displayHeight));
     }
 
     private static boolean isTopRight(OrionConfig config) {
@@ -197,6 +226,7 @@ public final class OrionMediaPlayerHud {
 
         List<Object> fingerprint = new ArrayList<>(16);
         fingerprint.add(scale);
+        fingerprint.add(elementScale);
         fingerprint.add(Math.round(eased * 160.0F));
         fingerprint.add(isTopRight(config));
         fingerprint.add(controller.isActive());
@@ -271,7 +301,8 @@ public final class OrionMediaPlayerHud {
     }
 
     private BufferedImage compose(OrionConfig config, int scale, int hoveredButton) {
-        BufferedImage image = new BufferedImage(IMG_WIDTH * scale, IMG_HEIGHT * scale, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage image = new BufferedImage(Math.max(1,Math.round(IMG_WIDTH*elementScale))*scale,
+                Math.max(1,Math.round(IMG_HEIGHT*elementScale))*scale, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -279,7 +310,7 @@ public final class OrionMediaPlayerHud {
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-        g.scale(scale, scale);
+        g.scale(image.getWidth()/(double)IMG_WIDTH, image.getHeight()/(double)IMG_HEIGHT);
 
         float w = lerp(CAPSULE_WIDTH, PANEL_WIDTH, eased);
         float h = lerp(CAPSULE_HEIGHT, PANEL_HEIGHT, eased);
@@ -289,7 +320,7 @@ public final class OrionMediaPlayerHud {
 
         OrionGlassStyle.drawPanel(g, px, py, w, h, radius * 2.0F);
         OrionGlassCompositor.INSTANCE.updateMask(HUD_TEXTURE, new OrionGlassCompositor.MaskLayout(
-                IMG_WIDTH * scale, IMG_HEIGHT * scale, IMG_WIDTH, IMG_HEIGHT,
+                image.getWidth(), image.getHeight(), IMG_WIDTH, IMG_HEIGHT,
                 List.of(new OrionGlassCompositor.Panel(px, py, w, h, radius * 2.0F))));
 
         Color accent = parseColor(config.getAccentColor());
@@ -613,7 +644,8 @@ public final class OrionMediaPlayerHud {
         return isTopRight(config) ? panelGuiX + panelGuiWidth - PANEL_WIDTH : panelGuiX;
     }
 
-    private void handleInput(Minecraft client, OrionConfig config, double mouseX, double mouseY) {
+    private void handleInput(Minecraft client, OrionConfig config, double mouseX, double mouseY, boolean dragged) {
+        if (dragged) { wasMouseDown = false; pressedInside = false; pressedOnBar = false; pressedOnVolume = false; return; }
         if (!(client.gui.screen() instanceof ChatScreen) || eased < 0.95F) {
             wasMouseDown = false;
             pressedInside = false;
@@ -622,7 +654,7 @@ public final class OrionMediaPlayerHud {
             return;
         }
 
-        boolean down = client.mouseHandler.isLeftPressed();
+        boolean down = OrionHudDrag.isLeftDown(client);
         int x = contentGuiX(config);
         int y = panelGuiY;
 
@@ -684,6 +716,7 @@ public final class OrionMediaPlayerHud {
     // ---- Helpers ----
 
     private void releaseTextures() {
+        drag.cancel(configManager);
         if (dynamicTexture != null) {
             Minecraft.getInstance().getTextureManager().release(HUD_TEXTURE);
             dynamicTexture = null;
