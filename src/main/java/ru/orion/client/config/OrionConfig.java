@@ -2,6 +2,15 @@ package ru.orion.client.config;
 
 public final class OrionConfig {
     private boolean zoomEnabled;
+    private boolean haloEnabled;
+    private boolean wingsEnabled;
+    private int wingsStyle;
+    public boolean isHaloEnabled() { return haloEnabled; }
+    public void setHaloEnabled(boolean value) { haloEnabled = value; }
+    public boolean isWingsEnabled() { return wingsEnabled; }
+    public void setWingsEnabled(boolean value) { wingsEnabled = value; }
+    public int getWingsStyle() { return wingsStyle; }
+    public void setWingsStyle(int value) { wingsStyle = Math.max(0, Math.min(1, value)); }
     private float zoomFactor = 4.0F;
     private boolean chatFilterEnabled;
     private String chatFilterWords = "";
@@ -874,6 +883,7 @@ public final class OrionConfig {
     }
 
     public void sanitize() {
+        wingsStyle = Math.max(0, Math.min(1, wingsStyle));
         zoomFactor = finiteClamp(zoomFactor, 1.5F, 12F, 4F);
         chatFilterWords = boundedText(chatFilterWords, 512);
         chatHighlightWords = boundedText(chatHighlightWords, 512);

@@ -48,6 +48,8 @@ public final class OrionClient implements ClientModInitializer {
     private static OrionClient instance;
 
     private final OrionConfigManager configManager = new OrionConfigManager();
+    private final ru.orion.client.effect.OrionHalo halo = new ru.orion.client.effect.OrionHalo(configManager);
+    private final ru.orion.client.effect.OrionWings wings = new ru.orion.client.effect.OrionWings(configManager);
     private final ru.orion.client.effect.OrionWaypoints waypoints = new ru.orion.client.effect.OrionWaypoints(configManager);
     private final OrionFootball football = new OrionFootball(configManager);
     private final OrionFootballHud footballHud = new OrionFootballHud(football, configManager);
@@ -106,6 +108,8 @@ public final class OrionClient implements ClientModInitializer {
         jumpCircleEffect.register();
         targetEsp.register();
         chinaHeadRenderer.register();
+        halo.register();
+        wings.register();
         healthTags.register();
         worldParticles.register();
         breadcrumbs.register();

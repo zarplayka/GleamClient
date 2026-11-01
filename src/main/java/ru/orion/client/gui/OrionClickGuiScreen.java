@@ -1025,7 +1025,7 @@ public final class OrionClickGuiScreen extends Screen {
 
     private boolean hasSettings(Action action) {
         return switch (action) {
-            case WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
+            case WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
                  FAKE_PREFIX,
                  HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW -> true;
             default -> false;
@@ -1035,6 +1035,7 @@ public final class OrionClickGuiScreen extends Screen {
     private Setting[] buildSettings(Action action) {
         OrionConfig config = configManager.getConfig();
         return switch (action) {
+            case WINGS -> new Setting[]{new ChoiceSetting("Вид крыльев", new String[]{"Ангельские", "Драконьи"}, config::getWingsStyle, configManager::setWingsStyle)};
             case WAYPOINTS -> new Setting[]{
                     new ValueSetting("Статус", () -> waypointStatus),
                     new ChoiceSetting("Сохранённые метки", waypointOptions(), () -> waypointSelected, this::selectWaypoint),
@@ -2730,6 +2731,8 @@ public final class OrionClickGuiScreen extends Screen {
     private void toggle(Action action) {
         OrionConfig config = configManager.getConfig();
         switch (action) {
+            case WINGS -> configManager.setWingsEnabled(!config.isWingsEnabled());
+            case HALO -> configManager.setHaloEnabled(!config.isHaloEnabled());
             case ZOOM -> configManager.setZoomEnabled(!config.isZoomEnabled());
             case CHAT_FILTER -> configManager.setChatFilterEnabled(!config.isChatFilterEnabled());
             case CHAT_HIGHLIGHT -> configManager.setChatHighlightEnabled(!config.isChatHighlightEnabled());
@@ -2791,6 +2794,8 @@ public final class OrionClickGuiScreen extends Screen {
     private boolean isActive(Action action) {
         OrionConfig config = configManager.getConfig();
         return switch (action) {
+            case WINGS -> config.isWingsEnabled();
+            case HALO -> config.isHaloEnabled();
             case ZOOM -> config.isZoomEnabled();
             case CHAT_FILTER -> config.isChatFilterEnabled();
             case CHAT_HIGHLIGHT -> config.isChatHighlightEnabled();
@@ -3203,7 +3208,7 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private enum Action {
-        ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, WAYPOINTS, DEATH_POINT, TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, ITEM_PHYSICS, HIT_PARTICLES, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
+        WINGS, HALO, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, WAYPOINTS, DEATH_POINT, TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, ITEM_PHYSICS, HIT_PARTICLES, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
         WORLD_PARTICLES, FOOTBALL, BASKETBALL, ANIMATIONS, ENCHANT_GLINT, INVENTORY_HUD, SELF_TAG, ARMOR_INDICATOR, LOCK_SLOT, PVP_SAFE, KEYSTROKES, SATURATION, CHAT_HISTORY, CHAT_TIME, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, NO_PARTICLES, NO_WEATHER, NO_FIRE, WORLD_CHANGER, HEALTH_TAGS, PROTECT_NAME, FAKE_PREFIX,
         HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW;
 
@@ -3223,6 +3228,8 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("PvpSafe", "Предупреждает о выходе во время боя", Icon.CROSSHAIR, Action.PVP_SAFE)
         };
         private static final ModuleRow[] PLAYER = {
+                new ModuleRow("Wings", "Объёмные крылья для пользователей Orion", Icon.PLAYER, Action.WINGS),
+                new ModuleRow("Halo", "Золотой нимб для пользователей Orion", Icon.RINGS, Action.HALO),
                 new ModuleRow("ChinaHead", "Рисует шляпу над головой", Icon.HAT, Action.CHINA_HEAD),
                 new ModuleRow("Aspect", "Растягивает обзор (stretch)", Icon.EXPAND, Action.ASPECT),
                 new ModuleRow("ProtectName", "Прячет ваш ник за псевдонимом", Icon.PLAYER, Action.PROTECT_NAME),

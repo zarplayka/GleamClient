@@ -67,6 +67,17 @@ public final class OrionConfigManager {
     }
 
     public void setZoomEnabled(boolean value) { config.setZoomEnabled(value); save(); }
+    public void setHaloEnabled(boolean value) {
+        config.setHaloEnabled(value);
+        save();
+        ru.orion.client.effect.OrionBadgePresence.requestRefresh();
+    }
+    public void setWingsEnabled(boolean value) {
+        config.setWingsEnabled(value); save(); ru.orion.client.effect.OrionBadgePresence.requestRefresh();
+    }
+    public void setWingsStyle(int value) {
+        config.setWingsStyle(value); save(); ru.orion.client.effect.OrionBadgePresence.requestRefresh();
+    }
     public void setZoomFactor(float value) { config.setZoomFactor(value); save(); }
     public void setChatFilterEnabled(boolean value) { config.setChatFilterEnabled(value); save(); }
     public void setChatFilterWords(String value) { config.setChatFilterWords(value); save(); }

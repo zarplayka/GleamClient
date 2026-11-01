@@ -21,6 +21,20 @@ public final class OrionEspRenderTypes {
     // за моделькой и блоками; глубину не пишем, чтобы не резать чужую прозрачность.
     private static final DepthStencilState ESP_DEPTH = new DepthStencilState(CompareOp.ALWAYS_PASS, false);
     private static final DepthStencilState ESP_DEPTH_TESTED = new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false);
+    private static final RenderPipeline WINGS_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
+            .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/cosmetic_wings"))
+            .withVertexShader("core/rendertype_lightning")
+            .withFragmentShader("core/rendertype_lightning")
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.FOG)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
+            .withCull(false)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            .build());
+    private static final RenderType WINGS = RenderType.create("orion_cosmetic_wings", RenderSetup.builder(WINGS_PIPELINE).createRenderSetup());
 
     private static final RenderPipeline ESP_COLOR_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/targetesp_color"))
@@ -103,6 +117,8 @@ public final class OrionEspRenderTypes {
     public static RenderType colorQuads() {
         return COLOR_QUADS;
     }
+
+    public static RenderType cosmeticWings() { return WINGS; }
 
     public static RenderType colorQuadsDepthTested() {
         return COLOR_QUADS_DEPTH_TESTED;
