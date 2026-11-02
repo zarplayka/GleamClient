@@ -62,6 +62,9 @@ public final class OrionConfigManager {
         }
     }
 
+    public void setKillEffectsPlayerLift(float value) { config.setKillEffectsPlayerLift(value); save(); }
+    public void setKillEffectsTargets(int value) { config.setKillEffectsTargets(value); save(); }
+
     public OrionConfig getConfig() {
         return config;
     }

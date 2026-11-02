@@ -232,5 +232,15 @@
   "Добавлено": "Added",
   "Сохранено": "Saved",
   "Удалено": "Deleted",
-  "Выбрана": "Selected"
+  "Выбрана": "Selected",
+  "Бой": "Combat",
+  "Игрок": "Player",
+  "Движение": "Movement",
+  "Визуал": "Render",
+  "Мир": "World",
+  "Разное": "Misc",
+  "Цели": "Targets",
+  "Только игроки": "Players only",
+  "Все сущности": "All entities",
+  "Только мобы": "Mobs only"
 }

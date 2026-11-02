@@ -16,6 +16,8 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
@@ -52,6 +54,7 @@ public final class OrionKillEffects {
     public OrionKillEffects(OrionConfigManager manager) {
         this.manager = manager;
         for (int i = 0; i < 9; i++) {
+            if (i == 7) continue;
             final int type = i;
             boolean organic = i == 0 || i == 5 || i == 7 || i == 8;
             registerEffect(i, new Definition(5F, (stack, vertices, age, quality, particles, seed) -> {
@@ -127,7 +130,7 @@ public final class OrionKillEffects {
     public void onDamage(ClientboundDamageEventPacket packet) {
         if (!ready() || !manager.getConfig().isKillEffectsEnabled()) return;
         Minecraft client = Minecraft.getInstance();
-        if (!(client.level.getEntity(packet.entityId()) instanceof LivingEntity victim) || victim == client.player) return;
+        if (!(client.level.getEntity(packet.entityId()) instanceof LivingEntity victim) || victim == client.player || !accepts(victim)) return;
         // Любой последующий чужой или природный урон отменяет наше свидетельство.
         // Локальный клик/взмах оружием сам по себе сюда не попадает.
         damage.remove(victim.getUUID());
@@ -139,11 +142,17 @@ public final class OrionKillEffects {
     public void onDeath(ClientboundEntityEventPacket packet) {
         if (!ready() || !manager.getConfig().isKillEffectsEnabled() || packet.getEventId() != 3) return;
         Minecraft client = Minecraft.getInstance();
-        if (!(packet.getEntity(client.level) instanceof LivingEntity victim) || victim == client.player) return;
+        if (!(packet.getEntity(client.level) instanceof LivingEntity victim) || victim == client.player || !accepts(victim)) return;
         recordDeath(victim, damage.remove(victim.getUUID()), System.nanoTime());
     }
 
+    private boolean accepts(LivingEntity victim) {
+        int mode = manager.getConfig().getKillEffectsTargets();
+        return mode == 1 || (mode == 0 ? victim instanceof Player : victim instanceof Mob);
+    }
+
     private void recordDeath(LivingEntity victim, DamageEvidence evidence, long now) {
+        if (!accepts(victim)) return;
         UUID id = victim.getUUID();
         Emission previous = emitted.get(id);
         if (previous != null && previous.sameEntity(victim)) return;
@@ -205,7 +214,7 @@ public final class OrionKillEffects {
         if (previous == null || !previous.sameEntity(death.entity())) {
             emitted.put(victim, new Emission(new WeakReference<>(death.entity()), now));
             trim(emitted);
-            spawn(death.position(), death.yaw(), false);
+            if (accepts(death.entity())) spawn(death.position(), death.yaw(), false, death.entity() instanceof Player);
         }
         deaths.remove(victim); confirmations.remove(victim);
     }
@@ -225,11 +234,11 @@ public final class OrionKillEffects {
         // Не переносим демонстрацию за стену.
         var sight = client.level.clip(new ClipContext(client.player.getEyePosition(), target.add(0, 1, 0), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, client.player));
         if (sight.getType() != HitResult.Type.MISS) target = sight.getLocation().subtract(direction.scale(.8));
-        spawn(target, client.player.getYRot() + 180F, true);
+        spawn(target, client.player.getYRot() + 180F, true, true);
         return true;
     }
 
-    private void spawn(Vec3 position, float yaw, boolean preview) {
+    private void spawn(Vec3 position, float yaw, boolean preview, boolean playerVictim) {
         Minecraft client = Minecraft.getInstance();
         var config = manager.getConfig();
         Definition definition = registry.get(config.getKillEffectsStyle());
@@ -237,7 +246,10 @@ public final class OrionKillEffects {
         double distance = config.getKillEffectsDistance();
         if (position.distanceToSqr(client.player.position()) > distance * distance) return;
         var ground = client.level.clip(new ClipContext(position.add(0, .5, 0), position.add(0, -6, 0), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, client.player));
-        if (ground.getType() != HitResult.Type.MISS) position = ground.getLocation().add(0, .025, 0);
+        if (!playerVictim && ground.getType() != HitResult.Type.MISS) position = ground.getLocation().add(0, .025, 0);
+        if (playerVictim) position = position.add(0, config.getKillEffectsPlayerLift(), 0);
+        Vec3 viewer = client.gameRenderer.mainCamera().position();
+        yaw = (float) Math.toDegrees(Math.atan2(viewer.x - position.x, position.z - viewer.z));
         while (active.size() >= config.getKillEffectsLimit()) OrionKillAudio.stop(active.removeFirst().sound());
         float size = config.getKillEffectsSize();
         SoundInstance sound = OrionKillAudio.play(config.getKillEffectsStyle(), position,

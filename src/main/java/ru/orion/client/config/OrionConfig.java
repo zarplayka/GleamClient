@@ -170,6 +170,12 @@ public final class OrionConfig {
     private boolean itemPhysicsEnabled = false;
     private boolean killEffectsEnabled = false;
     private int killEffectsStyle = 0;
+    private int killEffectsTargets = 0;
+    private float killEffectsPlayerLift = .5F;
+    public float getKillEffectsPlayerLift() { return killEffectsPlayerLift; }
+    public void setKillEffectsPlayerLift(float value) { killEffectsPlayerLift = finiteClamp(value, 0F, 2F, .5F); }
+    public int getKillEffectsTargets() { return killEffectsTargets; }
+    public void setKillEffectsTargets(int value) { killEffectsTargets = Math.max(0, Math.min(2, value)); }
     private float killEffectsSize = 1.0F;
     private float killEffectsSpeed = 1.0F;
     private float killEffectsParticles = 0.65F;
@@ -211,7 +217,7 @@ public final class OrionConfig {
     private boolean worldChangerEnabled = false;
     private String worldChangerSkyColor = "#64D9FF";
     private String worldChangerFogColor = "#14111F";
-    private int clickGuiTheme = 0;
+    private int clickGuiTheme = 3;
     private java.util.List<String> favoriteModules = new java.util.ArrayList<>();
 
     public java.util.List<String> getFavoriteModules() {
@@ -576,7 +582,7 @@ public final class OrionConfig {
     public boolean isKillEffectsEnabled() { return killEffectsEnabled; }
     public void setKillEffectsEnabled(boolean value) { killEffectsEnabled = value; }
     public int getKillEffectsStyle() { return killEffectsStyle; }
-    public void setKillEffectsStyle(int value) { killEffectsStyle = value; }
+    public void setKillEffectsStyle(int value) { killEffectsStyle = value == 7 ? 0 : value; }
     public float getKillEffectsSize() { return killEffectsSize; }
     public void setKillEffectsSize(float value) { killEffectsSize = value; }
     public float getKillEffectsSpeed() { return killEffectsSpeed; }
@@ -1000,6 +1006,9 @@ public final class OrionConfig {
         blockHighlightGlowOpacity = Math.max(0, Math.min(100, blockHighlightGlowOpacity));
         blockHighlightOffset = Float.isFinite(blockHighlightOffset) ? clamp(blockHighlightOffset, 0.0F, 0.1F) : 0.003F;
         killEffectsStyle = Math.max(0, Math.min(8, killEffectsStyle));
+        if (killEffectsStyle == 7) killEffectsStyle = 0;
+        killEffectsTargets = Math.max(0, Math.min(2, killEffectsTargets));
+        killEffectsPlayerLift = finiteClamp(killEffectsPlayerLift, 0F, 2F, .5F);
         killEffectsSize = Float.isFinite(killEffectsSize) ? clamp(killEffectsSize, 0.5F, 2.0F) : 1.0F;
         killEffectsSpeed = Float.isFinite(killEffectsSpeed) ? clamp(killEffectsSpeed, 0.5F, 2.0F) : 1.0F;
         killEffectsParticles = Float.isFinite(killEffectsParticles) ? clamp(killEffectsParticles, 0.0F, 1.0F) : 0.65F;
