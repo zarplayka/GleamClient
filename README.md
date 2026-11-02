@@ -3,82 +3,82 @@
 
   # Orion Client
 
-  **Твой Minecraft. Твой интерфейс. Твой стиль.**
+  **Your Minecraft. Your interface. Your style.**
 
-  Клиентский мод для Minecraft с настраиваемым интерфейсом, эффектами,
-  косметикой и полезными функциями для игры.
+  A client-side Minecraft mod with a customizable interface, visual effects,
+  cosmetics, and useful features for your game.
 
-  [Скачать](https://github.com/zarplayka/OrionClient/releases) · [Установка](#установка) · [Возможности](#возможности) · [Управление](#управление)
+  [Download](https://github.com/zarplayka/OrionClient/releases) · [Installation](#installation) · [Features](#features) · [Controls](#controls)
 
   `Minecraft 26.3` &nbsp; `Fabric` &nbsp; `Java 25`
 </div>
 
 ---
 
-## Возможности
+## Features
 
-### Интерфейс и удобство
+### Interface & convenience
 
-- **ClickGUI** — меню модулей с поиском, избранным и несколькими темами, включая Paradox.
-- **HUD** — информация о клиенте, клавишах, инвентаре и игроках поблизости.
-- **Zoom** — плавное приближение с временной регулировкой колёсиком мыши.
-- **ChatFilter и ChatHighlight** — скрывай или выделяй сообщения по своим словам.
-- **ProtectName и LockSlot** — скрывай свой ник и защищай выбранные слоты.
-- **MediaPlayer и Discord** — виджет музыки и статус активности в Discord.
+- **ClickGUI** — browse modules with search, favorites, and multiple themes, including Paradox.
+- **HUD** — see client information, keystrokes, inventory contents, and nearby players.
+- **Zoom** — zoom in smoothly and adjust the zoom temporarily with the mouse wheel.
+- **ChatFilter & ChatHighlight** — hide or highlight messages using your own keywords.
+- **ProtectName & LockSlot** — hide your username and protect selected inventory slots.
+- **MediaPlayer & Discord** — see your music in a widget and share your activity on Discord.
 
-### Бой и эффекты
+### Combat & effects
 
-- **KillEffect** — объёмные анимации и звуки после убийства с настройкой целей.
-- **TargetESP** — визуальный эффект на выбранной цели.
-- **HitColor, HitSound и HitParticles** — оформление попаданий.
-- **DamageIndicators и ArmorIndicator** — отображение урона и брони игроков.
-- **PvpSafe** — предупреждение при попытке выйти во время боя.
+- **KillEffect** — animated 3D effects and sounds after a kill, with configurable targets.
+- **TargetESP** — add a visual effect to your target.
+- **HitColor, HitSound & HitParticles** — customize the feedback from your hits.
+- **DamageIndicators & ArmorIndicator** — display damage and other players' armor.
+- **PvpSafe** — get a warning when trying to leave during combat.
 
-### Мир и исследование
+### World & exploration
 
-- **Waypoints** — создавай и редактируй метки через меню; название, цвет и координаты сохраняются.
-- **DeathPoint** — отметка последнего места смерти.
-- **JumpCircle, Breadcrumbs и ProjectileTrail** — кольца прыжка и следы движения.
-- **WorldChanger, CustomTime и WorldParticles** — настрой атмосферу мира под себя.
-- **BlockHighlight и ItemPhysics** — подсветка блоков и оформление предметов на земле.
+- **Waypoints** — create and edit markers in the menu; names, colors, and coordinates are saved.
+- **DeathPoint** — mark your latest death location.
+- **JumpCircle, Breadcrumbs & ProjectileTrail** — add jump rings and movement trails.
+- **WorldChanger, CustomTime & WorldParticles** — customize the atmosphere of your world.
+- **BlockHighlight & ItemPhysics** — highlight blocks and change the appearance of dropped items.
 
-### Косметика и мини-игры
+### Cosmetics & mini-games
 
-Надень **нимб** или выбери **ангельские либо драконьи крылья**. Другие игроки с совместимой версией Orion увидят твою косметику благодаря онлайн-синхронизации. Также в клиенте есть **баскетбол** и **футбол**.
+Equip a **halo** or choose **angel or dragon wings**. Other players using a compatible version of Orion can see your cosmetics through online synchronization. You can also play **basketball** and **football** in the client.
 
-> Для синхронизации косметики нужен доступ к её онлайн-сервису. Доступность может отличаться в зависимости от региона и сети.
+> Cosmetic synchronization requires access to its online service. Availability may vary by region and network.
 
-## Установка
+## Installation
 
-1. Установи **Minecraft 26.3** и [Fabric Loader](https://fabricmc.net/use/installer/).
-2. Скачай совместимую версию [Fabric API](https://modrinth.com/mod/fabric-api) и помести её в папку `mods`.
-3. Скачай официальный JAR Orion Client из раздела [Releases](https://github.com/zarplayka/OrionClient/releases) и помести его туда же.
-4. Запусти профиль Fabric и нажми **Right Shift**, чтобы открыть меню Orion.
+1. Install **Minecraft 26.3** and [Fabric Loader](https://fabricmc.net/use/installer/).
+2. Download a compatible version of [Fabric API](https://modrinth.com/mod/fabric-api) and place it in your `mods` folder.
+3. Download the official Orion Client JAR from [Releases](https://github.com/zarplayka/OrionClient/releases) and place it in the same folder.
+4. Launch your Fabric profile and press **Right Shift** to open the Orion menu.
 
-Проверяй версию Minecraft в описании выбранного релиза: опубликованный релиз может отставать от текущего состояния репозитория.
+Check the Minecraft version in the release description: a published release may be older than the current repository.
 
-## Управление
+## Controls
 
-| Действие | Клавиша по умолчанию |
+| Action | Default control |
 | --- | --- |
-| Открыть ClickGUI | **Right Shift** |
-| Приблизить камеру | Удерживать **C** |
-| Временно изменить приближение | Колесо мыши при удержании Zoom |
-| Включить или выключить модуль | ЛКМ по модулю |
-| Открыть настройки модуля | ПКМ по модулю |
+| Open ClickGUI | **Right Shift** |
+| Zoom in | Hold **C** |
+| Adjust zoom temporarily | Scroll while holding the zoom key |
+| Toggle a module | Left-click the module |
+| Open module settings | Right-click the module |
 
-Клавиши можно изменить в настройках управления Minecraft или в настройках соответствующего модуля.
+Keys can be changed in Minecraft's controls or in the corresponding module's settings.
 
-## Сборка из исходников
+## Building from source
 
-Для штатной сборки на Windows нужны **Java 25** и **.NET SDK 8.0.421**:
+The standard Windows build requires **Java 25** and **.NET SDK 8.0.421**:
 
 ```powershell
 .\gradlew.bat build
 ```
 
-Результат появится в `build/libs/`. Подробности о медиапомощниках и проверке воспроизводимой сборки находятся в [native/media/README.md](native/media/README.md).
+The output is placed in `build/libs/`. For details about the media helpers and reproducible build verification, see [native/media/README.md](native/media/README.md).
 
-## Лицензия
+## License
 
-© 2026 ZARPLAY. Все права защищены. Условия использования официальных выпусков и исходного кода описаны в [LICENSE](LICENSE). Сторонние компоненты сохраняют свои лицензии.
+© 2026 ZARPLAY. All rights reserved. The terms for using official releases and source code are described in [LICENSE](LICENSE). Third-party components retain their respective licenses.
