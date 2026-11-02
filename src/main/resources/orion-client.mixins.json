@@ -34,6 +34,7 @@
     "ClientClockInstanceMixin",
     "FirstPersonHandsMixin",
     "PvpDamageMixin",
+    "KillEffectsPacketMixin",
     "PvpExitMixin",
     "ChatHistoryMixin",
     "OrionChatHistoryAccessor",

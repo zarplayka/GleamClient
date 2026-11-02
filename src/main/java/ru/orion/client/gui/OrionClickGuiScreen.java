@@ -1025,7 +1025,7 @@ public final class OrionClickGuiScreen extends Screen {
 
     private boolean hasSettings(Action action) {
         return switch (action) {
-            case WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
+            case KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
                  FAKE_PREFIX,
                  HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW -> true;
             default -> false;
@@ -1035,6 +1035,26 @@ public final class OrionClickGuiScreen extends Screen {
     private Setting[] buildSettings(Action action) {
         OrionConfig config = configManager.getConfig();
         return switch (action) {
+            case KILL_EFFECTS -> new Setting[]{
+                    new ChoiceSetting("Эффект", new String[]{"Призрак", "Надгробие", "Дождь мечей", "Раскол кристалла",
+                            "Чёрная дыра", "Ангельские крылья", "Кристальная тюрьма", "Взрыв тотема", "Душа дракона"},
+                            config::getKillEffectsStyle, configManager::setKillEffectsStyle),
+                    new SliderSetting("Размер", 0.5F, 2.0F, config::getKillEffectsSize, config::setKillEffectsSize, "×"),
+                    new SliderSetting("Скорость анимации", 0.5F, 2.0F, config::getKillEffectsSpeed, config::setKillEffectsSpeed, "×"),
+                    new SliderSetting("Частицы", 0.0F, 1.0F, config::getKillEffectsParticles, config::setKillEffectsParticles, ""),
+                    new SliderSetting("Дальность", 16F, 128F, () -> (float) config.getKillEffectsDistance(),
+                            value -> config.setKillEffectsDistance(Math.round(value)), "м", true),
+                    new ChoiceSetting("Качество", new String[]{"Низкое", "Среднее", "Высокое"},
+                            config::getKillEffectsQuality, configManager::setKillEffectsQuality),
+                    new SliderSetting("Лимит эффектов", 1F, 8F, () -> (float) config.getKillEffectsLimit(),
+                            value -> config.setKillEffectsLimit(Math.round(value)), "", true),
+                    new SliderSetting("Громкость", 0F, 100F, () -> (float) config.getKillEffectsVolume(),
+                            value -> config.setKillEffectsVolume(Math.round(value)), "%", true),
+                    new ButtonSetting("Предпросмотр", "Показать", () -> {
+                        var effects = OrionClient.getKillEffects();
+                        if (effects != null && effects.preview()) onClose();
+                    })
+            };
             case WINGS -> new Setting[]{new ChoiceSetting("Вид крыльев", new String[]{"Ангельские", "Драконьи"}, config::getWingsStyle, configManager::setWingsStyle)};
             case WAYPOINTS -> new Setting[]{
                     new ValueSetting("Статус", () -> waypointStatus),
@@ -2743,6 +2763,7 @@ public final class OrionClickGuiScreen extends Screen {
             case MOTION_BLUR -> configManager.setMotionBlurEnabled(!config.isMotionBlurEnabled());
             case BLOCK_HIGHLIGHT -> configManager.setBlockHighlightEnabled(!config.isBlockHighlightEnabled());
             case ITEM_PHYSICS -> configManager.setItemPhysicsEnabled(!config.isItemPhysicsEnabled());
+            case KILL_EFFECTS -> configManager.setKillEffectsEnabled(!config.isKillEffectsEnabled());
             case HIT_PARTICLES -> configManager.setHitParticlesEnabled(!config.isHitParticlesEnabled());
             case PROJECTILE_TRAIL -> configManager.setProjectileTrailEnabled(!config.isProjectileTrailEnabled());
             case DAMAGE_INDICATORS -> configManager.setDamageIndicatorsEnabled(!config.isDamageIndicatorsEnabled());
@@ -2810,6 +2831,7 @@ public final class OrionClickGuiScreen extends Screen {
             case MOTION_BLUR -> config.isMotionBlurEnabled();
             case BLOCK_HIGHLIGHT -> config.isBlockHighlightEnabled();
             case ITEM_PHYSICS -> config.isItemPhysicsEnabled();
+            case KILL_EFFECTS -> config.isKillEffectsEnabled();
             case HIT_PARTICLES -> config.isHitParticlesEnabled();
             case ASPECT -> config.isAspectEnabled();
             case MEDIA_PLAYER -> config.isMediaPlayerEnabled();
@@ -3210,7 +3232,7 @@ public final class OrionClickGuiScreen extends Screen {
     private enum Action {
         WINGS, HALO, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, WAYPOINTS, DEATH_POINT, TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, ITEM_PHYSICS, HIT_PARTICLES, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
         WORLD_PARTICLES, FOOTBALL, BASKETBALL, ANIMATIONS, ENCHANT_GLINT, INVENTORY_HUD, SELF_TAG, ARMOR_INDICATOR, LOCK_SLOT, PVP_SAFE, KEYSTROKES, SATURATION, CHAT_HISTORY, CHAT_TIME, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, NO_PARTICLES, NO_WEATHER, NO_FIRE, WORLD_CHANGER, HEALTH_TAGS, PROTECT_NAME, FAKE_PREFIX,
-        HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW;
+        HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW, KILL_EFFECTS;
 
         private static final Action[] VALUES = values();
     }
@@ -3224,6 +3246,7 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("BetterNear", "Игроки рядом: ник, дистанция, стрелка", Icon.PLAYER, Action.BETTER_NEAR),
                 new ModuleRow("ArmorIndicator", "Броня игроков над головой", Icon.PLAYER, Action.ARMOR_INDICATOR),
                 new ModuleRow("HitParticles", "Искры при ударе", Icon.GRID, Action.HIT_PARTICLES),
+                new ModuleRow("Эффекты убийств", "Объёмные эффекты и звуки после убийства", Icon.GRID, Action.KILL_EFFECTS),
                 new ModuleRow("DamageIndicators", "Урон от ваших ударов", Icon.CROSSHAIR, Action.DAMAGE_INDICATORS),
                 new ModuleRow("PvpSafe", "Предупреждает о выходе во время боя", Icon.CROSSHAIR, Action.PVP_SAFE)
         };

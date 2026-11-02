@@ -168,6 +168,15 @@ public final class OrionConfigManager {
     public void setBlockHighlightGlowOpacity(int value) { config.setBlockHighlightGlowOpacity(value); save(); }
     public void setBlockHighlightOffset(float value) { config.setBlockHighlightOffset(value); save(); }
     public void setItemPhysicsEnabled(boolean value) { config.setItemPhysicsEnabled(value); save(); }
+    public void setKillEffectsEnabled(boolean value) { config.setKillEffectsEnabled(value); save(); }
+    public void setKillEffectsStyle(int value) { config.setKillEffectsStyle(value); config.sanitize(); save(); }
+    public void setKillEffectsSize(float value) { config.setKillEffectsSize(value); config.sanitize(); save(); }
+    public void setKillEffectsSpeed(float value) { config.setKillEffectsSpeed(value); config.sanitize(); save(); }
+    public void setKillEffectsParticles(float value) { config.setKillEffectsParticles(value); config.sanitize(); save(); }
+    public void setKillEffectsDistance(int value) { config.setKillEffectsDistance(value); config.sanitize(); save(); }
+    public void setKillEffectsQuality(int value) { config.setKillEffectsQuality(value); config.sanitize(); save(); }
+    public void setKillEffectsLimit(int value) { config.setKillEffectsLimit(value); config.sanitize(); save(); }
+    public void setKillEffectsVolume(int value) { config.setKillEffectsVolume(value); config.sanitize(); save(); }
     public void setHitParticlesEnabled(boolean value) { config.setHitParticlesEnabled(value); save(); }
 
     public void setProjectileTrailEnabled(boolean value) { config.setProjectileTrailEnabled(value); save(); }

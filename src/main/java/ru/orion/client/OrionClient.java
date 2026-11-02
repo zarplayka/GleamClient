@@ -67,6 +67,7 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionHealthTags healthTags = new OrionHealthTags(configManager);
     private final OrionBlockHighlight blockHighlight = new OrionBlockHighlight(configManager);
     private final OrionHitParticles hitParticles = new OrionHitParticles(configManager);
+    private final ru.orion.client.effect.OrionKillEffects killEffects = new ru.orion.client.effect.OrionKillEffects(configManager);
     private final OrionMotionBlur motionBlur = new OrionMotionBlur(configManager);
     private final OrionSelfTag selfTag = new OrionSelfTag(configManager);
     private final OrionArmorIndicator armorIndicator = new OrionArmorIndicator(configManager);
@@ -119,6 +120,7 @@ public final class OrionClient implements ClientModInitializer {
         selfTag.register();
         blockHighlight.register();
         hitParticles.register();
+        killEffects.register();
         motionBlur.register();
         noWeatherModule.register();
         fullBrightModule.register();
@@ -175,6 +177,10 @@ public final class OrionClient implements ClientModInitializer {
 
     public static OrionHitParticles getHitParticlesOrNull() {
         return instance == null ? null : instance.hitParticles;
+    }
+
+    public static ru.orion.client.effect.OrionKillEffects getKillEffects() {
+        return instance == null ? null : instance.killEffects;
     }
 
     public static OrionDamageIndicators getDamageIndicatorsOrNull() {

@@ -21,6 +21,42 @@ public final class OrionEspRenderTypes {
     // за моделькой и блоками; глубину не пишем, чтобы не резать чужую прозрачность.
     private static final DepthStencilState ESP_DEPTH = new DepthStencilState(CompareOp.ALWAYS_PASS, false);
     private static final DepthStencilState ESP_DEPTH_TESTED = new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false);
+    private static final RenderPipeline KILL_EFFECTS_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
+            .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/kill_effects"))
+            .withVertexShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/kill_models"))
+            .withFragmentShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/kill_models"))
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.FOG)
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withDepthStencilState(ESP_DEPTH_TESTED)
+            .withCull(false)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            .build());
+    private static final RenderType KILL_EFFECTS = RenderType.create("orion_kill_effects",
+            RenderSetup.builder(KILL_EFFECTS_PIPELINE)
+                    .withTexture("Sampler0", Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "textures/kill/materials.png"))
+                    .sortOnUpload().createRenderSetup());
+    private static final RenderPipeline KILL_MODELS_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
+            .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/kill_models"))
+            .withVertexShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/kill_models"))
+            .withFragmentShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/kill_models"))
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.FOG)
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
+            .withCull(false)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            .build());
+    private static final RenderType KILL_MODELS = RenderType.create("orion_kill_models",
+            RenderSetup.builder(KILL_MODELS_PIPELINE)
+                    .withTexture("Sampler0", Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "textures/kill/materials.png"))
+                    .sortOnUpload().createRenderSetup());
     private static final RenderPipeline WINGS_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/cosmetic_wings"))
             .withVertexShader("core/rendertype_lightning")
@@ -119,6 +155,10 @@ public final class OrionEspRenderTypes {
     }
 
     public static RenderType cosmeticWings() { return WINGS; }
+
+    public static RenderType killEffects() { return KILL_EFFECTS; }
+
+    public static RenderType killModels() { return KILL_MODELS; }
 
     public static RenderType colorQuadsDepthTested() {
         return COLOR_QUADS_DEPTH_TESTED;

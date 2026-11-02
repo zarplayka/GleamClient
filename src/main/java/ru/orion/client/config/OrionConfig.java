@@ -168,6 +168,15 @@ public final class OrionConfig {
     private int blockHighlightGlowOpacity = 14;
     private float blockHighlightOffset = 0.003F;
     private boolean itemPhysicsEnabled = false;
+    private boolean killEffectsEnabled = false;
+    private int killEffectsStyle = 0;
+    private float killEffectsSize = 1.0F;
+    private float killEffectsSpeed = 1.0F;
+    private float killEffectsParticles = 0.65F;
+    private int killEffectsDistance = 64;
+    private int killEffectsQuality = 1;
+    private int killEffectsLimit = 4;
+    private int killEffectsVolume = 60;
     private boolean hitParticlesEnabled = false;
     private String hitParticlesColor = "#FF7C00";
     private int hitParticlesCount = 16;
@@ -564,6 +573,24 @@ public final class OrionConfig {
     public void setBlockHighlightOffset(float value) { blockHighlightOffset = value; }
     public boolean isItemPhysicsEnabled() { return itemPhysicsEnabled; }
     public void setItemPhysicsEnabled(boolean value) { itemPhysicsEnabled = value; }
+    public boolean isKillEffectsEnabled() { return killEffectsEnabled; }
+    public void setKillEffectsEnabled(boolean value) { killEffectsEnabled = value; }
+    public int getKillEffectsStyle() { return killEffectsStyle; }
+    public void setKillEffectsStyle(int value) { killEffectsStyle = value; }
+    public float getKillEffectsSize() { return killEffectsSize; }
+    public void setKillEffectsSize(float value) { killEffectsSize = value; }
+    public float getKillEffectsSpeed() { return killEffectsSpeed; }
+    public void setKillEffectsSpeed(float value) { killEffectsSpeed = value; }
+    public float getKillEffectsParticles() { return killEffectsParticles; }
+    public void setKillEffectsParticles(float value) { killEffectsParticles = value; }
+    public int getKillEffectsDistance() { return killEffectsDistance; }
+    public void setKillEffectsDistance(int value) { killEffectsDistance = value; }
+    public int getKillEffectsQuality() { return killEffectsQuality; }
+    public void setKillEffectsQuality(int value) { killEffectsQuality = value; }
+    public int getKillEffectsLimit() { return killEffectsLimit; }
+    public void setKillEffectsLimit(int value) { killEffectsLimit = value; }
+    public int getKillEffectsVolume() { return killEffectsVolume; }
+    public void setKillEffectsVolume(int value) { killEffectsVolume = value; }
     public boolean isHitParticlesEnabled() { return hitParticlesEnabled; }
     public void setHitParticlesEnabled(boolean value) { hitParticlesEnabled = value; }
     public String getHitParticlesColor() { return hitParticlesColor; }
@@ -972,6 +999,14 @@ public final class OrionConfig {
         blockHighlightGlowWidth = Float.isFinite(blockHighlightGlowWidth) ? clamp(blockHighlightGlowWidth, 1.0F, 16.0F) : 6.0F;
         blockHighlightGlowOpacity = Math.max(0, Math.min(100, blockHighlightGlowOpacity));
         blockHighlightOffset = Float.isFinite(blockHighlightOffset) ? clamp(blockHighlightOffset, 0.0F, 0.1F) : 0.003F;
+        killEffectsStyle = Math.max(0, Math.min(8, killEffectsStyle));
+        killEffectsSize = Float.isFinite(killEffectsSize) ? clamp(killEffectsSize, 0.5F, 2.0F) : 1.0F;
+        killEffectsSpeed = Float.isFinite(killEffectsSpeed) ? clamp(killEffectsSpeed, 0.5F, 2.0F) : 1.0F;
+        killEffectsParticles = Float.isFinite(killEffectsParticles) ? clamp(killEffectsParticles, 0.0F, 1.0F) : 0.65F;
+        killEffectsDistance = Math.max(16, Math.min(128, killEffectsDistance));
+        killEffectsQuality = Math.max(0, Math.min(2, killEffectsQuality));
+        killEffectsLimit = Math.max(1, Math.min(8, killEffectsLimit));
+        killEffectsVolume = Math.max(0, Math.min(100, killEffectsVolume));
         if (hitParticlesColor == null || !hitParticlesColor.matches("^#[0-9a-fA-F]{6}$")) hitParticlesColor = "#FF7C00";
         hitParticlesCount = Math.max(1, Math.min(64, hitParticlesCount));
         hitParticlesSize = Float.isFinite(hitParticlesSize) ? clamp(hitParticlesSize, 0.03F, 0.3F) : 0.10F;

@@ -17,6 +17,7 @@ import net.minecraft.client.renderer.state.gui.BlitRenderState;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix3x2f;
+import org.joml.Matrix3x2fc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
@@ -29,6 +30,7 @@ import java.awt.RenderingHints;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -51,6 +53,10 @@ public final class OrionGlassCompositor {
     private boolean captureRequested;
     private boolean sceneCaptured;
     private long lastCaptureNanos;
+    private final List<CaptureArea> captureAreas = new ArrayList<>();
+    private final List<CaptureArea> lastCaptureAreas = new ArrayList<>();
+    private boolean captureWholeScene;
+    private boolean bottomOrigin;
     private final Map<Identifier, MaskTexture> masks = new HashMap<>();
     private boolean shaderWarningLogged;
 
@@ -136,7 +142,14 @@ public final class OrionGlassCompositor {
                     GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_TEXTURE_BINDING,
                     source.getFormat(), source.getWidth(0), source.getHeight(0), 1, 1);
             sceneView = RenderSystem.getDevice().createTextureView(scene);
+            bottomOrigin = RenderSystem.getDevice().getDeviceInfo().backendName()
+                    .toLowerCase(java.util.Locale.ROOT).contains("opengl");
         }
+        CaptureArea area = CaptureArea.from(context.pose(), x, y, width, height,
+                context.guiWidth(), context.guiHeight(), source.getWidth(0), source.getHeight(0), bottomOrigin);
+        if (area == null) return false;
+        if (captureAreas.size() < 64) captureAreas.add(area);
+        else captureWholeScene = true;
         captureRequested = true;
         if (!sceneCaptured) {
             return false;
@@ -179,22 +192,40 @@ public final class OrionGlassCompositor {
                 || source.getHeight(0) != scene.getHeight(0)
                 || source.getFormat() != scene.getFormat()) {
             sceneCaptured = false;
+            captureAreas.clear();
+            captureWholeScene = false;
             return;
         }
+        if (captureWholeScene) {
+            captureAreas.clear();
+            captureAreas.add(new CaptureArea(0, 0, source.getWidth(0), source.getHeight(0)));
+            captureWholeScene = false;
+        }
         long now = System.nanoTime();
-        if (sceneCaptured && now - lastCaptureNanos < CAPTURE_INTERVAL_NANOS) {
+        if (sceneCaptured && now - lastCaptureNanos < CAPTURE_INTERVAL_NANOS
+                && captureAreas.equals(lastCaptureAreas)) {
+            captureAreas.clear();
             return;
         }
         var encoder = RenderSystem.getDevice().createCommandEncoder();
-        encoder.copyTextureToTexture(source, scene, 0, 0, 0, 0, 0,
-                scene.getWidth(0), scene.getHeight(0));
+        // Размер текстуры прежний: shader продолжает читать по gl_FragCoord.
+        // Копируем только видимые панели с запасом под выборки размытия.
+        for (CaptureArea area : captureAreas) {
+            encoder.copyTextureToTexture(source, scene, 0, area.x(), area.y(), area.x(), area.y(),
+                    area.width(), area.height());
+        }
         encoder.submit();
+        lastCaptureAreas.clear();
+        lastCaptureAreas.addAll(captureAreas);
+        captureAreas.clear();
         lastCaptureNanos = now;
         sceneCaptured = true;
     }
 
     public void close() {
         captureRequested = false;
+        captureAreas.clear();
+        captureWholeScene = false;
         releaseScene();
         for (MaskTexture entry : masks.values()) {
             entry.texture().close();
@@ -211,6 +242,7 @@ public final class OrionGlassCompositor {
 
     private void releaseScene() {
         sceneCaptured = false;
+        lastCaptureAreas.clear();
         lastCaptureNanos = 0L;
         if (sceneView != null) {
             sceneView.close();
@@ -223,6 +255,25 @@ public final class OrionGlassCompositor {
     }
 
     public record Panel(float x, float y, float width, float height, float arc) {
+    }
+
+    /** Координаты копирования в framebuffer, включая поворот/масштаб GUI и края blur. */
+    record CaptureArea(int x, int y, int width, int height) {
+        static CaptureArea from(Matrix3x2fc pose, int x, int y, int width, int height,
+                                int guiWidth, int guiHeight, int pixelWidth, int pixelHeight, boolean bottomOrigin) {
+            if (width <= 0 || height <= 0 || guiWidth <= 0 || guiHeight <= 0) return null;
+            float x0 = pose.m00() * x + pose.m10() * y + pose.m20();
+            float y0 = pose.m01() * x + pose.m11() * y + pose.m21();
+            float dx = pose.m00() * width, dy = pose.m01() * width;
+            float ex = pose.m10() * height, ey = pose.m11() * height;
+            float scaleX = pixelWidth / (float) guiWidth, scaleY = pixelHeight / (float) guiHeight;
+            int left = Math.max(0, (int) Math.floor((x0 + Math.min(0, dx) + Math.min(0, ex)) * scaleX) - 6);
+            int right = Math.min(pixelWidth, (int) Math.ceil((x0 + Math.max(0, dx) + Math.max(0, ex)) * scaleX) + 6);
+            int top = Math.max(0, (int) Math.floor((y0 + Math.min(0, dy) + Math.min(0, ey)) * scaleY) - 6);
+            int bottom = Math.min(pixelHeight, (int) Math.ceil((y0 + Math.max(0, dy) + Math.max(0, ey)) * scaleY) + 6);
+            if (right <= left || bottom <= top) return null;
+            return new CaptureArea(left, bottomOrigin ? pixelHeight - bottom : top, right - left, bottom - top);
+        }
     }
 
     public record MaskLayout(int pixelWidth, int pixelHeight, float designWidth, float designHeight,
