@@ -33,6 +33,7 @@ import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Arc2D;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Line2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
@@ -200,8 +201,9 @@ public final class OrionClickGuiScreen extends Screen {
             new Color(0xE2, 0xE2, 0xDF), new Color(0x1B, 0x1B, 0x19),
             new Color(0x79, 0x79, 0x77), new Color(0xEE, 0xEE, 0xEC),
             new Color(0x9A, 0x9A, 0x97));
-    private static final String[] THEME_OPTIONS = {"Paradox", "Paradox Light", "Orion", "Orion2", "Orion3"};
-    private static final int[] THEME_IDS = {3, 4, 0, 1, 2};
+    private static final String[] THEME_OPTIONS = {"Dark", "Light"};
+    private static final int[] THEME_IDS = {3, 4};
+    private static final int GRID_COLUMNS = 3, GRID_GAP = 6;
     private static final int GRID_HEIGHT = 72, GRID_STEP = 78;
 
     private static int lastSelectedCategory;
@@ -268,7 +270,7 @@ public final class OrionClickGuiScreen extends Screen {
     private long lastFrameNanos;
     private final float[] toggleAnim = new float[Action.VALUES.length];
     private final float[] categoryHoverAnim = new float[Category.VALUES.length];
-    private final float[] moduleHoverAnim = new float[18];
+    private final float[] moduleHoverAnim = new float[24];
     private long pageStartedAt;
     private List<Object> pageIdentity;
     private float pageAnimation = 1F;
@@ -303,6 +305,7 @@ public final class OrionClickGuiScreen extends Screen {
         super(TITLE);
         this.configManager = configManager;
         applyPalette();
+        paradoxAll = true;
         OrionConfig config = configManager.getConfig();
         for (String favorite : config.getFavoriteModules()) {
             try { paradoxFavorites.add(Action.valueOf(favorite)); } catch (IllegalArgumentException ignored) { }
@@ -310,7 +313,7 @@ public final class OrionClickGuiScreen extends Screen {
         globalSettings = new Setting[]{
                 new ChoiceSetting("Тема", THEME_OPTIONS, () -> themeOption(config.getClickGuiTheme()), value -> configManager.setClickGuiTheme(THEME_IDS[value]))
         };
-        selectedCategory = Math.max(0, Math.min(Category.VALUES.length - 1, lastSelectedCategory));
+        selectedCategory = 0;
         for (Action action : Action.VALUES) {
             toggleAnim[action.ordinal()] = isActive(action) ? 1.0F : 0.0F;
         }
@@ -323,6 +326,7 @@ public final class OrionClickGuiScreen extends Screen {
             if (row.action == Action.MEDIA_PLAYER) {
                 screen.selectedCategory = Category.MISC.ordinal();
                 lastSelectedCategory = screen.selectedCategory;
+                screen.paradoxAll = false;
                 screen.openSettings(row);
                 break;
             }
@@ -413,7 +417,7 @@ public final class OrionClickGuiScreen extends Screen {
                 applyScrollBar(localY, true);
                 return true;
             }
-            int maximum = Math.max(0, rowsForSelectedCategory().length - maxVisibleRows());
+            int maximum = moduleMaxScroll(rowsForSelectedCategory().length);
             if (settingsFor == null && maximum > 0 && (Category.VALUES[selectedCategory] != Category.SETTINGS || !searchQuery.isBlank())) {
                 draggingModuleScroll = true;
                 applyScrollBar(localY, false);
@@ -487,7 +491,7 @@ public final class OrionClickGuiScreen extends Screen {
             if (paradox) {
                 int index = module - moduleScroll;
                 int cx = gridCardX(index), cy = gridCardY(index);
-                if (isInside(localX, localY, cx + gridCardWidth() - 49, cy + 7, 16, 16)) {
+                if (isInside(localX, localY, cx + gridCardWidth() - 49, cy + 8, 16, 16)) {
                     if (!paradoxFavorites.add(row.action)) paradoxFavorites.remove(row.action);
                     configManager.getConfig().setFavoriteModules(paradoxFavorites.stream().map(Enum::name).toList());
                     configManager.save(); lastFingerprint = null;
@@ -551,8 +555,8 @@ public final class OrionClickGuiScreen extends Screen {
         if (settingsFor == null && (Category.VALUES[selectedCategory] != Category.SETTINGS || !searchQuery.isBlank())
                 && toLocalX(mouseX) >= L.moduleX && toLocalX(mouseX) < L.moduleX + L.moduleW
                 && toLocalY(mouseY) >= L.moduleY && toLocalY(mouseY) < L.guiH - 8) {
-            int maxScroll = Math.max(0, rowsForSelectedCategory().length - maxVisibleRows());
-            moduleScroll = Math.max(0, Math.min(maxScroll, moduleScroll - (int) Math.signum(vertical) * (paradox ? 2 : 1)));
+            int maxScroll = moduleMaxScroll(rowsForSelectedCategory().length);
+            moduleScroll = Math.max(0, Math.min(maxScroll, moduleScroll - (int) Math.signum(vertical) * (paradox ? GRID_COLUMNS : 1)));
             Arrays.fill(moduleHoverAnim, 0.0F);
             lastFingerprint = null;
             return true;
@@ -1004,6 +1008,12 @@ public final class OrionClickGuiScreen extends Screen {
         };
     }
 
+    private ChoiceSetting hudStyleSetting(String label, String id) {
+        return new ChoiceSetting(label, new String[]{"Обычный", "Glass"},
+                () -> configManager.getConfig().isHudElementGlass(id) ? 1 : 0,
+                value -> configManager.setHudElementGlass(id, value == 1));
+    }
+
     private Setting[] buildSettings(Action action) {
         OrionConfig config = configManager.getConfig();
         return switch (action) {
@@ -1031,6 +1041,11 @@ public final class OrionClickGuiScreen extends Screen {
             };
             case WINGS -> new Setting[]{new ChoiceSetting("Вид крыльев", new String[]{"Ангельские", "Драконьи"}, config::getWingsStyle, configManager::setWingsStyle)};
             case WAYPOINTS -> new Setting[]{
+                    new ToggleSetting("Указатели за экраном", config::isWaypointEdgeIndicators, config::setWaypointEdgeIndicators),
+                    new ToggleSetting("Координаты меток", config::isWaypointShowCoordinates, config::setWaypointShowCoordinates),
+                    new ToggleSetting("Умные подписи", config::isWaypointSmartLabels, config::setWaypointSmartLabels),
+                    new SliderSetting("Меток на экране", 1, 64, () -> (float) config.getWaypointVisibleLimit(),
+                            value -> config.setWaypointVisibleLimit(Math.round(value)), "", true),
                     new ValueSetting("Статус", () -> waypointStatus),
                     new ChoiceSetting("Сохранённые метки", waypointOptions(), () -> waypointSelected, this::selectWaypoint),
                     new TextSetting("Название", () -> waypointName, value -> waypointName = value, 32),
@@ -1069,8 +1084,15 @@ public final class OrionClickGuiScreen extends Screen {
                             config::getAspectStretch, config::setAspectStretch, "x")
             };
             case HUD -> new Setting[]{
-                    new ToggleSetting("Стеклянный скорборд",
-                            config::isScoreboardGlassEnabled, configManager::setScoreboardGlassEnabled),
+                    hudStyleSetting("Водяной знак", "hud_watermark"),
+                    hudStyleSetting("Клавиши", "hud_status_panels"),
+                    hudStyleSetting("Инвентарь", "inventory_hud"),
+                    hudStyleSetting("Игроки рядом", "hud_better_near"),
+                    hudStyleSetting("Медиаплеер", "media_player_hud"),
+                    hudStyleSetting("Баскетбол", "basketball_hud"),
+                    hudStyleSetting("Футбол", "football_hud"),
+                    new ChoiceSetting("Скорборд", new String[]{"Обычный", "Glass"},
+                            () -> config.isScoreboardGlassEnabled() ? 1 : 0, value -> configManager.setScoreboardGlassEnabled(value == 1)),
                     new SliderSetting("Масштаб", 0.5F, 4.0F,
                             config::getHudScale, config::setHudScale, "x")
             };
@@ -1447,8 +1469,11 @@ public final class OrionClickGuiScreen extends Screen {
             }
             drawText(g, tr("Все"), 27, 82, OrionInterfaceFonts.face(2,9.5F), TEXT, false);
             drawText(g, tr("Избранное"), 27, 101, OrionInterfaceFonts.face(2,9.5F), TEXT, false);
-            drawIcon(g, Icon.GRID, 15, 78, TEXT, .9F, .25F);
-            drawFavoriteStar(g, 15, 97, paradoxFavoritesOnly);
+            drawIcon(g, Icon.GRID, 15, 78, TEXT, .9F, .32F);
+            drawFavoriteStar(g, 15, 97.5F, paradoxFavoritesOnly);
+            g.setColor(BORDER);
+            g.setStroke(new BasicStroke(0.75F));
+            g.draw(new Line2D.Float(8, 112.5F, L.sidebarW - 8, 112.5F));
             g.setColor(MUTED);
             g.setStroke(new BasicStroke(1F));
             g.draw(new Line2D.Float(L.guiW - 15, 11, L.guiW - 10, 16));
@@ -1584,25 +1609,30 @@ public final class OrionClickGuiScreen extends Screen {
             drawText(g, empty, L.moduleX, L.moduleY + 18 * sc, bodyFont(8.5F * sc), MUTED, false);
             return;
         }
-        int visible = Math.min(rows.length, maxVisibleRows());
-        moduleScroll = Math.max(0, Math.min(moduleScroll, Math.max(0, rows.length - visible)));
+        moduleScroll = Math.max(0, Math.min(moduleScroll, moduleMaxScroll(rows.length)));
+        int visible = Math.min(rows.length - moduleScroll, maxVisibleRows());
         for (int i = 0; i < visible; i++) {
             float hover = i < moduleHoverAnim.length ? moduleHoverAnim[i] : 0.0F;
             if (paradox) drawGridModule(g, rows[i + moduleScroll], i, hover);
             else drawModule(g, rows[i + moduleScroll], L.moduleY + i * L.moduleStep, hover);
         }
-        if (rows.length > visible) drawScrollIndicator(g, paradox ? moduleScroll * (GRID_STEP / 2) : moduleScroll * L.moduleStep,
-                paradox ? (rows.length - visible) * (GRID_STEP / 2) : (rows.length - visible) * L.moduleStep);
+        if (rows.length > visible) drawScrollIndicator(g, paradox ? moduleScroll / GRID_COLUMNS * GRID_STEP : moduleScroll * L.moduleStep,
+                paradox ? moduleMaxScroll(rows.length) / GRID_COLUMNS * GRID_STEP : (rows.length - visible) * L.moduleStep);
     }
 
     private int maxVisibleRows() {
-        if (paradox) return 2 * Math.max(1, (L.guiH - L.moduleY - 8 + 6) / GRID_STEP);
+        if (paradox) return GRID_COLUMNS * Math.max(1, (L.guiH - L.moduleY - 8 + 6) / GRID_STEP);
         return (L.guiH - L.moduleY - 8) / L.moduleStep;
     }
 
-    private int gridCardWidth() { return (L.moduleW - 6) / 2; }
-    private int gridCardX(int index) { return L.moduleX + index % 2 * (gridCardWidth() + 6); }
-    private int gridCardY(int index) { return L.moduleY + index / 2 * GRID_STEP; }
+    private int moduleMaxScroll(int count) {
+        int remaining = Math.max(0, count - maxVisibleRows());
+        return paradox ? (remaining + GRID_COLUMNS - 1) / GRID_COLUMNS * GRID_COLUMNS : remaining;
+    }
+
+    private int gridCardWidth() { return (L.moduleW - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS; }
+    private int gridCardX(int index) { return L.moduleX + index % GRID_COLUMNS * (gridCardWidth() + GRID_GAP); }
+    private int gridCardY(int index) { return L.moduleY + index / GRID_COLUMNS * GRID_STEP; }
 
     private void drawGridModule(Graphics2D g, ModuleRow row, int index, float hover) {
         float progress = Math.max(0F, Math.min(1F, (cardsAnimation * 600F - Math.min(index,18) * 22F) / 200F));
@@ -1616,11 +1646,11 @@ public final class OrionClickGuiScreen extends Screen {
         g.setStroke(new BasicStroke(.65F));
         g.draw(new RoundRectangle2D.Float(x + .5F, y + .5F, w - 1, GRID_HEIGHT - 1, 7.5F, 7.5F));
         float active = toggleAnim[row.action.ordinal()];
-        g.setColor(mix(SEARCH_BG, PRIMARY, active));
-        g.fill(new RoundRectangle2D.Float(x + 8, y + 7, 17, 17, 5, 5));
-        drawModuleSymbol(g, row, x + 16.5F, y + 15.5F, mix(MUTED, Color.WHITE, active));
+        g.setColor(mix(SEARCH_BG, SURFACE_HOVER, active));
+        g.fill(new RoundRectangle2D.Float(x + 8, y + 7, 20, 20, 6, 6));
+        drawModuleSymbol(g, row, x + 18, y + 17, mix(MUTED, PRIMARY, active));
         drawToggle(g, x + w - 26, y + 11, active);
-        if (hover > .01F || paradoxFavorites.contains(row.action)) drawFavoriteStar(g, x + w - 41, y + 15,
+        if (hover > .01F || paradoxFavorites.contains(row.action)) drawFavoriteStar(g, x + w - 41, y + 16,
                 paradoxFavorites.contains(row.action));
         Font titleFont=OrionInterfaceFonts.face(2,11F);
         drawText(g, ellipsize(g, titleFont, row.title, w - 16), x + 8, y + 37,
@@ -1696,15 +1726,15 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void applyScrollBar(int y, boolean settings) {
-        int moduleMaximum = Math.max(0, rowsForSelectedCategory().length - maxVisibleRows());
+        int moduleMaximum = moduleMaxScroll(rowsForSelectedCategory().length);
         int maximum = settings ? settingsMaxScroll(settingsRows)
-                : moduleMaximum * (paradox ? GRID_STEP / 2 : L.moduleStep);
+                : (paradox ? moduleMaximum / GRID_COLUMNS * GRID_STEP : moduleMaximum * L.moduleStep);
         float trackHeight = L.guiH - L.moduleY - 10;
         float thumbHeight = Math.max(16, trackHeight * trackHeight / (trackHeight + maximum));
         float available = trackHeight - thumbHeight;
         float progress = available <= 0 ? 0 : Math.max(0, Math.min(1, (y - L.moduleY - thumbHeight / 2) / available));
         if (settings) { settingsScroll = Math.round(progress * maximum); if (paradox) scrollAnimation = settingsScroll; }
-        else moduleScroll = paradox ? Math.min(moduleMaximum,Math.round(progress * moduleMaximum / 2F) * 2)
+        else moduleScroll = paradox ? Math.min(moduleMaximum,Math.round(progress * moduleMaximum / GRID_COLUMNS) * GRID_COLUMNS)
                 : Math.round(progress * maximum / L.moduleStep);
         lastFingerprint = null;
     }
@@ -2322,29 +2352,182 @@ public final class OrionClickGuiScreen extends Screen {
         Graphics2D icon = (Graphics2D) g.create();
         try {
             icon.translate(x,y); icon.setColor(color);
-            icon.setStroke(new BasicStroke(1F,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));
+            icon.setStroke(new BasicStroke(1.15F,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));
             switch(row.action) {
                 case CHAT_FILTER -> { Path2D.Float p=new Path2D.Float();p.moveTo(-5,-4);p.lineTo(5,-4);p.lineTo(1,0);p.lineTo(1,5);p.lineTo(-1,4);p.lineTo(-1,0);p.closePath();icon.draw(p); }
-                case CHAT_HIGHLIGHT -> { icon.draw(new Line2D.Float(-4,4,3,-4));icon.draw(new Line2D.Float(-2,5,5,-3));icon.draw(new Line2D.Float(-5,6,5,6)); }
+                case CHAT_HIGHLIGHT -> {
+                    Path2D.Float marker = new Path2D.Float();
+                    marker.moveTo(-4, 1); marker.lineTo(2, -5); marker.quadTo(3, -6, 4, -5);
+                    marker.lineTo(6, -3); marker.lineTo(-1, 4); marker.closePath(); icon.draw(marker);
+                    icon.draw(new Line2D.Float(-4, 1, -5, 5));
+                    icon.draw(new Line2D.Float(-5, 5, -1, 4));
+                    icon.draw(new Line2D.Float(-6, 7, 5, 7));
+                    icon.draw(new Line2D.Float(1, -4, 4, -1));
+                }
                 case CUSTOM_TIME, CHAT_TIME -> { icon.draw(new Ellipse2D.Float(-5,-5,10,10));icon.draw(new Line2D.Float(0,-3,0,0));icon.draw(new Line2D.Float(0,0,3,2)); }
                 case WAYPOINTS -> { Path2D.Float p=new Path2D.Float();p.moveTo(0,6);p.curveTo(-9,-2,-3,-7,0,-6);p.curveTo(3,-7,9,-2,0,6);icon.draw(p);icon.draw(new Ellipse2D.Float(-1.5F,-3.5F,3,3)); }
                 case DEATH_POINT -> { icon.draw(new RoundRectangle2D.Float(-4,-5,8,8,4,4));icon.fill(new Ellipse2D.Float(-2.5F,-2,2,2));icon.fill(new Ellipse2D.Float(.5F,-2,2,2));icon.draw(new Line2D.Float(-2,3,-2,5));icon.draw(new Line2D.Float(2,3,2,5)); }
-                case ANIMATIONS -> { for(int i=-1;i<=1;i++){icon.draw(new Line2D.Float(i*3-2,-4,i*3+1,0));icon.draw(new Line2D.Float(i*3+1,0,i*3-2,4));} }
+                case ANIMATIONS -> {
+                    icon.draw(new RoundRectangle2D.Float(-5, -5, 10, 10, 3, 3));
+                    Path2D.Float play = new Path2D.Float();
+                    play.moveTo(-1.5F, -2.5F); play.lineTo(2, 0); play.lineTo(-1.5F, 2.5F); play.closePath();
+                    icon.fill(play);
+                }
+                case ARMOR_INDICATOR -> {
+                    Path2D.Float armor = new Path2D.Float();
+                    armor.moveTo(-3, -5); armor.lineTo(-6, -2); armor.lineTo(-4, 0); armor.lineTo(-3, -1);
+                    armor.lineTo(-3, 5); armor.lineTo(3, 5); armor.lineTo(3, -1); armor.lineTo(4, 0);
+                    armor.lineTo(6, -2); armor.lineTo(3, -5); armor.quadTo(0, -1, -3, -5); armor.closePath();
+                    icon.draw(armor);
+                }
+                case BASKETBALL, FOOTBALL -> {
+                    icon.draw(new Ellipse2D.Float(-5.5F, -5.5F, 11, 11));
+                    icon.draw(new Line2D.Float(-5.5F, 0, 5.5F, 0));
+                    icon.draw(new Line2D.Float(0, -5.5F, 0, 5.5F));
+                    Path2D.Float seam = new Path2D.Float();
+                    seam.moveTo(-4, -4); seam.curveTo(1, -2, 1, 2, -4, 4);
+                    seam.moveTo(4, -4); seam.curveTo(-1, -2, -1, 2, 4, 4); icon.draw(seam);
+                }
+                case TARGET_ESP -> {
+                    Path2D.Float corners = new Path2D.Float();
+                    for (int side : new int[]{-1, 1}) {
+                        corners.moveTo(side * 2, -6); corners.lineTo(side * 6, -6); corners.lineTo(side * 6, -2);
+                        corners.moveTo(side * 6, 2); corners.lineTo(side * 6, 6); corners.lineTo(side * 2, 6);
+                    }
+                    icon.draw(corners);
+                    icon.draw(new Ellipse2D.Float(-2, -2, 4, 4));
+                }
+                case HIT_COLOR -> {
+                    Path2D.Float drop = new Path2D.Float();
+                    drop.moveTo(0, -6); drop.curveTo(-2, -3, -5, -1, -5, 2);
+                    drop.curveTo(-5, 8, 5, 8, 5, 2); drop.curveTo(5, -1, 2, -3, 0, -6); drop.closePath();
+                    icon.draw(drop);
+                    Shape clip = icon.getClip();
+                    icon.clip(drop); icon.fill(new Rectangle2D.Float(-5, 2, 10, 5)); icon.setClip(clip);
+                }
+                case BETTER_NEAR -> {
+                    icon.draw(new Ellipse2D.Float(-5, -5, 4, 4));
+                    icon.draw(new Arc2D.Float(-7, 1, 8, 8, 0, 180, Arc2D.OPEN));
+                    icon.draw(new Ellipse2D.Float(2, -4, 3, 3));
+                    icon.draw(new Arc2D.Float(1, 1, 6, 6, 0, 140, Arc2D.OPEN));
+                }
+                case SMALL_SHIELD -> {
+                    Path2D.Float shield = new Path2D.Float();
+                    shield.moveTo(-2, -4); shield.lineTo(3, -2); shield.lineTo(3, 2);
+                    shield.quadTo(2, 5, -2, 6); shield.quadTo(-6, 5, -7, 2);
+                    shield.lineTo(-7, -2); shield.closePath(); icon.draw(shield);
+                    icon.draw(new Line2D.Float(1, -6, 6, -6));
+                    icon.draw(new Line2D.Float(6, -6, 6, -1));
+                    icon.draw(new Line2D.Float(6, -6, 2, -2));
+                }
+                case VIEW_MODEL -> {
+                    Path2D.Float hand = new Path2D.Float();
+                    hand.moveTo(-4, 6); hand.lineTo(-7, 1); hand.quadTo(-7, -1, -5, 0);
+                    hand.lineTo(-3, 2); hand.lineTo(-3, -4); hand.quadTo(-2, -6, -1, -4);
+                    hand.lineTo(-1, -1); hand.lineTo(-1, -5); hand.quadTo(0, -7, 1, -5);
+                    hand.lineTo(1, -1); hand.lineTo(1, -4); hand.quadTo(2, -6, 3, -4);
+                    hand.lineTo(3, 0); hand.lineTo(3, -2); hand.quadTo(5, -4, 5, -1);
+                    hand.lineTo(5, 3); hand.lineTo(3, 6); hand.closePath();
+                    icon.draw(hand);
+                }
+                case ITEM_PHYSICS -> {
+                    Path2D.Float item = new Path2D.Float();
+                    item.moveTo(-4, -4); item.lineTo(1, -6); item.lineTo(5, -2);
+                    item.lineTo(0, 0); item.closePath();
+                    item.moveTo(-4, -4); item.lineTo(-4, 1); item.lineTo(0, 5);
+                    item.lineTo(5, 3); item.lineTo(5, -2);
+                    item.moveTo(0, 0); item.lineTo(0, 5); icon.draw(item);
+                    icon.draw(new Line2D.Float(-6, 7, 6, 7));
+                    icon.draw(new Line2D.Float(-7, -3, -7, 2));
+                }
+                case PVP_SAFE -> {
+                    Path2D.Float shield = new Path2D.Float();
+                    shield.moveTo(0, -6); shield.lineTo(5, -4); shield.lineTo(4, 2);
+                    shield.quadTo(3, 4, 0, 6); shield.quadTo(-3, 4, -4, 2);
+                    shield.lineTo(-5, -4); shield.closePath(); icon.draw(shield);
+                    icon.draw(new Line2D.Float(-2, 0, -.5F, 2));
+                    icon.draw(new Line2D.Float(-.5F, 2, 2.5F, -2));
+                }
+                case HEALTH_TAGS, DAMAGE_INDICATORS -> {
+                    Path2D.Float heart = new Path2D.Float();
+                    heart.moveTo(0, 5); heart.curveTo(-9, 0, -6, -7, 0, -3);
+                    heart.curveTo(6, -7, 9, 0, 0, 5); heart.closePath(); icon.draw(heart);
+                }
+                case NO_FIRE -> {
+                    Path2D.Float flame = new Path2D.Float();
+                    flame.moveTo(0, -6); flame.curveTo(1, -2, 6, 0, 4, 4);
+                    flame.curveTo(1, 8, -7, 4, -4, 0); flame.quadTo(-3, 2, -2, 1);
+                    flame.quadTo(-3, -2, 0, -6); flame.closePath(); icon.draw(flame);
+                    icon.draw(new Line2D.Float(-6, 6, 6, -6));
+                }
+                case NO_WEATHER -> {
+                    Path2D.Float cloud = new Path2D.Float();
+                    cloud.moveTo(-3, 2); cloud.curveTo(-8, 2, -7, -3, -3, -3);
+                    cloud.curveTo(-2, -7, 4, -7, 4, -2); cloud.curveTo(8, -2, 8, 2, 4, 2);
+                    cloud.closePath(); icon.draw(cloud);
+                    icon.draw(new Line2D.Float(-3, 4, -4, 6));
+                    icon.draw(new Line2D.Float(1, 4, 0, 6));
+                }
+                case WORLD_CHANGER -> {
+                    icon.draw(new Ellipse2D.Float(-6, -6, 12, 12));
+                    icon.draw(new Ellipse2D.Float(-2.5F, -6, 5, 12));
+                    icon.draw(new Line2D.Float(-6, 0, 6, 0));
+                }
+                case MOTION_BLUR -> {
+                    icon.draw(new RoundRectangle2D.Float(-1, -4, 7, 8, 2, 2));
+                    icon.draw(new Line2D.Float(-6, -3, -3, -3));
+                    icon.draw(new Line2D.Float(-7, 0, -3, 0));
+                    icon.draw(new Line2D.Float(-6, 3, -3, 3));
+                }
+                case ZOOM -> {
+                    icon.draw(new Ellipse2D.Float(-5, -5, 8, 8));
+                    icon.draw(new Line2D.Float(2, 2, 6, 6));
+                    icon.draw(new Line2D.Float(-3, -1, 1, -1));
+                    icon.draw(new Line2D.Float(-1, -3, -1, 1));
+                }
                 case INVENTORY_HUD -> { icon.draw(new RoundRectangle2D.Float(-5,-4,10,8,2,2));icon.draw(new Line2D.Float(-2,-4,-2,4));icon.draw(new Line2D.Float(2,-4,2,4));icon.draw(new Line2D.Float(-5,0,5,0)); }
                 case PROJECTILE_TRAIL -> { icon.draw(new Line2D.Float(-5,4,4,-4));icon.draw(new Line2D.Float(0,-4,4,-4));icon.draw(new Line2D.Float(4,-4,4,0));icon.draw(new Line2D.Float(-5,0,-2,-3)); }
-                case BREADCRUMBS -> { for(int i=0;i<4;i++)icon.fill(new Ellipse2D.Float(-6+i*3,(float)Math.sin(i)*3-2,2,2)); }
+                case BREADCRUMBS -> {
+                    AffineTransform transform = icon.getTransform();
+                    icon.rotate(-.35);
+                    icon.fill(new RoundRectangle2D.Float(-5, -2, 3.5F, 6, 3, 3));
+                    icon.fill(new Ellipse2D.Float(-5, 5, 3.5F, 2));
+                    icon.fill(new RoundRectangle2D.Float(1.5F, -6, 3.5F, 6, 3, 3));
+                    icon.fill(new Ellipse2D.Float(1.5F, 1, 3.5F, 2));
+                    icon.setTransform(transform);
+                }
                 case WORLD_PARTICLES, HIT_PARTICLES -> { drawLogo(icon,0,0,5,color,.8F);icon.fill(new Ellipse2D.Float(4,-5,2,2)); }
                 case NO_PARTICLES -> { drawLogo(icon,0,0,4,color,.8F);icon.draw(new Line2D.Float(-5,5,5,-5)); }
-                case HALO -> { icon.draw(new Ellipse2D.Float(-5,-2,10,4)); icon.draw(new Line2D.Float(0,-5,0,-3.5F)); }
+                case HALO -> {
+                    icon.draw(new Ellipse2D.Float(-6, -6, 12, 3));
+                    icon.draw(new Ellipse2D.Float(-3, -1, 6, 6));
+                    icon.draw(new Arc2D.Float(-5, 6, 10, 6, 20, 140, Arc2D.OPEN));
+                }
                 case WINGS -> { for(int side : new int[]{-1,1}) { Path2D.Float wing=new Path2D.Float();wing.moveTo(0,3);wing.curveTo(side*2,-1,side*5,-4,side*6,-4);wing.quadTo(side*6,1,side*2,4);wing.closePath();icon.draw(wing); } }
                 case LOCK_SLOT -> { icon.draw(new RoundRectangle2D.Float(-4,-1,8,6,2,2));icon.draw(new Arc2D.Float(-2.5F,-5,5,7,0,180,Arc2D.OPEN)); }
                 case PROTECT_NAME -> { icon.draw(new Ellipse2D.Float(-5,-3,10,6));icon.draw(new Line2D.Float(-5,5,5,-5)); }
                 case FAKE_PREFIX -> { Path2D.Float tag=new Path2D.Float();tag.moveTo(-5,-3);tag.lineTo(2,-3);tag.lineTo(5,0);tag.lineTo(2,3);tag.lineTo(-5,3);tag.closePath();icon.draw(tag);icon.fill(new Ellipse2D.Float(1,-1,2,2)); }
-                case SELF_TAG, HEALTH_TAGS -> { icon.draw(new Ellipse2D.Float(-2,-5,4,4));icon.draw(new Arc2D.Float(-4,0,8,7,0,180,Arc2D.OPEN));icon.draw(new Line2D.Float(-4,-7,4,-7)); }
+                case SELF_TAG -> { icon.draw(new Ellipse2D.Float(-2,-5,4,4));icon.draw(new Arc2D.Float(-4,0,8,7,0,180,Arc2D.OPEN));icon.draw(new Line2D.Float(-4,-7,4,-7)); }
                 case ENCHANT_GLINT, RAINBOW -> drawFavoriteStar(icon,0,0,true);
-                case KILL_EFFECTS -> { icon.draw(new Line2D.Float(-4,5,4,-5));icon.draw(new Line2D.Float(1,-5,4,-5));icon.draw(new Line2D.Float(4,-5,4,-2));icon.draw(new Line2D.Float(-5,1,-1,5)); }
-                case SATURATION -> { icon.draw(new Ellipse2D.Float(-4,-3,8,8));icon.draw(new Line2D.Float(0,-3,2,-6)); }
-                default -> drawIcon(icon,row.icon,0,0,color,.9F,.28F);
+                case KILL_EFFECTS -> {
+                    Path2D.Float skull = new Path2D.Float();
+                    skull.moveTo(-3, 5); skull.lineTo(-3, 2); skull.curveTo(-8, 0, -6, -6, -1, -6);
+                    skull.curveTo(4, -6, 6, 0, 1, 2); skull.lineTo(1, 5); skull.closePath(); icon.draw(skull);
+                    icon.fill(new Ellipse2D.Float(-4, -1, 2, 2));
+                    icon.fill(new Ellipse2D.Float(0, -1, 2, 2));
+                    icon.draw(new Line2D.Float(-1, 3, -1, 5));
+                    icon.draw(new Line2D.Float(6, 2, 6, 6));
+                    icon.draw(new Line2D.Float(4, 4, 8, 4));
+                }
+                case SATURATION -> {
+                    Path2D.Float food = new Path2D.Float();
+                    food.moveTo(-2, 2); food.curveTo(-8, 0, -3, -8, 3, -5);
+                    food.curveTo(9, -2, 3, 5, 0, 3); food.closePath(); icon.draw(food);
+                    Path2D.Float bone = new Path2D.Float();
+                    bone.moveTo(-2, 2); bone.lineTo(-4, 4); bone.curveTo(-7, 2, -8, 6, -5, 6);
+                    bone.curveTo(-5, 9, -1, 7, -3, 5); bone.lineTo(0, 3); icon.draw(bone);
+                }
+                default -> drawIcon(icon,row.icon,0,0,color,1.15F,.44F);
             }
         } finally { icon.dispose(); }
     }
@@ -2354,7 +2537,7 @@ public final class OrionClickGuiScreen extends Screen {
         for (int i = 0; i < 10; i++) {
             double angle = -Math.PI / 2 + i * Math.PI / 5;
             float radius = i % 2 == 0 ? 4.3F : 1.95F;
-            float x = cx + (float)Math.cos(angle) * radius, y = cy + (float)Math.sin(angle) * radius;
+            float x = cx + (float)Math.cos(angle) * radius, y = cy + .4F + (float)Math.sin(angle) * radius;
             if (i == 0) star.moveTo(x, y); else star.lineTo(x, y);
         }
         star.closePath();
@@ -2406,9 +2589,12 @@ public final class OrionClickGuiScreen extends Screen {
                 g.draw(body);
             }
             case MOVEMENT -> {
-                g.draw(new Line2D.Float(-11, 11, 11, -11));
-                g.draw(new Line2D.Float(-10, -10, 10, 10));
-                g.draw(new Line2D.Float(3, -13, 11, -5));
+                Path2D.Float arrow = new Path2D.Float();
+                arrow.moveTo(-10, 8); arrow.lineTo(10, -8);
+                arrow.moveTo(-1, -8); arrow.lineTo(10, -8); arrow.lineTo(10, 3);
+                g.draw(arrow);
+                g.draw(new Line2D.Float(-11, 1, -5, -4));
+                g.draw(new Line2D.Float(-4, 10, 2, 5));
             }
             case EYE -> {
                 Path2D path = new Path2D.Float();
@@ -2435,7 +2621,7 @@ public final class OrionClickGuiScreen extends Screen {
             case GRID -> {
                 for (int row = 0; row < 2; row++) {
                     for (int col = 0; col < 2; col++) {
-                        g.draw(new RoundRectangle2D.Float(-11 + col * 13, -11 + row * 13, 8, 8, 2, 2));
+                        g.draw(new RoundRectangle2D.Float(-11 + col * 14, -11 + row * 14, 8, 8, 2, 2));
                     }
                 }
             }
@@ -2577,11 +2763,11 @@ public final class OrionClickGuiScreen extends Screen {
         return -1;
     }
 
-    private int categoryRowY(int index) { return paradox ? 111 + index * 22 : L.sideY + index * L.sideStep; }
+    private int categoryRowY(int index) { return paradox ? 119 + index * 22 : L.sideY + index * L.sideStep; }
 
     private int moduleAt(int localX, int localY) {
         ModuleRow[] rows = rowsForSelectedCategory();
-        int visible = Math.min(rows.length, maxVisibleRows());
+        int visible = Math.min(Math.max(0, rows.length - moduleScroll), maxVisibleRows());
         for (int i = 0; i < visible; i++) {
             if (paradox) {
                 if (isInside(localX, localY, gridCardX(i), gridCardY(i), gridCardWidth(), GRID_HEIGHT)) return i + moduleScroll;
@@ -3183,7 +3369,7 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("BetterNear", "Игроки рядом: ник, дистанция, стрелка", Icon.PLAYER, Action.BETTER_NEAR),
                 new ModuleRow("ArmorIndicator", "Броня игроков над головой", Icon.PLAYER, Action.ARMOR_INDICATOR),
                 new ModuleRow("HitParticles", "Искры при ударе", Icon.GRID, Action.HIT_PARTICLES),
-                new ModuleRow("Эффекты убийств", "Объёмные эффекты и звуки после убийства", Icon.GRID, Action.KILL_EFFECTS),
+                new ModuleRow("KillEffect", "Объёмные эффекты и звуки после убийства", Icon.GRID, Action.KILL_EFFECTS),
                 new ModuleRow("DamageIndicators", "Урон от ваших ударов", Icon.CROSSHAIR, Action.DAMAGE_INDICATORS),
                 new ModuleRow("PvpSafe", "Предупреждает о выходе во время боя", Icon.CROSSHAIR, Action.PVP_SAFE)
         };

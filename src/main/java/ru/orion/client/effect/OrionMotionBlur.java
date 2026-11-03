@@ -1,57 +1,64 @@
 package ru.orion.client.effect;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.navigation.ScreenRectangle;
-import net.minecraft.client.gui.render.TextureSetup;
 import net.minecraft.client.renderer.BindGroupLayouts;
-import net.minecraft.client.renderer.state.gui.BlitRenderState;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
-import org.joml.Matrix3x2f;
+import org.joml.Matrix4f;
+import org.joml.Vector4f;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
-import ru.orion.client.mixin.GuiGraphicsExtractorAccessor;
 import ru.orion.client.mixin.RenderPipelinesAccessor;
+
+import java.util.Optional;
 
 /** Однопроходное направленное размытие копии мира до отрисовки HUD. */
 public final class OrionMotionBlur {
-    private static RenderPipeline createPipeline() {
-        return RenderPipelinesAccessor.orion$registerOptional(
-            RenderPipeline.builder(RenderPipelinesAccessor.orion$getGuiSnippet())
+    private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
+
+    static RenderPipeline createPipeline() {
+        return RenderPipeline.builder()
                     .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/motion_blur"))
-                    .withVertexShader("core/position_tex_color")
+                    .withVertexShader("core/screenquad")
                     .withFragmentShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/motion_blur"))
-                    .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
-                    .withBindGroupLayout(BindGroupLayouts.SAMPLER0).build());
+                    .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+                    .withCull(false)
+                    .withDepthStencilState(Optional.empty())
+                    .withColorTargetState(ColorTargetState.DEFAULT)
+                    .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+                    .withBindGroupLayout(BindGroupLayouts.SAMPLER0).build();
     }
     private final OrionConfigManager configManager;
-    private RenderPipeline pipeline;
-    private boolean captureReady;
+    // Регистрируем до первой загрузки ресурсов: кеш не компилирует pipeline по запросу.
+    private final RenderPipeline pipeline = RenderPipelinesAccessor.orion$registerOptional(createPipeline());
+    private boolean shaderWarningLogged;
+    private float blurX, blurY, radialBlur;
     private GpuTexture texture;
     private GpuTextureView view;
-    private boolean requested;
     private long lastNanos;
     private float lastYaw, lastPitch, smoothX, smoothY, smoothSpeed;
     private Vec3 lastPosition;
 
     public OrionMotionBlur(OrionConfigManager configManager) { this.configManager = configManager; }
-    public void register() { HudElementRegistry.addFirst(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"motion_blur"), this::render); }
-    private void render(GuiGraphicsExtractor context, DeltaTracker delta) {
+    /** Вызывается после мира и его post effects, до перенаправления framebuffer в кеш HUD. */
+    public void applyBeforeGui() {
         Minecraft client = Minecraft.getInstance();
-        if (!configManager.getConfig().isMotionBlurEnabled() || client.player == null || client.level == null || client.gui.screen() != null) {
+        boolean active = configManager.getConfig().isMotionBlurEnabled() && client.player != null && client.level != null
+                && client.gameRenderer.gameRenderState().shouldRenderLevel && client.gui.screen() == null;
+        if (!active) {
             lastNanos = 0; smoothX = smoothY = smoothSpeed = 0; lastPosition = null;
-            release(); return;
+            release();
+            return;
         }
         long now = System.nanoTime();
         float yaw = client.gameRenderer.mainCamera().yRot(), pitch = client.gameRenderer.mainCamera().xRot();
@@ -67,53 +74,55 @@ public final class OrionMotionBlur {
         smoothX += (speedX-smoothX)*smoothing; smoothY += (speedY-smoothY)*smoothing;
         smoothSpeed += (movement-smoothSpeed)*smoothing;
         float strength = configManager.getConfig().getMotionBlurStrength();
-        if ((Math.abs(smoothX)+Math.abs(smoothY)+smoothSpeed)*strength < 0.015F) { requested = false; return; }
-        GpuTexture source = client.gameRenderer.mainRenderTarget().getColorTexture();
-        if (source == null || source.isClosed() || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0) return;
+        blurX = Mth.clamp(smoothX * strength, -1, 1);
+        blurY = Mth.clamp(smoothY * strength, -1, 1);
+        radialBlur = Mth.clamp(smoothSpeed * strength, 0, 1);
+        if (Math.abs(blurX) + Math.abs(blurY) + radialBlur < 0.015F) return;
+        var target = Minecraft.getInstance().gameRenderer.mainRenderTarget();
+        GpuTexture source = target.getColorTexture();
+        if (source == null || source.isClosed() || target.getColorTextureView() == null
+                || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0) return;
         try {
-            if (pipeline == null) pipeline = createPipeline();
-            if (RenderSystem.getCompiledPipelineNullable(pipeline) == null) return;
-        } catch (RuntimeException | LinkageError ignored) { return; }
-        if (texture == null || texture.isClosed() || view == null || view.isClosed()
-                || texture.getWidth(0) != source.getWidth(0) || texture.getHeight(0) != source.getHeight(0)
-                || texture.getFormat() != source.getFormat()) {
-            release();
-            texture = RenderSystem.getDevice().createTexture("orion_motion_blur_scene",
-                    GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_TEXTURE_BINDING,
-                    source.getFormat(), source.getWidth(0), source.getHeight(0), 1, 1);
-            view = RenderSystem.getDevice().createTextureView(texture);
+            var compiled = RenderSystem.getCompiledPipelineNullable(pipeline);
+            if (compiled == null) {
+                warnShaderUnavailable(null);
+                return;
+            }
+            if (texture == null || texture.isClosed() || view == null || view.isClosed()
+                    || texture.getWidth(0) != source.getWidth(0) || texture.getHeight(0) != source.getHeight(0)
+                    || texture.getFormat() != source.getFormat()) {
+                release();
+                texture = RenderSystem.getDevice().createTexture("orion_motion_blur_scene",
+                        GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_TEXTURE_BINDING,
+                        source.getFormat(), source.getWidth(0), source.getHeight(0), 1, 1);
+                view = RenderSystem.getDevice().createTextureView(texture);
+            }
+            var encoder = RenderSystem.getDevice().createCommandEncoder();
+            encoder.copyTextureToTexture(source, texture, 0, 0, 0, 0, 0, texture.getWidth(0), texture.getHeight(0));
+            var transforms = RenderSystem.getDynamicUniforms().writeTransform(new Matrix4f(),
+                    new Vector4f(blurX, blurY, radialBlur, 1));
+            try (var pass = encoder.createRenderPass(() -> "Orion motion blur", target.getColorTextureView(), Optional.empty())) {
+                pass.setPipeline(compiled);
+                pass.setUniform("DynamicTransforms", transforms);
+                pass.setUniform("Sampler0", view, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+                pass.disableScissor();
+                pass.draw(3, 1, 0, 0);
+            }
+            shaderWarningLogged = false;
+            // submit() выполняет сам движок в конце кадра: здесь нельзя вращать transient-memory.
+        } catch (RuntimeException exception) {
+            warnShaderUnavailable(exception);
         }
-        int x = Math.round((Mth.clamp(smoothX * strength,-1,1)*0.5F+0.5F)*255);
-        int y = Math.round((Mth.clamp(smoothY * strength,-1,1)*0.5F+0.5F)*255);
-        int radial = Math.round(Mth.clamp(smoothSpeed * strength, 0, 1) * 255);
-        int packed = ARGB.color(255,x,y,radial);
-        requested = true;
-        if (!captureReady) return;
-        var sampler = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
-        var scissor = new ScreenRectangle(0,0,context.guiWidth(),context.guiHeight());
-        // Цветовая текстура OpenGL имеет начало внизу; Vulkan — вверху.
-        boolean flip = RenderSystem.getDevice().getDeviceInfo().backendName().toLowerCase(java.util.Locale.ROOT).contains("opengl");
-        ((GuiGraphicsExtractorAccessor)(Object)context).orion$getGuiRenderState().addGuiElement(
-                new BlitRenderState(pipeline, TextureSetup.singleTexture(view,sampler), new Matrix3x2f(context.pose()),
-                        0,0,context.guiWidth(),context.guiHeight(),0,1,flip?1F:0F,flip?0F:1F,packed,scissor));
     }
-    public void captureBeforeGui(GpuTexture source) {
-        if (!requested) return;
-        // GUI может сначала рисоваться во вспомогательную цель. Копировать её как мир нельзя.
-        GpuTexture main = Minecraft.getInstance().gameRenderer.mainRenderTarget().getColorTexture();
-        if (source != main) return;
-        requested = false;
-        if (source == null || source.isClosed() || texture == null || texture.isClosed()
-                || source.getWidth(0) != texture.getWidth(0) || source.getHeight(0) != texture.getHeight(0)
-                || source.getFormat() != texture.getFormat() || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0) return;
-        var encoder = RenderSystem.getDevice().createCommandEncoder();
-        encoder.copyTextureToTexture(source,texture,0,0,0,0,0,texture.getWidth(0),texture.getHeight(0));
-        encoder.submit();
-        captureReady = true;
+
+    private void warnShaderUnavailable(RuntimeException exception) {
+        if (!shaderWarningLogged) {
+            LOGGER.warn("Motion blur shader unavailable; skipping motion blur", exception);
+            shaderWarningLogged = true;
+        }
     }
+
     public void release() {
-        requested = false;
-        captureReady = false;
         if (view != null) { view.close(); view = null; }
         if (texture != null) { texture.close(); texture = null; }
     }

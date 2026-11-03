@@ -20,6 +20,18 @@ public final class OrionMenuConfigTest {
         roundtrip.sanitize();
         check(roundtrip.getKillEffectsStyle() == 8, "dragon keeps stable id");
         check(roundtrip.getKillEffectsTargets() == 1 && roundtrip.getKillEffectsPlayerLift() == .75F, "settings roundtrip");
+        OrionConfig legacy = gson.fromJson("{}", OrionConfig.class);
+        legacy.sanitize();
+        check(legacy.isHudElementGlass("hud_watermark"), "existing HUD defaults to glass");
+        check(legacy.isWaypointEdgeIndicators() && legacy.isWaypointShowCoordinates() && legacy.isWaypointSmartLabels(), "waypoint display defaults");
+        legacy.setHudElementGlass("hud_watermark", false);
+        legacy.setHudElementGlass("inventory_hud", true);
+        OrionConfig restored = gson.fromJson(gson.toJson(legacy), OrionConfig.class);
+        restored.sanitize();
+        check(!restored.isHudElementGlass("hud_watermark") && restored.isHudElementGlass("inventory_hud"), "independent HUD styles survive save");
+        OrionConfig malformed = gson.fromJson("{\"hudElementGlass\":null,\"waypointVisibleLimit\":999}", OrionConfig.class);
+        malformed.sanitize();
+        check(malformed.isHudElementGlass("hud_watermark") && malformed.getWaypointVisibleLimit() == 64, "invalid display settings sanitized");
         System.out.println("Menu and KillEffect config: OK");
     }
     private static void check(boolean value, String name) { if (!value) throw new AssertionError(name); }

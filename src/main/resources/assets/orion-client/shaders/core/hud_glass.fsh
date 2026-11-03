@@ -22,6 +22,16 @@ const float GLASS_OPACITY = 0.22;
 void main() {
     vec4 foreground = texture(Sampler0, texCoord0);
     float coverage = texture(Sampler2, texCoord0).a;
+    // Альфа вершины выбирает обычную поверхность без копирования и размытия мира.
+    if (vertexColor.a < 0.5) {
+        float baseAlpha = coverage * 0.94;
+        float alpha = foreground.a + baseAlpha * (1.0 - foreground.a);
+        if (alpha <= 0.001) discard;
+        vec3 color = (foreground.rgb * foreground.a
+            + vec3(0.065, 0.07, 0.085) * baseAlpha * (1.0 - foreground.a)) / alpha;
+        fragColor = vec4(color, alpha) * ColorModulator;
+        return;
+    }
     if (coverage <= 0.001) {
         if (foreground.a <= 0.001) discard;
         fragColor = foreground * vertexColor * ColorModulator;

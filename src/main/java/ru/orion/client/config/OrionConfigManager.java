@@ -69,6 +69,8 @@ public final class OrionConfigManager {
         return config;
     }
 
+    public void setHudElementGlass(String id, boolean glass) { config.setHudElementGlass(id, glass); save(); }
+
     public void setZoomEnabled(boolean value) { config.setZoomEnabled(value); save(); }
     public void setHaloEnabled(boolean value) {
         config.setHaloEnabled(value);

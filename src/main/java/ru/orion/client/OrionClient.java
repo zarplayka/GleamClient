@@ -121,7 +121,6 @@ public final class OrionClient implements ClientModInitializer {
         blockHighlight.register();
         hitParticles.register();
         killEffects.register();
-        motionBlur.register();
         noWeatherModule.register();
         fullBrightModule.register();
         mediaController.register();

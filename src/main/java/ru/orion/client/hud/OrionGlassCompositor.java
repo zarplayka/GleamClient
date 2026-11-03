@@ -116,6 +116,21 @@ public final class OrionGlassCompositor {
                 || (!screenGlass && ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState().isHudHidden)) {
             return false;
         }
+        if (!screenGlass && !OrionClient.getInstance().getConfigManager().getConfig().isHudElementGlass(id.getPath())) {
+            try {
+                if (RenderSystem.getCompiledPipelineNullable(PIPELINE) == null) return false;
+            } catch (RuntimeException exception) {
+                warnShaderUnavailable(exception);
+                return false;
+            }
+            var sampler = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
+            var mask = entry.texture().getTextureView();
+            TextureSetup textures = new TextureSetup(foreground.getTextureView(), mask, mask, sampler, sampler, sampler);
+            ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState().addGuiElement(
+                    new BlitRenderState(PIPELINE, textures, new Matrix3x2f(context.pose()), x, y, x + width, y + height,
+                            0F, 1F, 0F, 1F, 0x00FFFFFF, new ScreenRectangle(0, 0, context.guiWidth(), context.guiHeight())));
+            return true;
+        }
         GpuTexture source = client.gameRenderer.mainRenderTarget().getColorTexture();
         if (source == null || source.isClosed() || source.getWidth(0) <= 0 || source.getHeight(0) <= 0
                 || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0) {

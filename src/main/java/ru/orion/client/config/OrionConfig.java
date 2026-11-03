@@ -18,6 +18,18 @@ public final class OrionConfig {
     private String chatHighlightWords = "";
     private String chatHighlightColor = "#FFB34D";
     private boolean waypointsEnabled;
+    private boolean waypointEdgeIndicators = true;
+    private boolean waypointShowCoordinates = true;
+    private boolean waypointSmartLabels = true;
+    private int waypointVisibleLimit = 24;
+    public boolean isWaypointEdgeIndicators() { return waypointEdgeIndicators; }
+    public void setWaypointEdgeIndicators(boolean value) { waypointEdgeIndicators = value; }
+    public boolean isWaypointShowCoordinates() { return waypointShowCoordinates; }
+    public void setWaypointShowCoordinates(boolean value) { waypointShowCoordinates = value; }
+    public boolean isWaypointSmartLabels() { return waypointSmartLabels; }
+    public void setWaypointSmartLabels(boolean value) { waypointSmartLabels = value; }
+    public int getWaypointVisibleLimit() { return waypointVisibleLimit; }
+    public void setWaypointVisibleLimit(int value) { waypointVisibleLimit = Math.max(1, Math.min(64, value)); }
     private boolean deathPointEnabled;
     private java.util.List<Waypoint> waypoints = new java.util.ArrayList<>();
     private Waypoint deathPoint;
@@ -123,6 +135,14 @@ public final class OrionConfig {
     private float viewModelZ = 0.0F;
     private boolean hudEnabled = true;
     private boolean scoreboardGlassEnabled = true;
+    private java.util.Map<String, Boolean> hudElementGlass = new java.util.HashMap<>();
+    public boolean isHudElementGlass(String id) {
+        return hudElementGlass == null || !Boolean.FALSE.equals(hudElementGlass.get(id));
+    }
+    public void setHudElementGlass(String id, boolean glass) {
+        if (hudElementGlass == null) hudElementGlass = new java.util.HashMap<>();
+        hudElementGlass.put(id, glass);
+    }
     private int hudX = 8;
     private int hudY = 8;
     private float hudScale = 1.0F;
@@ -728,7 +748,7 @@ public final class OrionConfig {
     }
 
     public void setClickGuiTheme(int clickGuiTheme) {
-        this.clickGuiTheme = clickGuiTheme;
+        this.clickGuiTheme = clickGuiTheme == 4 ? 4 : 3;
     }
 
     public boolean isHealthTagsEnabled() {
@@ -916,6 +936,7 @@ public final class OrionConfig {
     }
 
     public void sanitize() {
+        waypointVisibleLimit = Math.max(1, Math.min(64, waypointVisibleLimit));
         wingsStyle = Math.max(0, Math.min(1, wingsStyle));
         zoomFactor = finiteClamp(zoomFactor, 1.5F, 12F, 4F);
         chatFilterWords = boundedText(chatFilterWords, 512);
@@ -955,7 +976,9 @@ public final class OrionConfig {
         if (hudElementScales == null) hudElementScales = new java.util.HashMap<>();
         hudElementScales.entrySet().removeIf(entry -> entry.getKey() == null || entry.getValue() == null);
         hudElementScales.replaceAll((key, value) -> Float.isFinite(value) ? clamp(value, .35F, 4F) : 1F);
-        clickGuiTheme = Math.max(0, Math.min(4, clickGuiTheme));
+        if (hudElementGlass == null) hudElementGlass = new java.util.HashMap<>();
+        hudElementGlass.entrySet().removeIf(entry -> entry.getKey() == null || entry.getValue() == null);
+        clickGuiTheme = clickGuiTheme == 4 ? 4 : 3;
         if (favoriteModules == null) favoriteModules = new java.util.ArrayList<>();
         favoriteModules.removeIf(value -> value == null || value.length() > 64);
 

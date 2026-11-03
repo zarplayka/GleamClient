@@ -18,8 +18,6 @@ public abstract class GuiRendererGlassMixin {
             at = @At("HEAD"))
     private void orion$captureGlassBackground(Supplier<String> label, RenderTarget target,
                                             GpuBufferSlice transforms, int from, int to, CallbackInfo callback) {
-        var motionBlur = OrionClient.getMotionBlurOrNull();
-        if (motionBlur != null) motionBlur.captureBeforeGui(target.getColorTexture());
         OrionGlassCompositor.INSTANCE.captureBeforeGui(target.getColorTexture());
     }
 

@@ -8,6 +8,7 @@
     "GuiGraphicsExtractorMixin",
     "GuiGraphicsExtractorAccessor",
     "GuiRendererGlassMixin",
+    "GameRendererMotionBlurMixin",
     "HudScoreboardGlassMixin",
     "ChatGraphicsAccessMixin",
     "ChatComponentMixin",

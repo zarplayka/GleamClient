@@ -145,6 +145,14 @@ public final class OrionHealthTags {
         }
     }
 
+    static double topOffset(LivingEntity living) {
+        int count = Math.max(1, Mth.ceil(Mth.ceil(living.getMaxHealth()) / 2F))
+                + Mth.ceil(Mth.ceil(living.getAbsorptionAmount()) / 2F);
+        double density = 50D - Math.max(4D - Math.ceil((double) count / HEARTS_PER_ROW), -3D) * 5D;
+        return living.getBbHeight() + 0.5F + (living instanceof Player || living.hasCustomName() ? NAME_LINE_LIFT : 0)
+                + ((count - 1) / HEARTS_PER_ROW * HEARTS_PER_ROW) / density;
+    }
+
     private static void submitHeart(LevelRenderContext context, PoseStack poseStack, Identifier texture, float x, float z) {
         context.submitNodeCollector().submitCustomGeometry(
                 poseStack,
