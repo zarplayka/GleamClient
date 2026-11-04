@@ -11,6 +11,8 @@ import net.minecraft.resources.Identifier;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.gui.OrionClickGuiScreen;
+import ru.orion.client.gui.OrionEmoteWheelScreen;
+import ru.orion.client.effect.OrionEmotes;
 
 public final class OrionKeybinds {
     private static final String OPEN_CLICK_GUI_TRANSLATION_KEY = "key.orion-client.open_click_gui";
@@ -24,6 +26,7 @@ public final class OrionKeybinds {
     private static KeyMapping zoomKey;
     private static KeyMapping secondaryZoomKey;
     private static KeyMapping waypointKey;
+    private static KeyMapping emoteKey;
 
     public OrionKeybinds(OrionConfigManager configManager) {
         this.configManager = configManager;
@@ -45,11 +48,14 @@ public final class OrionKeybinds {
                 "key.orion-client.secondary_zoom", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY));
         waypointKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.orion-client.add_waypoint", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY));
+        emoteKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.orion-client.emotes", InputConstants.Type.KEYBOARD, InputConstants.KEY_V, CATEGORY));
         ClientTickEvents.END_CLIENT_TICK.register(this::handleClientTick);
     }
 
     public static KeyMapping getLockSlotKey() { return lockSlotKey; }
     public static KeyMapping getWaypointKey() { return waypointKey; }
+    public static KeyMapping getEmoteKey() { return emoteKey; }
     public static KeyMapping getZoomKey() { return zoomKey; }
     public static boolean isZoomDown() { return zoomKey != null && zoomKey.isDown(); }
     public static KeyMapping getSecondaryZoomKey() { return secondaryZoomKey; }
@@ -60,6 +66,10 @@ public final class OrionKeybinds {
     }
 
     private void handleClientTick(Minecraft client) {
+        while (emoteKey.consumeClick()) {
+            if (configManager.getConfig().isEmotesEnabled() && client.gui.screen() == null
+                    && OrionEmotes.canDance(client.player)) client.gui.setScreen(new OrionEmoteWheelScreen());
+        }
         while (lockSlotKey.consumeClick()) {
             if (client.player != null && client.gui.screen() == null && configManager.getConfig().isLockSlotEnabled()) {
                 OrionLockSlot.toggleIndex(client.player.getInventory().getSelectedSlot());

@@ -75,6 +75,30 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(saved, metadata | payload)
         self.assertEqual((await self.client.get("/v1/configs/999")).status, 404)
 
+    async def test_emote_lifecycle_and_legacy_presence(self):
+        player, headers, _ = await self.login()
+        await self.client.post("/v1/presence", headers=headers, json={"players": []})
+        for invalid in (-1, 7, True, "1"):
+            response = await self.client.post("/v1/emote", headers=headers, json={"emote": invalid})
+            self.assertEqual(response.status, 400)
+        response = await self.client.post("/v1/emote", json={"emote": 1})
+        self.assertEqual(response.status, 401)
+        revision = self.app[STORE].revision
+        response = await self.client.post("/v1/emote", headers=headers, json={"emote": 4})
+        self.assertEqual(response.status, 200)
+        self.assertGreater(self.app[STORE].revision, revision)
+        self.now += 2
+        state = await (await self.client.post("/v1/presence", headers=headers, json={"players": [player]})).json()
+        self.assertEqual(state["emotes"][uuid.UUID(player).hex]["id"], 4)
+        self.assertEqual(state["emotes"][uuid.UUID(player).hex]["elapsed"], 2)
+        self.now += 11
+        state = await (await self.client.post("/v1/presence", headers=headers, json={"players": [player]})).json()
+        self.assertEqual(state["emotes"], {})
+        await self.client.post("/v1/emote", headers=headers, json={"emote": 2})
+        await self.client.post("/v1/emote", headers=headers, json={"emote": 0})
+        state = await (await self.client.post("/v1/presence", headers=headers, json={"players": [player]})).json()
+        self.assertEqual(state["emotes"], {})
+
     async def test_invalid_signature_and_expiry(self):
         private = Ed25519PrivateKey.generate()
         response = await self.client.post("/v1/challenge", json={"uuid": str(uuid.uuid4()), "name": "Probe", "publicKey": encode(private.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo))})

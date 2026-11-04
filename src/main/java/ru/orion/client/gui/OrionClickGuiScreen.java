@@ -219,7 +219,7 @@ public final class OrionClickGuiScreen extends Screen {
     private List<OrionConfigLibrary.Profile> localConfigs = List.of();
     private int selectedPreset;
     private static final int PRESETS_NAV_Y = 132;
-    private static final int CONFIGS_NAV_Y = 151;
+    private static final int CONFIGS_NAV_Y = 154;
     private static final int PARADOX_NAV_ROW_HEIGHT = 18;
     private static final int PARADOX_NAV_DIVIDER_Y = CONFIGS_NAV_Y + PARADOX_NAV_ROW_HEIGHT + 6;
     private static final int PARADOX_CATEGORY_START_Y = PARADOX_NAV_DIVIDER_Y + 7;
@@ -1074,7 +1074,7 @@ public final class OrionClickGuiScreen extends Screen {
 
     private boolean hasSettings(Action action) {
         return switch (action) {
-            case CHAT_ANIMATION, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
+            case EMOTES, CHAT_ANIMATION, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
                  FAKE_PREFIX,
                  HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW -> true;
             default -> false;
@@ -1132,6 +1132,11 @@ public final class OrionClickGuiScreen extends Screen {
                         var effects = OrionClient.getKillEffects();
                         if (effects != null && effects.preview()) onClose();
                     })
+            };
+            case EMOTES -> new Setting[]{
+                    new KeybindSetting("Колесо танцев", OrionKeybinds::getEmoteKey),
+                    new ValueSetting("Управление танцами", () -> tr("Выбери мышью или клавишами 1–6")),
+                    new ButtonSetting("Текущий танец", "Остановить", ru.orion.client.effect.OrionEmotes::stop)
             };
             case WINGS -> new Setting[]{new ChoiceSetting("Вид крыльев", new String[]{"Ангельские", "Драконьи"}, config::getWingsStyle, configManager::setWingsStyle)};
             case WAYPOINTS -> new Setting[]{
@@ -1920,7 +1925,7 @@ public final class OrionClickGuiScreen extends Screen {
         if (hover > .01F || paradoxFavorites.contains(row.action)) drawFavoriteStar(g, x + w - 41, y + 16,
                 paradoxFavorites.contains(row.action));
         Font titleFont=OrionInterfaceFonts.face(2,11F);
-        drawText(g, ellipsize(g, titleFont, row.title, w - 16), x + 8, y + 37,
+        drawText(g, ellipsize(g, titleFont, tr(row.title), w - 16), x + 8, y + 37,
                 titleFont, TEXT, false);
         Font font = OrionInterfaceFonts.face(1,9F);
         String remaining = tr(row.description);
@@ -2244,7 +2249,7 @@ public final class OrionClickGuiScreen extends Screen {
 
     private void drawGlobalSettings(Graphics2D g) {
         if (orion3) {
-            drawText(g, "Settings", L.moduleX, 28, headingFont(9.0F), PRIMARY, true);
+            drawText(g, tr("Настройки"), L.moduleX, 28, headingFont(9.0F), PRIMARY, true);
             drawText(g, tr("Настройки интерфейса"), L.moduleX, 40, bodyFont(7.0F), MUTED, false);
         } else {
             drawText(g, "Settings", CONTENT_X, 62, headingFont(12.5F), PRIMARY, true);
@@ -2517,7 +2522,7 @@ public final class OrionClickGuiScreen extends Screen {
         }
 
         if (setting instanceof ValueSetting value) {
-            drawCenteredText(g, value.get.get(), textBoxX() + textBoxW() / 2F,
+            drawCenteredText(g, tr(value.get.get()), textBoxX() + textBoxW() / 2F,
                     y + L.moduleH / 2F + 2, bodyFont(6.5F), MUTED);
         } else if (setting instanceof ChoiceSetting choice) {
             drawArrowBox(g, choiceLeftArrowX(), y + arrowOffsetY(), true);
@@ -2643,7 +2648,7 @@ public final class OrionClickGuiScreen extends Screen {
                 g.setStroke(new BasicStroke(1.2F));
                 g.draw(new RoundRectangle2D.Float(bx + 0.5F, by + 0.5F, bw - 1, L.arrowSize - 1, cornerRadius, cornerRadius));
             }
-            String buttonText = tr("Свои звуки (.wav)".equals(button.label) ? hitSoundFolderStatus : button.buttonText);
+            String buttonText = tr("Свои звуки (.wav, .aiff, .au)".equals(button.label) ? hitSoundFolderStatus : button.buttonText);
             drawCenteredText(g, buttonText, bx + bw / 2.0F,
                     by + L.arrowSize / 2.0F + 3.0F * sc, bodyFont((paradox ? 7F : 8.5F) * sc), paradox ? TEXT : PRIMARY);
         }
@@ -2866,7 +2871,7 @@ public final class OrionClickGuiScreen extends Screen {
             drawIcon(g, row.icon, L.moduleX + 17, y + 15, active ? PRIMARY : MUTED, 1F, .32F);
             Font name = headingFont(7.3F), detail = bodyFont(5.8F);
             float max = gearX() - L.moduleX - 63;
-            drawText(g, ellipsize(g, name, row.title, max), L.moduleX + 35, y + 12, name, TEXT, false);
+            drawText(g, ellipsize(g, name, tr(row.title), max), L.moduleX + 35, y + 12, name, TEXT, false);
             drawText(g, ellipsize(g, detail, tr(row.description), max), L.moduleX + 35, y + 22, detail, MUTED, false);
             drawFavoriteStar(g, gearX() - 11, y + 15, paradoxFavorites.contains(row.action));
             drawToggle(g, toggleX(), y + (L.moduleH - L.toggleH) / 2F, animation);
@@ -2893,7 +2898,7 @@ public final class OrionClickGuiScreen extends Screen {
             float textW = Math.max(10, gearX() - textX - 7);
             Font titleFont = headingFont(8.2F);
             Font descriptionFont = bodyFont(6.2F);
-            drawText(g, ellipsize(g, titleFont, row.title, textW), textX, y + 14, titleFont, TEXT, true);
+            drawText(g, ellipsize(g, titleFont, tr(row.title), textW), textX, y + 14, titleFont, TEXT, true);
             drawText(g, ellipsize(g, descriptionFont, tr(row.description), textW), textX, y + 24, descriptionFont, MUTED, false);
         } else {
             if (active) {
@@ -2908,7 +2913,7 @@ public final class OrionClickGuiScreen extends Screen {
             Color iconColor = mix(TEXT, PRIMARY, animation);
             drawIcon(g, row.icon, L.moduleX + 23, y + 26, iconColor, 1.8F, 1.0F);
             int textX = L.moduleX + 23 + 12 + ICON_TEXT_GAP;
-            drawText(g, row.title, textX, y + 22.5F, headingFont(10.8F), TEXT, true);
+            drawText(g, tr(row.title), textX, y + 22.5F, headingFont(10.8F), TEXT, true);
             // Описание всегда нейтрально-серое: акцентный оранжевый на тёмном фоне при таком кегле нечитаем.
             drawText(g, tr(row.description), textX, y + 36.5F, bodyFont(8.2F), mix(MUTED, TEXT, animation * 0.35F), false);
         }
@@ -3552,6 +3557,7 @@ public final class OrionClickGuiScreen extends Screen {
             case FAKE_PREFIX -> configManager.setFakePrefixEnabled(!config.isFakePrefixEnabled());
             case HIT_BOX -> configManager.setHitBoxEnabled(!config.isHitBoxEnabled());
             case HIT_COLOR -> configManager.setHitColorEnabled(!config.isHitColorEnabled());
+            case EMOTES -> { config.setEmotesEnabled(!config.isEmotesEnabled()); configManager.save(); }
             case HIT_SOUND -> configManager.setHitSoundEnabled(!config.isHitSoundEnabled());
             case CROSSHAIR -> configManager.setCrosshairEnabled(!config.isCrosshairEnabled());
             case BETTER_NEAR -> configManager.setBetterNearEnabled(!config.isBetterNearEnabled());
@@ -3616,6 +3622,7 @@ public final class OrionClickGuiScreen extends Screen {
             case FAKE_PREFIX -> config.isFakePrefixEnabled();
             case HIT_BOX -> config.isHitBoxEnabled();
             case HIT_COLOR -> config.isHitColorEnabled();
+            case EMOTES -> config.isEmotesEnabled();
             case HIT_SOUND -> config.isHitSoundEnabled();
             case CROSSHAIR -> config.isCrosshairEnabled();
             case BETTER_NEAR -> config.isBetterNearEnabled();
@@ -3628,6 +3635,7 @@ public final class OrionClickGuiScreen extends Screen {
             String query = searchQuery.toLowerCase(Locale.ROOT).trim();
             return Arrays.stream(ModuleRow.ALL)
                     .filter(row -> row.title.toLowerCase(Locale.ROOT).contains(query)
+                            || tr(row.title).toLowerCase(Locale.ROOT).contains(query)
                             || (row.description.toLowerCase(Locale.ROOT).contains(query) || tr(row.description).toLowerCase(Locale.ROOT).contains(query)))
                     .toArray(ModuleRow[]::new);
         }
@@ -4008,7 +4016,7 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private enum Action {
-        MIRAGE, WINGS, HALO, ZOOM, CHAT_FILTER, CHAT_ANIMATION, CHAT_HIGHLIGHT, WAYPOINTS, DEATH_POINT, TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, ITEM_PHYSICS, HIT_PARTICLES, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
+        MIRAGE, WINGS, HALO, EMOTES, ZOOM, CHAT_FILTER, CHAT_ANIMATION, CHAT_HIGHLIGHT, WAYPOINTS, DEATH_POINT, TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, ITEM_PHYSICS, HIT_PARTICLES, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
         WORLD_PARTICLES, FOOTBALL, BASKETBALL, ANIMATIONS, ENCHANT_GLINT, INVENTORY_HUD, SELF_TAG, ARMOR_INDICATOR, LOCK_SLOT, PVP_SAFE, KEYSTROKES, NO_ANIMATIONS, SATURATION, CHAT_HISTORY, CHAT_TIME, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, NO_PARTICLES, NO_WEATHER, NO_FIRE, WORLD_CHANGER, HEALTH_TAGS, PROTECT_NAME, FAKE_PREFIX,
         HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW, KILL_EFFECTS;
 
@@ -4029,6 +4037,7 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("PvpSafe", "Предупреждает о выходе во время боя", Icon.CROSSHAIR, Action.PVP_SAFE)
         };
         private static final ModuleRow[] PLAYER = {
+                new ModuleRow("Танцы", "Синхронные танцы для пользователей Orion", Icon.PLAYER, Action.EMOTES),
                 new ModuleRow("Wings", "Объёмные крылья для пользователей Orion", Icon.PLAYER, Action.WINGS),
                 new ModuleRow("Halo", "Золотой нимб для пользователей Orion", Icon.RINGS, Action.HALO),
                 new ModuleRow("ChinaHead", "Рисует шляпу над головой", Icon.HAT, Action.CHINA_HEAD),

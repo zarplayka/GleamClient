@@ -79,6 +79,12 @@ class Store:
             );
             CREATE INDEX IF NOT EXISTS shared_configs_owner ON shared_configs(owner);
         ''')
+        async with self.db.execute("PRAGMA table_info(players)") as cursor:
+            columns = {row[1] for row in await cursor.fetchall()}
+        for column, definition in (("emote", "INTEGER NOT NULL DEFAULT 0"),
+                                   ("emote_started", "REAL NOT NULL DEFAULT 0")):
+            if column not in columns:
+                await self.db.execute("ALTER TABLE players ADD COLUMN " + column + " " + definition)
         async with self.db.execute("SELECT revision FROM meta WHERE id=1") as cursor:
             self.revision = (await cursor.fetchone())[0]
         await self.db.commit()
@@ -180,10 +186,14 @@ class Store:
                 rows = []
                 if ids:
                     placeholders = ",".join("?" for _ in ids)
-                    async with self.db.execute("SELECT uuid,halo,wings FROM players WHERE uuid IN (" + placeholders + ") AND online=1 AND online_until>?", (*ids, now)) as cursor:
+                    async with self.db.execute("SELECT uuid,halo,wings,emote,emote_started FROM players WHERE uuid IN (" + placeholders + ") AND online=1 AND online_until>?", (*ids, now)) as cursor:
                         rows = await cursor.fetchall()
                 response = {"online": [r["uuid"] for r in rows], "halos": [r["uuid"] for r in rows if r["halo"]],
-                            "wings": {r["uuid"]: r["wings"] for r in rows if r["wings"]}, "revision": self.revision}
+                            "wings": {r["uuid"]: r["wings"] for r in rows if r["wings"]},
+                            "emotes": {r["uuid"]: {"id": r["emote"], "started": r["emote_started"],
+                                                   "elapsed": max(0, now - r["emote_started"])}
+                                       for r in rows if r["emote"] and 0 <= now - r["emote_started"] < 12},
+                            "revision": self.revision}
                 await self.db.commit()
             except Exception:
                 await self.db.rollback()
@@ -301,6 +311,27 @@ async def watch(request):
     return web.json_response(result)
 
 
+async def emote(request):
+    store = request.app[STORE]
+    player = await store.authenticate(request.headers.get("Authorization", ""))
+    value = (await body(request)).get("emote")
+    if type(value) is not int or not 0 <= value <= 6:
+        raise web.HTTPBadRequest(reason="Invalid emote")
+    async with store.lock:
+        try:
+            await store.db.execute("UPDATE players SET emote=?, emote_started=? WHERE uuid=?",
+                                   (value, store.clock(), player))
+            await store.bump()
+            await store.db.commit()
+        except Exception:
+            await store.db.rollback()
+            async with store.db.execute("SELECT revision FROM meta WHERE id=1") as cursor:
+                store.revision = (await cursor.fetchone())[0]
+            raise
+    await store.notify()
+    return web.json_response({"ok": True})
+
+
 CONFIG_PAGE_SIZE = 7
 CONFIG_ENUMS = {"TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT"}
 CONFIG_PRIVATE = {"waypoints", "favoriteModules", "clickGuiLastSection", "visualPresetSelection",
@@ -399,7 +430,7 @@ def create_app(database):
     app.add_routes([web.get("/", health), web.get("/healthz", health), web.post("/v1/challenge", challenge),
                     web.post("/v1/verify", verify), web.post("/v1/presence", presence), web.post("/v1/watch", watch),
                     web.get("/v1/configs", list_configs), web.post("/v1/configs", publish_config),
-                    web.get(r"/v1/configs/{id:\d{1,9}}", get_config)])
+                    web.get(r"/v1/configs/{id:\d{1,9}}", get_config), web.post("/v1/emote", emote)])
     return app
 
 if __name__ == "__main__":

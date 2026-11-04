@@ -36,6 +36,7 @@ public final class OrionArmorIndicator {
             double distanceSq = position.distanceToSqr(camera.pos);
             if (distanceSq > 4096D) continue;
             int armor = Mth.clamp(player.getArmorValue(), 0, 20);
+            if (armor == 0) continue;
             double lift = configManager.getConfig().isHealthTagsEnabled()
                     ? OrionHealthTags.topOffset(player) + 0.28D : player.getBbHeight() + 0.76D;
             PoseStack stack = context.poseStack();

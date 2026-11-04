@@ -238,7 +238,7 @@ public final class OrionHudRenderer {
         }
     }
 
-    static void copyPixels(BufferedImage source, NativeImage target) {
+    public static void copyPixels(BufferedImage source, NativeImage target) {
         int w = source.getWidth();
         int h = source.getHeight();
         int[] argb = source.getRGB(0, 0, w, h, null, 0, w);

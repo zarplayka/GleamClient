@@ -107,6 +107,7 @@ public final class OrionClient implements ClientModInitializer {
         hotbarLocks.register();
         inventoryHud.register();
         keybinds.register();
+        ru.orion.client.effect.OrionEmotes.register();
         OrionFoodSync.register();
         OrionFoodTooltip.register();
         discordPresenceService.register();

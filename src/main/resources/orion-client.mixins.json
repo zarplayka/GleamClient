@@ -24,6 +24,7 @@
     "OrionZoomBobbingMixin",
     "OrionZoomHudMixin",
     "OrionNoAnimationsMixin",
+    "OrionEmoteModelMixin",
     "SkyRendererMixin",
     "FogRendererMixin",
     "MultiPlayerGameModeMixin",

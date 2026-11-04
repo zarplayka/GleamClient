@@ -11,9 +11,10 @@ VPS: 51.250.32.198, SSH-пользователь orionclient
 - POST /v1/verify: challenge, signature — одноразовая подпись UTF-8 challenge
 - POST /v1/presence: Bearer token; players (до 100 UUID), halo, wings (0/1/2)
 - POST /v1/watch: Bearer token; revision, players — ожидание изменения до 20 секунд
+- POST /v1/emote: Bearer token; emote (0 — остановка, 1–6 — танец), уведомляет клиентов через revision
 - GET /healthz: публичная проверка доступности
 
-Ответ presence содержит online, halos, wings и revision. UUID в ответах — 32 шестнадцатеричных символа без дефисов, как ожидает OrionBadgePresence
+Ответ presence содержит online, halos, wings, emotes и revision. В emotes передаются id танца, серверное время started и elapsed в секундах, танец истекает через 12 секунд. UUID в ответах — 32 шестнадцатеричных символа без дефисов, как ожидает OrionBadgePresence
 
 Присутствие истекает через 90 секунд без heartbeat, challenge — через 60 секунд, сессия — через сутки. Токены в базе хранятся в виде SHA-256. Защита challenge подтверждает владение предоставленным ключом; это сохранённый протокол клиента, а не проверка владения аккаунтом Microsoft
 

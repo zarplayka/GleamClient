@@ -1,6 +1,9 @@
 package ru.orion.client.config;
 
 public final class OrionConfig {
+    private boolean emotesEnabled = true;
+    public boolean isEmotesEnabled() { return emotesEnabled; }
+    public void setEmotesEnabled(boolean value) { emotesEnabled = value; }
     private boolean zoomEnabled;
     private boolean haloEnabled;
     private boolean wingsEnabled;
