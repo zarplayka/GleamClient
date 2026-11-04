@@ -1,114 +1,191 @@
 package ru.orion.client.hud;
 
-import com.mojang.blaze3d.platform.NativeImage;
-import net.minecraft.client.Minecraft;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.server.packs.PackType;
-import net.minecraft.server.packs.resources.ResourceManager;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.Difficulty;
+import net.minecraft.world.effect.MobEffectCategory;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.player.Player;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.Consumable;
+import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
 import ru.orion.client.OrionClient;
 
-import javax.imageio.ImageIO;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.Shape;
-import java.awt.geom.Rectangle2D;
-import java.awt.image.BufferedImage;
-import java.io.IOException;
+import java.util.Random;
 
-/** Мягкая золотистая подсветка по форме ванильных значков голода. */
+/** Спрайты и поведение полосок еды основаны на AppleSkin (squeek502, Unlicense). */
 public final class OrionSaturationOverlay {
-    private static final Identifier TEXTURE = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "hud_saturation");
-    private static final Identifier FOOD_SPRITE = Identifier.withDefaultNamespace("textures/gui/sprites/hud/food_full.png");
-    private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
-    private static volatile long resourceGeneration;
-    private DynamicTexture texture;
-    private long loadedGeneration = -1;
-    private BufferedImage goldFood;
-    private Object resourceManager;
-    private boolean attemptedLoad;
-    private int textureScale, saturationHalf = -1;
+    static final Identifier ICONS = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "textures/gui/appleskin_icons.png");
+    static final Identifier[] FOOD = foodSprites("");
+    static final Identifier[] ROTTEN = foodSprites("_hunger");
+    private static final Identifier[] HEART = heartSprites("");
+    private static final Identifier[] HARDCORE = heartSprites("hardcore_");
+    private static final Identifier HEART_CONTAINER = Identifier.withDefaultNamespace("hud/heart/container");
+    private static final Identifier HARDCORE_CONTAINER = Identifier.withDefaultNamespace("hud/heart/container_hardcore");
+    private static final boolean EXTERNAL_APPLESKIN = FabricLoader.getInstance().isModLoaded("appleskin");
+    private final int[] foodY = new int[10];
+    private final Random heartRandom = new Random();
+    private float flash;
+    private float flashStep = .125F;
 
-    public static void registerResourceListener() {
-        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener() {
-            @Override public Identifier getFabricId() { return Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "saturation_resources"); }
-            @Override public void onResourceManagerReload(ResourceManager manager) { resourceGeneration++; }
-        });
+    public static boolean enabled() {
+        var config = OrionClient.getConfigOrNull();
+        return !EXTERNAL_APPLESKIN && config != null && config.isSaturationEnabled();
     }
 
-    /** Чтение ресурсов происходит на клиентском тике, не в рендере. */
     public void tick() {
-        var config = OrionClient.getConfigOrNull();
-        Minecraft client = Minecraft.getInstance();
-        if (config == null || !config.isSaturationEnabled() || client.player == null) { release(); return; }
-        var current = client.getResourceManager();
-        if (current != resourceManager || loadedGeneration != resourceGeneration) {
-            resourceManager = current; loadedGeneration = resourceGeneration; attemptedLoad = false; goldFood = null; saturationHalf = -1;
-        }
-        if (attemptedLoad) return;
-        attemptedLoad = true;
-        try (var stream = current.open(FOOD_SPRITE)) {
-            BufferedImage original = ImageIO.read(stream);
-            if (original != null && original.getWidth() > 0 && original.getHeight() > 0) goldFood = tintFood(original);
-        } catch (IOException | RuntimeException exception) {
-            LOGGER.warn("Не удалось загрузить значок голода для Saturation", exception);
-        }
+        flash += flashStep;
+        if (flash >= 1.5F || flash <= -.5F) flashStep = -flashStep;
     }
-    public void render(GuiGraphicsExtractor context, Player player, int y, int right) {
-        var config = OrionClient.getConfigOrNull();
-        if (config == null || !config.isSaturationEnabled() || player == null) { release(); return; }
-        if (goldFood == null) return;
-        int half = Math.max(0, Math.min(40, Math.round(player.getFoodData().getSaturationLevel() * 2F)));
-        if (half == 0) return;
-        int scale = Math.max(1, Math.min(6, Minecraft.getInstance().getWindow().getGuiScale()));
-        if (texture == null || half != saturationHalf || scale != textureScale) update(half, scale);
-        if (texture != null) context.blit(TEXTURE, right - 81, y, right, y + 9, 0, 1, 0, 1);
+
+    public void beginFood(GuiGraphicsExtractor context, Player player, int top, int right) {
+        java.util.Arrays.fill(foodY, top);
+        int width = (int) (Math.clamp(OrionFoodSync.exhaustion(player) / 4F, 0F, 1F) * 81);
+        if (width > 0) context.blit(RenderPipelines.GUI_TEXTURED, ICONS, right - width, top,
+                81 - width, 18, width, 9, 256, 256, tint(.75F));
     }
-    static BufferedImage tintFood(BufferedImage original) {
-        BufferedImage result = new BufferedImage(original.getWidth(), original.getHeight(), BufferedImage.TYPE_INT_ARGB);
-        for (int y=0;y<original.getHeight();y++) for (int x=0;x<original.getWidth();x++) {
-            int source=original.getRGB(x,y), alpha=source>>>24;
-            if (alpha == 0) continue;
-            int red=(source>>>16)&255, green=(source>>>8)&255, blue=source&255;
-            int luminance=(red*3+green*6+blue)/10;
-            int r=Math.min(255,90+luminance), g=Math.min(255,50+luminance*3/4), b=Math.min(255,10+luminance/3);
-            result.setRGB(x,y,((alpha*125/255)<<24)|(r<<16)|(g<<8)|b);
+
+    public void positionFoodIcon(int right, int x, int y) {
+        int index = (right - 9 - x) / 8;
+        if (index >= 0 && index < foodY.length) foodY[index] = y;
+    }
+
+    public void renderFood(GuiGraphicsExtractor context, Player player, int right) {
+        var stats = player.getFoodData();
+        float saturation = OrionFoodSync.saturation(player);
+        drawSaturation(context, right, 0, saturation, 1F);
+        ItemStack stack = heldFood(player);
+        if (stack.isEmpty()) {
+            flash = 0F;
+            flashStep = .125F;
+            return;
         }
-        return result;
-    }
-    static BufferedImage compose(BufferedImage food, int half, int scale) {
-        BufferedImage image = new BufferedImage(81 * scale, 9 * scale, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = image.createGraphics();
-        try {
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-            g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-            g.scale(scale, scale);
-            for (int i=0;i<10;i++) {
-                float fill=Math.max(0,Math.min(1,(half-i*4)/4F));
-                if(fill<=0)continue;
-                float x=72-i*8;
-                Shape clip=g.getClip();
-                g.clip(new Rectangle2D.Float(x+9-9*fill,0,9*fill,9));
-                g.drawImage(food,(int)x,0,9,9,null);
-                g.setClip(clip);
+        float alpha = alpha();
+        if (alpha <= 0F) return;
+        FoodProperties food = stack.get(DataComponents.FOOD);
+        int hunger = stats.getFoodLevel();
+        int futureHunger = Math.clamp(hunger + food.nutrition(), 0, 20);
+        if (futureHunger > hunger) {
+            Identifier[] sprites = isRotten(stack.get(DataComponents.CONSUMABLE)) ? ROTTEN : FOOD;
+            for (int i = hunger / 2; i < (futureHunger + 1) / 2; i++) {
+                int x = right - 9 - i * 8;
+                context.blitSprite(RenderPipelines.GUI_TEXTURED, sprites[0], x, foodY[i], 9, 9, tint(alpha * .25F));
+                context.blitSprite(RenderPipelines.GUI_TEXTURED, sprites[futureHunger == i * 2 + 1 ? 1 : 2],
+                        x, foodY[i], 9, 9, tint(alpha));
             }
-        } finally { g.dispose(); }
-        return image;
+        }
+        float futureSaturation = Math.min(futureHunger, saturation + food.saturation());
+        if (futureSaturation > saturation) drawSaturation(context, right, (int) (saturation / 2F), futureSaturation, alpha);
     }
-    private void update(int half, int scale) {
-        BufferedImage image = compose(goldFood, half, scale);
-        Minecraft client=Minecraft.getInstance();int w=image.getWidth(),h=image.getHeight();
-        if(texture==null || textureScale!=scale) {
-            client.getTextureManager().release(TEXTURE);NativeImage pixels=new NativeImage(w,h,true);OrionHudRenderer.copyPixels(image,pixels);
-            texture=new DynamicTexture(()->"orion_saturation",pixels);client.getTextureManager().register(TEXTURE,texture);textureScale=scale;
-        } else if(texture.getPixels()!=null&&!texture.getPixels().isClosed()) { OrionHudRenderer.copyPixels(image,texture.getPixels());texture.upload(); }
-        saturationHalf=half;
+
+    public void renderHealth(GuiGraphicsExtractor context, Player player, int left, int top, int lineHeight,
+                             int regenerating, float maxHealth, int absorption, int ticks) {
+        float alpha = alpha();
+        if (alpha <= 0F || !player.isHurt() || player.getFoodData().getFoodLevel() >= 18
+                || player.level().getDifficulty() == Difficulty.PEACEFUL || player.hasEffect(MobEffects.POISON)
+                || player.hasEffect(MobEffects.WITHER) || player.hasEffect(MobEffects.REGENERATION)) return;
+        ItemStack stack = heldFood(player);
+        if (stack.isEmpty()) return;
+        FoodProperties food = stack.get(DataComponents.FOOD);
+        int hunger = Math.min(20, player.getFoodData().getFoodLevel() + food.nutrition());
+        float sat = Math.min(hunger, OrionFoodSync.saturation(player) + food.saturation());
+        float restored = OrionFoodSync.naturalRegeneration() ? naturalHealing(hunger, sat, OrionFoodSync.exhaustion(player)) : 0F;
+        for (var effect : stack.get(DataComponents.CONSUMABLE).onConsumeEffects()) {
+            if (!(effect instanceof ApplyStatusEffectsConsumeEffect statuses)) continue;
+            for (var status : statuses.effects()) {
+                if (status.getEffect().equals(MobEffects.REGENERATION)) {
+                    restored += status.getDuration() / Math.max(50 >> Math.min(5, status.getAmplifier()), 1);
+                    break;
+                }
+            }
+        }
+        int future = (int) Math.ceil(Math.min(player.getHealth() + restored, maxHealth));
+        int health = (int) Math.ceil(player.getHealth());
+        int hearts = (int) Math.ceil((maxHealth + absorption) / 2F);
+        if (future <= health || hearts > 1000) return;
+        boolean hardcore = player.level().getLevelData().isHardcore();
+        Identifier[] sprites = hardcore ? HARDCORE : HEART;
+        Identifier container = hardcore ? HARDCORE_CONTAINER : HEART_CONTAINER;
+        heartRandom.setSeed((long) (ticks * 312871));
+        for (int i = hearts - 1; i >= 0; i--) {
+            int y = top - (i / 10) * lineHeight;
+            if (health <= 4) y += heartRandom.nextInt(2);
+            if (i == regenerating) y -= 2;
+            if (i < health / 2 || i >= (future + 1) / 2) continue;
+            int x = left + (i % 10) * 8;
+            context.blitSprite(RenderPipelines.GUI_TEXTURED, container, x, y, 9, 9, tint(alpha * .25F));
+            context.blitSprite(RenderPipelines.GUI_TEXTURED, sprites[future == i * 2 + 1 ? 0 : 1],
+                    x, y, 9, 9, tint(alpha));
+        }
     }
-    public void release() { if(texture!=null)Minecraft.getInstance().getTextureManager().release(TEXTURE);texture=null;textureScale=0;saturationHalf=-1; }
+
+    private static float naturalHealing(int hunger, float saturation, float exhaustion) {
+        if (!Float.isFinite(saturation) || !Float.isFinite(exhaustion)) return 0F;
+        double fatigue = Math.clamp(exhaustion, 0F, 40F);
+        float restored = 0F;
+        while (hunger >= 18) {
+            if (fatigue > 4D) {
+                fatigue -= 4D;
+                if (saturation > 0F) saturation = Math.max(0F, saturation - 1F);
+                else hunger--;
+            } else if (hunger == 20 && saturation >= Float.MIN_NORMAL) {
+                double cost = Math.min(6F, saturation);
+                double healedCost = cost * (1D + Math.floor((4D - fatigue) / cost));
+                restored += (float) (healedCost / 6D);
+                fatigue = Math.max(Math.nextUp(4D), fatigue + healedCost);
+            } else {
+                restored += 1F;
+                fatigue += 6D;
+            }
+        }
+        return restored;
+    }
+
+    private void drawSaturation(GuiGraphicsExtractor context, int right, int start, float saturation, float alpha) {
+        float icons = Math.clamp(saturation / 2F, 0F, 10F);
+        for (int i = Math.max(0, start); i < (int) Math.ceil(icons); i++) {
+            float fill = icons - i;
+            int u = 9 * (fill >= 1F ? 3 : fill > .5F ? 2 : fill > .25F ? 1 : 0);
+            context.blit(RenderPipelines.GUI_TEXTURED, ICONS, right - 9 - i * 8, foodY[i],
+                    u, 0, 9, 9, 256, 256, tint(alpha));
+        }
+    }
+
+    public static ItemStack heldFood(Player player) {
+        ItemStack main = player.getMainHandItem();
+        if (canEat(player, main)) return main;
+        ItemStack off = player.getOffhandItem();
+        return canEat(player, off) ? off : ItemStack.EMPTY;
+    }
+
+    private static boolean canEat(Player player, ItemStack stack) {
+        FoodProperties food = stack.get(DataComponents.FOOD);
+        return food != null && stack.has(DataComponents.CONSUMABLE) && player.canEat(food.canAlwaysEat());
+    }
+
+    static boolean isRotten(Consumable consumable) {
+        for (var effect : consumable.onConsumeEffects()) {
+            if (!(effect instanceof ApplyStatusEffectsConsumeEffect statuses)) continue;
+            for (var status : statuses.effects()) {
+                if (status.getEffect().value().getCategory() == MobEffectCategory.HARMFUL) return true;
+            }
+        }
+        return false;
+    }
+
+    private float alpha() { return Math.clamp(flash, 0F, 1F) * .65F; }
+    private static int tint(float alpha) { return ((int) (alpha * 255F) << 24) | 0xFFFFFF; }
+    private static Identifier[] foodSprites(String suffix) {
+        return new Identifier[]{Identifier.withDefaultNamespace("hud/food_empty" + suffix),
+                Identifier.withDefaultNamespace("hud/food_half" + suffix), Identifier.withDefaultNamespace("hud/food_full" + suffix)};
+    }
+
+    private static Identifier[] heartSprites(String prefix) {
+        return new Identifier[]{Identifier.withDefaultNamespace("hud/heart/" + prefix + "half"),
+                Identifier.withDefaultNamespace("hud/heart/" + prefix + "full")};
+    }
 }

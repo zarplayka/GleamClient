@@ -1,6 +1,8 @@
 {
+  "key.orion-client.add_waypoint": "Создать метку",
   "key.orion-client.open_click_gui": "Открыть Orion ClickGUI",
   "key.orion-client.zoom": "Приближение",
+  "key.orion-client.secondary_zoom": "Второе приближение",
   "key.orion-client.lock_slot": "Защитить слот",
   "key.categories.orion-client.orion_client": "Orion Client",
   "key.categories.orion-client.basketball": "Баскетбол",

@@ -1,0 +1,28 @@
+[Unit]
+Description=Orion Client cosmetics and presence API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=orion-cosmetics
+WorkingDirectory=/opt/orion-cosmetics
+ExecStart=/opt/orion-cosmetics/.venv/bin/python /opt/orion-cosmetics/app.py --host 127.0.0.1 --port 8765 --database /var/lib/orion-cosmetics/state.db
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=512M
+LimitNOFILE=8192
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -30,6 +30,9 @@ public final class OrionWaypointHudTest {
                 placed.add(result);
             }
         }
+        check(OrionWaypointHud.directlyAimed(new OrionWaypointHud.Projection(160, 120, 0, false), 320, 240), "direct aim expands label");
+        check(!OrionWaypointHud.directlyAimed(new OrionWaypointHud.Projection(168, 120, 0, false), 320, 240), "indirect aim keeps label compact");
+        check(!OrionWaypointHud.directlyAimed(new OrionWaypointHud.Projection(160, 120, 0, true), 320, 240), "edge indicators stay compact");
         check(OrionWaypointHud.project(new Vector4f(Float.NaN, 0, 0, 1), 320, 240) == null, "NaN rejected");
         check(OrionWaypointHud.place(0, 0, 200, 24, 96, 64, List.of()) == null, "oversized label hidden");
         check(OrionWaypointHud.formatDistance(0).equals("0 м"), "arrival distance");

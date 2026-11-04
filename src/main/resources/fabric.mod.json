@@ -9,7 +9,7 @@
   ],
   "license": "All-Rights-Reserved",
   "environment": "client",
-  "icon": "assets/orion-client/icon.png",
+  "icon": "assets/orion-client/textures/cosmetics/orion_badge.png",
   "entrypoints": {
     "client": [
       "ru.orion.client.OrionClient"

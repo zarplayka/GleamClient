@@ -19,6 +19,7 @@ import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
@@ -31,13 +32,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** Показывает только наблюдаемое изменение здоровья после локальной атаки. */
+/** Числа наблюдаемых изменений здоровья и поглощения. */
 public final class OrionDamageIndicators {
     private static final long WAIT_NANOS = 900_000_000L;
-    private static final long LIFE_NANOS = 1_250_000_000L;
+    private static final double TRACK_RANGE_SQUARED = 32D * 32D;
+    private static final int HEAL_COLOR = 0x66EF9E;
     private static final int MAX_INDICATORS = 32;
     private final OrionConfigManager configManager;
     private final Map<LivingEntity, Pending> pending = new IdentityHashMap<>();
+    private final Map<LivingEntity, Sample> health = new IdentityHashMap<>();
+    private int scan;
+    private int lane;
     private final List<Indicator> indicators = new ArrayList<>();
     private final Map<String, Label> labels = new HashMap<>();
     private ClientLevel level;
@@ -50,42 +55,86 @@ public final class OrionDamageIndicators {
     }
     public void onAttack(Entity entity) {
         Minecraft client = Minecraft.getInstance();
-        if (!configManager.getConfig().isDamageIndicatorsEnabled() || client.level == null
+        var config = configManager.getConfig();
+        if (!config.isDamageIndicatorsEnabled() || !config.isDamageIndicatorsOwnHits() || client.level == null
                 || !(entity instanceof LivingEntity target) || target == client.player) return;
         if (client.level != level) { clear(); level = client.level; }
-        pending.put(target, new Pending(target.getHealth() + target.getAbsorptionAmount(), System.nanoTime()));
+        float health = effectiveHealth(target);
+        Pending previous = pending.get(target);
+        long now = System.nanoTime();
+        if (previous != null && now - previous.created() < WAIT_NANOS && previous.health() - health > .05F) {
+            addIndicator(target, previous.health() - health, false, now);
+        }
+        pending.put(target, new Pending(health, now));
     }
     private void tick(Minecraft client) {
-        if (!configManager.getConfig().isDamageIndicatorsEnabled() || client.level == null || client.player == null) {
+        OrionConfig config = configManager.getConfig();
+        if (!config.isDamageIndicatorsEnabled() || client.level == null || client.player == null) {
             clear(); level = null; return;
         }
         if (level != client.level) { clear(); level = client.level; }
         long now = System.nanoTime();
-        indicators.removeIf(indicator -> now - indicator.created() >= LIFE_NANOS);
+        if (indicators.removeIf(indicator -> now - indicator.created() >= indicator.lifetime())) {
+            releaseUnusedLabels();
+        }
+        if (!config.isDamageIndicatorsOwnHits()) pending.clear();
         var iterator = pending.entrySet().iterator();
         while (iterator.hasNext()) {
             var entry = iterator.next();
             LivingEntity target = entry.getKey();
             Pending attack = entry.getValue();
-            float damage = attack.health() - (target.getHealth() + target.getAbsorptionAmount());
+            float damage = attack.health() - effectiveHealth(target);
             if (damage > 0.05F && Float.isFinite(damage)) {
-                addIndicator(target, damage, now);
+                addIndicator(target, damage, false, now);
                 iterator.remove();
             } else if (now - attack.created() >= WAIT_NANOS || target.isRemoved()) {
                 iterator.remove();
             }
         }
+        if (!config.isDamageIndicatorsOwnHits() || config.isDamageIndicatorsHealing()) {
+            trackNearby(client, config, now);
+        } else {
+            health.clear();
+        }
         releaseUnusedLabels();
     }
-    private void addIndicator(LivingEntity target, float damage, long now) {
+
+    private void trackNearby(Minecraft client, OrionConfig config, long now) {
+        scan++;
+        for (Entity entity : client.level.entitiesForRendering()) {
+            if (!(entity instanceof LivingEntity living) || living == client.player || living.isRemoved()
+                    || living.distanceToSqr(client.player) > TRACK_RANGE_SQUARED) continue;
+            float current = effectiveHealth(living);
+            if (!Float.isFinite(current)) continue;
+            Sample previous = health.put(living, new Sample(current, scan));
+            if (previous == null) continue;
+            float delta = current - previous.health();
+            if (delta < -.05F && !config.isDamageIndicatorsOwnHits()) {
+                addIndicator(living, -delta, false, now);
+            } else if (delta > .05F && config.isDamageIndicatorsHealing()) {
+                addIndicator(living, delta, true, now);
+            }
+        }
+        health.values().removeIf(sample -> sample.scan() != scan);
+    }
+
+    private static float effectiveHealth(LivingEntity target) {
+        return target.getHealth() + target.getAbsorptionAmount();
+    }
+
+    private void addIndicator(LivingEntity target, float damage, boolean healing, long now) {
+        if (!Float.isFinite(damage) || damage <= .05F) return;
         if (indicators.size() >= MAX_INDICATORS) {
             indicators.remove(0);
             releaseUnusedLabels();
         }
-        String text = damage >= 999.9F ? "999+" : formatDamage(damage);
+        String text = (healing ? "+" : "") + (damage >= 999.9F ? "999+" : formatDamage(damage));
         Label label = labels.computeIfAbsent(text, this::createLabel);
-        Vec3 origin = target.position().add(0, target.getBbHeight() + 0.25D, 0);
-        indicators.add(new Indicator(origin, damage, now, label));
+        Vec3 origin = target.position().add(0, target.getBbHeight() * .78D, 0);
+        float spread = ((lane++ % 5 + 5) % 5 - 2) * .095F;
+        long lifetime = (long) (configManager.getConfig().getDamageIndicatorsLifetime() * 1_000_000_000D);
+        indicators.add(new Indicator(origin, damage, healing, !healing && target.getHealth() <= 0F,
+                spread, now, lifetime, label));
     }
     private static String formatDamage(float damage) {
         float rounded = Math.round(damage * 10F) / 10F;
@@ -111,9 +160,12 @@ public final class OrionDamageIndicators {
             g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
             g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
             g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-            g.setFont(font);
-            g.setColor(new Color(0, 0, 0, 150)); g.drawString(text, 9F, baseline + 2F);
-            g.setColor(Color.WHITE); g.drawString(text, 7F, (float) baseline);
+            var outline = font.createGlyphVector(g.getFontRenderContext(), text).getOutline(8F, baseline);
+            g.setColor(new Color(0, 0, 0, 235));
+            g.setStroke(new BasicStroke(4F, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.draw(outline);
+            g.setColor(Color.WHITE);
+            g.fill(outline);
         } finally { g.dispose(); }
         NativeImage pixels = new NativeImage(width, height, true);
         int[] colors = image.getRGB(0, 0, width, height, null, 0, width);
@@ -138,18 +190,26 @@ public final class OrionDamageIndicators {
         long now = System.nanoTime();
         PoseStack stack = context.poseStack();
         for (Indicator indicator : indicators) {
-            float progress = Math.max(0F, Math.min(1F, (now - indicator.created()) / (float) LIFE_NANOS));
-            float fade = Math.min(1F, (1F - progress) * 3F);
-            float mix = Math.max(0F, Math.min(1F, indicator.damage() / config.getDamageIndicatorsThreshold()));
-            int color = ARGB.color(Math.round(fade * 255),
+            float progress = Math.max(0F, Math.min(1F, (now - indicator.created()) / (float) indicator.lifetime()));
+            if (progress >= 1F) continue;
+            float fade = Math.min(1F, (1F - progress) / .34F);
+            float mix = indicator.lethal() ? 1F : Math.clamp(indicator.damage() / config.getDamageIndicatorsThreshold(), 0F, 1F);
+            int alpha = Math.round(fade * 255F);
+            int color = indicator.healing() ? (alpha << 24) | HEAL_COLOR : ARGB.color(alpha,
                     Math.round(ARGB.red(low) + (ARGB.red(high) - ARGB.red(low)) * mix),
                     Math.round(ARGB.green(low) + (ARGB.green(high) - ARGB.green(low)) * mix),
                     Math.round(ARGB.blue(low) + (ARGB.blue(high) - ARGB.blue(low)) * mix));
-            Vec3 pos = indicator.position().subtract(camera).add(0, 0.55D * (1D - Math.pow(1D - progress, 2D)), 0);
+            double rise = .85D * progress * (2D - progress);
+            Vec3 pos = indicator.position().subtract(camera).add(0, rise, 0);
             Label label = indicator.label();
-            float height = 0.26F;
+            float appear = Math.min(1F, (now - indicator.created()) / 150_000_000F);
+            float size = .62F + .38F * appear * (2F - appear);
+            float height = .32F * size * config.getDamageIndicatorsScale() * (indicator.lethal() ? 1.14F : 1F);
             float width = height * label.width() / label.height();
-            stack.pushPose(); stack.translate(pos.x, pos.y, pos.z); stack.rotate(cameraRotation);
+            stack.pushPose();
+            stack.translate(pos.x, pos.y, pos.z);
+            stack.rotate(cameraRotation);
+            stack.translate(indicator.spread() * (1F + progress), 0, 0);
             context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.texturedDepthTested(label.id()),
                     (pose, vertices) -> quad(pose, vertices, width, height, color));
             stack.popPose();
@@ -173,12 +233,15 @@ public final class OrionDamageIndicators {
         }
     }
     private void clear() {
-        pending.clear(); indicators.clear();
+        pending.clear(); health.clear(); indicators.clear();
+        lane = scan = 0;
         for (Label label : labels.values()) Minecraft.getInstance().getTextureManager().release(label.id());
         labels.clear();
         java.util.Arrays.fill(labelSlots, false);
     }
     private record Pending(float health, long created) { }
+    private record Sample(float health, int scan) { }
     private record Label(Identifier id, int width, int height, int slot) { }
-    private record Indicator(Vec3 position, float damage, long created, Label label) { }
+    private record Indicator(Vec3 position, float damage, boolean healing, boolean lethal,
+                             float spread, long created, long lifetime, Label label) { }
 }

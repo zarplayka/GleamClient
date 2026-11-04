@@ -32,6 +32,13 @@ public final class OrionMenuConfigTest {
         OrionConfig malformed = gson.fromJson("{\"hudElementGlass\":null,\"waypointVisibleLimit\":999}", OrionConfig.class);
         malformed.sanitize();
         check(malformed.isHudElementGlass("hud_watermark") && malformed.getWaypointVisibleLimit() == 64, "invalid display settings sanitized");
+        OrionConfig quick = gson.fromJson("{\"waypointQuickPrefix\":null,\"waypointQuickColor\":\"wrong\"}", OrionConfig.class);
+        quick.sanitize();
+        check(quick.getWaypointQuickPrefix().equals("Метка") && quick.getWaypointQuickColor().equals("#FF9B38"), "safe quick waypoint defaults");
+        quick.getWaypoints().add(new OrionConfig.Waypoint("Метка 1", "world-a", 0, 64, 0));
+        quick.getWaypoints().add(new OrionConfig.Waypoint("метка 2", "world-a", 0, 64, 0));
+        check(ru.orion.client.effect.OrionWaypoints.nextName(quick, "world-a").equals("Метка 3"), "unique quick waypoint names ignore case");
+        check(ru.orion.client.effect.OrionWaypoints.nextName(quick, "world-b").equals("Метка 1"), "quick names independent per world");
         System.out.println("Menu and KillEffect config: OK");
     }
     private static void check(boolean value, String name) { if (!value) throw new AssertionError(name); }

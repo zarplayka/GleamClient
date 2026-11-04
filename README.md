@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="src/main/resources/assets/orion-client/icon.png" width="112" alt="Orion Client">
+  <img src="src/main/resources/assets/orion-client/textures/cosmetics/orion_badge.png" width="112" alt="Orion Client">
 
   # Orion Client
 

@@ -81,8 +81,7 @@ public final class OrionWaypointHud {
             if (projection == null || projection.edge && !config.isWaypointEdgeIndicators()) continue;
             if (considered++ >= config.getWaypointVisibleLimit() * 2) break;
             double distance = Math.sqrt(candidate.distanceSq);
-            boolean detailed = !projection.edge && (!config.isWaypointSmartLabels()
-                    || Math.hypot(projection.x - screenW / 2F, projection.y - screenH / 2F) < 80 || distance < 12);
+            boolean detailed = config.isWaypointSmartLabels() && directlyAimed(projection, screenW, screenH);
             String subtitle = distance < 3 ? "Вы на месте" : formatDistance(distance);
             int altitude = (int) Math.round(point.y - client.player.getY());
             if (detailed && Math.abs(altitude) > 2) subtitle += " · " + (altitude > 0 ? "+" : "") + altitude + " м";
@@ -92,7 +91,7 @@ public final class OrionWaypointHud {
             entry.update(client, point, candidate.death, scale, detailed, subtitle, coordinates,
                     projection.edge ? Math.round(projection.angle * 16F / (float) Math.PI) : Integer.MIN_VALUE, screenW - EDGE_MARGIN * 2);
             if (entry.texture == null) continue;
-            int x = Math.round(projection.x - entry.width / 2F), y = Math.round(projection.y - entry.height / 2F);
+            int x = Math.round(projection.x - 14F), y = Math.round(projection.y - entry.height / 2F);
             Bounds bounds = place(x, y, entry.width, entry.height, screenW, screenH, occupied);
             if (bounds == null) continue;
             occupied.add(bounds);
@@ -104,6 +103,10 @@ public final class OrionWaypointHud {
             var cached = iterator.next();
             if (!live.contains(cached.getKey())) { cached.getValue().release(client); iterator.remove(); }
         }
+    }
+
+    static boolean directlyAimed(Projection projection, int width, int height) {
+        return !projection.edge && Math.hypot(projection.x - width / 2F, projection.y - height / 2F) <= 7F;
     }
 
     static Projection project(Vector4f clip, int width, int height) {

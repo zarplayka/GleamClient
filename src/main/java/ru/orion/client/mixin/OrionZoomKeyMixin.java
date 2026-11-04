@@ -12,8 +12,8 @@ import ru.orion.client.keybind.OrionKeybinds;
 @Mixin(KeyMapping.class)
 public abstract class OrionZoomKeyMixin {
     @Inject(method = "set(Lcom/mojang/blaze3d/platform/InputConstants$Key;Z)V", at = @At("HEAD"))
-    private static void orion$releaseZoom(InputConstants.Key key, boolean pressed, CallbackInfo ci) {
+    private static void orion$zoomKey(InputConstants.Key key, boolean pressed, CallbackInfo ci) {
         KeyMapping zoom = OrionKeybinds.getZoomKey();
-        if (!pressed && zoom != null && zoom.matches(key)) OrionZoom.release();
+        if (zoom != null && zoom.matches(key)) OrionZoom.keyEvent(pressed);
     }
 }

@@ -10,20 +10,19 @@ import net.minecraft.resources.Identifier;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
+import ru.orion.client.gui.OrionBrandMark;
 
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.geom.Area;
-import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Watermark HUD в стиле Liquid Glass: сверху оранжевая звезда Ориона, заголовок
+ * Watermark HUD в стиле Liquid Glass: сверху эмблема Orion, заголовок
  * «Orion Client» и версия, снизу отдельные стеклянные панели с ником и FPS.
  * Рисуется Java2D в текстуру с нативным разрешением, чтобы текст оставался чётким
  * на любом gui scale.
@@ -38,14 +37,14 @@ public final class OrionHudRenderer {
     private static final float ROW_GAP = 4.0F;
     private static final float PILL_PAD_X = 8.0F;
     private static final float PILL_GAP = 5.0F;
-    private static final float STAR_RADIUS = 4.8F;
+    private static final float BRAND_RADIUS = 4.8F;
 
     private static final Color TEXT_COLOR = new Color(0xF7, 0xF9, 0xFF);
     private static final Color VERSION_COLOR = new Color(0xD4, 0xDA, 0xE8);
     private static final Color LABEL_COLOR = new Color(0xB6, 0xC0, 0xD2);
 
     private static final String NAME_TEXT = "Orion Client";
-    private static final String VERSION_LABEL = "v0.1";
+    private static final String VERSION_LABEL = OrionClient.VERSION_LABEL;
 
     private final OrionConfigManager configManager;
 
@@ -135,9 +134,9 @@ public final class OrionHudRenderer {
         float fpsSlotWidth = digitWidth * Math.max(3, fpsValue.length());
         pg.dispose();
 
-        // Верхняя пилюля: [звезда] Orion Client v0.1.
-        float starCx = PILL_PAD_X + STAR_RADIUS;
-        float nameX = starCx + STAR_RADIUS + 4.5F;
+        // Верхняя пилюля: эмблема, название и версия.
+        float brandCx = PILL_PAD_X + BRAND_RADIUS;
+        float nameX = brandCx + BRAND_RADIUS + 4.5F;
         float versionX = nameX + nameWidth + 4.5F;
         float topPillWidth = versionX + versionWidth + PILL_PAD_X;
 
@@ -170,9 +169,8 @@ public final class OrionHudRenderer {
 
         // Верхняя стеклянная пилюля.
         drawGlassPill(g, 0.0F, 0.0F, topPillWidth, TOP_PILL_HEIGHT);
-        drawStar(g, starCx, TOP_PILL_HEIGHT / 2.0F, STAR_RADIUS, accent);
-
         float brandBaseline = centeredBaseline(g, brandFont, TOP_PILL_HEIGHT / 2.0F);
+        OrionBrandMark.drawBesideText(g, brandCx, brandBaseline, BRAND_RADIUS * 2.0F, brandFont, NAME_TEXT, accent);
         drawText(g, brandFont, NAME_TEXT, nameX, brandBaseline, accent);
         drawText(g, versionFont, VERSION_LABEL, versionX, brandBaseline, VERSION_COLOR);
 
@@ -210,29 +208,6 @@ public final class OrionHudRenderer {
     }
 
     /** Четырёхлучевая звезда Ориона с прозрачным ромбом в центре. */
-    private static void drawStar(Graphics2D g, float cx, float cy, float r, Color accent) {
-        float pinch = r * 0.30F;
-        Path2D star = new Path2D.Float();
-        star.moveTo(cx, cy - r);
-        star.quadTo(cx + pinch, cy - pinch, cx + r, cy);
-        star.quadTo(cx + pinch, cy + pinch, cx, cy + r);
-        star.quadTo(cx - pinch, cy + pinch, cx - r, cy);
-        star.quadTo(cx - pinch, cy - pinch, cx, cy - r);
-        star.closePath();
-
-        float core = r * 0.26F;
-        Path2D hole = new Path2D.Float();
-        hole.moveTo(cx, cy - core);
-        hole.lineTo(cx + core, cy);
-        hole.lineTo(cx, cy + core);
-        hole.lineTo(cx - core, cy);
-        hole.closePath();
-        Area silhouette = new Area(star);
-        silhouette.subtract(new Area(hole));
-        g.setColor(accent);
-        g.fill(silhouette);
-    }
-
     /** Базовая линия, при которой текст данного шрифта визуально центрирован по centerY. */
     private static float centeredBaseline(Graphics2D g, Font font, float centerY) {
         FontMetrics metrics = g.getFontMetrics(font);

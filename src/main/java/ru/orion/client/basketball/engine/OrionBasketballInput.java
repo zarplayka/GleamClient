@@ -16,6 +16,7 @@ public final class OrionBasketballInput {
         hoop=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.basketball.place",InputConstants.Type.KEYBOARD,InputConstants.KEY_N,category));
     }
     public static KeyMapping ballKey() { return take; }
+    public static KeyMapping hoopKey() { return hoop; }
     public static boolean consumeTake() { return consume(take); }
     public static boolean consumeHoop() { return consume(hoop); }
     private static boolean consume(KeyMapping key) {

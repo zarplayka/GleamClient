@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Проверяет пользователей Orion в фоне, не задерживая игровой поток. */
 public final class OrionBadgePresence {
-    private static final String BASE = "https://orion-client-cosmetics.candytulip7.chatgpt.site";
+    private static final String BASE = "https://orion-cosmetics.51-250-32-198.sslip.io";
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(task -> {
         Thread thread = new Thread(task, "Orion Badge Sync");
@@ -107,20 +107,7 @@ public final class OrionBadgePresence {
             try {
                 String activeToken = token;
                 if (activeToken == null) {
-                    KeyPair keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
-                    JsonObject request = new JsonObject();
-                    request.addProperty("uuid", uuid.toString());
-                    request.addProperty("name", name);
-                    request.addProperty("publicKey", Base64.getUrlEncoder().withoutPadding().encodeToString(keyPair.getPublic().getEncoded()));
-                    JsonObject challenge = post("/v1/challenge", request, null);
-                    String challengeText = challenge.get("challenge").getAsString();
-                    Signature signature = Signature.getInstance("Ed25519");
-                    signature.initSign(keyPair.getPrivate());
-                    signature.update(challengeText.getBytes(StandardCharsets.UTF_8));
-                    JsonObject verification = new JsonObject();
-                    verification.addProperty("challenge", challengeText);
-                    verification.addProperty("signature", Base64.getUrlEncoder().withoutPadding().encodeToString(signature.sign()));
-                    activeToken = post("/v1/verify", verification, null).get("token").getAsString();
+                    activeToken = authenticate(uuid, name);
                 }
                 if (requestGeneration != generation) return;
                 Set<UUID> found = new HashSet<>(), foundHalos = new HashSet<>();
@@ -212,6 +199,42 @@ public final class OrionBadgePresence {
         if (!id.matches("[0-9a-fA-F]{32}")) throw new IllegalArgumentException("Некорректный UUID");
         return UUID.fromString(id.substring(0, 8) + "-" + id.substring(8, 12) + "-" + id.substring(12, 16)
                 + "-" + id.substring(16, 20) + "-" + id.substring(20));
+    }
+
+    private static String authenticate(UUID uuid, String name) throws Exception {
+        KeyPair keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        JsonObject request = new JsonObject();
+        request.addProperty("uuid", uuid.toString());
+        request.addProperty("name", name);
+        request.addProperty("publicKey", Base64.getUrlEncoder().withoutPadding().encodeToString(keyPair.getPublic().getEncoded()));
+        String challenge = post("/v1/challenge", request, null).get("challenge").getAsString();
+        Signature signature = Signature.getInstance("Ed25519");
+        signature.initSign(keyPair.getPrivate());
+        signature.update(challenge.getBytes(StandardCharsets.UTF_8));
+        JsonObject verification = new JsonObject();
+        verification.addProperty("challenge", challenge);
+        verification.addProperty("signature", Base64.getUrlEncoder().withoutPadding().encodeToString(signature.sign()));
+        return post("/v1/verify", verification, null).get("token").getAsString();
+    }
+
+    /** Сетевой вызов каталога. Выполняется рабочим потоком библиотеки конфигов. */
+    public static JsonObject sharedConfigs(String query, JsonObject payload, UUID uuid, String name) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(BASE + "/v1/configs" + query))
+                .timeout(Duration.ofSeconds(8));
+        if (payload == null) builder.GET();
+        else builder.header("Authorization", "Bearer " + authenticate(uuid, name))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload.toString()));
+        HttpResponse<java.io.InputStream> response = HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
+        try (var stream = response.body()) {
+            if (response.statusCode() == 429) throw new IllegalStateException("Лимит публикаций исчерпан");
+            if (response.statusCode() != (payload == null ? 200 : 201)) {
+                throw new IllegalStateException("Каталог недоступен");
+            }
+            byte[] data = stream.readNBytes(65_537);
+            if (data.length > 65_536) throw new IllegalStateException("Слишком большой ответ каталога");
+            return JsonParser.parseString(new String(data, StandardCharsets.UTF_8)).getAsJsonObject();
+        }
     }
 
     private static JsonObject post(String path, JsonObject payload, String bearer) throws Exception {

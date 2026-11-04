@@ -8,6 +8,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvents;
@@ -51,6 +52,14 @@ public final class OrionFootball {
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);LevelRenderEvents.COLLECT_SUBMITS.register(this::render);
     }
     private static KeyMapping key(String id,int defaultKey){return KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.football."+id,InputConstants.Type.KEYBOARD,defaultKey,CATEGORY));}
+    public KeyMapping getBallKey() { return ballKey; }
+    public KeyMapping getGoalKey() { return goalKey; }
+    public KeyMapping getMoveKey() { return moveKey; }
+    public KeyMapping getRemoveKey() { return removeKey; }
+    public KeyMapping getKeeperKey() { return keeperKey; }
+    public KeyMapping getRotateLeftKey() { return rotateLeft; }
+    public KeyMapping getRotateRightKey() { return rotateRight; }
+    public KeyMapping getPenaltyKey() { return penaltyKey; }
     private void tick(Minecraft client){
         var config=manager.getConfig();
         if(!config.isFootballEnabled()||client.player==null||client.level==null){clear();drain();return;}
@@ -63,7 +72,13 @@ public final class OrionFootball {
         while(ballKey.consumeClick())resetBall(client);
         while(goalKey.consumeClick()){
             if(!loaded){message(client,"Дождитесь загрузки ворот");continue;}
-            if(!placing){placing=true;movingIndex=-1;yawOffset=0;message(client,"Наведите на землю и нажмите G ещё раз");}
+            if(!placing){
+                placing=true;movingIndex=-1;yawOffset=0;
+                client.gui.hud.getChat().addClientSystemMessage(Component.literal("[Футбол] Наведи на землю и нажми ")
+                        .withStyle(ChatFormatting.WHITE)
+                        .append(Component.literal(goalKey.getTranslatedKeyMessage().getString()).withStyle(ChatFormatting.GOLD))
+                        .append(" ещё раз"));
+            }
             else if(preview!=null){if(movingIndex>=0){goals.set(movingIndex,preview);keepers.get(movingIndex).reset();}else if(goals.size()<32)addGoal(preview);persist();placing=false;movingIndex=-1;}
         }
         while(moveKey.consumeClick()){int index=nearest(client);if(!placing&&index>=0){placing=true;movingIndex=index;yawOffset=0;}}

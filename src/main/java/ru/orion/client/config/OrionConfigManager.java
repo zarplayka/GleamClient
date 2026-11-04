@@ -2,6 +2,8 @@ package ru.orion.client.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,14 +15,59 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 
 public final class OrionConfigManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String CONFIG_FILE_NAME = "orion-client.json";
 
     private final Path configPath;
     private OrionConfig config = OrionConfig.createDefault();
+    private OrionVisualPresets visualPresets;
+    private OrionConfigLibrary configLibrary;
+
+    public OrionConfigLibrary getConfigLibrary() {
+        if (configLibrary == null) configLibrary = new OrionConfigLibrary(configPath.resolveSibling("orion-config-library.json"));
+        return configLibrary;
+    }
+
+    public JsonObject exportProfile() {
+        return OrionConfigLibrary.shareable(GSON.toJsonTree(config).getAsJsonObject());
+    }
+
+    public void applyProfile(JsonObject profile) throws IOException {
+        JsonObject combined = GSON.toJsonTree(config).getAsJsonObject();
+        OrionConfigLibrary.shareable(profile).entrySet().forEach(entry -> combined.add(entry.getKey(), entry.getValue()));
+        OrionConfig replacement = GSON.fromJson(combined, OrionConfig.class);
+        replacement.setAppliedVisualPreset("");
+        replacement.setVisualPresetSelection("");
+        replacement.sanitize();
+        writeAtomically(configPath, GSON.toJsonTree(replacement));
+        config = replacement;
+        visualPresets = null;
+    }
+
+    static void writeAtomically(Path path, JsonElement data) throws IOException {
+        Path directory = path.toAbsolutePath().getParent();
+        Files.createDirectories(directory);
+        Path temp = Files.createTempFile(directory, "orion-config-", ".tmp");
+        try {
+            Files.writeString(temp, GSON.toJson(data), StandardCharsets.UTF_8);
+            try {
+                Files.move(temp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException exception) {
+                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+    public OrionVisualPresets getVisualPresets() {
+        if (visualPresets == null) visualPresets = new OrionVisualPresets(this);
+        return visualPresets;
+    }
 
     public OrionConfigManager() {
         this.configPath = FabricLoader.getInstance().getConfigDir().resolve(CONFIG_FILE_NAME);
@@ -70,6 +117,8 @@ public final class OrionConfigManager {
     }
 
     public void setHudElementGlass(String id, boolean glass) { config.setHudElementGlass(id, glass); save(); }
+
+    public void setMirageEnabled(boolean value) { config.setMirageEnabled(value); save(); }
 
     public void setZoomEnabled(boolean value) { config.setZoomEnabled(value); save(); }
     public void setHaloEnabled(boolean value) {

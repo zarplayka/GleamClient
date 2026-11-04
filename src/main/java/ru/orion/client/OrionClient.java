@@ -10,6 +10,8 @@ import ru.orion.client.basketball.OrionBasketballHud;
 import ru.orion.client.command.OrionChatClearCommand;
 import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
+import ru.orion.client.hud.OrionFoodSync;
+import ru.orion.client.hud.OrionFoodTooltip;
 import ru.orion.client.discord.OrionDiscordPresenceService;
 import ru.orion.client.effect.OrionBreadcrumbs;
 import ru.orion.client.effect.OrionChatHistory;
@@ -33,7 +35,6 @@ import ru.orion.client.hud.OrionBetterNearHud;
 import ru.orion.client.hud.OrionCustomCrosshair;
 import ru.orion.client.hud.OrionHudRenderer;
 import ru.orion.client.hud.OrionStatusHud;
-import ru.orion.client.hud.OrionSaturationOverlay;
 import ru.orion.client.hud.OrionHotbarLocks;
 import ru.orion.client.hud.OrionInventoryHud;
 import ru.orion.client.gui.OrionClickGuiScreen;
@@ -43,7 +44,8 @@ import ru.orion.client.media.OrionMediaPlayerHud;
 
 public final class OrionClient implements ClientModInitializer {
     public static final String MOD_ID = "orion-client";
-    public static final String VERSION_TEXT = "Orion Client v0.1";
+    public static final String VERSION_LABEL = "v0.2.0";
+    public static final String VERSION_TEXT = "Orion Client " + VERSION_LABEL;
 
     private static OrionClient instance;
 
@@ -68,6 +70,7 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionBlockHighlight blockHighlight = new OrionBlockHighlight(configManager);
     private final OrionHitParticles hitParticles = new OrionHitParticles(configManager);
     private final ru.orion.client.effect.OrionKillEffects killEffects = new ru.orion.client.effect.OrionKillEffects(configManager);
+    private final ru.orion.client.effect.OrionMirage mirage = new ru.orion.client.effect.OrionMirage(configManager);
     private final OrionMotionBlur motionBlur = new OrionMotionBlur(configManager);
     private final OrionSelfTag selfTag = new OrionSelfTag(configManager);
     private final OrionArmorIndicator armorIndicator = new OrionArmorIndicator(configManager);
@@ -96,7 +99,6 @@ public final class OrionClient implements ClientModInitializer {
         football.register();
         footballHud.register();
         basketballHud.register();
-        OrionSaturationOverlay.registerResourceListener();
         ClientTickEvents.END_CLIENT_TICK.register(client -> OrionChatHistory.ensureLoaded());
         waypoints.register();
         ru.orion.client.effect.OrionBadgePresence.register();
@@ -105,6 +107,8 @@ public final class OrionClient implements ClientModInitializer {
         hotbarLocks.register();
         inventoryHud.register();
         keybinds.register();
+        OrionFoodSync.register();
+        OrionFoodTooltip.register();
         discordPresenceService.register();
         jumpCircleEffect.register();
         targetEsp.register();
@@ -185,6 +189,8 @@ public final class OrionClient implements ClientModInitializer {
     public static OrionDamageIndicators getDamageIndicatorsOrNull() {
         return instance == null ? null : instance.damageIndicators;
     }
+
+    public static ru.orion.client.effect.OrionMirage getMirageOrNull() { return instance == null ? null : instance.mirage; }
 
     public static OrionMotionBlur getMotionBlurOrNull() {
         return instance == null ? null : instance.motionBlur;

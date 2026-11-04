@@ -1,0 +1,14 @@
+HitSound audio by Kenney, CC0 1.0.
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Interface Sounds — https://kenney.nl/assets/interface-sounds
+snap.wav: click_001.ogg
+pulse.wav: confirmation_001.ogg
+
+Impact Sounds — https://kenney.nl/assets/impact-sounds
+knock.wav: impactPunch_heavy_000.ogg
+clang.wav: impactMetal_medium_000.ogg
+glass.wav: impactGlass_heavy_000.ogg
+thud.wav: impactSoft_heavy_000.ogg
+
+Converted to mono PCM with short tails and matched peaks for Orion Client.

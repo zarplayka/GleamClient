@@ -1,0 +1,12 @@
+[Unit]
+Description=Backup Orion cosmetics SQLite database
+After=orion-cosmetics.service
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/orion-cosmetics/backup.py
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/backups/orion-cosmetics

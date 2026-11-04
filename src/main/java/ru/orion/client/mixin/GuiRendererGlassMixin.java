@@ -25,6 +25,8 @@ public abstract class GuiRendererGlassMixin {
     private void orion$releaseGlass(CallbackInfo callback) {
         var motionBlur = OrionClient.getMotionBlurOrNull();
         if (motionBlur != null) motionBlur.release();
+        var mirage = OrionClient.getMirageOrNull();
+        if (mirage != null) mirage.release();
         OrionGlassCompositor.INSTANCE.close();
     }
 }

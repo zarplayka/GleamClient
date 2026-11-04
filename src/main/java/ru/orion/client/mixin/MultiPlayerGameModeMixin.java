@@ -9,7 +9,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.orion.client.OrionClient;
 import ru.orion.client.effect.OrionHitColorFlash;
-import ru.orion.client.effect.OrionHitSound;
 import ru.orion.client.effect.OrionTargetEsp;
 
 @Mixin(MultiPlayerGameMode.class)
@@ -36,9 +35,5 @@ public final class MultiPlayerGameModeMixin {
         var hitParticles = OrionClient.getHitParticlesOrNull();
         if (hitParticles != null) hitParticles.onHit(target);
 
-        OrionHitSound hitSound = OrionClient.getHitSoundOrNull();
-        if (hitSound != null) {
-            hitSound.onHit(target);
-        }
     }
 }

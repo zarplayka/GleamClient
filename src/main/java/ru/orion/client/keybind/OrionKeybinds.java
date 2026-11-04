@@ -22,6 +22,8 @@ public final class OrionKeybinds {
     private KeyMapping openClickGuiKey;
     private static KeyMapping lockSlotKey;
     private static KeyMapping zoomKey;
+    private static KeyMapping secondaryZoomKey;
+    private static KeyMapping waypointKey;
 
     public OrionKeybinds(OrionConfigManager configManager) {
         this.configManager = configManager;
@@ -39,12 +41,19 @@ public final class OrionKeybinds {
                 "key.orion-client.lock_slot", InputConstants.Type.KEYBOARD, InputConstants.KEY_L, CATEGORY));
         zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.orion-client.zoom", InputConstants.Type.KEYBOARD, InputConstants.KEY_C, CATEGORY));
+        secondaryZoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.orion-client.secondary_zoom", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY));
+        waypointKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.orion-client.add_waypoint", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY));
         ClientTickEvents.END_CLIENT_TICK.register(this::handleClientTick);
     }
 
     public static KeyMapping getLockSlotKey() { return lockSlotKey; }
+    public static KeyMapping getWaypointKey() { return waypointKey; }
     public static KeyMapping getZoomKey() { return zoomKey; }
     public static boolean isZoomDown() { return zoomKey != null && zoomKey.isDown(); }
+    public static KeyMapping getSecondaryZoomKey() { return secondaryZoomKey; }
+    public static boolean isSecondaryZoomDown() { return secondaryZoomKey != null && secondaryZoomKey.isDown(); }
 
     public static boolean isLockSlotKey(KeyEvent event) {
         return lockSlotKey != null && lockSlotKey.matches(event);
@@ -54,6 +63,21 @@ public final class OrionKeybinds {
         while (lockSlotKey.consumeClick()) {
             if (client.player != null && client.gui.screen() == null && configManager.getConfig().isLockSlotEnabled()) {
                 OrionLockSlot.toggleIndex(client.player.getInventory().getSelectedSlot());
+            }
+        }
+        while (waypointKey.consumeClick()) {
+            if (client.player == null || client.level == null || client.gui.screen() != null) continue;
+            var point = ru.orion.client.effect.OrionWaypoints.addAtPlayer(configManager, client);
+            if (point == null) {
+                client.gui.hud.setOverlayMessage(net.minecraft.network.chat.Component.literal("Ƴ Достигнут предел меток")
+                        .withStyle(net.minecraft.ChatFormatting.WHITE), false);
+            } else if (configManager.getConfig().isWaypointEditAfterCreate()) {
+                client.gui.setScreen(OrionClickGuiScreen.withWaypointSettings(configManager, point));
+            } else {
+                client.gui.hud.setOverlayMessage(net.minecraft.network.chat.Component.literal("Ʋ Метка ")
+                        .withStyle(net.minecraft.ChatFormatting.WHITE)
+                        .append(net.minecraft.network.chat.Component.literal(point.name).withStyle(net.minecraft.ChatFormatting.GOLD))
+                        .append(net.minecraft.network.chat.Component.literal(" добавлена").withStyle(net.minecraft.ChatFormatting.WHITE)), false);
             }
         }
         while (openClickGuiKey.consumeClick()) {

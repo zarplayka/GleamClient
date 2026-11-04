@@ -83,6 +83,13 @@ public final class OrionBasketball {
     public long scoreAt(){long time=OrionBasketballController.scoredAt();return time==0?0:System.nanoTime()-(System.currentTimeMillis()-time)*1_000_000L;}
     public int hoopCount(){var client=Minecraft.getInstance();return client.level==null?0:OrionHoopStore.inWorld(client).size();}
     public KeyMapping getBallKey(){return OrionBasketballInput.ballKey();}
+    public KeyMapping getHoopKey() { return OrionBasketballInput.hoopKey(); }
+    public KeyMapping getMoveKey() { return move; }
+    public KeyMapping getRemoveKey() { return remove; }
+    public KeyMapping getPickupKey() { return pickup; }
+    public KeyMapping getResetKey() { return reset; }
+    public KeyMapping getRotateLeftKey() { return left; }
+    public KeyMapping getRotateRightKey() { return right; }
     public void clearHoopsInCurrentWorld(){var c=Minecraft.getInstance();if(c.level!=null)OrionHoopStore.clearWorld(OrionBasketballController.courtKey(c),c.level.dimension().identifier().toString());}
     public void resetScore(){OrionBasketballController.resetScore();}
     public void removeBall(){OrionBasketballController.removeBall();}

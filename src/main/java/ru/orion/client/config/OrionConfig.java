@@ -12,6 +12,26 @@ public final class OrionConfig {
     public int getWingsStyle() { return wingsStyle; }
     public void setWingsStyle(int value) { wingsStyle = Math.max(0, Math.min(1, value)); }
     private float zoomFactor = 4.0F;
+    private float zoomInTime = 1F;
+    private float zoomOutTime = 0.5F;
+    private float zoomScrollStep = 1.5F;
+    private float zoomScrollTiers = 10F;
+    private float zoomScrollSmoothing = 0.7F;
+    private float zoomRelativeSensitivity = 1F;
+    private float zoomCinematic = 0F;
+    private boolean zoomToggle = false;
+    private boolean zoomScroll = true;
+    private boolean zoomRetainScroll = false;
+    private boolean zoomHand = true;
+    private boolean zoomRelativeBobbing = true;
+    private int zoomSpyglassMode;
+    private float secondaryZoomFactor = 4F;
+    private float secondaryZoomInTime = 10F;
+    private float secondaryZoomOutTime = 1F;
+    private boolean secondaryZoomHideHud = true;
+    private boolean noAnimationsEnabled = false;
+    private int zoomInCurve = 12;
+    private int zoomOutCurve = 12;
     private boolean chatFilterEnabled;
     private String chatFilterWords = "";
     private boolean chatHighlightEnabled;
@@ -22,6 +42,15 @@ public final class OrionConfig {
     private boolean waypointShowCoordinates = true;
     private boolean waypointSmartLabels = true;
     private int waypointVisibleLimit = 24;
+    private String waypointQuickPrefix = "Метка";
+    private String waypointQuickColor = "#FF9B38";
+    private boolean waypointEditAfterCreate;
+    public String getWaypointQuickPrefix() { return waypointQuickPrefix; }
+    public void setWaypointQuickPrefix(String value) { waypointQuickPrefix = value; }
+    public String getWaypointQuickColor() { return waypointQuickColor; }
+    public void setWaypointQuickColor(String value) { waypointQuickColor = value; }
+    public boolean isWaypointEditAfterCreate() { return waypointEditAfterCreate; }
+    public void setWaypointEditAfterCreate(boolean value) { waypointEditAfterCreate = value; }
     public boolean isWaypointEdgeIndicators() { return waypointEdgeIndicators; }
     public void setWaypointEdgeIndicators(boolean value) { waypointEdgeIndicators = value; }
     public boolean isWaypointShowCoordinates() { return waypointShowCoordinates; }
@@ -45,6 +74,47 @@ public final class OrionConfig {
     }
     public boolean isZoomEnabled() { return zoomEnabled; }
     public void setZoomEnabled(boolean value) { zoomEnabled = value; }
+    public float getZoomInTime() { return zoomInTime; }
+    public void setZoomInTime(float value) { zoomInTime = finiteClamp(value, 0F, 3F, 1F); }
+    public float getZoomOutTime() { return zoomOutTime; }
+    public void setZoomOutTime(float value) { zoomOutTime = finiteClamp(value, 0F, 3F, 0.5F); }
+    public float getZoomScrollStep() { return zoomScrollStep; }
+    public void setZoomScrollStep(float value) { zoomScrollStep = finiteClamp(value, 1.05F, 3F, 1.5F); }
+    public float getZoomScrollTiers() { return zoomScrollTiers; }
+    public void setZoomScrollTiers(float value) { zoomScrollTiers = finiteClamp(value, 1F, 20F, 10F); }
+    public float getZoomScrollSmoothing() { return zoomScrollSmoothing; }
+    public void setZoomScrollSmoothing(float value) { zoomScrollSmoothing = finiteClamp(value, 0F, 1F, 0.7F); }
+    public float getZoomRelativeSensitivity() { return zoomRelativeSensitivity; }
+    public void setZoomRelativeSensitivity(float value) { zoomRelativeSensitivity = finiteClamp(value, 0F, 1F, 1F); }
+    public float getZoomCinematic() { return zoomCinematic; }
+    public void setZoomCinematic(float value) { zoomCinematic = finiteClamp(value, 0F, 1F, 0F); }
+    public boolean isZoomToggle() { return zoomToggle; }
+    public void setZoomToggle(boolean value) { zoomToggle = value; }
+    public boolean isZoomScroll() { return zoomScroll; }
+    public void setZoomScroll(boolean value) { zoomScroll = value; }
+    public boolean isZoomRetainScroll() { return zoomRetainScroll; }
+    public void setZoomRetainScroll(boolean value) { zoomRetainScroll = value; }
+    public boolean isZoomHand() { return zoomHand; }
+    public void setZoomHand(boolean value) { zoomHand = value; }
+    public boolean isZoomRelativeBobbing() { return zoomRelativeBobbing; }
+    public void setZoomRelativeBobbing(boolean value) { zoomRelativeBobbing = value; }
+    public int getZoomSpyglassMode() { return zoomSpyglassMode; }
+    public void setZoomSpyglassMode(int value) { zoomSpyglassMode = Math.clamp(value, 0, 2); }
+    public float getSecondaryZoomFactor() { return secondaryZoomFactor; }
+    public void setSecondaryZoomFactor(float value) { secondaryZoomFactor = finiteClamp(value, 1.5F, 12F, 4F); }
+    public float getSecondaryZoomInTime() { return secondaryZoomInTime; }
+    public void setSecondaryZoomInTime(float value) { secondaryZoomInTime = finiteClamp(value, 0F, 15F, 10F); }
+    public float getSecondaryZoomOutTime() { return secondaryZoomOutTime; }
+    public void setSecondaryZoomOutTime(float value) { secondaryZoomOutTime = finiteClamp(value, 0F, 5F, 1F); }
+    public boolean isSecondaryZoomHideHud() { return secondaryZoomHideHud; }
+    public void setSecondaryZoomHideHud(boolean value) { secondaryZoomHideHud = value; }
+    public boolean isNoAnimationsEnabled() { return noAnimationsEnabled; }
+    public void setNoAnimationsEnabled(boolean value) { noAnimationsEnabled = value; }
+    public int getZoomInCurve() { return zoomInCurve; }
+    public int getZoomOutCurve() { return zoomOutCurve; }
+    public void setZoomInCurve(int value) { zoomInCurve = Math.max(0, Math.min(13, value)); }
+    public void setZoomOutCurve(int value) { zoomOutCurve = Math.max(0, Math.min(13, value)); }
+
     public float getZoomFactor() { return zoomFactor; }
     public void setZoomFactor(float value) { zoomFactor = finiteClamp(value, 1.5F, 12F, 4F); }
     public boolean isChatFilterEnabled() { return chatFilterEnabled; }
@@ -136,6 +206,12 @@ public final class OrionConfig {
     private boolean hudEnabled = true;
     private boolean scoreboardGlassEnabled = true;
     private java.util.Map<String, Boolean> hudElementGlass = new java.util.HashMap<>();
+    public java.util.Map<String, Boolean> getHudElementGlassOverrides() {
+        return hudElementGlass == null ? java.util.Map.of() : new java.util.HashMap<>(hudElementGlass);
+    }
+    public void setHudElementGlassOverrides(java.util.Map<String, Boolean> values) {
+        hudElementGlass = values == null ? new java.util.HashMap<>() : new java.util.HashMap<>(values);
+    }
     public boolean isHudElementGlass(String id) {
         return hudElementGlass == null || !Boolean.FALSE.equals(hudElementGlass.get(id));
     }
@@ -212,6 +288,16 @@ public final class OrionConfig {
     private String projectileTrailColor = "#FF7C00";
     private float projectileTrailDuration = 2.0F;
     private boolean projectileTrailGlow = true;
+    private boolean chatAnimationEnabled = false;
+    private boolean chatAnimationMessages = true;
+    private boolean chatAnimationFade = true;
+    private boolean chatAnimationInput = true;
+    private boolean damageIndicatorsOwnHits = true;
+    private boolean damageIndicatorsHealing = true;
+    private float chatAnimationMessageTime = 150F;
+    private float chatAnimationInputTime = 170F;
+    private float damageIndicatorsLifetime = 1.5F;
+    private float damageIndicatorsScale = 1F;
     private boolean damageIndicatorsEnabled = false;
     private String damageIndicatorsLowColor = "#FFFFFF";
     private String damageIndicatorsHighColor = "#FF4936";
@@ -238,6 +324,41 @@ public final class OrionConfig {
     private String worldChangerSkyColor = "#64D9FF";
     private String worldChangerFogColor = "#14111F";
     private int clickGuiTheme = 3;
+    private String visualPresetSelection = "";
+    private String appliedVisualPreset = "";
+    public String getVisualPresetSelection() { return visualPresetSelection; }
+    public void setVisualPresetSelection(String value) { visualPresetSelection = normalizePreset(value); }
+    public String getAppliedVisualPreset() { return appliedVisualPreset; }
+    public void setAppliedVisualPreset(String value) { appliedVisualPreset = normalizePreset(value); }
+    private static String normalizePreset(String value) {
+        if (value == null) return "";
+        return switch (value) { case "QUALITY", "PERFORMANCE", "BALANCE", "BEAUTY" -> value; default -> ""; };
+    }
+    private String clickGuiLastSection = "ALL";
+    public String getClickGuiLastSection() { return clickGuiLastSection; }
+    public void setClickGuiLastSection(String value) { clickGuiLastSection = normalizeSection(value); }
+    private static String normalizeSection(String value) {
+        if (value == null) return "ALL";
+        return switch (value) {
+            case "ALL", "FAVORITES", "WAYPOINTS", "PRESETS", "CONFIGS", "COMBAT", "PLAYER", "MOVEMENT", "RENDER", "WORLD", "MISC", "SETTINGS" -> value;
+            default -> "ALL";
+        };
+    }
+    private boolean mirageEnabled;
+    private float mirageStrength = .16F, mirageRoughness = .55F, mirageBloom, mirageColorGrade;
+    private int mirageQuality = 1;
+    public boolean isMirageEnabled() { return mirageEnabled; }
+    public void setMirageEnabled(boolean value) { mirageEnabled = value; }
+    public float getMirageStrength() { return mirageStrength; }
+    public void setMirageStrength(float value) { mirageStrength = finiteClamp(value, 0F, .4F, .16F); }
+    public float getMirageRoughness() { return mirageRoughness; }
+    public void setMirageRoughness(float value) { mirageRoughness = finiteClamp(value, 0F, 1F, .55F); }
+    public float getMirageBloom() { return mirageBloom; }
+    public void setMirageBloom(float value) { mirageBloom = finiteClamp(value, 0F, .35F, 0F); }
+    public float getMirageColorGrade() { return mirageColorGrade; }
+    public void setMirageColorGrade(float value) { mirageColorGrade = finiteClamp(value, 0F, 1F, 0F); }
+    public int getMirageQuality() { return mirageQuality; }
+    public void setMirageQuality(int value) { mirageQuality = Math.max(0, Math.min(2, value)); }
     private java.util.List<String> favoriteModules = new java.util.ArrayList<>();
 
     public java.util.List<String> getFavoriteModules() {
@@ -269,6 +390,9 @@ public final class OrionConfig {
     private boolean hitSoundEnabled = false;
     private int hitSoundIndex = 0; // 0..5 — встроенные, 6 — свои из папки
     private int hitSoundVolume = 70; // 0..100%
+    private float hitSoundPitch = 1F;
+    private boolean hitSoundPlayersOnly;
+    private boolean hitSoundVaryPitch;
 
     public static final int CROSSHAIR_GRID = 15;
 
@@ -636,6 +760,27 @@ public final class OrionConfig {
     public void setProjectileTrailDuration(float value) { projectileTrailDuration = value; }
     public boolean isProjectileTrailGlow() { return projectileTrailGlow; }
     public void setProjectileTrailGlow(boolean value) { projectileTrailGlow = value; }
+    public boolean isChatAnimationEnabled() { return chatAnimationEnabled; }
+    public void setChatAnimationEnabled(boolean value) { chatAnimationEnabled = value; }
+    public boolean isChatAnimationMessages() { return chatAnimationMessages; }
+    public void setChatAnimationMessages(boolean value) { chatAnimationMessages = value; }
+    public boolean isChatAnimationFade() { return chatAnimationFade; }
+    public void setChatAnimationFade(boolean value) { chatAnimationFade = value; }
+    public boolean isChatAnimationInput() { return chatAnimationInput; }
+    public void setChatAnimationInput(boolean value) { chatAnimationInput = value; }
+    public boolean isDamageIndicatorsOwnHits() { return damageIndicatorsOwnHits; }
+    public void setDamageIndicatorsOwnHits(boolean value) { damageIndicatorsOwnHits = value; }
+    public boolean isDamageIndicatorsHealing() { return damageIndicatorsHealing; }
+    public void setDamageIndicatorsHealing(boolean value) { damageIndicatorsHealing = value; }
+    public float getChatAnimationMessageTime() { return chatAnimationMessageTime; }
+    public void setChatAnimationMessageTime(float value) { chatAnimationMessageTime = finiteClamp(value, 10F, 800F, 150F); }
+    public float getChatAnimationInputTime() { return chatAnimationInputTime; }
+    public void setChatAnimationInputTime(float value) { chatAnimationInputTime = finiteClamp(value, 10F, 800F, 170F); }
+    public float getDamageIndicatorsLifetime() { return damageIndicatorsLifetime; }
+    public void setDamageIndicatorsLifetime(float value) { damageIndicatorsLifetime = finiteClamp(value, 0.5F, 5F, 1.5F); }
+    public float getDamageIndicatorsScale() { return damageIndicatorsScale; }
+    public void setDamageIndicatorsScale(float value) { damageIndicatorsScale = finiteClamp(value, 0.5F, 2F, 1F); }
+
     public boolean isDamageIndicatorsEnabled() { return damageIndicatorsEnabled; }
     public void setDamageIndicatorsEnabled(boolean value) { damageIndicatorsEnabled = value; }
     public String getDamageIndicatorsLowColor() { return damageIndicatorsLowColor; }
@@ -931,14 +1076,42 @@ public final class OrionConfig {
         return hitSoundVolume;
     }
 
+    public float getHitSoundPitch() { return hitSoundPitch; }
+    public void setHitSoundPitch(float value) { hitSoundPitch = finiteClamp(value, .5F, 2F, 1F); }
+    public boolean isHitSoundPlayersOnly() { return hitSoundPlayersOnly; }
+    public void setHitSoundPlayersOnly(boolean value) { hitSoundPlayersOnly = value; }
+    public boolean isHitSoundVaryPitch() { return hitSoundVaryPitch; }
+    public void setHitSoundVaryPitch(boolean value) { hitSoundVaryPitch = value; }
+
     public void setHitSoundVolume(int hitSoundVolume) {
         this.hitSoundVolume = hitSoundVolume;
     }
 
     public void sanitize() {
+        visualPresetSelection = normalizePreset(visualPresetSelection);
+        appliedVisualPreset = normalizePreset(appliedVisualPreset);
+        clickGuiLastSection = normalizeSection(clickGuiLastSection);
+        setMirageStrength(mirageStrength); setMirageRoughness(mirageRoughness);
+        setMirageBloom(mirageBloom); setMirageColorGrade(mirageColorGrade); setMirageQuality(mirageQuality);
+        waypointQuickPrefix = boundedText(waypointQuickPrefix, 24).strip();
+        if (waypointQuickPrefix.isEmpty()) waypointQuickPrefix = "Метка";
+        if (waypointQuickColor == null || !waypointQuickColor.matches("^#[0-9a-fA-F]{6}$")) waypointQuickColor = "#FF9B38";
         waypointVisibleLimit = Math.max(1, Math.min(64, waypointVisibleLimit));
         wingsStyle = Math.max(0, Math.min(1, wingsStyle));
-        zoomFactor = finiteClamp(zoomFactor, 1.5F, 12F, 4F);
+        setZoomFactor(zoomFactor);
+        setZoomInTime(zoomInTime);
+        setZoomOutTime(zoomOutTime);
+        setZoomScrollStep(zoomScrollStep);
+        setZoomScrollTiers(zoomScrollTiers);
+        setZoomScrollSmoothing(zoomScrollSmoothing);
+        setZoomRelativeSensitivity(zoomRelativeSensitivity);
+        setZoomCinematic(zoomCinematic);
+        setZoomInCurve(zoomInCurve);
+        setZoomOutCurve(zoomOutCurve);
+        setZoomSpyglassMode(zoomSpyglassMode);
+        setSecondaryZoomFactor(secondaryZoomFactor);
+        setSecondaryZoomInTime(secondaryZoomInTime);
+        setSecondaryZoomOutTime(secondaryZoomOutTime);
         chatFilterWords = boundedText(chatFilterWords, 512);
         chatHighlightWords = boundedText(chatHighlightWords, 512);
         if (chatHighlightColor == null || !chatHighlightColor.matches("^#[0-9a-fA-F]{6}$")) chatHighlightColor = "#FFB34D";
@@ -1047,6 +1220,10 @@ public final class OrionConfig {
         projectileTrailDuration = Float.isFinite(projectileTrailDuration) ? clamp(projectileTrailDuration, 0.25F, 5.0F) : 2.0F;
         if (damageIndicatorsLowColor == null || !damageIndicatorsLowColor.matches("^#[0-9a-fA-F]{6}$")) damageIndicatorsLowColor = "#FFFFFF";
         if (damageIndicatorsHighColor == null || !damageIndicatorsHighColor.matches("^#[0-9a-fA-F]{6}$")) damageIndicatorsHighColor = "#FF4936";
+        setChatAnimationMessageTime(chatAnimationMessageTime);
+        setChatAnimationInputTime(chatAnimationInputTime);
+        setDamageIndicatorsLifetime(damageIndicatorsLifetime);
+        setDamageIndicatorsScale(damageIndicatorsScale);
         damageIndicatorsThreshold = Float.isFinite(damageIndicatorsThreshold) ? clamp(damageIndicatorsThreshold, 1.0F, 40.0F) : 10.0F;
         if (breadcrumbsColor == null || !breadcrumbsColor.matches("^#[0-9a-fA-F]{6}$")) {
             breadcrumbsColor = "#FF7C00";
@@ -1087,8 +1264,14 @@ public final class OrionConfig {
         betterNearX = Math.max(-1, betterNearX);
         betterNearY = Math.max(-1, betterNearY);
         rainbowSpeed = Math.max(1, Math.min(10, rainbowSpeed));
-        hitSoundIndex = Math.max(0, Math.min(6, hitSoundIndex));
+        hitSoundIndex = switch (hitSoundIndex) {
+            case 7 -> 0; // Click → Snap
+            case 8 -> 4; // Chime → Pulse
+            case 9 -> 1; // Impact → Knock
+            default -> Math.clamp(hitSoundIndex, 0, 6);
+        };
         hitSoundVolume = Math.max(0, Math.min(100, hitSoundVolume));
+        setHitSoundPitch(hitSoundPitch);
 
         if (protectName == null) {
             protectName = "Player";

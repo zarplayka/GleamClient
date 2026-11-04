@@ -3,7 +3,7 @@
     {
       "type": "bitmap",
       "file": "orion-client:cosmetics/orion_badge.png",
-      "ascent": 8,
+      "ascent": 7,
       "height": 8,
       "chars": ["\ue000"]
     }
