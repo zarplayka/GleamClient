@@ -19,7 +19,7 @@
 
 ### Interface & convenience
 
-- **ClickGUI** — browse modules with search, favorites, and multiple themes, including Paradox.
+- **ClickGUI** — browse modules with search, favorites, and multiple themes.
 - **HUD** — see client information, keystrokes, inventory contents, and nearby players.
 - **Zoom** — zoom in smoothly and adjust the zoom temporarily with the mouse wheel.
 - **ChatFilter & ChatHighlight** — hide or highlight messages using your own keywords.
