@@ -14,10 +14,12 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 import aiosqlite
-from aiohttp import web
+from aiohttp import ClientError, ClientSession, ClientTimeout, web
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.serialization import load_der_public_key
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from football import FootballRooms
+from basketball import BasketballRooms
 
 LOG = logging.getLogger("orion.cosmetics")
 MAX_PLAYERS = 100
@@ -78,6 +80,15 @@ class Store:
                 author TEXT NOT NULL, name TEXT NOT NULL, settings TEXT NOT NULL, created_at REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS shared_configs_owner ON shared_configs(owner);
+            CREATE TABLE IF NOT EXISTS config_downloads (
+                config_id INTEGER NOT NULL REFERENCES shared_configs(id) ON DELETE CASCADE,
+                player TEXT NOT NULL, PRIMARY KEY(config_id, player)
+            );
+            CREATE TABLE IF NOT EXISTS config_sequence (
+                singleton INTEGER PRIMARY KEY CHECK(singleton=1), next_id INTEGER NOT NULL
+            );
+            INSERT OR IGNORE INTO config_sequence SELECT 1, COALESCE(MAX(id),0)+1 FROM shared_configs;
+            UPDATE config_sequence SET next_id=MAX(next_id,(SELECT COALESCE(MAX(id),0)+1 FROM shared_configs));
         ''')
         async with self.db.execute("PRAGMA table_info(players)") as cursor:
             columns = {row[1] for row in await cursor.fetchall()}
@@ -85,6 +96,15 @@ class Store:
                                    ("emote_started", "REAL NOT NULL DEFAULT 0")):
             if column not in columns:
                 await self.db.execute("ALTER TABLE players ADD COLUMN " + column + " " + definition)
+        async with self.db.execute("PRAGMA table_info(shared_configs)") as cursor:
+            columns = {row[1] for row in await cursor.fetchall()}
+        for column, definition in (("downloads", "INTEGER NOT NULL DEFAULT 0"),
+                                   ("updated_at", "REAL NOT NULL DEFAULT 0"),
+                                   ("version", "INTEGER NOT NULL DEFAULT 1"),
+                                   ("orion_account_id", "INTEGER")):
+            if column not in columns:
+                await self.db.execute("ALTER TABLE shared_configs ADD COLUMN " + column + " " + definition)
+        await self.db.execute("CREATE INDEX IF NOT EXISTS shared_configs_orion_account ON shared_configs(orion_account_id)")
         async with self.db.execute("SELECT revision FROM meta WHERE id=1") as cursor:
             self.revision = (await cursor.fetchone())[0]
         await self.db.commit()
@@ -236,6 +256,8 @@ class Store:
         return {"revision": self.revision}
 
 STORE = web.AppKey("store", Store)
+FOOTBALL = web.AppKey("football", FootballRooms)
+BASKETBALL = web.AppKey("basketball", BasketballRooms)
 
 @web.middleware
 async def errors(request, handler):
@@ -273,7 +295,7 @@ class RateLimiter:
         queue = self.buckets[key]
         while queue and queue[0] < now - 60:
             queue.popleft()
-        limit = 12 if route == "/v1/configs" and request.method == "POST" else 60 if route == "/v1/challenge" else 240
+        limit = 7200 if route in ("/v1/football", "/v1/basketball") else 12 if route == "/v1/configs" and request.method == "POST" else 60 if route == "/v1/challenge" else 240
         if len(queue) >= limit:
             raise web.HTTPTooManyRequests(reason="Rate limit exceeded")
         queue.append(now)
@@ -302,6 +324,14 @@ async def presence(request):
     store = request.app[STORE]
     player = await store.authenticate(request.headers.get("Authorization", ""))
     return web.json_response(await store.presence(player, await body(request)))
+
+async def football(request):
+    player = await request.app[STORE].authenticate(request.headers.get("Authorization", ""))
+    return web.json_response(request.app[FOOTBALL].handle(player, await body(request)))
+
+async def basketball(request):
+    player = await request.app[STORE].authenticate(request.headers.get("Authorization", ""))
+    return web.json_response(request.app[BASKETBALL].handle(player, await body(request)))
 
 async def watch(request):
     store = request.app[STORE]
@@ -363,47 +393,173 @@ def validate_config(data):
 async def list_configs(request):
     store = request.app[STORE]
     offset = int(request.query.get("offset", 0))
-    if offset < 0 or offset > 2000:
+    limit = int(request.query.get("limit", CONFIG_PAGE_SIZE))
+    owner = await store.authenticate(request.headers.get("Authorization", "")) if request.path.endswith("/mine") else None
+    if offset < 0 or offset > 2000 or not 1 <= limit <= 20:
         raise web.HTTPBadRequest(reason="Invalid page")
+    where = " WHERE owner=?" if owner else ""
+    params = (owner,) if owner else ()
     async with store.lock:
         async with store.db.execute(
-                "SELECT id, author, name FROM shared_configs ORDER BY id DESC LIMIT ? OFFSET ?",
-                (CONFIG_PAGE_SIZE + 1, offset)) as cursor:
+                "SELECT * FROM shared_configs" + where + " ORDER BY id DESC LIMIT ? OFFSET ?",
+                (*params, limit + 1, offset)) as cursor:
             rows = await cursor.fetchall()
-    return web.json_response({"items": [dict(row) for row in rows[:CONFIG_PAGE_SIZE]],
-                              "more": len(rows) > CONFIG_PAGE_SIZE})
+        async with store.db.execute("SELECT COUNT(*) FROM shared_configs" + where, params) as cursor:
+            total = (await cursor.fetchone())[0]
+    return web.json_response({"items": [config_metadata(row) for row in rows[:limit]],
+                              "more": len(rows) > limit, "total": total})
+
+
+def config_metadata(row):
+    return {"id": row["id"], "author": row["author"], "name": row["name"], "owner": row["owner"],
+            "downloads": row["downloads"], "createdAt": row["created_at"],
+            "updatedAt": row["updated_at"] or row["created_at"], "version": row["version"]}
 
 
 async def get_config(request):
     store = request.app[STORE]
     async with store.lock:
-        async with store.db.execute("SELECT id, author, name, settings FROM shared_configs WHERE id=?",
+        async with store.db.execute("SELECT * FROM shared_configs WHERE id=?",
                                     (int(request.match_info["id"]),)) as cursor:
             row = await cursor.fetchone()
     if row is None:
         raise web.HTTPNotFound(reason="Config not found")
-    return web.json_response({"id": row["id"], "author": row["author"], "name": row["name"],
-                              "schema": 1, "settings": json.loads(row["settings"])})
+    return web.json_response(config_metadata(row) | {"schema": 1, "settings": json.loads(row["settings"])})
+
+
+async def catalog_access(request):
+    cookie = request.cookies.get("__Host-orion_session", "")
+    if not cookie:
+        return None, 3
+    if not re.fullmatch(r"[A-Za-z0-9_-]{40,100}", cookie):
+        raise web.HTTPUnauthorized(reason="Invalid Orion session")
+    try:
+        async with ClientSession(timeout=ClientTimeout(total=3)) as session:
+            async with session.get("http://127.0.0.1:8088/api/catalog-access",
+                                   cookies={"__Host-orion_session": cookie}, allow_redirects=False) as response:
+                if response.status == 401:
+                    raise web.HTTPUnauthorized(reason="Orion session expired")
+                if response.status == 200:
+                    data = await response.json()
+                    return data["account_id"], data["limit"]
+    except (ClientError, asyncio.TimeoutError):
+        pass
+    raise web.HTTPServiceUnavailable(reason="Orion accounts unavailable")
 
 
 async def publish_config(request):
     store = request.app[STORE]
     owner = await store.authenticate(request.headers.get("Authorization", ""))
     name, settings = validate_config(await body(request))
+    account_id, max_owned = await catalog_access(request)
+    now = store.clock()
     async with store.lock:
-        async with store.db.execute("SELECT COUNT(*), COUNT(CASE WHEN owner=? THEN 1 END) FROM shared_configs",
-                                    (owner,)) as cursor:
-            total, owned = await cursor.fetchone()
-        if total >= 2000 or owned >= 20:
+        async with store.db.execute("""SELECT COUNT(*), COUNT(CASE WHEN owner=? THEN 1 END),
+            COUNT(CASE WHEN orion_account_id=? THEN 1 END) FROM shared_configs""", (owner, account_id)) as cursor:
+            total, owned, account_owned = await cursor.fetchone()
+        if total >= 2000 or max(owned, account_owned) >= max_owned:
             raise web.HTTPTooManyRequests(reason="Config limit reached")
         async with store.db.execute("SELECT name FROM players WHERE uuid=?", (owner,)) as cursor:
             author = (await cursor.fetchone())[0]
-        async with store.db.execute(
-                "INSERT INTO shared_configs(owner, author, name, settings, created_at) VALUES (?,?,?,?,?)",
-                (owner, author, name, settings, store.clock())) as cursor:
-            config_id = cursor.lastrowid
-        await store.db.commit()
-    return web.json_response({"id": config_id, "author": author, "name": name}, status=201)
+        try:
+            async with store.db.execute("SELECT next_id FROM config_sequence WHERE singleton=1") as cursor:
+                config_id = (await cursor.fetchone())[0]
+            await store.db.execute("UPDATE config_sequence SET next_id=next_id+1 WHERE singleton=1")
+            await store.db.execute(
+                """INSERT INTO shared_configs(id, owner, author, name, settings, created_at, updated_at, orion_account_id)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (config_id, owner, author, name, settings, now, now, account_id))
+            await store.db.commit()
+        except Exception:
+            await store.db.rollback()
+            raise
+        async with store.db.execute("SELECT * FROM shared_configs WHERE id=?", (config_id,)) as cursor:
+            row = await cursor.fetchone()
+    return web.json_response(config_metadata(row), status=201)
+
+
+async def download_config(request):
+    store = request.app[STORE]
+    player = await store.authenticate(request.headers.get("Authorization", ""))
+    config_id = int(request.match_info["id"])
+    async with store.lock:
+        try:
+            async with store.db.execute("SELECT * FROM shared_configs WHERE id=?", (config_id,)) as cursor:
+                row = await cursor.fetchone()
+            if row is None:
+                raise web.HTTPNotFound(reason="Config not found")
+            if row["owner"] != player:
+                cursor = await store.db.execute("INSERT OR IGNORE INTO config_downloads VALUES (?,?)", (config_id, player))
+                if cursor.rowcount:
+                    await store.db.execute("UPDATE shared_configs SET downloads=downloads+1 WHERE id=?", (config_id,))
+                await cursor.close()
+            await store.db.commit()
+            async with store.db.execute("SELECT * FROM shared_configs WHERE id=?", (config_id,)) as cursor:
+                row = await cursor.fetchone()
+        except Exception:
+            await store.db.rollback()
+            raise
+    return web.json_response(config_metadata(row) | {"schema": 1, "settings": json.loads(row["settings"])})
+
+
+async def verify_config_owner(request, owner):
+    nonce = request.headers.get("X-Orion-Profile-Proof", "")
+    if not re.fullmatch(r"[0-9a-f]{32}", nonce):
+        raise web.HTTPForbidden(reason="Minecraft account verification required")
+    store = request.app[STORE]
+    async with store.lock:
+        async with store.db.execute("SELECT name FROM players WHERE uuid=?", (owner,)) as cursor:
+            player = await cursor.fetchone()
+    binding = "\n".join((request.headers["Authorization"], request.method, request.path, nonce))
+    server_id = hashlib.sha256(binding.encode()).hexdigest()[:40]
+    try:
+        async with ClientSession(timeout=ClientTimeout(total=5)) as session:
+            async with session.get("https://sessionserver.mojang.com/session/minecraft/hasJoined",
+                                   params={"username": player["name"], "serverId": server_id}) as response:
+                if response.status == 200 and (await response.json()).get("id") == owner:
+                    return
+                if response.status not in (200, 204, 404):
+                    raise web.HTTPServiceUnavailable(reason="Minecraft verification unavailable")
+    except (ClientError, asyncio.TimeoutError):
+        raise web.HTTPServiceUnavailable(reason="Minecraft verification unavailable") from None
+    raise web.HTTPForbidden(reason="Minecraft account verification required")
+
+
+async def manage_config(request):
+    store = request.app[STORE]
+    owner = await store.authenticate(request.headers.get("Authorization", ""))
+    data = await body(request)
+    config_id = int(request.match_info["id"])
+    await verify_config_owner(request, owner)
+    async with store.lock:
+        async with store.db.execute("SELECT * FROM shared_configs WHERE id=?", (config_id,)) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            if request.method == "DELETE":
+                return web.json_response({"deleted": True})
+            raise web.HTTPNotFound(reason="Config not found")
+        if row["owner"] != owner:
+            raise web.HTTPForbidden(reason="Config belongs to another author")
+        if type(data.get("version")) is not int or data["version"] != row["version"]:
+            raise web.HTTPConflict(reason="Config has changed; refresh the catalog")
+        try:
+            if request.method == "DELETE":
+                await store.db.execute("DELETE FROM shared_configs WHERE id=?", (config_id,))
+                result = {"deleted": True}
+            else:
+                name, settings = validate_config({
+                    "name": data.get("name", row["name"]), "schema": data.get("schema", 1),
+                    "settings": data.get("settings", json.loads(row["settings"]))})
+                await store.db.execute("UPDATE shared_configs SET name=?, settings=?, updated_at=?, version=version+1 WHERE id=?",
+                                       (name, settings, store.clock(), config_id))
+                async with store.db.execute("SELECT * FROM shared_configs WHERE id=?", (config_id,)) as cursor:
+                    updated = await cursor.fetchone()
+                result = config_metadata(updated) | {"schema": 1, "settings": json.loads(updated["settings"])}
+            await store.db.commit()
+        except Exception:
+            await store.db.rollback()
+            raise
+    return web.json_response(result)
 
 async def lifetime(app):
     await app[STORE].open()
@@ -426,11 +582,18 @@ async def lifetime(app):
 def create_app(database):
     app = web.Application(client_max_size=65536, middlewares=[errors, RateLimiter().middleware])
     app[STORE] = Store(database)
+    app[FOOTBALL] = FootballRooms()
+    app[BASKETBALL] = BasketballRooms()
     app.cleanup_ctx.append(lifetime)
     app.add_routes([web.get("/", health), web.get("/healthz", health), web.post("/v1/challenge", challenge),
                     web.post("/v1/verify", verify), web.post("/v1/presence", presence), web.post("/v1/watch", watch),
                     web.get("/v1/configs", list_configs), web.post("/v1/configs", publish_config),
-                    web.get(r"/v1/configs/{id:\d{1,9}}", get_config), web.post("/v1/emote", emote)])
+                    web.get("/v1/configs/mine", list_configs),
+                    web.get(r"/v1/configs/{id:\d{1,9}}", get_config),
+                    web.post(r"/v1/configs/{id:\d{1,9}}/download", download_config),
+                    web.patch(r"/v1/configs/{id:\d{1,9}}", manage_config),
+                    web.delete(r"/v1/configs/{id:\d{1,9}}", manage_config), web.post("/v1/emote", emote),
+                    web.post("/v1/football", football), web.post("/v1/basketball", basketball)])
     return app
 
 if __name__ == "__main__":

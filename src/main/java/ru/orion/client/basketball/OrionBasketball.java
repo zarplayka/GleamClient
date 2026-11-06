@@ -14,6 +14,7 @@ import ru.orion.client.config.OrionConfigManager;
 public final class OrionBasketball {
     public static final double BALL_RADIUS=.121*2.1;
     private final OrionConfigManager manager;
+    private final OrionBasketballMatch match = new OrionBasketballMatch();
     private KeyMapping move, remove, pickup, reset, left, right;
     private long shotAt;
     private float lastCharge;
@@ -37,6 +38,12 @@ public final class OrionBasketball {
     private void tick(Minecraft client) {
         if(!manager.getConfig().isBasketballEnabled() || client.player==null || client.level==null) {
             wasCharging=false;shotAt=0;movingHoop=null;drain();return;
+        }
+        if (match.engaged()) {
+            while (pickup.consumeClick()) match.pickup();
+            drain();
+            wasCharging = false;
+            return;
         }
         boolean charging=OrionBasketballController.charging();
         if(wasCharging&&!charging&&OrionBasketballController.mode()==OrionBasketballController.Mode.LOOSE)shotAt=System.nanoTime();
@@ -71,6 +78,19 @@ public final class OrionBasketball {
         }));
     }
     public boolean holdingBall(){return OrionBasketballController.localHolding();}
+    public OrionBasketballMatch match() { return match; }
+    public void createMatch(int size) {
+        if (OrionClient.getFootballOrNull() != null && !OrionClient.getFootballOrNull().matchCode().isEmpty()) {
+            OrionClient.getFootballOrNull().leaveMatch();
+        }
+        if (match.create(Minecraft.getInstance(), size) && !manager.getConfig().isBasketballEnabled()) manager.setBasketballEnabled(true);
+    }
+    public void joinMatch(String code) {
+        if (OrionClient.getFootballOrNull() != null && !OrionClient.getFootballOrNull().matchCode().isEmpty()) {
+            OrionClient.getFootballOrNull().leaveMatch();
+        }
+        if (match.join(Minecraft.getInstance(), code) && !manager.getConfig().isBasketballEnabled()) manager.setBasketballEnabled(true);
+    }
     public boolean renderBasketballHand(){return holdingBall();}
     public float ballRadius(){return (float)OrionBasketballController.ball().radius;}
     public float handMovement(float partial){return OrionBasketballController.handBounce(Minecraft.getInstance().player,partial);}
@@ -80,7 +100,7 @@ public final class OrionBasketball {
     public float indicatorAlpha(){return isCharging()?1F:shotAt==0?0F:Math.max(0,1F-(System.nanoTime()-shotAt)/250_000_000F);}
     public float indicatorCharge(){return isCharging()?charge():lastCharge;}
     public int score(){return OrionBasketballController.score();}
-    public long scoreAt(){long time=OrionBasketballController.scoredAt();return time==0?0:System.nanoTime()-(System.currentTimeMillis()-time)*1_000_000L;}
+    public long scoreAt(){if (match.active()) return match.scoreAt();long time=OrionBasketballController.scoredAt();return time==0?0:System.nanoTime()-(System.currentTimeMillis()-time)*1_000_000L;}
     public int hoopCount(){var client=Minecraft.getInstance();return client.level==null?0:OrionHoopStore.inWorld(client).size();}
     public KeyMapping getBallKey(){return OrionBasketballInput.ballKey();}
     public KeyMapping getHoopKey() { return OrionBasketballInput.hoopKey(); }
@@ -90,7 +110,7 @@ public final class OrionBasketball {
     public KeyMapping getResetKey() { return reset; }
     public KeyMapping getRotateLeftKey() { return left; }
     public KeyMapping getRotateRightKey() { return right; }
-    public void clearHoopsInCurrentWorld(){var c=Minecraft.getInstance();if(c.level!=null)OrionHoopStore.clearWorld(OrionBasketballController.courtKey(c),c.level.dimension().identifier().toString());}
-    public void resetScore(){OrionBasketballController.resetScore();}
-    public void removeBall(){OrionBasketballController.removeBall();}
+    public void clearHoopsInCurrentWorld(){if(match.engaged())return;var c=Minecraft.getInstance();if(c.level!=null)OrionHoopStore.clearWorld(OrionBasketballController.courtKey(c),c.level.dimension().identifier().toString());}
+    public void resetScore(){if(!match.engaged())OrionBasketballController.resetScore();}
+    public void removeBall(){if(!match.engaged())OrionBasketballController.removeBall();}
 }

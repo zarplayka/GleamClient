@@ -8,6 +8,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.renderer.rendertype.OrionEspRenderTypes;
 import net.minecraft.network.chat.Component;
@@ -27,6 +28,7 @@ import ru.orion.client.effect.kill.OrionArcaneKillModels;
 import ru.orion.client.effect.kill.OrionSoulKillModels;
 import ru.orion.client.effect.kill.OrionKillAudio;
 import ru.orion.client.effect.kill.OrionKillMaterial;
+import ru.orion.client.effect.kill.OrionRagdoll;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,6 +45,7 @@ public final class OrionKillEffects {
     private final OrionConfigManager manager;
     private final Map<Integer, Definition> registry = new LinkedHashMap<>();
     private final List<ActiveEffect> active = new ArrayList<>();
+    private final List<OrionRagdoll> ragdolls = new ArrayList<>();
     private final Map<UUID, Death> deaths = new HashMap<>();
     private final Map<UUID, Confirmation> confirmations = new HashMap<>();
     private final Map<UUID, Emission> emitted = new HashMap<>();
@@ -71,14 +74,20 @@ public final class OrionKillEffects {
     }
 
     public void register() {
-        ClientTickEvents.END_CLIENT_TICK.register(client -> { clientTick++; update(); });
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            clientTick++;
+            update();
+            if (client.level != null && !client.isPaused()) {
+                for (OrionRagdoll body : ragdolls) body.tick(client.level);
+            }
+        });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> clear());
         LevelRenderEvents.COLLECT_SUBMITS.register(this::render);
     }
 
     public void clear() {
         active.forEach(effect -> OrionKillAudio.stop(effect.sound()));
-        active.clear(); deaths.clear(); confirmations.clear(); emitted.clear(); damage.clear(); level = null;
+        active.clear(); ragdolls.clear(); deaths.clear(); confirmations.clear(); emitted.clear(); damage.clear(); level = null;
     }
 
     private boolean ready() {
@@ -96,7 +105,9 @@ public final class OrionKillEffects {
             active.clear();
         }
         previouslyEnabled = enabled;
-        if (!enabled) {
+        boolean ragdollEnabled = manager.getConfig().isRagdollEnabled();
+        ragdolls.removeIf(body -> body.expired() || !ragdollEnabled && !body.preview());
+        if (!enabled && !ragdollEnabled) {
             deaths.clear(); confirmations.clear(); emitted.clear(); damage.clear();
         }
         active.removeIf(effect -> {
@@ -128,7 +139,7 @@ public final class OrionKillEffects {
     }
 
     public void onDamage(ClientboundDamageEventPacket packet) {
-        if (!ready() || !manager.getConfig().isKillEffectsEnabled()) return;
+        if (!ready() || !tracksKills()) return;
         Minecraft client = Minecraft.getInstance();
         if (!(client.level.getEntity(packet.entityId()) instanceof LivingEntity victim) || victim == client.player || !accepts(victim)) return;
         // Любой последующий чужой или природный урон отменяет наше свидетельство.
@@ -140,15 +151,25 @@ public final class OrionKillEffects {
     }
 
     public void onDeath(ClientboundEntityEventPacket packet) {
-        if (!ready() || !manager.getConfig().isKillEffectsEnabled() || packet.getEventId() != 3) return;
+        if (!ready() || !tracksKills() || packet.getEventId() != 3) return;
         Minecraft client = Minecraft.getInstance();
         if (!(packet.getEntity(client.level) instanceof LivingEntity victim) || victim == client.player || !accepts(victim)) return;
         recordDeath(victim, damage.remove(victim.getUUID()), System.nanoTime());
     }
 
     private boolean accepts(LivingEntity victim) {
+        return manager.getConfig().isRagdollEnabled() && victim instanceof AbstractClientPlayer
+                || acceptsKillEffect(victim);
+    }
+
+    private boolean tracksKills() {
+        return manager.getConfig().isKillEffectsEnabled() || manager.getConfig().isRagdollEnabled();
+    }
+
+    private boolean acceptsKillEffect(LivingEntity victim) {
         int mode = manager.getConfig().getKillEffectsTargets();
-        return mode == 1 || (mode == 0 ? victim instanceof Player : victim instanceof Mob);
+        return manager.getConfig().isKillEffectsEnabled()
+                && (mode == 1 || (mode == 0 ? victim instanceof Player : victim instanceof Mob));
     }
 
     private void recordDeath(LivingEntity victim, DamageEvidence evidence, long now) {
@@ -166,7 +187,7 @@ public final class OrionKillEffects {
     }
 
     public void onDeathMessage(Component message) {
-        if (!ready() || !manager.getConfig().isKillEffectsEnabled()) return;
+        if (!ready() || !tracksKills()) return;
         UUID victim = confirmedVictim(message, Minecraft.getInstance().player.getUUID());
         if (victim == null) return;
         Death death = deaths.get(victim);
@@ -214,7 +235,11 @@ public final class OrionKillEffects {
         if (previous == null || !previous.sameEntity(death.entity())) {
             emitted.put(victim, new Emission(new WeakReference<>(death.entity()), now));
             trim(emitted);
-            if (accepts(death.entity())) spawn(death.position(), death.yaw(), false, death.entity() instanceof Player);
+            if (acceptsKillEffect(death.entity())) spawn(death.position(), death.yaw(), false, death.entity() instanceof Player);
+            if (manager.getConfig().isRagdollEnabled() && death.entity() instanceof AbstractClientPlayer player
+                    && !player.isInvisible()) {
+                spawnRagdoll(player, death.position(), player.yBodyRot, false);
+            }
         }
         deaths.remove(victim); confirmations.remove(victim);
     }
@@ -227,6 +252,18 @@ public final class OrionKillEffects {
     public boolean preview() {
         if (!ready()) return false;
         Minecraft client = Minecraft.getInstance();
+        spawn(previewTarget(client), client.player.getYRot() + 180F, true, true);
+        return true;
+    }
+
+    public boolean previewRagdoll() {
+        if (!ready()) return false;
+        Minecraft client = Minecraft.getInstance();
+        spawnRagdoll(client.player, previewTarget(client), client.player.getYRot() + 180F, true);
+        return true;
+    }
+
+    private static Vec3 previewTarget(Minecraft client) {
         Vec3 forward = client.player.getLookAngle();
         double length = Math.hypot(forward.x, forward.z);
         Vec3 direction = length > .01 ? new Vec3(forward.x / length, 0, forward.z / length) : new Vec3(0, 0, 1);
@@ -234,8 +271,24 @@ public final class OrionKillEffects {
         // Не переносим демонстрацию за стену.
         var sight = client.level.clip(new ClipContext(client.player.getEyePosition(), target.add(0, 1, 0), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, client.player));
         if (sight.getType() != HitResult.Type.MISS) target = sight.getLocation().subtract(direction.scale(.8));
-        spawn(target, client.player.getYRot() + 180F, true, true);
-        return true;
+        return target;
+    }
+
+    private void spawnRagdoll(AbstractClientPlayer player, Vec3 position, float yaw, boolean preview) {
+        Minecraft client = Minecraft.getInstance();
+        if (position.distanceToSqr(client.player.position()) > OrionRagdoll.RANGE_SQUARED) return;
+        Vec3 impulse = preview ? Vec3.ZERO : player.getDeltaMovement();
+        if (Math.hypot(impulse.x, impulse.z) < .06) impulse = position.subtract(client.player.position());
+        double length = Math.hypot(impulse.x, impulse.z);
+        Vec3 direction = length > .01 ? new Vec3(impulse.x / length, 0, impulse.z / length) : new Vec3(0, 0, 1);
+        if (ragdolls.size() >= 8) ragdolls.removeFirst();
+        ragdolls.add(new OrionRagdoll(client, player, position, direction, yaw, manager.getConfig().getRagdollHold(), preview));
+    }
+
+    public boolean replacesPlayerModel(AbstractClientPlayer player) {
+        if (player.level() != level || !manager.getConfig().isRagdollEnabled() || !player.isDeadOrDying()) return false;
+        for (OrionRagdoll body : ragdolls) if (body.replaces(player)) return true;
+        return false;
     }
 
     private void spawn(Vec3 position, float yaw, boolean preview, boolean playerVictim) {
@@ -262,10 +315,11 @@ public final class OrionKillEffects {
 
     private void render(LevelRenderContext context) {
         update();
-        if (active.isEmpty()) return;
+        if (active.isEmpty() && ragdolls.isEmpty()) return;
         var camera = context.levelState().cameraRenderState;
         if (camera == null || !camera.initialized || camera.pos == null) return;
         long now = System.nanoTime();
+        for (OrionRagdoll body : ragdolls) body.render(context, camera.pos, now);
         double distance = manager.getConfig().getKillEffectsDistance();
         for (ActiveEffect effect : active) {
             if (effect.position().distanceToSqr(camera.pos) > distance * distance

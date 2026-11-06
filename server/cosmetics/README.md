@@ -12,6 +12,8 @@ VPS: 51.250.32.198, SSH-пользователь orionclient
 - POST /v1/presence: Bearer token; players (до 100 UUID), halo, wings (0/1/2)
 - POST /v1/watch: Bearer token; revision, players — ожидание изменения до 20 секунд
 - POST /v1/emote: Bearer token; emote (0 — остановка, 1–6 — танец), уведомляет клиентов через revision
+- POST /v1/football: Bearer token; приватные комнаты 1×1 и 2×2. Сервис проверяет состав, готовность, код комнаты и удары, пересылает кадры мяча от клиента создателя и ведёт счёт. Комнаты живут в памяти сервиса
+- POST /v1/basketball: Bearer token; комнаты 1×1 и 2×2 до 11 очков. Создатель считает мяч штатным Java-движком одиночного баскетбола, сервис ведёт владение, подбор, пас, очки и аут. ballRevision защищает новые броски от запоздавших кадров. Площадка 20×28 блоков, корзины на высоте 3,05 блока, настройки физики одинаковы для команд
 - GET /healthz: публичная проверка доступности
 
 Ответ presence содержит online, halos, wings, emotes и revision. В emotes передаются id танца, серверное время started и elapsed в секундах, танец истекает через 12 секунд. UUID в ответах — 32 шестнадцатеричных символа без дефисов, как ожидает OrionBadgePresence
@@ -28,7 +30,7 @@ VPS: 51.250.32.198, SSH-пользователь orionclient
 - Логи: journalctl -u orion-cosmetics; журнал HTTPS — /var/log/caddy/orion-access.log
 - Ежедневный backup: orion-cosmetics-backup.timer, 30 дней хранения, /var/backups/orion-cosmetics, доступ только root
 
-Для обновления установите app.py и requirements.txt в /opt/orion-cosmetics, выполните pip install -r requirements.txt внутри установленного venv и перезапустите orion-cosmetics.service. Перед изменением обратного прокси проверяйте Caddyfile командой caddy validate
+Для обновления установите app.py, football.py, basketball.py и requirements.txt в /opt/orion-cosmetics, выполните pip install -r requirements.txt внутри установленного venv и перезапустите orion-cosmetics.service. Перед изменением обратного прокси проверяйте Caddyfile командой caddy validate
 
 Для восстановления сначала остановите API, восстановите SQLite через sqlite3.Connection.backup из выбранного снимка и снова запустите API. Не копируйте работающую SQLite-базу обычным cp: она использует WAL
 

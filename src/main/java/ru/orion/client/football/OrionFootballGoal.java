@@ -22,11 +22,15 @@ public record OrionFootballGoal(OrionBasketballVector base, double yaw, double s
         double c=Math.cos(yaw),s=Math.sin(yaw);return new OrionBasketballVector(v.x()*c+v.z()*s,v.y(),-v.x()*s+v.z()*c);
     }
     public boolean crossedLine(OrionBasketballVector before,OrionBasketballVector after,double ballRadius) {
+        return crossingPoint(before, after, ballRadius) != null;
+    }
+    OrionBasketballVector crossingPoint(OrionBasketballVector before, OrionBasketballVector after, double ballRadius) {
         var a=local(before);var b=local(after);double r=ballRadius/scale;
         // Гол только после полного пересечения плоскости всей сферой.
-        if (a.z()-r>=0 || b.z()-r<0 || b.z()<=a.z()) return false;
+        if (a.z()-r>=0 || b.z()-r<0 || b.z()<=a.z()) return null;
         double t=(r-a.z())/(b.z()-a.z());
         double x=a.x()+(b.x()-a.x())*t,y=a.y()+(b.y()-a.y())*t;
-        return Math.abs(x)+r < WIDTH/2-POST_RADIUS && y-r>=0 && y+r < HEIGHT-POST_RADIUS;
+        return Math.abs(x)+r < WIDTH/2-POST_RADIUS && y-r>=0 && y+r < HEIGHT-POST_RADIUS
+                ? world(new OrionBasketballVector(x, y, r)) : null;
     }
 }

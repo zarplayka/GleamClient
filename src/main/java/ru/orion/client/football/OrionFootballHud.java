@@ -11,6 +11,7 @@ import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.hud.OrionGlassCompositor;
 import ru.orion.client.hud.OrionGlassStyle;
+import ru.orion.client.gui.OrionGuiLanguage;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
@@ -32,7 +33,9 @@ public final class OrionFootballHud {
         if(!config.isFootballEnabled()||client.player==null){release();return;}
         int scale=Math.max(1,Math.min(6,client.getWindow().getGuiScale()));int power=football.charging()?Math.round(football.charge()*100):0;
         boolean goal=football.goalAt()!=0&&System.nanoTime()-football.goalAt()<1_500_000_000L;
-        List<Object> fp=List.of(scale,power,football.charging(),goal,football.shots(),football.goals(),football.saves(),football.misses(),config.isFootballPenaltyMode());
+        var match = football.match();
+        List<Object> fp=List.of(scale,power,football.charging(),goal,football.shots(),football.goals(),football.saves(),football.misses(),config.isFootballPenaltyMode(),
+                match.active(), match.red(), match.blue(), match.status(), OrionGuiLanguage.english());
         if(!fp.equals(last)){update(scale,power,goal,config.isFootballPenaltyMode());last=fp;}
         if(texture!=null){int x=(context.guiWidth()-160)/2,y=(context.guiHeight()-112)/2;
             if(!OrionGlassCompositor.INSTANCE.submit(TEXTURE,context,texture,x,y,160,112))context.blit(TEXTURE,x,y,x+160,y+112,0,1,0,1);}
@@ -43,10 +46,17 @@ public final class OrionFootballHud {
             if(football.charging()){g.setStroke(new BasicStroke(2.3F,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));g.setColor(new Color(10,10,12,140));g.draw(new Arc2D.Float(65,41,30,30,0,360,Arc2D.OPEN));g.setColor(new Color(255,Math.round(185-power*.8F),35,240));g.draw(new Arc2D.Float(65,41,30,30,90,-power*3.6F,Arc2D.OPEN));}
             Font font=new Font(Font.SANS_SERIF,Font.BOLD,8).deriveFont(8F);g.setFont(font);
             int percentage=football.shots()==0?0:Math.round(football.goals()*100F/football.shots());
-            String text=goal?"GOAL!  "+football.goals():penalty?"Удары "+football.shots()+"  Голы "+football.goals()+"  Сейвы "+football.saves()+"  Мимо "+football.misses()+"  "+percentage+"%":"Голы: "+football.goals();
+            var match = football.match();
+            String text=match.active() ? OrionGuiLanguage.translate("Красные") + " " + match.red() + " : " + match.blue() + " " + OrionGuiLanguage.translate("Синие")
+                    : goal?"GOAL!  "+football.goals():penalty?"Удары "+football.shots()+"  Голы "+football.goals()+"  Сейвы "+football.saves()+"  Мимо "+football.misses()+"  "+percentage+"%":"Голы: "+football.goals();
             Font measuring=font.deriveFont(128F);float tw=(float)g.getFontMetrics(measuring).getStringBounds(text,g).getWidth()/16F;
-            float x=80-tw/2;OrionGlassStyle.drawPanel(g,x-5,3,tw+10,15,8);g.setColor(goal?new Color(255,166,59):Color.WHITE);g.drawString(text,x,14F);
-            OrionGlassCompositor.INSTANCE.updateMask(TEXTURE,new OrionGlassCompositor.MaskLayout(w,h,160,112,List.of(new OrionGlassCompositor.Panel(x-5,3,tw+10,15,8))));
+            String detail = match.active() ? OrionGuiLanguage.translate(match.status()) : "";
+            float dw = (float)g.getFontMetrics(measuring).getStringBounds(detail,g).getWidth()/16F;
+            float panelWidth = Math.max(tw, dw) + 10, x = 80 - panelWidth / 2, panelHeight = match.active() ? 26 : 15;
+            OrionGlassStyle.drawPanel(g,x,3,panelWidth,panelHeight,8);
+            g.setColor(goal?new Color(255,166,59):Color.WHITE);g.drawString(text,80-tw/2,14F);
+            if (match.active()) g.drawString(detail, 80-dw/2, 24F);
+            OrionGlassCompositor.INSTANCE.updateMask(TEXTURE,new OrionGlassCompositor.MaskLayout(w,h,160,112,List.of(new OrionGlassCompositor.Panel(x,3,panelWidth,panelHeight,8))));
         }finally{g.dispose();}
         Minecraft client=Minecraft.getInstance();if(texture==null||pixelWidth!=w||pixelHeight!=h){client.getTextureManager().release(TEXTURE);NativeImage pixels=new NativeImage(w,h,true);copy(image,pixels);texture=new DynamicTexture(()->"orion_football_hud",pixels);client.getTextureManager().register(TEXTURE,texture);pixelWidth=w;pixelHeight=h;}else if(texture.getPixels()!=null&&!texture.getPixels().isClosed()){copy(image,texture.getPixels());texture.upload();}
     }

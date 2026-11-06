@@ -23,6 +23,8 @@ import ru.orion.client.basketball.OrionBasketballVector;
 /** Текстурированный мяч и составные модели ворот и вратаря. */
 public final class OrionFootballRenderer {
     private static final Identifier BALL=Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"textures/football/ball.png");
+    private static final int BALL_RINGS = 16, BALL_SEGMENTS = 32;
+    private static final float[] BALL_MESH = ballMesh();
     private static final Identifier KEEPER_TEXTURE=Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"textures/football/goalkeeper.png");
     private static OrionGoalkeeperModel keeperModel;
     private static volatile int resourceVersion;
@@ -42,15 +44,63 @@ public final class OrionFootballRenderer {
         context.submitNodeCollector().submitCustomGeometry(pose,RenderTypes.entityCutout(BALL),(p,vc)->sphere(p,vc,light));pose.popPose();
     }
     private static void sphere(PoseStack.Pose pose,VertexConsumer vc,int light){
-        for(int i=0;i<24;i++)for(int j=0;j<48;j++){
-            double a=-Math.PI/2+Math.PI*i/24,b=-Math.PI/2+Math.PI*(i+1)/24,c=Math.PI*2*j/48,d=Math.PI*2*(j+1)/48;
-            vertex(pose,vc,a,c,light);vertex(pose,vc,a,d,light);vertex(pose,vc,b,d,light);vertex(pose,vc,b,c,light);
+        float radius = (float) OrionFootballPhysics.RADIUS;
+        for (int i = 0; i < BALL_MESH.length; i += 5) {
+            float x = BALL_MESH[i], y = BALL_MESH[i + 1], z = BALL_MESH[i + 2];
+            vc.addVertex(pose, x * radius, y * radius, z * radius)
+                    .setUv(BALL_MESH[i + 3], BALL_MESH[i + 4]).setColor(-1)
+                    .setOverlay(OverlayTexture.NO_OVERLAY).setLight(light).setNormal(pose, x, y, z);
         }
     }
-    private static void vertex(PoseStack.Pose p,VertexConsumer vc,double lat,double lon,int light){
-        float x=(float)(Math.cos(lat)*Math.cos(lon)),y=(float)Math.sin(lat),z=(float)(Math.cos(lat)*Math.sin(lon));
-        vc.addVertex(p,x*(float)OrionFootballPhysics.RADIUS,y*(float)OrionFootballPhysics.RADIUS,z*(float)OrionFootballPhysics.RADIUS)
-                .setUv((float)(lon/(Math.PI*2)),(float)(1-(lat/Math.PI+.5))).setColor(-1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(light).setNormal(p,x,y,z);
+    private static float[] ballMesh() {
+        float[] mesh = new float[BALL_RINGS * BALL_SEGMENTS * 4 * 5];
+        int index = 0;
+        for (int ring = 0; ring < BALL_RINGS; ring++) {
+            for (int segment = 0; segment < BALL_SEGMENTS; segment++) {
+                ballVertex(mesh, index, ring, segment);
+                ballVertex(mesh, index + 5, ring, segment + 1);
+                ballVertex(mesh, index + 10, ring + 1, segment + 1);
+                ballVertex(mesh, index + 15, ring + 1, segment);
+                index += 20;
+            }
+        }
+        return mesh;
+    }
+    private static void ballVertex(float[] mesh, int index, int ring, int segment) {
+        float u = segment / (float) BALL_SEGMENTS, v = ring / (float) BALL_RINGS;
+        double latitude = Math.PI * (v - .5), longitude = Math.TAU * u;
+        mesh[index] = (float) (Math.cos(latitude) * Math.cos(longitude));
+        mesh[index + 1] = (float) Math.sin(latitude);
+        mesh[index + 2] = (float) (Math.cos(latitude) * Math.sin(longitude));
+        mesh[index + 3] = u;
+        mesh[index + 4] = 1 - v;
+    }
+    static void pitch(LevelRenderContext context, OrionBasketballVector origin, OrionBasketballVector spawn,
+                      int team, boolean showSpawn) {
+        Vec3 camera = Minecraft.getInstance().gameRenderer.mainCamera().position();
+        PoseStack stack = context.poseStack();
+        stack.pushPose();
+        stack.translate(origin.x() - camera.x, origin.y() - camera.y + .025, origin.z() - camera.z);
+        context.submitNodeCollector().submitCustomGeometry(stack, RenderTypes.lines(), (pose, vertices) -> {
+            float w = OrionFootballMatch.HALF_WIDTH, l = OrionFootballMatch.HALF_LENGTH;
+            int white = 0xDDEDEDEA;
+            line(pose, vertices, -w, 0, -l, w, 0, -l, white);
+            line(pose, vertices, w, 0, -l, w, 0, l, white);
+            line(pose, vertices, w, 0, l, -w, 0, l, white);
+            line(pose, vertices, -w, 0, l, -w, 0, -l, white);
+            line(pose, vertices, -w, 0, 0, w, 0, 0, white);
+            circle(pose, vertices, 0, 0, 2.2F, white);
+            if (showSpawn) circle(pose, vertices, (float) spawn.x(), (float) spawn.z(), 1F,
+                    team == 0 ? 0xFFFF6255 : 0xFF59A8FF);
+        });
+        stack.popPose();
+    }
+    private static void circle(PoseStack.Pose pose, VertexConsumer vertices, float x, float z, float radius, int color) {
+        for (int i = 0; i < 32; i++) {
+            double a = Math.TAU * i / 32, b = Math.TAU * (i + 1) / 32;
+            line(pose, vertices, x + radius * (float) Math.cos(a), 0, z + radius * (float) Math.sin(a),
+                    x + radius * (float) Math.cos(b), 0, z + radius * (float) Math.sin(b), color);
+        }
     }
     public static void goal(LevelRenderContext context,OrionFootballGoal goal,OrionGoalkeeperAI keeper,boolean preview,float netMotion,float tick,OrionBasketballVector ballPosition){
         Vec3 camera=Minecraft.getInstance().gameRenderer.mainCamera().position();PoseStack pose=context.poseStack();pose.pushPose();

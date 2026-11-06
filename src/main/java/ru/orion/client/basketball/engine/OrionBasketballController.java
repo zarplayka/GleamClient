@@ -18,6 +18,10 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.HitResult.Type;
 
 public final class OrionBasketballController {
+   private static OrionBasketballMatch network() {
+      var game = ru.orion.client.OrionClient.getBasketballOrNull();
+      return game == null ? null : game.match();
+   }
    private static final double WVWMWDOMTOCVRHWDIMTOCVRHWDIMTO = 1.15;
    private static final double MVWMWDOMTOCVRHWDIMTOCVRHWDIMTO = 3.2;
    private static final double CWWMWDOMTOCVRHWDIMTOCVRHWDIMTO = 2.0;
@@ -104,6 +108,15 @@ public final class OrionBasketballController {
 
    private static void tick(Minecraft var0) {
       OrionBasketballSettings var1 = OrionBasketballSettings.get();
+      var match = network();
+      if (match != null && match.engaged()) {
+         match.tick(var0, var1.basket);
+         TMWMWDOMTOCVRHWDIMTOCVRHWDIMTO = Mode.GONE;
+         DCWMWDOMTOCVRHWDIMTOCVRHWDIMTO = false;
+         TCWMWDOMTOCVRHWDIMTOCVRHWDIMTO = VCWMWDOMTOCVRHWDIMTOCVRHWDIMTO = 0;
+         RMWMWDOMTOCVRHWDIMTOCVRHWDIMTO.owner = "";
+         return;
+      }
       if (var1.basket && var0.level != null && var0.player != null) {
          MHWMWDOMTOCVRHWDIMTOCVRHWDIMTO++;
          VCWMWDOMTOCVRHWDIMTOCVRHWDIMTO = TCWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
@@ -505,8 +518,8 @@ public final class OrionBasketballController {
          }
       }
 
-      for (int var10 = 0; var10 < WMWMWDOMTOCVRHWDIMTOCVRHWDIMTO.size(); var10++) {
-         double var8 = WMWMWDOMTOCVRHWDIMTOCVRHWDIMTO.get(var10).boardHitTime(var3.x, var3.y, var3.z, var2.x, var2.y, var2.z);
+      for (int var10 = 0; var10 < hoops().size(); var10++) {
+         double var8 = hoops().get(var10).boardHitTime(var3.x, var3.y, var3.z, var2.x, var2.y, var2.z);
          if (var8 > 0.0 && var8 < var4) {
             var4 = var8;
          }
@@ -540,7 +553,7 @@ public final class OrionBasketballController {
 
    }
 
-   private static Vec3 helper51(Minecraft var0, Vec3 var1, Vec3 var2, double var3) {
+   static Vec3 helper51(Minecraft var0, Vec3 var1, Vec3 var2, double var3) {
       AbstractClientPlayer var5 = null;
       double var6 = 0.86;
       List var8 = var0.level.players();
@@ -800,36 +813,55 @@ public final class OrionBasketballController {
    }
 
    public static OrionBallState ball() {
+      var match = network();
+      if (match != null && match.engaged()) return match.ball();
       return RMWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
    }
 
    public static OrionBasketballController.Mode mode() {
+      var match = network();
+      if (match != null && match.engaged()) {
+         if (!match.active()) return Mode.GONE;
+         return match.holding() ? match.dribbling() ? Mode.DRIBBLE : Mode.HELD : Mode.LOOSE;
+      }
       return TMWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
    }
 
    public static boolean ballExists() {
+      var match = network();
+      if (match != null && match.engaged()) return match.active();
       return TMWMWDOMTOCVRHWDIMTOCVRHWDIMTO != OrionBasketballController.Mode.GONE && OrionBasketballSettings.get().basket;
    }
 
    public static boolean localHolding() {
+      var match = network();
+      if (match != null && match.engaged()) return match.holding();
       return ballExists()
          && (TMWMWDOMTOCVRHWDIMTOCVRHWDIMTO == OrionBasketballController.Mode.HELD || TMWMWDOMTOCVRHWDIMTOCVRHWDIMTO == OrionBasketballController.Mode.DRIBBLE)
          && localOwner(Minecraft.getInstance());
    }
 
    public static float charge(float var0) {
+      var match = network();
+      if (match != null && match.engaged()) return match.charge();
       return VCWMWDOMTOCVRHWDIMTOCVRHWDIMTO + (TCWMWDOMTOCVRHWDIMTOCVRHWDIMTO - VCWMWDOMTOCVRHWDIMTOCVRHWDIMTO) * var0;
    }
 
    public static boolean charging() {
+      var match = network();
+      if (match != null && match.engaged()) return match.charging();
       return DCWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
    }
 
    public static List<OrionHoop> hoops() {
+      var match = network();
+      if (match != null && match.engaged()) return match.hoops();
       return WMWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
    }
 
    public static int score() {
+      var match = network();
+      if (match != null && match.engaged()) return match.red() + match.blue();
       return OHWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
    }
 
@@ -854,6 +886,8 @@ public final class OrionBasketballController {
    }
 
    public static float handBounce(AbstractClientPlayer var0, float var1) {
+      var match = network();
+      if (match != null && match.engaged()) return match.handBounce();
       if (TMWMWDOMTOCVRHWDIMTOCVRHWDIMTO == OrionBasketballController.Mode.DRIBBLE && var0 != null) {
          double var2 = Mth.lerp(var1, RMWMWDOMTOCVRHWDIMTOCVRHWDIMTO.prevY, RMWMWDOMTOCVRHWDIMTOCVRHWDIMTO.y) + RMWMWDOMTOCVRHWDIMTOCVRHWDIMTO.radius;
          double var4 = Mth.lerp(var1, var0.yOld, var0.getY()) + 1.15;
@@ -896,6 +930,8 @@ public final class OrionBasketballController {
    }
 
    public static boolean localOwner(Minecraft var0) {
+      var match = network();
+      if (match != null && match.engaged()) return match.holding();
       return var0 != null
          && var0.player != null
          && RMWMWDOMTOCVRHWDIMTOCVRHWDIMTO.owner != null
@@ -919,6 +955,8 @@ public final class OrionBasketballController {
    }
 
    public static void pickup() {
+      var match = network();
+      if (match != null && match.engaged()) { match.pickup(); return; }
       Minecraft client=Minecraft.getInstance();
       if(client.player!=null && client.level!=null && mode()==Mode.LOOSE) helper56(client,false);
    }

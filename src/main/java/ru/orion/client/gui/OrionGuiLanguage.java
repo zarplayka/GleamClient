@@ -1,10 +1,10 @@
 package ru.orion.client.gui;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.google.gson.JsonParser;
 import net.minecraft.client.Minecraft;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 
 /** Перевод подписей интерфейса по выбранному языку Minecraft. */
@@ -27,9 +27,15 @@ public final class OrionGuiLanguage {
     private static Map<String,String> load() {
         try (var stream=OrionGuiLanguage.class.getResourceAsStream("/assets/orion-client/lang/click_gui_en.json")) {
             if(stream==null)return Map.of();
-            Map<String,String> result=new Gson().fromJson(new InputStreamReader(stream,StandardCharsets.UTF_8),
-                    new TypeToken<Map<String,String>>(){}.getType());
-            return result==null?Map.of():Map.copyOf(result);
+            var entries = JsonParser.parseReader(new InputStreamReader(stream, StandardCharsets.UTF_8)).getAsJsonObject();
+            Map<String, String> result = new HashMap<>();
+            entries.entrySet().forEach(entry -> {
+                var value = entry.getValue();
+                if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()) {
+                    result.put(entry.getKey(), value.getAsString());
+                }
+            });
+            return Map.copyOf(result);
         } catch (Exception exception) {
             org.slf4j.LoggerFactory.getLogger("orion-client").warn("Не удалось загрузить перевод интерфейса",exception);
             return Map.of();

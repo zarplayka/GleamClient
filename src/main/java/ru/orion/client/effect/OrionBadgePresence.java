@@ -9,6 +9,7 @@ import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import ru.orion.client.OrionClient;
 import java.net.URI;
+import ru.orion.client.config.OrionAccounts;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -240,6 +241,54 @@ public final class OrionBadgePresence {
                 + "-" + id.substring(16, 20) + "-" + id.substring(20));
     }
 
+    /** Отдельная фоновая сессия матча. Частые запросы мяча не задерживают косметику. */
+    public static final class FootballConnection {
+        private static final ExecutorService NETWORK = Executors.newVirtualThreadPerTaskExecutor();
+        private final UUID uuid;
+        private final String name;
+        private final String path;
+        private String bearer;
+
+        public FootballConnection(UUID uuid, String name) {
+            this(uuid, name, false);
+        }
+
+        public FootballConnection(UUID uuid, String name, boolean basketball) {
+            this.uuid = uuid;
+            this.name = name;
+            path = basketball ? "/v1/basketball" : "/v1/football";
+        }
+
+        public CompletableFuture<JsonObject> request(JsonObject payload) {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    for (int attempt = 0; attempt < 2; attempt++) {
+                        if (bearer == null) bearer = authenticate(uuid, name);
+                        var request = HttpRequest.newBuilder(URI.create(BASE + path))
+                                .timeout(Duration.ofSeconds(4))
+                                .header("Content-Type", "application/json").header("Authorization", "Bearer " + bearer)
+                                .POST(HttpRequest.BodyPublishers.ofString(payload.toString())).build();
+                        var response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+                        if (response.statusCode() == 401 && attempt == 0) {
+                            bearer = null;
+                            continue;
+                        }
+                        if (response.body().length() > 65_536) throw new IllegalStateException("football_unavailable");
+                        var result = JsonParser.parseString(response.body()).getAsJsonObject();
+                        if (response.statusCode() != 200) throw new IllegalStateException(result.get("error").getAsString());
+                        return result;
+                    }
+                    throw new IllegalStateException("football_unavailable");
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new java.util.concurrent.CompletionException(exception);
+                } catch (Exception exception) {
+                    throw new java.util.concurrent.CompletionException(exception);
+                }
+            }, NETWORK);
+        }
+    }
+
     private static String authenticate(UUID uuid, String name) throws Exception {
         KeyPair keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
         JsonObject request = new JsonObject();
@@ -258,16 +307,52 @@ public final class OrionBadgePresence {
 
     /** Сетевой вызов каталога. Выполняется рабочим потоком библиотеки конфигов. */
     public static JsonObject sharedConfigs(String query, JsonObject payload, UUID uuid, String name) throws Exception {
-        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(BASE + "/v1/configs" + query))
+        return sharedConfigs(payload == null ? "GET" : "POST", query, payload, uuid, name);
+    }
+
+    public static JsonObject sharedConfigs(String method, String query, JsonObject payload, UUID uuid, String name) throws Exception {
+        return sharedConfigs(method, query, payload, uuid, name, "");
+    }
+
+    public static JsonObject publishConfig(JsonObject payload, UUID uuid, String name, String orionCookie) throws Exception {
+        return sharedConfigs("POST", "", payload, uuid, name, orionCookie);
+    }
+
+    private static JsonObject sharedConfigs(String method, String query, JsonObject payload, UUID uuid, String name, String orionCookie) throws Exception {
+        String origin = orionCookie.isEmpty() ? BASE : OrionAccounts.ORIGIN;
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(origin + "/v1/configs" + query))
                 .timeout(Duration.ofSeconds(8));
-        if (payload == null) builder.GET();
-        else builder.header("Authorization", "Bearer " + authenticate(uuid, name))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload.toString()));
+        if (!orionCookie.isEmpty()) builder.header("Cookie", orionCookie);
+        if (uuid != null) {
+            String authorization = "Bearer " + authenticate(uuid, name);
+            builder.header("Authorization", authorization);
+            if (method.equals("PATCH") || method.equals("DELETE")) {
+                String nonce = UUID.randomUUID().toString().replace("-", "");
+                String binding = String.join("\n", authorization, method, "/v1/configs" + query, nonce);
+                byte[] hash = java.security.MessageDigest.getInstance("SHA-256").digest(binding.getBytes(StandardCharsets.UTF_8));
+                JsonObject join = new JsonObject();
+                join.addProperty("accessToken", Minecraft.getInstance().getUser().getAccessToken());
+                join.addProperty("selectedProfile", uuid.toString().replace("-", ""));
+                join.addProperty("serverId", java.util.HexFormat.of().formatHex(hash, 0, 20));
+                var proof = HttpRequest.newBuilder(URI.create("https://sessionserver.mojang.com/session/minecraft/join"))
+                        .timeout(Duration.ofSeconds(6)).header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(join.toString())).build();
+                if (HTTP.send(proof, HttpResponse.BodyHandlers.discarding()).statusCode() != 204) {
+                    throw new IllegalStateException("Для изменения публикации войди в аккаунт Minecraft");
+                }
+                builder.header("X-Orion-Profile-Proof", nonce);
+            }
+        }
+        builder.header("Content-Type", "application/json").method(method, payload == null
+                ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(payload.toString()));
         HttpResponse<java.io.InputStream> response = HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
         try (var stream = response.body()) {
             if (response.statusCode() == 429) throw new IllegalStateException("Лимит публикаций исчерпан");
-            if (response.statusCode() != (payload == null ? 200 : 201)) {
+            if (response.statusCode() == 401 && !orionCookie.isEmpty()) throw new IllegalStateException("Войди в аккаунт Orion заново");
+            if (response.statusCode() == 403) throw new IllegalStateException("Изменять публикацию может только автор");
+            if (response.statusCode() == 404) throw new IllegalStateException("Публикация уже удалена");
+            if (response.statusCode() == 409) throw new IllegalStateException("Конфиг изменился — обнови список");
+            if (response.statusCode() != (method.equals("POST") && query.isEmpty() ? 201 : 200)) {
                 throw new IllegalStateException("Каталог недоступен");
             }
             byte[] data = stream.readNBytes(65_537);

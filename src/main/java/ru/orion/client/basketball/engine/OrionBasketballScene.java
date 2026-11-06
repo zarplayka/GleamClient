@@ -63,10 +63,37 @@ public final class OrionBasketballScene {
                helper121(var0, var1, var2, var4.pos, var7);
                helper119(var0, var1, var4.pos, var9);
                helper128(var0, var1, var2, var4.pos, var9);
+               var game = ru.orion.client.OrionClient.getBasketballOrNull();
+               if (game != null && game.match().active()) renderMatchCourt(var0, game.match(), var4.pos);
             }
          }
       } else {
          CDWMWDOMTOCVRHWDIMTOCVRHWDIMTO.clear();
+      }
+   }
+
+   private static void renderMatchCourt(net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext context,
+                                        OrionBasketballMatch match, Vec3 camera) {
+      Vec3 origin = match.origin();
+      PoseStack stack = context.poseStack();
+      stack.pushPose();
+      try {
+         stack.translate(origin.x-camera.x, origin.y-camera.y+.025, origin.z-camera.z);
+         var marker = match.startMarker().subtract(origin);
+         boolean kickoff = match.kickoff();
+         context.submitNodeCollector().submitCustomGeometry(stack, RenderTypes.entityCutout(CRWMWDOMTOCVRHWDIMTOCVRHWDIMTO),
+               (pose, vertices) -> {
+                  int light = 0xF000F0;
+                  helper131(pose,vertices,light,-10,-14,10,-14,.05F);
+                  helper131(pose,vertices,light,10,-14,10,14,.05F);
+                  helper131(pose,vertices,light,10,14,-10,14,.05F);
+                  helper131(pose,vertices,light,-10,14,-10,-14,.05F);
+                  helper131(pose,vertices,light,-10,0,10,0,.05F);
+                  helper133(pose,vertices,light,0,0,1.8F,.05F);
+                  if (kickoff) helper133(pose,vertices,light,(float)marker.x,(float)marker.z,1F,.10F);
+               });
+      } finally {
+         stack.popPose();
       }
    }
 
@@ -149,13 +176,15 @@ public final class OrionBasketballScene {
                   helper125(var0, var11, var3, var7, var8, var4, var2, var20);
                }
 
-               if (var2.basketLines) {
+               var game = ru.orion.client.OrionClient.getBasketballOrNull();
+               if (var2.basketLines && (game == null || !game.match().active())) {
                   helper126(var0, var11, var3, var20);
                }
             }
          }
 
-         if (var2.basketLines && var6.size() >= 2) {
+         var game = ru.orion.client.OrionClient.getBasketballOrNull();
+         if (var2.basketLines && var6.size() >= 2 && (game == null || !game.match().active())) {
             helper127(var0, var6, var3, var1);
          }
 

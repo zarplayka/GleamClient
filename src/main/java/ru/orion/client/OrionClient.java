@@ -9,6 +9,7 @@ import ru.orion.client.football.OrionFootballHud;
 import ru.orion.client.basketball.OrionBasketballHud;
 import ru.orion.client.command.OrionChatClearCommand;
 import ru.orion.client.config.OrionConfig;
+import ru.orion.client.config.OrionAccounts;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.hud.OrionFoodSync;
 import ru.orion.client.hud.OrionFoodTooltip;
@@ -44,7 +45,7 @@ import ru.orion.client.media.OrionMediaPlayerHud;
 
 public final class OrionClient implements ClientModInitializer {
     public static final String MOD_ID = "orion-client";
-    public static final String VERSION_LABEL = "v0.2.0";
+    public static final String VERSION_LABEL = "v0.2.1";
     public static final String VERSION_TEXT = "Orion Client " + VERSION_LABEL;
 
     private static OrionClient instance;
@@ -91,6 +92,7 @@ public final class OrionClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        OrionAccounts.INSTANCE.register();
         instance = this;
 
         OrionClickGuiScreen.prepareInBackground();

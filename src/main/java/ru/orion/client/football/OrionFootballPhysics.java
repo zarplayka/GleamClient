@@ -12,6 +12,8 @@ public final class OrionFootballPhysics {
     private OrionBasketballVector position=OrionBasketballVector.ZERO,previous=OrionBasketballVector.ZERO,velocity=OrionBasketballVector.ZERO,spin=OrionBasketballVector.ZERO;
     private double accumulator,roll;
     private boolean scored,keeperContact;
+    private int goalIndex = -1;
+    private OrionBasketballVector goalPoint;
     public interface World {
         List<OrionBasketballBox> obstacles(OrionBasketballVector from,double radius,OrionBasketballVector delta);
         double groundFriction(OrionBasketballVector position);
@@ -22,6 +24,8 @@ public final class OrionFootballPhysics {
     public void reset(OrionBasketballVector point,OrionBasketballVector initialVelocity){
         if(!finite(point)||!finite(initialVelocity))throw new IllegalArgumentException("Некорректное состояние мяча");
         position=previous=point;velocity=initialVelocity;spin=OrionBasketballVector.ZERO;accumulator=0;roll=0;scored=false;keeperContact=false;
+        goalIndex = -1;
+        goalPoint = null;
     }
     public void kick(OrionBasketballVector impulse,OrionBasketballVector angularVelocity){
         if(!finite(impulse)||!finite(angularVelocity))throw new IllegalArgumentException("Некорректный удар");
@@ -61,7 +65,15 @@ public final class OrionFootballPhysics {
                             }
                         }
                     }
-                    if(!scored && goal.crossedLine(start,position,RADIUS)){scored=true;goalCount++;}
+                    if (!scored) {
+                        var crossing = goal.crossingPoint(start, position, RADIUS);
+                        if (crossing != null) {
+                            scored = true;
+                            goalCount++;
+                            goalIndex = i;
+                            goalPoint = crossing;
+                        }
+                    }
                 }
                 keeperContact=touched;
                 roll+=Math.sqrt(velocity.x()*velocity.x()+velocity.z()*velocity.z())*dt/RADIUS;
@@ -120,4 +132,6 @@ public final class OrionFootballPhysics {
     public OrionBasketballVector position(){return position;} public OrionBasketballVector velocity(){return velocity;}
     public OrionBasketballVector interpolate(){return previous.add(position.subtract(previous).scale(clamp(accumulator/STEP,0,1)));}
     public double roll(){return roll;}
+    int goalIndex() { return goalIndex; }
+    OrionBasketballVector goalPoint() { return goalPoint; }
 }

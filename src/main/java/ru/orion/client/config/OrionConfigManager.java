@@ -223,6 +223,9 @@ public final class OrionConfigManager {
     public void setBlockHighlightOffset(float value) { config.setBlockHighlightOffset(value); save(); }
     public void setItemPhysicsEnabled(boolean value) { config.setItemPhysicsEnabled(value); save(); }
     public void setKillEffectsEnabled(boolean value) { config.setKillEffectsEnabled(value); save(); }
+    public void setRagdollEnabled(boolean value) { config.setRagdollEnabled(value); save(); }
+    public void setFreshAnimationsEnabled(boolean value) { config.setFreshAnimationsEnabled(value); save(); }
+    public void setFreshAnimationsStyle(int value) { config.setFreshAnimationsStyle(value); save(); }
     public void setKillEffectsStyle(int value) { config.setKillEffectsStyle(value); config.sanitize(); save(); }
     public void setKillEffectsSize(float value) { config.setKillEffectsSize(value); config.sanitize(); save(); }
     public void setKillEffectsSpeed(float value) { config.setKillEffectsSpeed(value); config.sanitize(); save(); }

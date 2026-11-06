@@ -29,6 +29,17 @@ public final class OrionBasketballSettings {
             VALUE.basketHands=config.isBasketballHands();
             VALUE.basketLines=config.isBasketballCourtLines();
             VALUE.basketPreview=config.isBasketballTrajectory();
+            var game = ru.orion.client.OrionClient.getBasketballOrNull();
+            if (game != null && game.match().engaged()) {
+                VALUE.basketPower=13.5F;
+                VALUE.basketCharge=1F;
+                VALUE.basketPass=13F;
+                VALUE.basketDribble=2.9F;
+                VALUE.basketGravity=9.81F;
+                VALUE.basketSpin=1F;
+                VALUE.basketBounce=1F;
+                VALUE.basketBallScale=1F;
+            }
         }
         return VALUE;
     }

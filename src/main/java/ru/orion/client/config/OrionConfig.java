@@ -2,6 +2,34 @@ package ru.orion.client.config;
 
 public final class OrionConfig {
     private boolean emotesEnabled = true;
+    private boolean skinLayersEnabled;
+    private float skinLayersThickness = .5F;
+    private float skinLayersDistance = 12F;
+    private boolean skinLayersHands = true;
+    private boolean itemScrollerEnabled;
+    private boolean itemScrollerStacks = true;
+    private boolean itemScrollerMatching = true;
+    private boolean itemScrollerReverse;
+    private float itemScrollerLimit = 8F;
+
+    public boolean isSkinLayersEnabled() { return skinLayersEnabled; }
+    public void setSkinLayersEnabled(boolean value) { skinLayersEnabled = value; }
+    public float getSkinLayersThickness() { return skinLayersThickness; }
+    public void setSkinLayersThickness(float value) { skinLayersThickness = finiteClamp(value, .1F, 1.5F, .5F); }
+    public float getSkinLayersDistance() { return skinLayersDistance; }
+    public void setSkinLayersDistance(float value) { skinLayersDistance = finiteClamp(value, 4F, 32F, 12F); }
+    public boolean isSkinLayersHands() { return skinLayersHands; }
+    public void setSkinLayersHands(boolean value) { skinLayersHands = value; }
+    public boolean isItemScrollerEnabled() { return itemScrollerEnabled; }
+    public void setItemScrollerEnabled(boolean value) { itemScrollerEnabled = value; }
+    public boolean isItemScrollerStacks() { return itemScrollerStacks; }
+    public void setItemScrollerStacks(boolean value) { itemScrollerStacks = value; }
+    public boolean isItemScrollerMatching() { return itemScrollerMatching; }
+    public void setItemScrollerMatching(boolean value) { itemScrollerMatching = value; }
+    public boolean isItemScrollerReverse() { return itemScrollerReverse; }
+    public void setItemScrollerReverse(boolean value) { itemScrollerReverse = value; }
+    public float getItemScrollerLimit() { return itemScrollerLimit; }
+    public void setItemScrollerLimit(float value) { itemScrollerLimit = finiteClamp(value, 1F, 16F, 8F); }
     public boolean isEmotesEnabled() { return emotesEnabled; }
     public void setEmotesEnabled(boolean value) { emotesEnabled = value; }
     private boolean zoomEnabled;
@@ -268,6 +296,10 @@ public final class OrionConfig {
     private float blockHighlightOffset = 0.003F;
     private boolean itemPhysicsEnabled = false;
     private boolean killEffectsEnabled = false;
+    private boolean ragdollEnabled;
+    private boolean freshAnimationsEnabled = true;
+    private int freshAnimationsStyle;
+    private float ragdollHold = 2.5F;
     private int killEffectsStyle = 0;
     private int killEffectsTargets = 0;
     private float killEffectsPlayerLift = .5F;
@@ -727,6 +759,14 @@ public final class OrionConfig {
     public boolean isItemPhysicsEnabled() { return itemPhysicsEnabled; }
     public void setItemPhysicsEnabled(boolean value) { itemPhysicsEnabled = value; }
     public boolean isKillEffectsEnabled() { return killEffectsEnabled; }
+    public boolean isRagdollEnabled() { return ragdollEnabled; }
+    public boolean isFreshAnimationsEnabled() { return freshAnimationsEnabled; }
+    public void setFreshAnimationsEnabled(boolean value) { freshAnimationsEnabled = value; }
+    public int getFreshAnimationsStyle() { return freshAnimationsStyle; }
+    public void setFreshAnimationsStyle(int value) { freshAnimationsStyle = Math.clamp(value, 0, 3); }
+    public void setRagdollEnabled(boolean value) { ragdollEnabled = value; }
+    public float getRagdollHold() { return ragdollHold; }
+    public void setRagdollHold(float value) { ragdollHold = finiteClamp(value, 0F, 10F, 2.5F); }
     public void setKillEffectsEnabled(boolean value) { killEffectsEnabled = value; }
     public int getKillEffectsStyle() { return killEffectsStyle; }
     public void setKillEffectsStyle(int value) { killEffectsStyle = value == 7 ? 0 : value; }
@@ -1101,6 +1141,9 @@ public final class OrionConfig {
         if (waypointQuickColor == null || !waypointQuickColor.matches("^#[0-9a-fA-F]{6}$")) waypointQuickColor = "#FF9B38";
         waypointVisibleLimit = Math.max(1, Math.min(64, waypointVisibleLimit));
         wingsStyle = Math.max(0, Math.min(1, wingsStyle));
+        setSkinLayersThickness(skinLayersThickness);
+        setSkinLayersDistance(skinLayersDistance);
+        setItemScrollerLimit(itemScrollerLimit);
         setZoomFactor(zoomFactor);
         setZoomInTime(zoomInTime);
         setZoomOutTime(zoomOutTime);
@@ -1205,6 +1248,8 @@ public final class OrionConfig {
         blockHighlightGlowOpacity = Math.max(0, Math.min(100, blockHighlightGlowOpacity));
         blockHighlightOffset = Float.isFinite(blockHighlightOffset) ? clamp(blockHighlightOffset, 0.0F, 0.1F) : 0.003F;
         killEffectsStyle = Math.max(0, Math.min(8, killEffectsStyle));
+        setRagdollHold(ragdollHold);
+        setFreshAnimationsStyle(freshAnimationsStyle);
         if (killEffectsStyle == 7) killEffectsStyle = 0;
         killEffectsTargets = Math.max(0, Math.min(2, killEffectsTargets));
         killEffectsPlayerLift = finiteClamp(killEffectsPlayerLift, 0F, 2F, .5F);

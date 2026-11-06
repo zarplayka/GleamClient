@@ -51,7 +51,7 @@ public final class OrionWings {
             Vec3 relative = player.getPosition(partial).subtract(camera.pos);
             float bodyYaw = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot);
             boolean detail=player.position().distanceToSqr(camera.pos)<1024D;
-            float tipAngle=(float)Math.toRadians(motion.tipFold),tipLift=(float)Math.toRadians(motion.tipLift);
+            float tipAngle=(float)Math.toRadians(-motion.tipFold),tipLift=(float)Math.toRadians(motion.tipLift);
             float cy=(float)Math.cos(tipAngle),sy=(float)Math.sin(tipAngle),cz=(float)Math.cos(tipLift),sz=(float)Math.sin(tipLift);
             PoseStack pose = context.poseStack();
             pose.pushPose();
@@ -62,7 +62,8 @@ public final class OrionWings {
             for (int side = -1; side <= 1; side += 2) {
                 pose.pushPose();
                 pose.scale(side, 1F, 1F);
-                pose.rotate(Axis.YP.rotationDegrees(motion.rootFold));
+                // Положительный Z — за спиной. При складывании кончики уходят назад.
+                pose.rotate(Axis.YP.rotationDegrees(-motion.rootFold));
                 pose.rotate(Axis.ZP.rotationDegrees(motion.flap));
                 context.submitNodeCollector().submitCustomGeometry(pose, OrionEspRenderTypes.cosmeticWings(),
                         (currentPose, vertices) -> draw(currentPose, vertices, style, detail,cy,sy,cz,sz));

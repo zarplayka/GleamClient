@@ -26,11 +26,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** Весь матч, мяч и вратари существуют только в этом клиенте. */
+/** Одиночная тренировка и управление матчем Orion. */
 public final class OrionFootball {
     private static final KeyMapping.Category CATEGORY=KeyMapping.Category.register(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"football"));
     private final OrionConfigManager manager;
     private final OrionFootballPhysics ball=new OrionFootballPhysics();
+    private final OrionFootballMatch match = new OrionFootballMatch();
     private final OrionFootballStorage storage=new OrionFootballStorage();
     private final List<OrionFootballGoal> goals=new ArrayList<>();
     private final List<OrionGoalkeeperAI> keepers=new ArrayList<>();
@@ -60,8 +61,32 @@ public final class OrionFootball {
     public KeyMapping getRotateLeftKey() { return rotateLeft; }
     public KeyMapping getRotateRightKey() { return rotateRight; }
     public KeyMapping getPenaltyKey() { return penaltyKey; }
+    public void createMatch(int teamSize) {
+        if (OrionClient.getBasketballOrNull() != null && OrionClient.getBasketballOrNull().match().engaged()) {
+            OrionClient.getBasketballOrNull().match().leave();
+        }
+        if (match.create(Minecraft.getInstance(), teamSize) && !manager.getConfig().isFootballEnabled()) {
+            manager.setFootballEnabled(true);
+        }
+    }
+    public void joinMatch(String code) {
+        if (OrionClient.getBasketballOrNull() != null && OrionClient.getBasketballOrNull().match().engaged()) {
+            OrionClient.getBasketballOrNull().match().leave();
+        }
+        if (match.join(Minecraft.getInstance(), code) && !manager.getConfig().isFootballEnabled()) {
+            manager.setFootballEnabled(true);
+        }
+    }
+    public void readyMatch() { match.ready(); }
+    public void leaveMatch() { match.leave(); }
+    public String matchCode() { return match.code(); }
+    public String matchInfo() { return match.info(); }
+    public String matchStatus() { return match.status(); }
+    OrionFootballMatch match() { return match; }
+
     private void tick(Minecraft client){
         var config=manager.getConfig();
+        match.tick(client, config.isFootballEnabled());
         if(!config.isFootballEnabled()||client.player==null||client.level==null){clear();drain();return;}
         String key=worldKey(client);
         if(client.level!=level||!key.equals(worldKey)){
@@ -69,6 +94,12 @@ public final class OrionFootball {
             if(loaded){List<OrionFootballGoal> saved=stored.get(key);if(saved!=null)for(var goal:saved)if(goal!=null&&goals.size()<32)addGoal(goal);}
         }
         if(client.gui.screen()!=null){charging=false;drain();return;}
+        if (match.active()) {
+            ballExists = placing = false;
+            if (!match.playable()) charging = false;
+            drain();
+            return;
+        }
         while(ballKey.consumeClick())resetBall(client);
         while(goalKey.consumeClick()){
             if(!loaded){message(client,"Дождитесь загрузки ворот");continue;}
@@ -129,6 +160,7 @@ public final class OrionFootball {
     private void persist(){if(!loaded||worldKey==null)return;var copy=List.copyOf(goals);stored.put(worldKey,copy);storage.save(worldKey,copy);}
     private static String worldKey(Minecraft c){String server=c.getCurrentServer()!=null?"server:"+c.getCurrentServer().ip.toLowerCase(Locale.ROOT):c.hasSingleplayerServer()?"single:"+c.getSingleplayerServer().getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize():"local:unknown";return server+"|"+c.level.dimension().identifier();}
     private void render(LevelRenderContext context){Minecraft c=Minecraft.getInstance();if(!manager.getConfig().isFootballEnabled()||c.player==null||c.level!=level)return;
+        if (match.active()) { match.render(context); return; }
         float part=c.getDeltaTracker().getGameTimeDeltaPartialTick(true);float time=(float)(System.nanoTime()/1e9%1000);
         if(ballExists){var pos=previous.add(current.subtract(previous).scale(part));OrionFootballRenderer.ball(context,pos,oldRoll+(newRoll-oldRoll)*part);}
         long impact=Math.max(goalAt,netAt);
@@ -138,24 +170,33 @@ public final class OrionFootball {
     }
     public boolean button(int button,boolean press,boolean shift){Minecraft c=Minecraft.getInstance();
         if(button==InputConstants.MOUSE_BUTTON_RIGHT&&!press&&suppressRelease){suppressRelease=false;if(!charging)return true;}
-        if(!manager.getConfig().isFootballEnabled()||!ballExists||c.player==null||c.level==null||c.gui.screen()!=null)return false;
+        if(!manager.getConfig().isFootballEnabled()||!(match.active() ? match.playable() : ballExists)
+                ||c.player==null||c.level==null||c.gui.screen()!=null)return false;
         if(OrionClient.getBasketballOrNull()!=null && OrionClient.getBasketballOrNull().holdingBall())return false;
         var p=c.player.position();
-        if(current.subtract(new OrionBasketballVector(p.x,p.y,p.z)).lengthSquared()>4 && !(button==InputConstants.MOUSE_BUTTON_RIGHT && !press && charging))return false;
-        if(button==InputConstants.MOUSE_BUTTON_LEFT){if(press)kick(c,.23F,false);return press;}
+        boolean near = match.active() ? match.canReach(p)
+                : current.subtract(new OrionBasketballVector(p.x,p.y,p.z)).lengthSquared() <= 4;
+        if(!near && !(button==InputConstants.MOUSE_BUTTON_RIGHT && !press && charging))return false;
+        if(button==InputConstants.MOUSE_BUTTON_LEFT)return press && kick(c,.23F,false);
         if(button!=InputConstants.MOUSE_BUTTON_RIGHT)return false;
         if(press){if(!charging){charging=true;chargeAt=System.nanoTime();spinCharge=shift;suppressRelease=true;}}
         else if(charging){float power=charge();charging=false;kick(c,power,spinCharge);}
         return true;
     }
-    private void kick(Minecraft client,float power,boolean curve){
+    private boolean kick(Minecraft client,float power,boolean curve){
         Vec3 look=client.player.getViewVector(1),motion=client.player.getDeltaMovement().scale(20);
+        if (match.active()) {
+            if (!match.kick(client.player.position(), look, power, curve)) return false;
+            kickAt = System.nanoTime();
+            return true;
+        }
         double strength=(3+power*15)*manager.getConfig().getFootballKickPower();
         var impulse=new OrionBasketballVector(look.x*strength+motion.x*.5,look.y*strength+motion.y*.25+.4,look.z*strength+motion.z*.5);
         ball.kick(impulse,new OrionBasketballVector(0,curve?25:0,0));kickAt=shotAt=System.nanoTime();shots++;shotActive=true;shotSaved=false;
         client.level.playLocalSound(current.x(),current.y(),current.z(),SoundEvents.WOOL_HIT,SoundSource.PLAYERS,.8F,.7F,false);
+        return true;
     }
-    public float charge(){return charging?Math.max(0,Math.min(1,(System.nanoTime()-chargeAt)/1e9F*manager.getConfig().getFootballChargeSpeed())):0;}
+    public float charge(){return charging?Math.max(0,Math.min(1,(System.nanoTime()-chargeAt)/1e9F*(match.active()?1F:manager.getConfig().getFootballChargeSpeed()))):0;}
     public boolean charging(){return charging;}public int goals(){return score;}public int shots(){return shots;}public int saves(){return saves;}public int misses(){return misses;}public long goalAt(){return goalAt;}public long kickAt(){return kickAt;}
     private void sound(Minecraft c,OrionFootballPhysics.Contact kind,OrionBasketballVector p,double speed){long now=System.nanoTime();if(kind==OrionFootballPhysics.Contact.NET)netAt=now;if(now-lastSound<100_000_000)return;lastSound=now;
         var sound=kind==OrionFootballPhysics.Contact.POST?SoundEvents.METAL_HIT:SoundEvents.WOOL_HIT;
