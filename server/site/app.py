@@ -107,6 +107,13 @@ def init_db():
             CHECK(low_id < high_id)
         )''')
         db.execute('CREATE INDEX IF NOT EXISTS friend_messages_pair ON friend_messages(low_id,high_id,id DESC)')
+        db.execute('''CREATE TABLE IF NOT EXISTS friend_message_reactions (
+            message_id INTEGER NOT NULL REFERENCES friend_messages(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            reaction TEXT NOT NULL CHECK(reaction IN ('👍','❤️','😂','😮','😢')),
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY(message_id,user_id,reaction)
+        )''')
         profile_columns = {column['name'] for column in db.execute('PRAGMA table_info(profiles)')}
         for provider in PROVIDERS:
             column = provider + '_id'
@@ -630,11 +637,21 @@ async def friend_chat(request):
     if not valid_username(name) or (before and not re.fullmatch(r'[1-9][0-9]{0,17}', before)):
         return error('invalid')
     body = None
+    reaction = None
+    message_id = None
     if writing:
-        body = (await json_body(request)).get('body')
-        if not isinstance(body, str) or not 1 <= len(body.strip()) <= 500 or '\x00' in body:
-            return error('invalid')
-        body = body.strip()
+        payload = await json_body(request)
+        if 'reaction' in payload:
+            reaction = payload.get('reaction')
+            message_id = payload.get('message_id')
+            if (reaction not in ('👍', '❤️', '😂', '😮', '😢') or isinstance(message_id, bool)
+                    or not isinstance(message_id, int) or message_id <= 0):
+                return error('invalid')
+        else:
+            body = payload.get('body')
+            if not isinstance(body, str) or not 1 <= len(body.strip()) <= 500 or '\x00' in body:
+                return error('invalid')
+            body = body.strip()
     with connect() as db:
         db.execute('BEGIN IMMEDIATE' if writing else 'BEGIN')
         peer = db.execute('SELECT id FROM users WHERE username_key=? AND banned_at IS NULL', (name.lower(),)).fetchone()
@@ -643,12 +660,42 @@ async def friend_chat(request):
         if not db.execute('SELECT 1 FROM friendships WHERE low_id=? AND high_id=? AND accepted=1', pair).fetchone():
             return error('chat_unavailable', 403)
         if writing:
-            db.execute('INSERT INTO friend_messages(low_id,high_id,sender_id,body,sent_at) VALUES (?,?,?,?,?)',
-                       (*pair, user['id'], body, int(time.time())))
+            if reaction is not None:
+                if not db.execute('SELECT 1 FROM friend_messages WHERE id=? AND low_id=? AND high_id=?',
+                                  (message_id, *pair)).fetchone():
+                    return error('chat_unavailable', 403)
+                values = (message_id, user['id'], reaction)
+                if db.execute('SELECT 1 FROM friend_message_reactions WHERE message_id=? AND user_id=? AND reaction=?',
+                              values).fetchone():
+                    db.execute('DELETE FROM friend_message_reactions WHERE message_id=? AND user_id=? AND reaction=?', values)
+                else:
+                    db.execute('INSERT INTO friend_message_reactions(message_id,user_id,reaction,created_at) VALUES (?,?,?,?)',
+                               (*values, int(time.time())))
+            else:
+                db.execute('INSERT INTO friend_messages(low_id,high_id,sender_id,body,sent_at) VALUES (?,?,?,?,?)',
+                           (*pair, user['id'], body, int(time.time())))
         rows = db.execute('''SELECT id, sender_id=? AS own, body, sent_at FROM friend_messages
             WHERE low_id=? AND high_id=? AND id < ? ORDER BY id DESC LIMIT 51''',
             (user['id'], *pair, int(before) if before and not writing else 9223372036854775807)).fetchall()
-    return web.json_response({'items': [dict(row) for row in reversed(rows[:50])], 'older': len(rows) > 50},
+        selected = list(reversed(rows[:50]))
+        reaction_map = {}
+        if selected:
+            ids = [row['id'] for row in selected]
+            placeholders = ','.join('?' for _ in ids)
+            reaction_rows = db.execute(f'''SELECT message_id,user_id,reaction FROM friend_message_reactions
+                WHERE message_id IN ({placeholders}) ORDER BY message_id,reaction''', ids).fetchall()
+            for row in reaction_rows:
+                groups = reaction_map.setdefault(row['message_id'], {})
+                item = groups.setdefault(row['reaction'], {'emoji': row['reaction'], 'count': 0, 'mine': False})
+                item['count'] += 1
+                item['mine'] = item['mine'] or row['user_id'] == user['id']
+        items = []
+        for row in selected:
+            item = dict(row)
+            item['own'] = bool(item['own'])
+            item['reactions'] = list(reaction_map.get(row['id'], {}).values())
+            items.append(item)
+    return web.json_response({'items': items, 'older': len(rows) > 50},
                              headers={'Cache-Control': 'no-store'})
 
 async def admin_accounts(request):

@@ -11,11 +11,13 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
@@ -58,6 +60,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -258,7 +261,7 @@ public final class OrionClickGuiScreen extends Screen {
     private int friendsRequest;
     private String chatPeer = "", chatStatus = "";
     private JsonArray chatMessages = new JsonArray();
-    private boolean chatBusy, chatLoading, chatLoaded, chatOlder;
+    private boolean chatBusy, chatLoading, chatLoaded, chatOlder, chatRefreshAfterReaction;
     private int chatRequest, chatSent;
     private long nextChatPoll, nextChatFriends;
     private record CosmeticStage(float x, float y, float w, float h, float clipTop, float clipBottom,
@@ -676,6 +679,7 @@ public final class OrionClickGuiScreen extends Screen {
 
         boolean friendsAccountChanged = syncFriendsAccount();
         boolean chatPage = "CHAT".equals(siteSection);
+        long chatNow = System.nanoTime();
         if ("FRIENDS".equals(siteSection) || chatPage) {
             if (friendsAccountChanged) refreshFriends(null, null);
             var social = new JsonObject();
@@ -688,9 +692,8 @@ public final class OrionClickGuiScreen extends Screen {
             data.add("friends", social);
         }
         if (chatPage) {
-            long now = System.nanoTime();
-            if (now >= nextChatFriends && !friendsBusy) {
-                nextChatFriends = now + 15_000_000_000L;
+            if (chatNow >= nextChatFriends && !friendsBusy) {
+                nextChatFriends = chatNow + 15_000_000_000L;
                 refreshFriends(null, null);
             }
             if (chatPeer.isEmpty() && !friendsBusy) {
@@ -702,7 +705,9 @@ public final class OrionClickGuiScreen extends Screen {
                     }
                 }
             }
-            if (!chatPeer.isEmpty() && now >= nextChatPoll) updateChat(null, false);
+        }
+        if (!friendsSession.isEmpty() && !chatPeer.isEmpty() && chatNow >= nextChatPoll) updateChat(null, false);
+        if (chatPage || !chatPeer.isEmpty()) {
             var chat = new JsonObject();
             chat.addProperty("peer", chatPeer);
             chat.addProperty("busy", chatLoading);
@@ -901,6 +906,7 @@ public final class OrionClickGuiScreen extends Screen {
         chatMessages = new JsonArray();
         chatStatus = "";
         chatBusy = chatLoading = chatLoaded = chatOlder = false;
+        chatRefreshAfterReaction = false;
         nextChatPoll = 0;
         chatRequest++;
     }
@@ -916,8 +922,11 @@ public final class OrionClickGuiScreen extends Screen {
         accounts.chat(chatPeer, before, message).whenComplete((response, failure) -> minecraft.execute(() -> {
             if (request != chatRequest || !session.equals(accounts.sessionCookieHeader())) return;
             chatBusy = chatLoading = false;
-            nextChatPoll = System.nanoTime() + 4_000_000_000L;
+            boolean refreshReaction = chatRefreshAfterReaction;
+            chatRefreshAfterReaction = false;
+            nextChatPoll = refreshReaction ? 0 : System.nanoTime() + 4_000_000_000L;
             if (failure != null) {
+                nextChatPoll = System.nanoTime() + 4_000_000_000L;
                 Throwable cause = failure.getCause() == null ? failure : failure.getCause();
                 chatStatus = cause instanceof IllegalStateException ? cause.getMessage() : "Чат недоступен";
                 if ("Чат доступен только друзьям".equals(chatStatus)) {
@@ -936,9 +945,18 @@ public final class OrionClickGuiScreen extends Screen {
                 merged.addAll(items);
                 merged.addAll(chatMessages);
             } else {
-                merged.addAll(chatMessages);
-                long last = initial ? 0 : chatMessages.get(chatMessages.size()-1).getAsJsonObject().get("id").getAsLong();
-                for (var item : items) if (item.getAsJsonObject().get("id").getAsLong() > last) merged.add(item);
+                var latest = new LinkedHashMap<Long, JsonObject>();
+                for (var item : chatMessages) {
+                    var messageEntry = item.getAsJsonObject();
+                    latest.put(messageEntry.get("id").getAsLong(), messageEntry.deepCopy());
+                }
+                for (var item : items) {
+                    var messageEntry = item.getAsJsonObject();
+                    latest.put(messageEntry.get("id").getAsLong(), messageEntry.deepCopy());
+                }
+                var values = new ArrayList<>(latest.values());
+                int first = Math.max(0, values.size() - 200);
+                for (int i = first; i < values.size(); i++) merged.add(values.get(i));
             }
             if (older || initial) chatOlder = response.get("older").getAsBoolean();
             chatMessages = merged;
@@ -1092,7 +1110,7 @@ public final class OrionClickGuiScreen extends Screen {
                         event.get("clipBottom").getAsFloat(), event.get("yaw").getAsFloat(),
                         Math.clamp(event.get("zoom").getAsFloat(), .65F, 1.35F), java.util.Set.copyOf(items));
             }
-            case "chat-select", "chat-older", "chat-send" -> {
+            case "chat-select", "chat-older", "chat-send", "chat-react" -> {
                 if (!"CHAT".equals(siteSection) || syncFriendsAccount() || friendsSession.isEmpty()) return;
                 if ("chat-select".equals(action)) {
                     String peer = event.get("username").getAsString();
@@ -1106,7 +1124,27 @@ public final class OrionClickGuiScreen extends Screen {
                     String message = event.get("body").getAsString().strip();
                     if (!message.isEmpty() && message.codePointCount(0, message.length()) <= 500
                             && message.indexOf(0) < 0 && isChatFriend(chatPeer)) updateChat(message, false);
+                } else if ("chat-react".equals(action)) {
+                    long messageId = event.get("messageId").getAsLong();
+                    String reaction = event.get("reaction").getAsString(), peer = chatPeer, session = friendsSession;
+                    if (messageId <= 0 || !isChatFriend(peer) || !List.of("👍", "❤️", "😂", "😮", "😢").contains(reaction)) return;
+                    accounts.chatReaction(peer, messageId, reaction).whenComplete((response, failure) -> minecraft.execute(() -> {
+                        if (!session.equals(accounts.sessionCookieHeader()) || !peer.equals(chatPeer)) return;
+                        if (failure != null) {
+                            chatStatus = "Не удалось поставить реакцию";
+                            nextChatPoll = System.nanoTime() + 4_000_000_000L;
+                        } else if (chatBusy) {
+                            chatRefreshAfterReaction = true;
+                        } else {
+                            updateChat(null, false);
+                        }
+                    }));
                 }
+            }
+            case "chat-notification-sound" -> Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, .45F));
+            case "clipboard-copy" -> {
+                if (event.has("text")) minecraft.keyboardHandler.setClipboard(event.get("text").getAsString());
             }
             case "cosmetic-wings" -> {
                 if ("COSMETICS".equals(siteSection)) {
@@ -2382,6 +2420,13 @@ public final class OrionClickGuiScreen extends Screen {
     @Override
     public boolean keyPressed(KeyEvent event) {
         if (siteActive && editingBind < 0) {
+            if (event.hasControlDownWithQuirk() && !event.hasAltDown()) {
+                switch (event.key()) {
+                    case InputConstants.KEY_A, InputConstants.KEY_C, InputConstants.KEY_V, InputConstants.KEY_X,
+                            InputConstants.KEY_Y, InputConstants.KEY_Z -> bindAcceptedAt = System.nanoTime();
+                    default -> { }
+                }
+            }
             siteMenu.key(event,true);
             return true;
         }

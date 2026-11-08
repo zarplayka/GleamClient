@@ -453,10 +453,20 @@ function renderChatMessages() {
     const previous = chat.items[i-1], next = chat.items[i+1];
     const newDay = !previous || new Date(previous.sent_at * 1000).toDateString() !== date.toDateString();
     const day = String(date.getDate()).padStart(2,'0') + '.' + String(date.getMonth()+1).padStart(2,'0');
+    const reactions = (item.reactions || []).map(reaction => '<button type="button" class="chat-reaction" data-chat-reaction="'
+      + item.id + '" data-emoji="' + text(reaction.emoji) + '" aria-pressed="' + Boolean(reaction.mine)
+      + '" aria-label="' + text(reaction.emoji + ' ' + reaction.count) + '">' + text(reaction.emoji)
+      + '<small>' + text(reaction.count) + '</small></button>').join('');
+    const picker = '<span class="chat-reaction-picker" data-chat-picker="' + item.id + '" hidden>'
+      + ['👍','❤️','😂','😮','😢'].map(emoji => '<button type="button" data-chat-reaction="' + item.id + '" data-emoji="'
+        + emoji + '" aria-label="' + text(t('Добавить реакцию')) + ' ' + emoji + '">' + emoji + '</button>').join('') + '</span>';
     return (newDay ? '<div class="chat-date"><span>' + day + '</span></div>' : '')
       + '<div class="chat-line' + (item.own ? ' own' : '') + (sameGroup(previous) ? ' continuation' : '')
-      + '"><div class="chat-bubble"><span>' + text(item.body) + '</span>'
-      + (sameGroup(next) ? '' : '<time>' + chatTime(item.sent_at) + '</time>') + '</div></div>';
+      + '"><div class="chat-message"><div class="chat-bubble"><span>' + text(item.body) + '</span>'
+      + (sameGroup(next) ? '' : '<time>' + chatTime(item.sent_at) + '</time>') + '</div><div class="chat-reaction-row">'
+      + reactions + '<button type="button" class="chat-reaction-toggle" data-chat-picker-toggle="' + item.id
+      + '" aria-expanded="false" aria-label="' + text(t('Добавить реакцию')) + '">+</button>' + picker
+      + '</div></div></div>';
   }).join('');
   return (chat.older ? actionButton('chat-older',t('Ранние сообщения'),'','',chat.busy) : '') + '<div class="chat-log">' + rows + '</div>';
 }
@@ -699,11 +709,16 @@ function accentPicker() {
     + (state.accent || '#3c58e8') + '" aria-label="' + text(t('Свой цвет акцента')) + '">' + icon('plus') + '</label></div></div>';
 }
 function renderSettings() {
+  const languages = [['auto',t('Как в Minecraft')],['ru','Русский'],['en','English'],['de','Deutsch'],['es','Español']];
+  const language = languages.find(([id]) => id === state.languageChoice) || languages[0];
   return pageHead(t('Настройки клиента')) + '<div class="look-settings"><section><h2>' + text(t('Язык интерфейса')) + '</h2>'
-    + '<div class="sheet look-block"><div class="language-options">' + [['auto',t('Как в Minecraft')],['ru','Русский'],['en','English'],['de','Deutsch'],['es','Español']]
-      .map(([id,label]) => '<button type="button" class="button" data-look="languageChoice" data-value="' + id
-        + '" aria-pressed="' + (state.languageChoice === id) + '">' + text(label) + '</button>').join('')
-    + '</div></div></section><section><h2>' + text(t('Оформление')) + '</h2>'
+    + '<div class="sheet look-block"><div class="language-picker" id="language-picker"><button type="button" class="button language-trigger" id="language-trigger"'
+      + ' data-language-toggle aria-haspopup="listbox" aria-controls="language-options" aria-expanded="false"><span>'
+      + text(language[1]) + '</span>' + icon('chevron-down') + '</button><div class="language-options" id="language-options" role="listbox" hidden>'
+      + languages.map(([id,label]) => '<button type="button" role="option" data-look="languageChoice" data-value="' + id
+        + '" aria-selected="' + (state.languageChoice === id) + '">' + text(label)
+        + (state.languageChoice === id ? icon('check') : '') + '</button>').join('')
+    + '</div></div></div></section><section><h2>' + text(t('Оформление')) + '</h2>'
     + '<div class="sheet look-block"><h3>' + text(t('Тема ClickGUI')) + '</h3><p>' + text(t('Выбери оформление меню')) + '</p><div class="look-options" role="group" aria-label="' + text(t('Тема ClickGUI')) + '">'
     + lookTile('theme','dark',t('Тёмная'),'dark',state.density) + lookTile('theme','light',t('Светлая'),'light',state.density)
     + '</div>' + accentPicker() + '</div></section><section><h2>' + text(t('Окно')) + '</h2><div class="sheet look-block">'
@@ -831,15 +846,15 @@ function luminance(rgb) {
 function applyAccent() {
   const root = document.documentElement, color = state.accent;
   const light = state.theme === 'light';
-  const card = colorChannels(light ? '#fafbfe' : '#232731');
-  const rule = colorChannels(light ? '#c4ccda' : '#353a47');
+  const card = colorChannels(light ? '#fafbfe' : '#25262a');
+  const rule = colorChannels(light ? '#c4ccda' : '#3b3c41');
   const mix = (from,to,weight) => 'rgb(' + from.map((value,index) =>
     Math.round(value * (1 - weight) + to[index] * weight)).join(',') + ')';
-  let accent = colorChannels(light ? '#4257b2' : '#8b9ffc');
+  let accent = colorChannels(light ? '#4257b2' : '#939fe9');
   const vars = ['--accent','--accent-ink','--accent-surface','--on-fill','--on-ink','--selected-accent'];
   if (color) {
     const base = colorChannels(color);
-    const luma = luminance(base), surface = luminance(colorChannels(light ? '#f3f5f9' : '#1a1d23'));
+    const luma = luminance(base), surface = luminance(colorChannels(light ? '#f3f5f9' : '#1d1e22'));
     const ratio = (Math.max(luma,surface)+.05)/(Math.min(luma,surface)+.05);
     accent = ratio < 3 ? base.map(value => Math.round(value * .43 + (light ? 18 : 255) * .57)) : base;
     const ink = value => value > .179 ? '#101219' : '#fff';
@@ -930,7 +945,7 @@ function nextToast() {
   toastRunning = true;
   const [message,kind] = toastQueue.shift(), element = $('toast');
   element.dataset.kind = kind;
-  element.innerHTML = icon(kind === 'error' ? 'alert' : 'check') + '<span>' + text(message) + '</span>';
+  element.innerHTML = icon(kind === 'error' ? 'alert' : kind === 'chat' ? 'chat' : 'check') + '<span>' + text(message) + '</span>';
   element.classList.add('visible');
   setTimeout(() => {
     element.classList.remove('visible');
@@ -1045,9 +1060,33 @@ document.addEventListener('click', event => {
   if (!event.composedPath().includes($('account'))) accountOpen(false);
   if (openChoice && event.target.closest('[data-choice-toggle]') !== openChoice
       && !event.target.closest('#choice-popup')) showChoices(openChoice,false);
+  const languageOptions = $('language-options'), languageTrigger = $('language-trigger');
+  if (languageOptions && !event.target.closest('#language-picker')) {
+    languageOptions.hidden = true;
+    languageTrigger.setAttribute('aria-expanded','false');
+  }
   if (!button) return;
   const data = button.dataset;
-  if (data.choiceToggle !== undefined) {
+  if (data.languageToggle !== undefined) {
+    const open = languageOptions.hidden;
+    languageOptions.hidden = !open;
+    button.setAttribute('aria-expanded',String(open));
+  } else if (data.chatPickerToggle !== undefined) {
+    const picker = document.querySelector('[data-chat-picker="' + data.chatPickerToggle + '"]');
+    if (picker) {
+      picker.hidden = !picker.hidden;
+      button.setAttribute('aria-expanded',String(!picker.hidden));
+    }
+  } else if (data.chatReaction !== undefined) {
+    const messageId = Number(data.chatReaction), reaction = data.emoji;
+    if (Number.isSafeInteger(messageId) && messageId > 0 && ['👍','❤️','😂','😮','😢'].includes(reaction)) {
+      sendGame('chat-react',{messageId,reaction});
+      const row = button.closest('.chat-reaction-row');
+      const picker = row?.querySelector('.chat-reaction-picker');
+      if (picker) picker.hidden = true;
+      row?.querySelector('.chat-reaction-toggle')?.setAttribute('aria-expanded','false');
+    }
+  } else if (data.choiceToggle !== undefined) {
     showChoices(button,button.getAttribute('aria-expanded') !== 'true');
   } else if (data.choiceOption !== undefined && openChoice) {
     const trigger = openChoice;
@@ -1092,13 +1131,19 @@ document.addEventListener('click', event => {
     if (data.look === 'toggleStyle') {
       try { localStorage.setItem(toggleStyleKey,state.toggleStyle); } catch {}
     }
+    if (data.look === 'languageChoice') {
+      const options = $('language-options'), trigger = $('language-trigger');
+      if (options) options.hidden = true;
+      if (trigger) trigger.setAttribute('aria-expanded','false');
+    }
     if (data.look === 'windowSize') {
       try { localStorage.setItem(windowSizeKey,state.windowSize); } catch {}
       animateWindowSize();
     }
     applyLook();
-    const selected = $('content').querySelector('[data-look="' + data.look + '"][data-value="' + data.value + '"]');
-    selected.focus({preventScroll:true});
+    const selected = data.look === 'languageChoice' ? $('language-trigger')
+      : $('content').querySelector('[data-look="' + data.look + '"][data-value="' + data.value + '"]');
+    selected?.focus({preventScroll:true});
   } else if (data.settingsGroup !== undefined) {
     const content = $('content'), group = $('settings-group-' + data.settingsGroup);
     for (const link of content.querySelectorAll('[data-settings-group]')) {
@@ -1230,6 +1275,13 @@ document.addEventListener('keydown', event => {
     const trigger = openChoice;
     showChoices(trigger,false);
     trigger.focus({preventScroll:true});
+    event.preventDefault();
+    return;
+  }
+  if (event.key === 'Escape' && $('language-options') && !$('language-options').hidden) {
+    $('language-options').hidden = true;
+    $('language-trigger').setAttribute('aria-expanded','false');
+    $('language-trigger').focus({preventScroll:true});
     event.preventDefault();
     return;
   }

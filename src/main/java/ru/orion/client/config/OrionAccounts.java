@@ -287,6 +287,20 @@ public final class OrionAccounts {
         });
     }
 
+    public CompletableFuture<JsonObject> chatReaction(String username, long messageId, String reaction) {
+        Session session = active;
+        if (session == null || !username.matches("[A-Za-z0-9_]{3,24}") || messageId <= 0
+                || !List.of("👍", "❤️", "😂", "😮", "😢").contains(reaction))
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Invalid chat reaction"));
+        JsonObject body = new JsonObject();
+        body.addProperty("message_id", messageId);
+        body.addProperty("reaction", reaction);
+        return send("/api/friends/" + username + "/chat", body, session, true).thenApply(response -> {
+            if (response.statusCode() == 403) throw new IllegalStateException("Чат доступен только друзьям");
+            return friendResponse(response);
+        });
+    }
+
     public CompletableFuture<JsonArray> changeFriend(String username, String action) {
         Session session = active;
         if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
