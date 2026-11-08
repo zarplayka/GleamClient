@@ -74,26 +74,6 @@ let chat = {peer:'',items:[],busy:false,sent:0};
 const chatDrafts = new Map();
 const chatRecent = new Map();
 let chatUnread = {};
-const reactionIcons = new Map([['👍','like'],['❤️','heart'],['😂','laugh'],['😮','surprise'],['😢','sad']]);
-let lastChatBubbleClick;
-function reactToMessage(messageId,reaction) {
-  const item = chat.items.find(item => Number(item.id) === messageId);
-  if (!item || !reactionIcons.has(reaction) || typeof sendGame !== 'function') return;
-  const selected = !(item.reactions || []).some(entry => entry.emoji === reaction && entry.mine);
-  sendGame('chat-react',{messageId,reaction,selected});
-}
-function openReactionPicker(message,open) {
-  const trigger = message?.querySelector('[data-chat-picker-toggle]');
-  const picker = message?.querySelector('.chat-reaction-picker');
-  if (!trigger || !picker) return;
-  for (const previous of document.querySelectorAll('.chat-reaction-picker:not([hidden])')) {
-    previous.hidden = true;
-    previous.closest('.chat-line').querySelector('[data-chat-picker-toggle]').setAttribute('aria-expanded','false');
-  }
-  picker.hidden = !open;
-  picker.toggleAttribute('data-below',trigger.getBoundingClientRect().top - $('chat-messages').getBoundingClientRect().top < 42);
-  trigger.setAttribute('aria-expanded',String(open));
-}
 const toggleStyleKey = 'orion-preview-toggle-style';
 const windowSizeKey = 'orion-preview-window-size';
 const windowScaleKey = 'orion-preview-window-scale';
@@ -482,11 +462,14 @@ function renderChat() {
     + '</div></aside><section id="chat-thread" class="chat-thread">' + renderChatThread() + '</section></div>';
 }
 function renderChatMessages() {
-  if (!chat.peer) return '<div class="chat-empty"><b>' + text(t(friends.busy ? 'Загрузка…' : 'Чатов пока нет')) + '</b>'
-    + (friends.busy ? '' : '<small>' + text(t('Чат появится после принятия заявки в друзья')) + '</small>'
+  const retry = () => actionButton('chat-retry',t('Обновить'),'');
+  if (!chat.peer) return '<div class="chat-empty"><b>'
+    + text(friends.busy ? t('Загрузка…') : friends.status || t('Чатов пока нет')) + '</b>'
+    + (friends.busy ? '' : friends.status ? retry() : '<small>' + text(t('Чат появится после принятия заявки в друзья')) + '</small>'
       + actionButton('chat-friends',t('Перейти к друзьям'),'users')) + '</div>';
-  if (!chat.items.length) return '<div class="chat-empty"><b>' + text(t(chat.busy ? 'Загрузка…' : 'Сообщений пока нет')) + '</b>'
-    + (chat.busy ? '' : actionButton('chat-wave',t('Поздороваться'),'chat')) + '</div>';
+  if (!chat.items.length) return '<div class="chat-empty"><b>'
+    + text(chat.busy ? t('Загрузка…') : chat.status || t(chat.loaded ? 'Сообщений пока нет' : 'Загрузка…')) + '</b>'
+    + (chat.busy ? '' : chat.status ? retry() : chat.loaded ? actionButton('chat-wave',t('Поздороваться'),'chat') : '') + '</div>';
   const person = chatContacts().find(item => item.username === chat.peer);
   const rows = chat.items.map((item,i) => {
     const date = new Date(item.sent_at * 1000);
@@ -496,30 +479,14 @@ function renderChatMessages() {
     const previous = chat.items[i-1], next = chat.items[i+1];
     const newDay = !previous || new Date(previous.sent_at * 1000).toDateString() !== date.toDateString();
     const day = String(date.getDate()).padStart(2,'0') + '.' + String(date.getMonth()+1).padStart(2,'0');
-    const reactions = (item.reactions || []).filter(reaction => reactionIcons.has(reaction.emoji))
-      .map(reaction => '<button type="button" class="chat-reaction" data-chat-reaction="'
-      + item.id + '" data-emoji="' + text(reaction.emoji) + '" aria-pressed="' + Boolean(reaction.mine)
-      + '" aria-label="' + text(reaction.emoji + ' ' + reaction.count) + '">' + icon(reactionIcons.get(reaction.emoji))
-      + '<small>' + text(reaction.count) + '</small></button>').join('');
-    const picker = '<span class="chat-reaction-picker" data-chat-picker="' + item.id + '" hidden>'
-      + Array.from(reactionIcons,([emoji,name]) => '<button type="button" data-chat-reaction="' + item.id + '" data-emoji="'
-        + emoji + '" aria-label="' + text(t('Добавить реакцию')) + ' ' + emoji + '">' + icon(name) + '</button>').join('') + '</span>';
     const body = item.unreadable ? t('Не удалось расшифровать сообщение') : item.body;
-    const quickLike = (item.reactions || []).some(reaction => reaction.emoji === '👍' && reaction.mine);
     const portrait = person && !item.own ? '<div class="chat-message-avatar">'
       + (sameGroup(next) ? '' : friendAvatar(person)) + '</div>' : '';
     return (newDay ? '<div class="chat-date"><span>' + day + '</span></div>' : '')
       + '<div class="chat-line' + (item.own ? ' own' : '') + (sameGroup(previous) ? ' continuation' : '')
-      + '">' + portrait + '<div class="chat-message"><div class="chat-bubble" data-chat-bubble="' + item.id + '"><span>' + text(body)
+      + '">' + portrait + '<div class="chat-message"><div class="chat-bubble"><span>' + text(body)
       + (item.legacy ? '<small class="chat-legacy">' + text(t('Без сквозного шифрования')) + '</small>' : '') + '</span>'
-      + (sameGroup(next) ? '' : '<time>' + chatTime(item.sent_at) + '</time>') + '</div><div class="chat-reaction-row'
-      + (reactions ? ' has-reactions' : '') + '">'
-      + reactions + picker + '</div></div><div class="chat-reaction-tools">'
-      + '<button type="button" class="chat-reaction-toggle" data-chat-reaction="' + item.id + '" data-emoji="👍" aria-pressed="'
-      + quickLike + '" aria-label="👍" title="👍">' + icon('like') + '</button>'
-      + '<button type="button" class="chat-reaction-toggle" data-chat-picker-toggle="' + item.id
-      + '" aria-expanded="false" aria-label="' + text(t('Добавить реакцию')) + '" title="' + text(t('Добавить реакцию'))
-      + '">' + icon('smile') + '</button></div></div>';
+      + (sameGroup(next) ? '' : '<time>' + chatTime(item.sent_at) + '</time>') + '</div></div></div>';
   }).join('');
   return (chat.older ? actionButton('chat-older',t('Ранние сообщения'),'','',chat.busy) : '') + '<div class="chat-log">' + rows + '</div>';
 }
@@ -538,7 +505,7 @@ function renderChatThread() {
     + (person ? '<button id="chat-bottom" class="button" type="button" data-action="chat-bottom" aria-label="'
       + text(t('К новым сообщениям')) + '" hidden>' + icon('chevron-down') + '</button>' : '')
     + '<p id="chat-status" class="chat-status" role="status"'
-    + (!chat.status || chat.status === t('Сообщение отправлено') ? ' hidden' : '') + '>' + text(chat.status ?? '') + '</p>' + controls;
+    + (!chat.items.length || !chat.status || chat.status === t('Сообщение отправлено') ? ' hidden' : '') + '>' + text(chat.status ?? '') + '</p>' + controls;
 }
 function renderChatContacts(contacts, query) {
   return contacts.filter(item => item.username.toLowerCase().includes(query)).sort((a,b) =>
@@ -589,14 +556,13 @@ function patchChat(previous, friendsChanged) {
     if (portrait.innerHTML !== markup) portrait.innerHTML = markup;
   }
   const box = $('chat-messages');
-  if (JSON.stringify(previous.items) !== JSON.stringify(chat.items) || previous.busy !== chat.busy || friendsChanged) {
+  if (JSON.stringify(previous.items) !== JSON.stringify(chat.items) || previous.busy !== chat.busy || friendsChanged
+      || previous.loaded !== chat.loaded || previous.status !== chat.status) {
     const top = box.scrollTop, height = box.scrollHeight;
     const atEnd = height - top - box.clientHeight < 40;
     const older = previous.items[0] && chat.items[0] && chat.items[0].id < previous.items[0].id;
-    const open = box.querySelector('.chat-reaction-picker:not([hidden])')?.dataset.chatPicker;
     box.innerHTML = renderChatMessages();
     box.scrollTop = older ? top + box.scrollHeight - height : atEnd || previous.sent !== chat.sent ? box.scrollHeight : top;
-    if (open) openReactionPicker(box.querySelector('[data-chat-picker="' + open + '"]')?.closest('.chat-line'),true);
   }
   const input = thread.querySelector('input[name="body"]'), send = thread.querySelector('button[type="submit"]');
   if (send) send.disabled = chat.busy;
@@ -605,7 +571,7 @@ function patchChat(previous, friendsChanged) {
   const verification = $('chat-verify');
   if (verification) verification.hidden = !chat.verification;
   status.textContent = chat.status ?? '';
-  status.hidden = !chat.status || chat.status === t('Сообщение отправлено');
+  status.hidden = !chat.items.length || !chat.status || chat.status === t('Сообщение отправлено');
   syncChatBottom();
 }
 const cosmetics = [
@@ -1145,34 +1111,9 @@ document.addEventListener('click', event => {
   if (!event.composedPath().includes($('account'))) accountOpen(false);
   if (openChoice && event.target.closest('[data-choice-toggle]') !== openChoice
       && !event.target.closest('#choice-popup')) showChoices(openChoice,false);
-  for (const picker of document.querySelectorAll('.chat-reaction-picker:not([hidden])')) {
-    const line = picker.closest('.chat-line');
-    if (event.target.closest('.chat-line') === line) continue;
-    picker.hidden = true;
-    line.querySelector('[data-chat-picker-toggle]').setAttribute('aria-expanded','false');
-  }
-  const bubble = event.target.closest('[data-chat-bubble]');
-  if (bubble) {
-    const id = Number(bubble.dataset.chatBubble), now = Date.now();
-    if (lastChatBubbleClick?.id === id && now - lastChatBubbleClick.at < 300) {
-      reactToMessage(id,'👍');
-      lastChatBubbleClick = null;
-    } else lastChatBubbleClick = {id,at:now};
-  }
   if (!button) return;
   const data = button.dataset;
-  if (data.chatPickerToggle !== undefined) {
-    openReactionPicker(button.closest('.chat-line'),button.getAttribute('aria-expanded') !== 'true');
-  } else if (data.chatReaction !== undefined) {
-    const messageId = Number(data.chatReaction), reaction = data.emoji;
-    if (Number.isSafeInteger(messageId) && messageId > 0 && reactionIcons.has(reaction)) {
-      reactToMessage(messageId,reaction);
-      const row = button.closest('.chat-line');
-      const picker = row?.querySelector('.chat-reaction-picker');
-      if (picker) picker.hidden = true;
-      row?.querySelector('[data-chat-picker-toggle]')?.setAttribute('aria-expanded','false');
-    }
-  } else if (data.choiceToggle !== undefined) {
+  if (data.choiceToggle !== undefined) {
     showChoices(button,button.getAttribute('aria-expanded') !== 'true');
   } else if (data.choiceOption !== undefined && openChoice) {
     const trigger = openChoice;

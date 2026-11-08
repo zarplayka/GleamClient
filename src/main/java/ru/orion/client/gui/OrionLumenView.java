@@ -151,13 +151,6 @@ final class OrionLumenView {
         LumenNative.pageCall(page, engine, bytes("editShortcut"), bytes(shortcut.toString()));
     }
 
-    void messageContext(float x, float y) {
-        var point = new JsonObject();
-        point.addProperty("x", x);
-        point.addProperty("y", y);
-        LumenNative.pageCall(page, engine, bytes("messageContext"), bytes(point.toString()));
-    }
-
     void opening(float progress) {
         LumenNative.pageCall(page, engine, OPENING, bytes(Float.toString(progress)));
     }

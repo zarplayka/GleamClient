@@ -259,7 +259,7 @@ public final class OrionClickGuiScreen extends Screen {
     private int friendsRequest;
     private String chatPeer = "", chatStatus = "", chatVerification = "";
     private JsonArray chatMessages = new JsonArray();
-    private boolean chatBusy, chatLoading, chatLoaded, chatOlder, chatReactionPending;
+    private boolean chatBusy, chatLoading, chatLoaded, chatOlder;
     private int chatRequest, chatSent;
     private long nextChatPoll, nextChatFriends;
     private record CosmeticStage(float x, float y, float w, float h, float clipTop, float clipBottom,
@@ -706,7 +706,7 @@ public final class OrionClickGuiScreen extends Screen {
                 nextChatFriends = chatNow + 15_000_000_000L;
                 refreshFriends(null, null);
             }
-            if (chatPeer.isEmpty() && !friendsBusy) {
+            if (chatPeer.isEmpty()) {
                 for (var entry : friends) {
                     var friend = entry.getAsJsonObject();
                     if ("friend".equals(friend.get("status").getAsString())) {
@@ -721,6 +721,7 @@ public final class OrionClickGuiScreen extends Screen {
             var chat = new JsonObject();
             chat.addProperty("peer", chatPeer);
             chat.addProperty("busy", chatLoading);
+            chat.addProperty("loaded", chatLoaded);
             chat.addProperty("older", chatOlder);
             chat.addProperty("sent", chatSent);
             chat.addProperty("status", tr(chatStatus));
@@ -926,7 +927,6 @@ public final class OrionClickGuiScreen extends Screen {
         chatMessages = new JsonArray();
         chatStatus = chatVerification = "";
         chatBusy = chatLoading = chatLoaded = chatOlder = false;
-        chatReactionPending = false;
         nextChatPoll = 0;
         chatRequest++;
     }
@@ -1113,7 +1113,7 @@ public final class OrionClickGuiScreen extends Screen {
                 if (section.matches("ALL|FAVORITES|COMBAT|PLAYER|MOVEMENT|RENDER|WORLD|MISC|SETTINGS|WAYPOINTS|PRESETS|CONFIGS|COSMETICS|FRIENDS|CHAT")) {
                     siteSection = section;
                     if ("FRIENDS".equals(section)) refreshFriends(null, null);
-                    if ("CHAT".equals(section)) nextChatFriends = 0;
+                    if ("CHAT".equals(section)) nextChatFriends = nextChatPoll = 0;
                 }
             }
             case "window-position" -> {
@@ -1133,7 +1133,7 @@ public final class OrionClickGuiScreen extends Screen {
                         event.get("clipBottom").getAsFloat(), event.get("yaw").getAsFloat(),
                         Math.clamp(event.get("zoom").getAsFloat(), .65F, 1.35F), java.util.Set.copyOf(items));
             }
-            case "chat-select", "chat-older", "chat-send", "chat-react" -> {
+            case "chat-select", "chat-older", "chat-send", "chat-retry" -> {
                 if (!"CHAT".equals(siteSection) || syncFriendsAccount() || friendsSession.isEmpty()) return;
                 if ("chat-select".equals(action)) {
                     String peer = event.get("username").getAsString();
@@ -1143,27 +1143,13 @@ public final class OrionClickGuiScreen extends Screen {
                     }
                 } else if ("chat-older".equals(action) && chatOlder) {
                     updateChat(null, true);
+                } else if ("chat-retry".equals(action)) {
+                    if (chatPeer.isEmpty()) refreshFriends(null, null);
+                    else updateChat(null, false);
                 } else if ("chat-send".equals(action)) {
                     String message = event.get("body").getAsString().strip();
                     if (!message.isEmpty() && message.codePointCount(0, message.length()) <= 500
                             && message.indexOf(0) < 0 && isChatFriend(chatPeer)) updateChat(message, false);
-                } else if ("chat-react".equals(action)) {
-                    long messageId = event.get("messageId").getAsLong();
-                    String reaction = event.get("reaction").getAsString(), peer = chatPeer, session = friendsSession;
-                    if (chatReactionPending || messageId <= 0 || !isChatFriend(peer)) return;
-                    chatReactionPending = true;
-                    accounts.chatReaction(peer, messageId, reaction, event.get("selected").getAsBoolean()).whenComplete((response, failure) -> minecraft.execute(() -> {
-                        if (!session.equals(accounts.sessionCookieHeader()) || !peer.equals(chatPeer)) return;
-                        chatReactionPending = false;
-                        if (failure != null || !response.has("reactions")) {
-                            chatStatus = "Не удалось поставить реакцию";
-                            return;
-                        }
-                        var updated = chatMessages.deepCopy();
-                        for (var item : updated) if (item.getAsJsonObject().get("id").getAsLong() == messageId)
-                            item.getAsJsonObject().add("reactions", response.getAsJsonArray("reactions"));
-                        chatMessages = updated;
-                    }));
                 }
             }
             case "clipboard-copy" -> {
@@ -2081,8 +2067,6 @@ public final class OrionClickGuiScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (siteActive) {
             if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) siteMenu.press(event.x(),event.y());
-            else if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT && "CHAT".equals(siteSection))
-                siteMenu.messageContext(event.x(), event.y());
             return true;
         }
         int localX = toLocalX(event.x());

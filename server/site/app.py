@@ -668,6 +668,7 @@ async def chat_updates(request):
     if not user: return error('auth', 401)
     if not limit(request, 'chat-updates', 30, 60): return error('rate', 429)
     after = request.query.get('after')
+    preview = request.query.get('preview') == '1'
     if after is not None and not re.fullmatch(r'[0-9]{1,18}', after): return error('invalid')
     uid = user['id']
     with connect() as db:
@@ -678,13 +679,18 @@ async def chat_updates(request):
             rows = []
         else:
             cursor = int(after)
-            rows = db.execute('''SELECT m.id,u.username FROM friend_messages m
+            fields = 'm.id,u.username,m.body,m.envelope' if preview else 'm.id,u.username'
+            rows = db.execute(f'''SELECT {fields} FROM friend_messages m
                 JOIN friendships f ON f.low_id=m.low_id AND f.high_id=m.high_id AND f.accepted=1
                 JOIN users u ON u.id=m.sender_id AND u.banned_at IS NULL
                 WHERE m.id>? AND (m.low_id=? OR m.high_id=?) AND m.sender_id<>?
                 ORDER BY m.id LIMIT 100''', (cursor, uid, uid, uid)).fetchall()
             cursor = rows[-1]['id'] if len(rows) == 100 else max(cursor, latest)
-    return web.json_response({'cursor': cursor, 'items': [dict(row) for row in rows]},
+        items = [dict(row) for row in rows]
+        if preview:
+            for item in items:
+                del item['envelope' if item['envelope'] is None else 'body']
+    return web.json_response({'cursor': cursor, 'items': items},
                              headers={'Cache-Control': 'no-store'})
 
 async def friend_chat(request):
@@ -762,7 +768,7 @@ async def friend_chat(request):
         if reaction is not None and secure:
             selected = db.execute('SELECT id FROM friend_messages WHERE id=?', (message_id,)).fetchall()
         reaction_map = {}
-        if selected:
+        if selected and (reaction is not None or request.query.get('reactions') != '0'):
             ids = [row['id'] for row in selected]
             placeholders = ','.join('?' for _ in ids)
             reaction_rows = db.execute(f'''SELECT message_id,user_id,reaction FROM friend_message_reactions

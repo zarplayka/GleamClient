@@ -11,7 +11,7 @@ html[data-light] { --panel: #fafbfe; --line: #c4ccda; --text: #22283a; --muted: 
   display: flex; align-items: center; gap: 10px; margin: 4px; min-height: 60px;
   padding: 8px 11px; border: 1px solid var(--line); border-radius: 11px;
   background: var(--panel); color: var(--text); box-shadow: 0 4px 12px #080a1045;
-  opacity: 0; transform: translateX(18px);
+  opacity: 0; transform: translateY(18px);
 }
 .icon {
   display: flex; align-items: center; justify-content: center; flex: 0 0 32px;
@@ -35,8 +35,8 @@ html[data-light] { --panel: #fafbfe; --line: #c4ccda; --text: #22283a; --muted: 
   const toast = document.getElementById('toast');
   window.paradox = {
     update({title,detail,light,accent}) {
-      document.getElementById('sender').textContent = detail;
-      document.getElementById('caption').textContent = title;
+      document.getElementById('sender').textContent = title;
+      document.getElementById('caption').textContent = detail;
       const root = document.documentElement;
       root.toggleAttribute('data-light',light);
       if (/^#[0-9a-f]{6}$/i.test(accent)) root.style.setProperty('--accent',accent);
@@ -45,7 +45,7 @@ html[data-light] { --panel: #fafbfe; --line: #c4ccda; --text: #22283a; --muted: 
     opening(progress) {
       const ease = 1 - (1 - progress) ** 3;
       toast.style.setProperty('opacity',String(ease));
-      toast.style.setProperty('transform','translateX(' + (1 - ease) * 18 + 'px)');
+      toast.style.setProperty('transform','translateY(' + (1 - ease) * 18 + 'px)');
     }
   };
   </script>

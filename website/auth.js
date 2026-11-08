@@ -17,6 +17,7 @@
   const authCard = document.querySelector('.auth-card');
   const emailEdit = document.querySelector('#profile-email-edit');
   const plusStatus = document.querySelector('#profile-plus-status');
+  const plusRemaining = document.querySelector('#profile-plus-remaining');
   const sessionsList = document.querySelector('#profile-sessions');
   const sessionsStatus = document.querySelector('#profile-sessions-status');
   const revokeOthers = document.querySelector('#revoke-other-sessions');
@@ -130,6 +131,7 @@
   let csrf = null;
   let user = null;
   let plusActive = false;
+  let plusExpiresAt = null;
   let sessions = [];
   let sessionsBusy = false;
   let sessionsFeedback = '';
@@ -280,10 +282,7 @@
     document.querySelector('#profile-email-address').textContent = user?.email || t('Почта не указана');
     document.querySelector('#email-verification-state').textContent = t(user?.email ? user.email_verified ? 'Почта подтверждена' : 'Почта не подтверждена' : '');
     emailEdit.querySelector('summary').textContent = t(user?.email ? 'Изменить почту' : 'Добавить почту');
-    plusStatus.hidden = plusActive === null;
-    plusStatus.textContent = t(plusActive ? 'Активен' : 'Не активен');
-    plusStatus.classList.toggle('is-active', plusActive === true);
-    renderProfileTier();
+    renderPlusStatus();
     emailReminder.hidden = !user || Boolean(user.email_verified);
     emailReminderTitle.textContent = t(user?.email ? 'Подтвердите почту' : 'Добавьте почту к аккаунту');
     emailVerify.hidden = !user?.email || user.email_verified;
@@ -386,6 +385,7 @@
     }
     try { sessionStorage.setItem('orion.header-name', user?.username || ''); } catch { /* Storage is optional. */ }
     plusActive = data.plus_active ?? null;
+    plusExpiresAt = data.plus_expires_at ?? null;
     csrf = user ? data.csrf : null;
     adminTab.hidden = !['admin', 'owner'].includes(user?.role);
     friendItems = [];
@@ -437,6 +437,24 @@
       profileEmail.focus();
     }
     return detailsRequest;
+  }
+
+  function renderPlusStatus() {
+    const minutes = Math.ceil((plusExpiresAt * 1000 - Date.now()) / 60000);
+    if (plusExpiresAt !== null && minutes <= 0) plusActive = false;
+    plusStatus.hidden = plusActive === null;
+    plusStatus.textContent = t(plusActive ? 'Активен' : 'Не активен');
+    plusStatus.classList.toggle('is-active', plusActive === true);
+    plusRemaining.hidden = plusActive !== true;
+    if (plusActive === true) {
+      const unit = (value, unit) => new Intl.NumberFormat(document.documentElement.lang,
+        {style: 'unit', unit, unitDisplay: 'short'}).format(value);
+      plusRemaining.querySelector('strong').textContent = plusExpiresAt === null ? '∞'
+        : minutes >= 1440 ? `${unit(Math.floor(minutes / 1440), 'day')} ${unit(Math.floor(minutes % 1440 / 60), 'hour')}`
+        : minutes >= 60 ? `${unit(Math.floor(minutes / 60), 'hour')} ${unit(minutes % 60, 'minute')}`
+        : unit(minutes, 'minute');
+    }
+    renderProfileTier();
   }
 
   function renderProfileTier() {
@@ -1057,6 +1075,7 @@
       request('/api/me').then(session => {
         if (csrf !== data.csrf || session.csrf !== data.csrf) return;
         plusActive = session.plus_active ?? null;
+        plusExpiresAt = session.plus_expires_at ?? null;
         render();
       }).catch(() => {});
     } catch (error) {
@@ -1177,6 +1196,7 @@
     } finally { busy = false; render(); }
   });
   revokeOthers.addEventListener('click', () => revokeSession('others'));
+  setInterval(() => { if (user && publicId === null) renderPlusStatus(); }, 60000);
   document.addEventListener('orion:languagechange', () => {
     if (publicId !== null) {
       if (profileDetails) {

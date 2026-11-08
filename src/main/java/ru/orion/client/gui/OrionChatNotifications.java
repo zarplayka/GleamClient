@@ -53,7 +53,7 @@ public final class OrionChatNotifications {
         float scale = Math.clamp(window.getWidth() / 1920F, .75F, 2F) / window.getGuiScale();
         int width = Math.max(1, (int)Math.ceil(WIDTH * scale)), height = Math.max(1, (int)Math.ceil(HEIGHT * scale));
         int x = Math.max(0, window.getGuiScaledWidth() - width - 7);
-        int y = 7;
+        int y = Math.max(0, window.getGuiScaledHeight() - height - 7);
         VIEW.resize(WIDTH, HEIGHT, 1F);
         var state = new JsonObject();
         state.addProperty("title", title);

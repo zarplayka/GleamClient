@@ -420,6 +420,7 @@ const translations = {
   "Изменить почту": "Change email",
   "Добавить почту": "Add email",
   "Активен": "Active",
+  "Осталось": "Time left",
   "Не активен": "Inactive",
   "Значок Plus рядом с ником в меню аккаунтов.": "A Plus badge next to your name in the account menu.",
   "Посмотреть тарифы": "View plans",
@@ -613,6 +614,7 @@ const extraTranslations = {
   "Посмотреть тарифы": ["Tarife ansehen", "Ver planes"],
   "Перейти к скачиванию": ["Zum Download", "Ir a la descarga"],
   "Активен": ["Aktiv", "Activo"],
+  "Осталось": ["Verbleibend", "Tiempo restante"],
   "Не активен": ["Inaktiv", "Inactivo"]
 };
 

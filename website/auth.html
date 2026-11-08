@@ -8,9 +8,9 @@
   <title>Авторизация — GleamClient</title>
   <link rel="icon" type="image/png" href="assets/orion-badge.png">
   <link rel="stylesheet" href="style.css?v=moderation">
-  <script src="i18n.js?v=gleam-022" defer></script>
+  <script src="i18n.js?v=plus-duration" defer></script>
   <script src="app.js?v=community" defer></script>
-  <script src="auth.js?v=moderation" defer></script>
+  <script src="auth.js?v=plus-duration" defer></script>
 </head>
 <body class="auth-page">
   <a class="skip" href="#main">Перейти к содержимому</a>
@@ -120,6 +120,7 @@
         <div class="profile-view profile-grid" role="tabpanel" id="profile-view-overview" aria-labelledby="profile-tab-overview" tabindex="0">
           <section class="profile-panel profile-product" aria-labelledby="profile-plus-title">
             <div class="profile-panel-heading"><h2 id="profile-plus-title">GleamClient Plus</h2><span id="profile-plus-status"></span></div>
+            <p id="profile-plus-remaining" class="profile-note" hidden><span>Осталось</span> <strong></strong></p>
             <p class="profile-note">Значок Plus рядом с ником в меню аккаунтов.</p>
             <a class="hero-action hero-action-secondary" href="/#plus">Посмотреть тарифы <span aria-hidden="true">↗</span></a>
           </section>

@@ -145,6 +145,7 @@ Object.assign(actions,{
   'friends-login':accountForm,
   'friends-refresh'() { sendGame('friends-refresh'); },
   'chat-friends'() { selectPage('friends'); sendGame('section',{page:'friends'}); },
+  'chat-retry'() { sendGame('chat-retry'); },
   'chat-older'() { sendGame('chat-older'); },
   'chat-wave'() { if (chat.peer && !chat.busy) sendGame('chat-send',{body:'👋'}); },
   'friend-profile-back'() {
@@ -393,10 +394,6 @@ function syncModuleSettings(module) {
 }
 window.paradox = {
   editShortcut:applyEditShortcut,
-  messageContext({x,y}) {
-    const message = document.elementFromPoint(x,y)?.closest('.chat-line');
-    if (message) openReactionPicker(message,true);
-  },
   opening(progress) {
     if (reducedMotion.matches) return;
     const eased = 1 - (1 - progress) ** 3, menu = $('window');
