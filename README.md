@@ -1,7 +1,7 @@
 <div align="center">
   <img src="src/main/resources/assets/orion-client/textures/cosmetics/orion_badge.png" width="112" alt="Orion Client">
 
-  # Orion Client
+  # Gleam Client
 
   **Your Minecraft. Your interface. Your style.**
 
