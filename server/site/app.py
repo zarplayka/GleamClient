@@ -1,0 +1,1045 @@
+"""Orion website: isolated web accounts and payment-intent prototype."""
+import asyncio, hashlib, hmac, os, re, secrets, sqlite3, time
+import logging
+import json
+import base64
+import binascii
+import smtplib
+import ssl
+from html import escape
+from collections import defaultdict, deque
+from contextlib import contextmanager
+from pathlib import Path
+from urllib.parse import urlencode
+from aiohttp import ClientError, web
+from account_mail import account_mail
+from local_pricing import pricing_for_ip
+from profile_oauth import PROVIDERS, authorization_url, configuration, verified_identity
+
+BASE = Path(__file__).resolve().parent
+DB_PATH = os.environ.get('ORION_SITE_DB', str(BASE / 'site.db'))
+ORIGIN = os.environ.get('ORION_SITE_ORIGIN', 'http://127.0.0.1:8088').rstrip('/')
+TRUSTED_ORIGINS = frozenset({ORIGIN} | {
+    value.strip().rstrip('/')
+    for value in os.environ.get('ORION_SITE_ADDITIONAL_ORIGINS', '').split(',')
+    if value.strip()
+})
+SECURE = ORIGIN.startswith('https://')
+COOKIE = '__Host-orion_session' if SECURE else 'orion_session'
+TTL = 7 * 24 * 3600
+buckets = defaultdict(deque)
+MAIL_FROM = os.environ.get('ORION_SITE_MAIL_FROM', '')
+MAIL_PASSWORD_FILE = os.environ.get('ORION_SITE_MAIL_PASSWORD_FILE', '')
+MAIL_ORIGIN = os.environ.get('ORION_SITE_MAIL_ORIGIN', '').rstrip('/')
+MAIL_QUEUE = web.AppKey('mail_queue', asyncio.Queue)
+MAIL_TOKEN = re.compile(r'[A-Za-z0-9_-]{43}')
+logger = logging.getLogger(__name__)
+
+@contextmanager
+def connect():
+    db = sqlite3.connect(DB_PATH, timeout=10)
+    db.row_factory = sqlite3.Row
+    db.execute('PRAGMA foreign_keys=ON')
+    try:
+        with db: yield db
+    finally: db.close()
+
+def init_db():
+    with connect() as db:
+        db.executescript('''PRAGMA journal_mode=WAL;
+        CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, created_at INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, csrf TEXT NOT NULL, expires_at INTEGER NOT NULL);
+        CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires_at);
+        CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), amount_kopecks INTEGER NOT NULL CHECK(amount_kopecks=6700), currency TEXT NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL);
+        CREATE INDEX IF NOT EXISTS orders_user ON orders(user_id, created_at DESC);
+        CREATE TABLE IF NOT EXISTS plus_access (user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS plus_grants (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, granted_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, source TEXT NOT NULL);''')
+        db.execute('BEGIN IMMEDIATE')
+        columns = {column['name'] for column in db.execute('PRAGMA table_info(users)')}
+        if 'email' not in columns:
+            db.execute('ALTER TABLE users ADD COLUMN email TEXT COLLATE NOCASE')
+        if 'email_verified_at' not in columns:
+            db.execute('ALTER TABLE users ADD COLUMN email_verified_at INTEGER')
+        if 'role' not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('member','admin','owner'))")
+        if 'banned_at' not in columns:
+            db.execute('ALTER TABLE users ADD COLUMN banned_at INTEGER')
+        db.execute('CREATE TABLE IF NOT EXISTS user_id_sequence (id INTEGER PRIMARY KEY CHECK(id=1), last_id INTEGER NOT NULL)')
+        db.execute('INSERT OR IGNORE INTO user_id_sequence SELECT 1, COALESCE(MAX(id),0) FROM users')
+        db.execute('CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users(email) WHERE email IS NOT NULL')
+        session_columns = {column['name'] for column in db.execute('PRAGMA table_info(sessions)')}
+        if 'device' not in session_columns:
+            db.execute('ALTER TABLE sessions ADD COLUMN device TEXT')
+        db.execute('''CREATE TABLE IF NOT EXISTS profiles (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            public_id TEXT NOT NULL UNIQUE, published INTEGER NOT NULL DEFAULT 0,
+            discord TEXT NOT NULL DEFAULT '', github TEXT NOT NULL DEFAULT '', avatar BLOB
+        )''')
+        db.execute('''CREATE TABLE IF NOT EXISTS profile_votes (
+            profile_id INTEGER NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
+            voter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            value INTEGER NOT NULL CHECK(value IN (-1, 1)),
+            PRIMARY KEY (profile_id, voter_id)
+        )''')
+        db.execute('''CREATE TABLE IF NOT EXISTS profile_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id INTEGER NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
+            author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            body TEXT NOT NULL CHECK(length(body) BETWEEN 1 AND 500),
+            created_at INTEGER NOT NULL
+        )''')
+        db.execute('CREATE INDEX IF NOT EXISTS profile_comments_recent ON profile_comments(profile_id, id DESC)')
+        db.execute('''CREATE TABLE IF NOT EXISTS friendships (
+            low_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            high_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            sender_id INTEGER NOT NULL CHECK(sender_id IN (low_id, high_id)),
+            accepted INTEGER NOT NULL DEFAULT 0 CHECK(accepted IN (0,1)),
+            PRIMARY KEY (low_id, high_id), CHECK(low_id < high_id)
+        )''')
+        db.execute('CREATE INDEX IF NOT EXISTS friendships_high ON friendships(high_id)')
+        db.execute('''CREATE TABLE IF NOT EXISTS friend_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            low_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            high_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            sender_id INTEGER NOT NULL CHECK(sender_id IN (low_id, high_id)),
+            body TEXT NOT NULL CHECK(length(body) BETWEEN 1 AND 500),
+            sent_at INTEGER NOT NULL,
+            CHECK(low_id < high_id)
+        )''')
+        db.execute('CREATE INDEX IF NOT EXISTS friend_messages_pair ON friend_messages(low_id,high_id,id DESC)')
+        profile_columns = {column['name'] for column in db.execute('PRAGMA table_info(profiles)')}
+        for provider in PROVIDERS:
+            column = provider + '_id'
+            if column not in profile_columns:
+                db.execute(f'ALTER TABLE profiles ADD COLUMN {column} TEXT')
+            db.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS profiles_{column}_unique ON profiles({column})')
+        db.execute('''CREATE TABLE IF NOT EXISTS profile_oauth (
+            session_hash TEXT NOT NULL REFERENCES sessions(token_hash) ON DELETE CASCADE,
+            provider TEXT NOT NULL, state_hash TEXT NOT NULL, verifier TEXT NOT NULL,
+            expires_at INTEGER NOT NULL, claimed INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (session_hash, provider)
+        )''')
+        db.execute('''CREATE TABLE IF NOT EXISTS email_tokens (
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            purpose TEXT NOT NULL CHECK (purpose IN ('verify', 'reset')),
+            token_hash TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL,
+            expires_at INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (user_id, purpose)
+        )''')
+
+def hash_password(password, salt=None):
+    salt = salt or secrets.token_bytes(16)
+    value = hashlib.scrypt(password.encode('utf-8'), salt=salt, n=16384, r=8, p=1, dklen=32)
+    return 'scrypt$16384$8$1$' + salt.hex() + '$' + value.hex()
+
+def verify(password, encoded):
+    try:
+        algorithm, n, r, p, salt, expected = encoded.split('$')
+        if (algorithm, n, r, p) != ('scrypt', '16384', '8', '1'): return False
+        return hmac.compare_digest(hash_password(password, bytes.fromhex(salt)), encoded)
+    except (ValueError, TypeError): return False
+
+DUMMY_HASH = hash_password('not-a-real-user-password')
+def digest(token): return hashlib.sha256(token.encode()).hexdigest()
+def error(code, status=400): return web.json_response({'error':code}, status=status, headers={'Cache-Control':'no-store'})
+def limit(request, kind, max_count, seconds):
+    now=time.monotonic(); ip=request.headers.get('X-Real-IP', request.remote or 'unknown'); key=(kind,ip)
+    q=buckets[key]
+    while q and q[0] <= now-seconds: q.popleft()
+    if len(q)>=max_count: return False
+    q.append(now)
+    if len(buckets)>10000:
+        for k in list(buckets):
+            if not buckets[k] or buckets[k][-1] < now-3600: del buckets[k]
+    return True
+
+@web.middleware
+async def security(request, handler):
+    if request.method in ('POST','PUT','DELETE','PATCH'):
+        if request.headers.get('Origin','').rstrip('/') not in TRUSTED_ORIGINS or request.headers.get('X-Orion-Request') != '1':
+            return error('origin',403)
+    try: response=await handler(request)
+    except web.HTTPException as exc: response=exc
+    response.headers['X-Content-Type-Options']='nosniff'
+    response.headers['Referrer-Policy']='same-origin'
+    response.headers['X-Frame-Options']='DENY'
+    response.headers['Content-Security-Policy']="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+    if request.path.startswith('/api/'): response.headers['Cache-Control']='no-store'
+    return response
+
+def session(request):
+    token=request.cookies.get(COOKIE,'')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{40,100}',token): return None
+    with connect() as db:
+        return db.execute('SELECT u.id,u.username,u.email,u.email_verified_at,u.role,s.csrf FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.banned_at IS NULL',(digest(token),int(time.time()))).fetchone()
+
+def auth_csrf(request):
+    user=session(request)
+    if not user: return None
+    if not hmac.compare_digest(user['csrf'], request.headers.get('X-CSRF-Token','')): return None
+    return user
+
+def session_device(request):
+    agent = request.headers.get('User-Agent', '').lower()
+    for marker, name in (
+        ('java-http-client/', 'Orion Client'), ('yabrowser/', 'Яндекс Браузер'),
+        ('edg', 'Microsoft Edge'), ('opr/', 'Opera'), ('firefox/', 'Firefox'),
+        ('chrome/', 'Chrome'), ('safari/', 'Safari'),
+    ):
+        if marker in agent:
+            return name
+    return None
+
+def create_session(user_id, password_hash, request):
+    token=secrets.token_urlsafe(32); csrf=secrets.token_urlsafe(32); now=int(time.time())
+    with connect() as db:
+        db.execute('DELETE FROM sessions WHERE expires_at<=?',(now,))
+        inserted = db.execute('''INSERT INTO sessions (token_hash, user_id, csrf, expires_at, device)
+            SELECT ?, id, ?, ?, ? FROM users WHERE id=? AND password_hash=? AND banned_at IS NULL''',
+            (digest(token), csrf, now+TTL, session_device(request), user_id, password_hash))
+        if inserted.rowcount != 1: return None
+    return token,csrf
+
+def set_cookie(response, token):
+    response.set_cookie(COOKIE, token, max_age=TTL, httponly=True, secure=SECURE, samesite='Strict', path='/')
+
+async def json_body(request):
+    if request.content_type!='application/json': raise web.HTTPUnsupportedMediaType()
+    try:
+        data=await request.json()
+        if not isinstance(data,dict): raise ValueError()
+        return data
+    except (ValueError,TypeError): raise web.HTTPBadRequest()
+
+def validate(data):
+    name=data.get('username',''); password=data.get('password','')
+    if not valid_username(name): return None,'username'
+    if not valid_password(password): return None,'password'
+    return (name,password),None
+
+def valid_username(name):
+    return isinstance(name, str) and re.fullmatch(r'[A-Za-z0-9_]{3,24}', name) is not None
+
+def valid_password(password):
+    try:
+        return isinstance(password, str) and 12 <= len(password) <= 128 and len(password.encode('utf8')) <= 256
+    except UnicodeEncodeError:
+        return False
+
+def public_user(user):
+    return {'username': user['username'], 'email': user['email'],
+            'email_verified': user['email_verified_at'] is not None}
+
+def normalize_email(value):
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    local, separator, domain = value.rpartition('@')
+    if not separator or len(value) > 254 or not 1 <= len(local) <= 64:
+        return None
+    atom = r"[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+"
+    label = r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?'
+    if not re.fullmatch(rf'{atom}(?:\.{atom})*', local):
+        return None
+    if not re.fullmatch(rf'{label}(?:\.{label})+', domain):
+        return None
+    return local + '@' + domain.lower()
+
+async def registration_availability(request):
+    if not limit(request, 'registration_availability', 30, 60): return error('rate', 429)
+    data = await json_body(request)
+    if data.keys() == {'username'}:
+        name = data['username']
+        if not valid_username(name): return error('username')
+        query, value = 'SELECT 1 FROM users WHERE username_key=?', name.lower()
+    elif data.keys() == {'email'}:
+        email = normalize_email(data['email'])
+        if email is None: return error('email')
+        query, value = 'SELECT 1 FROM users WHERE email=?', email
+    else:
+        return error('invalid')
+    with connect() as db:
+        available = db.execute(query, (value,)).fetchone() is None
+    return web.json_response({'available': available})
+
+async def register(request):
+    if not limit(request,'register',5,3600): return error('rate',429)
+    data=await json_body(request); values,problem=validate(data)
+    if problem: return error(problem)
+    email = normalize_email(data['email']) if 'email' in data else None
+    if 'email' in data and email is None: return error('email')
+    name,password=values; hashed=await asyncio.to_thread(hash_password,password)
+    try:
+        with connect() as db:
+            uid = db.execute('UPDATE user_id_sequence SET last_id=MAX(last_id,(SELECT COALESCE(MAX(id),0) FROM users))+1 RETURNING last_id').fetchone()[0]
+            db.execute('INSERT INTO users(id,username,username_key,password_hash,created_at,email) VALUES(?,?,?,?,?,?)',
+                       (uid, name, name.lower(), hashed, int(time.time()), email))
+    except sqlite3.IntegrityError as exc:
+        if str(exc) == 'UNIQUE constraint failed: users.email': return error('email_taken',409)
+        if str(exc) == 'UNIQUE constraint failed: users.username_key': return error('taken',409)
+        raise
+    if email: queue_mail(request, 'verify', email, uid)
+    token,csrf=create_session(uid,hashed,request); response=web.json_response({'user':{'username':name,'email':email,'email_verified':False},'csrf':csrf},status=201);set_cookie(response,token);return response
+
+async def login(request):
+    if not limit(request,'login',12,900): return error('rate',429)
+    data=await json_body(request); name=data.get('username',''); password=data.get('password','')
+    if not isinstance(name,str) or not isinstance(password,str) or len(name)>24 or len(password)>128: return error('credentials',401)
+    with connect() as db: user=db.execute('SELECT id,username,password_hash,email,email_verified_at,banned_at FROM users WHERE username_key=?',(name.lower(),)).fetchone()
+    try: valid=await asyncio.to_thread(verify,password,user['password_hash'] if user else DUMMY_HASH)
+    except (ValueError,UnicodeEncodeError): valid=False
+    if not user or not valid: return error('credentials',401)
+    if user['banned_at'] is not None: return error('banned',403)
+    old=request.cookies.get(COOKIE,'')
+    if old:
+        with connect() as db: db.execute('DELETE FROM sessions WHERE token_hash=?',(digest(old),))
+    created = create_session(user['id'], user['password_hash'], request)
+    if not created: return error('credentials',401)
+    token,csrf=created;response=web.json_response({'user':public_user(user),'csrf':csrf});set_cookie(response,token);return response
+
+def session_payload(request):
+    user=session(request)
+    if not user: return {'user':None}
+    with connect() as db:
+        orders=[dict(r) for r in db.execute('SELECT id,amount_kopecks,currency,status,created_at FROM orders WHERE user_id=? ORDER BY created_at DESC LIMIT 10',(user['id'],)).fetchall()]
+        plus_active, plus_expires_at = plus_status(db, user)
+        avatar = db.execute('SELECT public_id, avatar FROM profiles WHERE user_id=? AND avatar IS NOT NULL',
+                            (user['id'],)).fetchone()
+    avatar_url = None
+    if avatar:
+        version = hashlib.sha256(avatar['avatar']).hexdigest()[:16]
+        avatar_url = f"/api/profile/{avatar['public_id']}/avatar?v={version}"
+    return {'user':public_user(user) | {'role': user['role']},'csrf':user['csrf'],'orders':orders,'plus_active':plus_active,'plus_expires_at':plus_expires_at,'avatar_url':avatar_url}
+
+async def me(request):
+    return web.json_response(session_payload(request))
+
+async def profile_page(request):
+    payload = session_payload(request)
+    public_id = request.query.get('profile')
+    if public_id is not None:
+        row = visible_profile(request, public_id)
+        public = profile_payload(row) if row else None
+        payload = {'public_profile': public}
+    else:
+        public = None
+    template = await asyncio.to_thread(Path('/var/www/orion-client/auth.html').read_text, encoding='utf-8')
+    html = re.sub(r'(src|href)="(assets/|(?:style\.css|app\.js|auth\.js|i18n\.js)(?=[?"\s]))', r'\1="/\2', template)
+    identity = public if public_id is not None else payload['user']
+    if identity:
+        html = html.replace('<body class="auth-page">', '<body class="auth-page profile-page">', 1)
+        html = html.replace('<section class="auth-card"', '<section class="auth-card" hidden', 1)
+        section_id, name_id, avatar_id = ('public-profile', 'public-profile-name', 'public-avatar') if public else (
+            'auth-profile', 'profile-name', 'profile-avatar-image')
+        section = f'id="{section_id}" aria-labelledby="{name_id}"'
+        html = html.replace(section + ' hidden', section, 1)
+        name = escape(identity['username'])
+        html = html.replace(f'<h1 id="{name_id}"></h1>', f'<h1 id="{name_id}">{name}</h1>', 1)
+        avatar_url = (public or payload).get('avatar_url')
+        if avatar_url:
+            avatar = escape(avatar_url, quote=True)
+            html = html.replace(f'id="{avatar_id}" src="/assets/orion-badge.png"',
+                                f'id="{avatar_id}" class="custom-avatar" src="{avatar}"', 1)
+    state = json.dumps(payload, ensure_ascii=True).replace('<', '\\u003c')
+    html = html.replace('</body>', f'<script type="application/json" id="orion-session">{state}</script>\n</body>', 1)
+    return web.Response(text=html, content_type='text/html', headers={'Cache-Control': 'no-store'})
+
+async def pricing(request):
+    return web.json_response(await pricing_for_ip(request.headers.get('X-Real-IP', request.remote or '')))
+
+def profile_payload(row, private=False):
+    payload = {'id': row['public_id'], 'username': row['username'], 'created_at': row['created_at'], 'role': row['role'],
+               'has_avatar': bool(row['avatar']), 'published': bool(row['published']), 'banned_at': row['banned_at']}
+    if row['avatar']:
+        version = hashlib.sha256(row['avatar']).hexdigest()[:16]
+        payload['avatar_url'] = f"/api/profile/{row['public_id']}/avatar?v={version}"
+    for provider in PROVIDERS:
+        payload[provider] = row[provider] if private or row[provider + '_id'] else ''
+    if private:
+        payload['connections'] = {
+            provider: {'verified': bool(row[provider + '_id']), 'enabled': configuration(provider, TRUSTED_ORIGINS) is not None}
+            for provider in PROVIDERS
+        }
+    return payload
+
+async def own_profile(request):
+    user = session(request)
+    if not user: return error('auth', 401)
+    with connect() as db:
+        row = db.execute('SELECT p.*,u.username,u.created_at,u.role,u.banned_at FROM profiles p JOIN users u ON u.id=p.user_id WHERE u.id=?',
+                         (user['id'],)).fetchone()
+        if not row:
+            db.execute('INSERT INTO profiles (user_id, public_id) VALUES (?,?) ON CONFLICT(user_id) DO NOTHING',
+                       (user['id'], secrets.token_hex(8)))
+            row = db.execute('SELECT p.*,u.username,u.created_at,u.role,u.banned_at FROM profiles p JOIN users u ON u.id=p.user_id WHERE u.id=?',
+                             (user['id'],)).fetchone()
+    return web.json_response(profile_payload(row, private=True))
+
+async def save_profile(request):
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'profile', 20, 300): return error('rate', 429)
+    data = await json_body(request)
+    published = data.get('published')
+    if type(published) is not bool: return error('invalid')
+    with connect() as db:
+        db.execute('''INSERT INTO profiles (user_id,public_id,published) VALUES (?,?,?)
+            ON CONFLICT(user_id) DO UPDATE SET published=excluded.published''',
+            (user['id'], secrets.token_hex(8), published))
+    return await own_profile(request)
+
+def oauth_provider(request):
+    provider = request.match_info['provider']
+    if provider not in PROVIDERS:
+        raise web.HTTPNotFound()
+    return provider
+
+async def oauth_start(request):
+    provider = oauth_provider(request)
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'profile_oauth_start', 12, 300): return error('rate', 429)
+    config = configuration(provider, TRUSTED_ORIGINS)
+    if not config: return error('oauth_disabled', 503)
+    state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+    now = int(time.time())
+    with connect() as db:
+        db.execute('DELETE FROM profile_oauth WHERE expires_at<=?', (now,))
+        db.execute('INSERT OR REPLACE INTO profile_oauth VALUES (?,?,?,?,?,0)',
+                   (digest(request.cookies[COOKIE]), provider, digest(state), verifier, now + 600))
+    return web.json_response({'url': authorization_url(provider, config, state, verifier)})
+
+async def oauth_callback(request):
+    provider = oauth_provider(request)
+    state, code = request.query.get('state', ''), request.query.get('code', '')
+    values = {'social': provider}
+    if re.fullmatch(r'[A-Za-z0-9_-]{43}', state) and 1 <= len(code) <= 512:
+        values.update(state=state, code=code)
+    raise web.HTTPSeeOther('/auth.html#' + urlencode(values))
+
+async def oauth_finish(request):
+    provider = oauth_provider(request)
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'profile_oauth_finish', 15, 300): return error('rate', 429)
+    config = configuration(provider, TRUSTED_ORIGINS)
+    if not config: return error('oauth_disabled', 503)
+    data = await json_body(request)
+    state, code = data.get('state'), data.get('code')
+    if not isinstance(state, str) or not re.fullmatch(r'[A-Za-z0-9_-]{43}', state):
+        return error('oauth_state', 409)
+    if not isinstance(code, str) or not 1 <= len(code) <= 512:
+        return error('oauth_state', 409)
+    current, state_hash = digest(request.cookies[COOKIE]), digest(state)
+    with connect() as db:
+        row = db.execute('''UPDATE profile_oauth SET claimed=1
+            WHERE session_hash=? AND provider=? AND state_hash=? AND expires_at>? AND claimed=0
+            RETURNING verifier''', (current, provider, state_hash, int(time.time()))).fetchone()
+    if not row: return error('oauth_state', 409)
+    try:
+        identity = await verified_identity(provider, config, code, row['verifier'])
+    except (ClientError, asyncio.TimeoutError, OSError, ValueError):
+        return error('oauth_unavailable', 503)
+    if not identity: return error('oauth_state', 409)
+    provider_id, name = identity
+    try:
+        with connect() as db:
+            now = int(time.time())
+            deleted = db.execute('''DELETE FROM profile_oauth
+                WHERE session_hash=? AND provider=? AND state_hash=? AND expires_at>?
+                AND EXISTS (SELECT 1 FROM sessions WHERE token_hash=? AND expires_at>?)''',
+                (current, provider, state_hash, now, current, now))
+            if not deleted.rowcount: return error('oauth_state', 409)
+            db.execute(f'''INSERT INTO profiles (user_id,public_id,{provider},{provider}_id) VALUES (?,?,?,?)
+                ON CONFLICT(user_id) DO UPDATE SET {provider}=excluded.{provider}, {provider}_id=excluded.{provider}_id''',
+                (user['id'], secrets.token_hex(8), name, provider_id))
+    except sqlite3.IntegrityError:
+        return error('oauth_taken', 409)
+    return await own_profile(request)
+
+async def oauth_unlink(request):
+    provider = oauth_provider(request)
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    with connect() as db:
+        db.execute('''DELETE FROM profile_oauth WHERE provider=? AND session_hash IN
+            (SELECT token_hash FROM sessions WHERE user_id=?)''', (provider, user['id']))
+        db.execute(f"UPDATE profiles SET {provider}='', {provider}_id=NULL WHERE user_id=?", (user['id'],))
+    return await own_profile(request)
+
+async def save_avatar(request):
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'avatar', 12, 300): return error('rate', 429)
+    data = await json_body(request)
+    encoded = data.get('avatar')
+    avatar = None
+    if encoded is not None:
+        if not isinstance(encoded, str) or len(encoded) > 3600: return error('avatar')
+        try:
+            avatar = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error):
+            return error('avatar')
+        if not valid_avatar(avatar):
+            return error('avatar')
+    with connect() as db:
+        db.execute('''INSERT INTO profiles (user_id,public_id,avatar) VALUES (?,?,?)
+            ON CONFLICT(user_id) DO UPDATE SET avatar=excluded.avatar''',
+            (user['id'], secrets.token_hex(8), avatar))
+    return await own_profile(request)
+
+def valid_avatar(avatar):
+    if not avatar.startswith(b'\xff\xd8') or not avatar.endswith(b'\xff\xd9'):
+        return False
+    offset = 2
+    while offset + 9 < len(avatar):
+        if avatar[offset] != 255:
+            return False
+        marker = avatar[offset + 1]
+        length = int.from_bytes(avatar[offset + 2:offset + 4], 'big')
+        if length < 2 or offset + 2 + length > len(avatar):
+            return False
+        if marker in (192, 194):
+            return length >= 8 and avatar[offset + 5:offset + 9] == b'\x00\x40\x00\x40'
+        if marker == 218:
+            return False
+        offset += 2 + length
+    return False
+
+def visible_profile(request, public_id=None):
+    if public_id is None:
+        public_id = request.match_info['profile_id']
+    if not re.fullmatch(r'[a-f0-9]{16}', public_id): return None
+    user = session(request)
+    with connect() as db:
+        return db.execute('''SELECT p.*,u.username,u.created_at,u.role,u.banned_at FROM profiles p JOIN users u ON u.id=p.user_id
+            WHERE p.public_id=? AND (p.published=1 OR p.user_id=?)''',
+            (public_id, user['id'] if user else None)).fetchone()
+
+async def public_profile(request):
+    row = visible_profile(request)
+    if not row: return error('profile_missing', 404)
+    return web.json_response(profile_payload(row))
+
+async def profile_avatar(request):
+    row = visible_profile(request)
+    if not row or not row['avatar']: raise web.HTTPNotFound()
+    return web.Response(body=row['avatar'], content_type='image/jpeg')
+
+def published_profile(db, request):
+    identifier = request.match_info['profile_id']
+    if not re.fullmatch(r'[a-f0-9]{16}', identifier):
+        raise web.HTTPNotFound()
+    row = db.execute('SELECT user_id FROM profiles WHERE public_id=? AND published=1', (identifier,)).fetchone()
+    if not row:
+        raise web.HTTPNotFound()
+    return row['user_id']
+
+def plus_status(db, user):
+    if user['role'] in ('owner', 'admin'):
+        return True, None
+    entitlement = db.execute('SELECT expires_at FROM plus_access WHERE user_id=?', (user['id'],)).fetchone()
+    expires_at = entitlement['expires_at'] if entitlement else None
+    return expires_at is not None and expires_at > int(time.time()), expires_at
+
+async def catalog_access(request):
+    user = session(request)
+    if not user:
+        return error('auth', 401)
+    with connect() as db:
+        active, _ = plus_status(db, user)
+    return web.json_response({'account_id': user['id'], 'limit': 10 if active else 3})
+
+async def search_profiles(request):
+    query = request.query.get('q', '').strip()
+    if not re.fullmatch(r'[A-Za-z0-9_]{2,24}', query):
+        return web.json_response({'items': []})
+    if not limit(request, 'profile-search', 90, 60):
+        return error('rate', 429)
+    key = query.lower()
+    with connect() as db:
+        rows = db.execute('''SELECT p.public_id, u.username, u.role, p.avatar IS NOT NULL AS has_avatar
+            FROM users u JOIN profiles p ON p.user_id=u.id
+            WHERE p.published=1 AND u.username_key>=? AND u.username_key<?
+            ORDER BY u.username_key LIMIT 12''', (key, key + '~')).fetchall()
+    return web.json_response({'items': [dict(row) for row in rows]})
+
+async def friends_list(request):
+    user = session(request)
+    if not user: return error('auth', 401)
+    uid = user['id']
+    with connect() as db:
+        rows = db.execute('''SELECT u.username, u.role,
+            CASE WHEN p.published=1 THEN p.public_id END AS public_id,
+            CASE WHEN f.accepted=1 THEN 'friend' WHEN f.sender_id=:uid THEN 'outgoing' ELSE 'incoming' END AS status
+            FROM friendships f JOIN users u ON u.id=CASE WHEN f.low_id=:uid THEN f.high_id ELSE f.low_id END
+            LEFT JOIN profiles p ON p.user_id=u.id
+            WHERE f.low_id=:uid OR f.high_id=:uid ORDER BY u.username_key''', {'uid': uid}).fetchall()
+    return web.json_response({'items': [dict(row) for row in rows]})
+
+async def friends_update(request):
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'friends-update', 50, 60): return error('rate', 429)
+    data = await json_body(request)
+    username, action = data.get('username'), data.get('action')
+    if not valid_username(username) or action not in ('request', 'accept', 'decline', 'cancel', 'remove'):
+        return error('invalid')
+    uid = user['id']
+    with connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        other = db.execute('SELECT id,banned_at FROM users WHERE username_key=?', (username.lower(),)).fetchone()
+        if not other: return error('friend_missing', 404)
+        if other['id'] == uid: return error('friend_self')
+        pair = tuple(sorted((uid, other['id'])))
+        row = db.execute('SELECT sender_id,accepted FROM friendships WHERE low_id=? AND high_id=?', pair).fetchone()
+        state = ('none' if row is None else 'friend' if row['accepted']
+                 else 'outgoing' if row['sender_id'] == uid else 'incoming')
+        if state != {'request': 'none', 'accept': 'incoming', 'decline': 'incoming',
+                     'cancel': 'outgoing', 'remove': 'friend'}[action]:
+            return error('friend_state', 409)
+        if action in ('request', 'accept'):
+            if other['banned_at'] is not None: return error('friend_unavailable', 409)
+            count = db.execute('''SELECT COUNT(*) FROM friendships
+                WHERE (low_id=? OR high_id=?) AND accepted=1''', (uid, uid)).fetchone()[0]
+            other_count = db.execute('''SELECT COUNT(*) FROM friendships
+                WHERE (low_id=? OR high_id=?) AND accepted=1''', (other['id'], other['id'])).fetchone()[0]
+            if max(count, other_count) >= 200: return error('friend_limit', 409)
+        if action == 'request':
+            outgoing = db.execute('SELECT COUNT(*) FROM friendships WHERE sender_id=? AND accepted=0', (uid,)).fetchone()[0]
+            incoming = db.execute('''SELECT COUNT(*) FROM friendships
+                WHERE (low_id=? OR high_id=?) AND sender_id<>? AND accepted=0''', (other['id'], other['id'], other['id'])).fetchone()[0]
+            if outgoing >= 20 or incoming >= 100: return error('friend_limit', 409)
+            db.execute('INSERT INTO friendships (low_id,high_id,sender_id) VALUES (?,?,?)', (*pair, uid))
+        elif action == 'accept':
+            db.execute('UPDATE friendships SET accepted=1 WHERE low_id=? AND high_id=?', pair)
+        else:
+            db.execute('DELETE FROM friendships WHERE low_id=? AND high_id=?', pair)
+    return web.json_response({'ok': True})
+
+async def friend_chat(request):
+    writing = request.method == 'POST'
+    user = auth_csrf(request) if writing else session(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'chat-send' if writing else 'chat-read', 30 if writing else 120, 60):
+        return error('rate', 429)
+    name = request.match_info['username']
+    before = request.query.get('before', '')
+    if not valid_username(name) or (before and not re.fullmatch(r'[1-9][0-9]{0,17}', before)):
+        return error('invalid')
+    body = None
+    if writing:
+        body = (await json_body(request)).get('body')
+        if not isinstance(body, str) or not 1 <= len(body.strip()) <= 500 or '\x00' in body:
+            return error('invalid')
+        body = body.strip()
+    with connect() as db:
+        db.execute('BEGIN IMMEDIATE' if writing else 'BEGIN')
+        peer = db.execute('SELECT id FROM users WHERE username_key=? AND banned_at IS NULL', (name.lower(),)).fetchone()
+        if peer is None or peer['id'] == user['id']: return error('chat_unavailable', 403)
+        pair = tuple(sorted((user['id'], peer['id'])))
+        if not db.execute('SELECT 1 FROM friendships WHERE low_id=? AND high_id=? AND accepted=1', pair).fetchone():
+            return error('chat_unavailable', 403)
+        if writing:
+            db.execute('INSERT INTO friend_messages(low_id,high_id,sender_id,body,sent_at) VALUES (?,?,?,?,?)',
+                       (*pair, user['id'], body, int(time.time())))
+        rows = db.execute('''SELECT id, sender_id=? AS own, body, sent_at FROM friend_messages
+            WHERE low_id=? AND high_id=? AND id < ? ORDER BY id DESC LIMIT 51''',
+            (user['id'], *pair, int(before) if before and not writing else 9223372036854775807)).fetchall()
+    return web.json_response({'items': [dict(row) for row in reversed(rows[:50])], 'older': len(rows) > 50},
+                             headers={'Cache-Control': 'no-store'})
+
+async def admin_accounts(request):
+    user = session(request)
+    if not user: return error('auth', 401)
+    if user['role'] not in ('admin', 'owner'): return error('forbidden', 403)
+    if not limit(request, 'admin-accounts', 80, 60): return error('rate', 429)
+    query = request.query.get('q', '').strip().lower()
+    if query and not re.fullmatch(r'[a-z0-9_]{1,24}', query): return error('invalid')
+    with connect() as db:
+        rows = db.execute('''SELECT u.username, u.role, u.created_at, u.banned_at, COALESCE(p.published,0) AS published
+            FROM users u LEFT JOIN profiles p ON p.user_id=u.id
+            WHERE u.username_key>=? AND u.username_key<? ORDER BY u.id DESC LIMIT 30''',
+            (query, query + '~')).fetchall()
+    return web.json_response({'items': [dict(row) for row in rows], 'role': user['role'], 'username': user['username']})
+
+async def admin_update(request):
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    if user['role'] not in ('admin', 'owner'): return error('forbidden', 403)
+    if not limit(request, 'admin-update', 30, 60): return error('rate', 429)
+    data = await json_body(request)
+    username, action = data.get('username'), data.get('action')
+    if not valid_username(username) or action not in ('hide', 'grant_admin', 'revoke_admin', 'ban', 'unban', 'delete'):
+        return error('invalid')
+    with connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        actor = db.execute('SELECT role FROM users WHERE id=? AND banned_at IS NULL', (user['id'],)).fetchone()
+        target = db.execute('SELECT id,username,role,banned_at FROM users WHERE username_key=?', (username.lower(),)).fetchone()
+        if not target: return error('profile_missing', 404)
+        if not actor or actor['role'] not in ('admin', 'owner') or target['id'] == user['id'] or target['role'] == 'owner':
+            return error('forbidden', 403)
+        if action in ('hide', 'ban', 'unban', 'delete'):
+            if actor['role'] == 'admin' and target['role'] != 'member': return error('forbidden', 403)
+            if action == 'hide':
+                db.execute('UPDATE profiles SET published=0 WHERE user_id=?', (target['id'],))
+            elif action == 'delete':
+                if data.get('confirmation') != target['username']: return error('confirm_username')
+                db.execute('DELETE FROM orders WHERE user_id=?', (target['id'],))
+                db.execute('DELETE FROM users WHERE id=?', (target['id'],))
+            elif action == 'ban':
+                db.execute('UPDATE users SET banned_at=COALESCE(banned_at,?) WHERE id=?', (int(time.time()), target['id']))
+                db.execute('DELETE FROM sessions WHERE user_id=?', (target['id'],))
+            else:
+                db.execute('UPDATE users SET banned_at=NULL WHERE id=?', (target['id'],))
+        else:
+            expected, role = ('member', 'admin') if action == 'grant_admin' else ('admin', 'member')
+            if actor['role'] != 'owner': return error('forbidden', 403)
+            if target['role'] != expected: return error('role_changed', 409)
+            db.execute('UPDATE users SET role=? WHERE id=?', (role, target['id']))
+    logger.info('Account moderation actor=%s target=%s action=%s', user['id'], target['id'], action)
+    return web.json_response({'ok': True})
+
+async def profile_feedback(request):
+    user = session(request)
+    viewer_id = user['id'] if user else None
+    before = request.query.get('before')
+    if before is not None and not re.fullmatch(r'[1-9][0-9]{0,17}', before):
+        return error('invalid')
+    with connect() as db:
+        profile_id = published_profile(db, request)
+        counts = dict(db.execute('SELECT value, COUNT(*) FROM profile_votes WHERE profile_id=? GROUP BY value', (profile_id,)))
+        vote = db.execute('SELECT value FROM profile_votes WHERE profile_id=? AND voter_id=?',
+                          (profile_id, viewer_id)).fetchone()
+        comments = db.execute('''SELECT c.id,c.author_id,c.body,c.created_at,u.username
+            FROM profile_comments c JOIN users u ON u.id=c.author_id
+            WHERE c.profile_id=? AND (? IS NULL OR c.id<?) ORDER BY c.id DESC LIMIT 21''',
+            (profile_id, before, before)).fetchall()
+        can_comment = bool(user and plus_status(db, user)[0])
+        friendship = None
+        target_banned = db.execute('SELECT banned_at FROM users WHERE id=?', (profile_id,)).fetchone()['banned_at']
+        if viewer_id is not None and viewer_id != profile_id and target_banned is None:
+            pair = tuple(sorted((viewer_id, profile_id)))
+            row = db.execute('SELECT sender_id,accepted FROM friendships WHERE low_id=? AND high_id=?', pair).fetchone()
+            friendship = ('none' if row is None else 'friend' if row['accepted']
+                          else 'outgoing' if row['sender_id'] == viewer_id else 'incoming')
+    return web.json_response({
+        'likes': counts.get(1, 0), 'dislikes': counts.get(-1, 0), 'vote': vote['value'] if vote else 0,
+        'signed_in': user is not None, 'can_vote': user is not None and viewer_id != profile_id,
+        'can_comment': can_comment, 'csrf': user['csrf'] if user else None,
+        'friendship': friendship,
+        'comments': [{'id': str(row['id']), 'author': row['username'], 'body': row['body'],
+                      'created_at': row['created_at'], 'can_delete': viewer_id in (profile_id, row['author_id'])}
+                     for row in comments[:20]],
+        'next': str(comments[19]['id']) if len(comments) > 20 else None
+    })
+
+async def profile_vote(request):
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'profile_vote', 60, 60): return error('rate', 429)
+    value = (await json_body(request)).get('value')
+    if type(value) is not int or value not in (-1, 0, 1): return error('invalid')
+    with connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        profile_id = published_profile(db, request)
+        if profile_id == user['id']: return error('self_vote', 403)
+        if value:
+            db.execute('''INSERT INTO profile_votes (profile_id,voter_id,value) VALUES (?,?,?)
+                ON CONFLICT(profile_id,voter_id) DO UPDATE SET value=excluded.value''', (profile_id, user['id'], value))
+        else:
+            db.execute('DELETE FROM profile_votes WHERE profile_id=? AND voter_id=?', (profile_id, user['id']))
+    return web.json_response({'ok': True})
+
+async def profile_comment_create(request):
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'profile_comment', 10, 300): return error('rate', 429)
+    body = (await json_body(request)).get('body')
+    if not isinstance(body, str): return error('comment_body')
+    body = body.replace('\r\n', '\n').replace('\r', '\n').strip()
+    if not 1 <= len(body) <= 500 or re.search(r'[\x00-\x08\x0b-\x1f\x7f\ud800-\udfff]', body):
+        return error('comment_body')
+    with connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        profile_id = published_profile(db, request)
+        if not plus_status(db, user)[0]: return error('plus_required', 403)
+        db.execute('INSERT INTO profile_comments (profile_id,author_id,body,created_at) VALUES (?,?,?,?)',
+                   (profile_id, user['id'], body, int(time.time())))
+    return web.json_response({'ok': True}, status=201)
+
+async def profile_comment_delete(request):
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'profile_comment_delete', 30, 60): return error('rate', 429)
+    comment_id = request.match_info['comment_id']
+    if not re.fullmatch(r'[1-9][0-9]{0,17}', comment_id): return error('invalid')
+    with connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        profile_id = published_profile(db, request)
+        deleted = db.execute('''DELETE FROM profile_comments WHERE id=? AND profile_id=?
+            AND (author_id=? OR profile_id=?)''', (comment_id, profile_id, user['id'], user['id']))
+        if not deleted.rowcount: return error('comment_missing', 404)
+    return web.json_response({'ok': True})
+
+async def update_email(request):
+    user = auth_csrf(request)
+    if not user: return error('auth',401)
+    if not limit(request,'email',8,900): return error('rate',429)
+    data = await json_body(request)
+    email = normalize_email(data.get('email'))
+    if email is None: return error('email')
+    password = data.get('current_password')
+    if not isinstance(password, str) or not 1 <= len(password) <= 128:
+        return error('credentials',401)
+    with connect() as db:
+        record = db.execute('SELECT password_hash FROM users WHERE id=?', (user['id'],)).fetchone()
+    if not record or not await asyncio.to_thread(verify, password, record['password_hash']):
+        return error('credentials',401)
+    try:
+        with connect() as db:
+            updated = db.execute('''UPDATE users
+                SET email_verified_at=CASE WHEN email COLLATE BINARY=? THEN email_verified_at ELSE NULL END, email=?
+                WHERE id=? AND password_hash=? AND EXISTS (
+                    SELECT 1 FROM sessions WHERE token_hash=? AND user_id=users.id AND expires_at>?
+                )''', (email, email, user['id'], record['password_hash'], digest(request.cookies[COOKIE]), int(time.time())))
+            if updated.rowcount != 1: return error('auth',401)
+            db.execute('DELETE FROM email_tokens WHERE user_id=? AND email COLLATE BINARY<>?', (user['id'], email))
+            verified = db.execute('SELECT email_verified_at FROM users WHERE id=?', (user['id'],)).fetchone()[0] is not None
+    except sqlite3.IntegrityError as exc:
+        if str(exc) == 'UNIQUE constraint failed: users.email': return error('email_taken',409)
+        raise
+    if not verified: queue_mail(request, 'verify', email, user['id'])
+    return web.json_response({'email': email, 'email_verified': verified})
+
+def queue_mail(request, purpose, email, user_id=None):
+    queue = request.app.get(MAIL_QUEUE)
+    if queue is None: return False
+    preferred = request.headers.get('Accept-Language', '').split(',', 1)[0].split(';', 1)[0].strip()
+    language = 'en' if preferred.split('-', 1)[0].lower() == 'en' else 'ru'
+    try:
+        queue.put_nowait((purpose, email, user_id, language))
+        return True
+    except asyncio.QueueFull:
+        return False
+
+def send_mail(purpose, email, user_id, language):
+    if purpose == 'changed':
+        with connect() as db:
+            user = db.execute('SELECT username FROM users WHERE id=?', (user_id,)).fetchone()
+        if user:
+            deliver_mail(email, account_mail(purpose, language, MAIL_ORIGIN, user['username']))
+        return
+    now = int(time.time())
+    token = secrets.token_urlsafe(32)
+    with connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        if purpose == 'reset':
+            user = db.execute('SELECT id,email,username FROM users WHERE email=? AND email_verified_at IS NOT NULL', (email,)).fetchone()
+        else:
+            user = db.execute('SELECT id,email,username FROM users WHERE id=? AND email COLLATE BINARY=? AND email_verified_at IS NULL', (user_id, email)).fetchone()
+        if not user: return
+        previous = db.execute('SELECT created_at FROM email_tokens WHERE user_id=? AND purpose=?', (user['id'], purpose)).fetchone()
+        if previous and previous['created_at'] > now - 120: return
+        email = user['email']
+        ttl = 1800 if purpose == 'reset' else 86400
+        db.execute('INSERT OR REPLACE INTO email_tokens VALUES(?,?,?,?,?,?)',
+                   (user['id'], purpose, digest(token), email, now + ttl, now))
+    try:
+        action_url = f'{MAIL_ORIGIN}/auth.html#{purpose}={token}'
+        deliver_mail(email, account_mail(purpose, language, MAIL_ORIGIN, user['username'], action_url))
+    except Exception:
+        with connect() as db:
+            db.execute('DELETE FROM email_tokens WHERE token_hash=?', (digest(token),))
+        raise
+
+def deliver_mail(email, message):
+    message['From'] = f'Orion Client <{MAIL_FROM}>'
+    message['To'] = email
+    password = Path(MAIL_PASSWORD_FILE).read_text(encoding='utf-8').strip()
+    with smtplib.SMTP_SSL('smtp.yandex.ru', 465, timeout=10, context=ssl.create_default_context()) as smtp:
+        smtp.login(MAIL_FROM, password)
+        smtp.send_message(message)
+
+async def mail_worker(app):
+    if not (normalize_email(MAIL_FROM) and MAIL_PASSWORD_FILE and MAIL_ORIGIN.startswith('https://') and MAIL_ORIGIN in TRUSTED_ORIGINS):
+        yield
+        return
+    app[MAIL_QUEUE] = queue = asyncio.Queue(maxsize=50)
+
+    async def process():
+        while True:
+            job = await queue.get()
+            try:
+                await asyncio.to_thread(send_mail, *job)
+            except Exception as exc:
+                logger.warning('Account email delivery failed (%s)', type(exc).__name__)
+            finally:
+                queue.task_done()
+
+    worker = asyncio.create_task(process())
+    try:
+        yield
+    finally:
+        worker.cancel()
+        await asyncio.gather(worker, return_exceptions=True)
+
+async def request_email_link(request):
+    purpose = 'verify' if request.path == '/api/email/verify/request' else 'reset'
+    if not limit(request, purpose + '_request', 6, 900): return error('rate',429)
+    user = auth_csrf(request) if purpose == 'verify' else None
+    if purpose == 'verify' and not user: return error('auth',401)
+    data = await json_body(request)
+    email = user['email'] if user else normalize_email(data.get('email'))
+    if not email: return error('email')
+    if not queue_mail(request, purpose, email, user['id'] if user else None): return error('unavailable',503)
+    return web.json_response({'ok': True}, status=202)
+
+def consume_email_token(purpose, token, password_hash=None):
+    now = int(time.time())
+    with connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        row = db.execute('''SELECT t.user_id,u.email FROM email_tokens t JOIN users u ON u.id=t.user_id
+            WHERE t.token_hash=? AND t.purpose=? AND t.expires_at>? AND u.email COLLATE BINARY=t.email
+            AND (u.email_verified_at IS NOT NULL) = ?''', (digest(token), purpose, now, purpose == 'reset')).fetchone()
+        if not row: return None
+        if purpose == 'verify':
+            db.execute('UPDATE users SET email_verified_at=? WHERE id=?', (now, row['user_id']))
+            db.execute('DELETE FROM email_tokens WHERE user_id=? AND purpose=?', (row['user_id'], purpose))
+        else:
+            db.execute('UPDATE users SET password_hash=? WHERE id=?', (password_hash, row['user_id']))
+            db.execute('DELETE FROM sessions WHERE user_id=?', (row['user_id'],))
+            db.execute('DELETE FROM email_tokens WHERE user_id=?', (row['user_id'],))
+        return row
+
+async def confirm_email_link(request):
+    purpose = 'verify' if request.path == '/api/email/verify/confirm' else 'reset'
+    if not limit(request, purpose + '_confirm', 12, 900): return error('rate',429)
+    data = await json_body(request)
+    token = data.get('token')
+    if not isinstance(token, str) or not MAIL_TOKEN.fullmatch(token): return error('mail_token')
+    hashed = None
+    if purpose == 'reset':
+        password = data.get('password')
+        if not valid_password(password): return error('password')
+        hashed = await asyncio.to_thread(hash_password, password)
+    account = await asyncio.to_thread(consume_email_token, purpose, token, hashed)
+    if not account: return error('mail_token')
+    if purpose == 'reset': queue_mail(request, 'changed', account['email'], account['user_id'])
+    return web.json_response({'ok': True})
+
+async def logout(request):
+    if not auth_csrf(request): return error('auth',401)
+    with connect() as db: db.execute('DELETE FROM sessions WHERE token_hash=?',(digest(request.cookies[COOKIE]),))
+    response=web.json_response({'ok':True});response.del_cookie(COOKIE,path='/',secure=SECURE,samesite='Strict');return response
+
+async def list_sessions(request):
+    user = session(request)
+    if not user: return error('auth',401)
+    current = digest(request.cookies[COOKIE])
+    with connect() as db:
+        rows = db.execute('''SELECT token_hash, expires_at, device FROM sessions
+            WHERE user_id=? AND expires_at>? ORDER BY token_hash=? DESC, expires_at DESC''',
+            (user['id'], int(time.time()), current)).fetchall()
+    return web.json_response({'sessions': [
+        {'id': digest(row['token_hash']), 'current': row['token_hash'] == current,
+         'signed_in_at': row['expires_at'] - TTL, 'device': row['device']}
+        for row in rows
+    ]})
+
+async def revoke_sessions(request):
+    user = auth_csrf(request)
+    if not user: return error('auth',401)
+    if not limit(request, 'revoke_sessions', 30, 60): return error('rate',429)
+    data = await json_body(request)
+    target = data.get('id')
+    if target != 'others' and (not isinstance(target, str) or not re.fullmatch(r'[a-f0-9]{64}', target)):
+        return error('invalid')
+    current = digest(request.cookies[COOKIE])
+    with connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        if not db.execute('SELECT 1 FROM sessions WHERE token_hash=? AND expires_at>?', (current, int(time.time()))).fetchone():
+            return error('auth',401)
+        if target == 'others':
+            db.execute('DELETE FROM sessions WHERE user_id=? AND token_hash<>?', (user['id'], current))
+        else:
+            rows = db.execute('SELECT token_hash FROM sessions WHERE user_id=? AND token_hash<>?', (user['id'], current))
+            match = next((row['token_hash'] for row in rows if digest(row['token_hash']) == target), None)
+            if match:
+                db.execute('DELETE FROM sessions WHERE user_id=? AND token_hash=?', (user['id'], match))
+    return web.json_response({'ok': True})
+
+async def order(request):
+    user=auth_csrf(request)
+    if not user: return error('auth',401)
+    if not limit(request,'order',10,3600): return error('rate',429)
+    with connect() as db:
+        if plus_status(db, user)[0]: return error('plus_active',409)
+        existing=db.execute("SELECT id,status FROM orders WHERE user_id=? AND status='awaiting_gateway' ORDER BY created_at DESC LIMIT 1",(user['id'],)).fetchone()
+        if existing: oid=existing['id']
+        else:
+            oid=secrets.token_hex(12)
+            db.execute('INSERT INTO orders VALUES(?,?,?,?,?,?)',(oid,user['id'],6700,'RUB','awaiting_gateway',int(time.time())))
+    return web.json_response({'order':{'id':oid,'amount_kopecks':6700,'currency':'RUB','status':'awaiting_gateway'},'payment_available':False})
+
+async def password_change(request):
+    user=auth_csrf(request)
+    if not user: return error('auth',401)
+    if not limit(request,'password',8,900): return error('rate',429)
+    data=await json_body(request); old=data.get('current_password',''); new=data.get('new_password','')
+    if not isinstance(old,str) or len(old)>128 or not valid_password(new): return error('password')
+    with connect() as db: record=db.execute('SELECT password_hash FROM users WHERE id=?',(user['id'],)).fetchone()
+    if not await asyncio.to_thread(verify,old,record['password_hash']): return error('credentials',401)
+    hashed=await asyncio.to_thread(hash_password,new)
+    with connect() as db:
+        updated = db.execute('UPDATE users SET password_hash=? WHERE id=? AND password_hash=?',(hashed,user['id'],record['password_hash']))
+        if updated.rowcount != 1: return error('auth',401)
+        db.execute('DELETE FROM sessions WHERE user_id=?',(user['id'],))
+        db.execute("DELETE FROM email_tokens WHERE user_id=? AND purpose='reset'", (user['id'],))
+    created = create_session(user['id'], hashed, request)
+    if not created: return error('auth',401)
+    token,csrf=created; response=web.json_response({'ok':True,'csrf':csrf});set_cookie(response,token);return response
+
+async def index(request): return web.FileResponse(BASE/'static'/'index.html',headers={'Cache-Control':'no-cache'})
+async def account_page(request): return web.FileResponse(BASE/'static'/'account.html',headers={'Cache-Control':'no-cache'})
+async def health(request): return web.json_response({'status':'ok','service':'orion-site'})
+def create_app():
+    init_db(); app=web.Application(middlewares=[security],client_max_size=4096)
+    app.add_routes([web.get('/',index),web.get('/account',account_page),web.get('/health',health),web.get('/api/me',me),web.post('/api/register',register),web.post('/api/login',login),web.post('/api/logout',logout),web.post('/api/orders',order),web.post('/api/password',password_change),web.static('/static/',BASE/'static',show_index=False)])
+    app.router.add_post('/api/email', update_email)
+    app.router.add_get('/api/profile-page', profile_page)
+    app.router.add_get('/auth.html', profile_page)
+    app.router.add_get('/api/friends', friends_list)
+    app.router.add_post('/api/friends', friends_update)
+    app.router.add_get('/api/friends/{username}/chat', friend_chat)
+    app.router.add_post('/api/friends/{username}/chat', friend_chat)
+    app.router.add_get('/api/admin/accounts', admin_accounts)
+    app.router.add_post('/api/admin/accounts', admin_update)
+    app.router.add_get('/api/pricing', pricing)
+    app.router.add_get('/api/profile', own_profile)
+    app.router.add_get('/api/catalog-access', catalog_access)
+    app.router.add_get('/api/profile-search', search_profiles)
+    app.router.add_post('/api/profile', save_profile)
+    app.router.add_post('/api/profile/avatar', save_avatar)
+    app.router.add_post('/api/profile/oauth/{provider}/start', oauth_start)
+    app.router.add_get('/api/profile/oauth/{provider}/callback', oauth_callback)
+    app.router.add_post('/api/profile/oauth/{provider}/finish', oauth_finish)
+    app.router.add_post('/api/profile/oauth/{provider}/unlink', oauth_unlink)
+    app.router.add_get('/api/profile/{profile_id}', public_profile)
+    app.router.add_get('/api/profile/{profile_id}/avatar', profile_avatar)
+    app.router.add_get('/api/profile/{profile_id}/feedback', profile_feedback)
+    app.router.add_post('/api/profile/{profile_id}/vote', profile_vote)
+    app.router.add_post('/api/profile/{profile_id}/comments', profile_comment_create)
+    app.router.add_post('/api/profile/{profile_id}/comments/{comment_id}/delete', profile_comment_delete)
+    app.router.add_get('/api/sessions', list_sessions)
+    app.router.add_post('/api/sessions/revoke', revoke_sessions)
+    app.router.add_post('/api/register/availability', registration_availability)
+    app.router.add_post('/api/email/verify/request', request_email_link)
+    app.router.add_post('/api/email/verify/confirm', confirm_email_link)
+    app.router.add_post('/api/password/reset/request', request_email_link)
+    app.router.add_post('/api/password/reset/confirm', confirm_email_link)
+    app.cleanup_ctx.append(mail_worker)
+    return app
+if __name__=='__main__': web.run_app(create_app(),host='127.0.0.1',port=int(os.environ.get('ORION_SITE_PORT','8088')),access_log=None)
