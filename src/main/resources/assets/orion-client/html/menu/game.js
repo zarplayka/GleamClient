@@ -6,6 +6,71 @@ document.addEventListener('pointerdown',() => document.documentElement.setAttrib
 document.addEventListener('keydown',event => {
   if (event.key === 'Tab') document.documentElement.removeAttribute('data-pointer-focus');
 },true);
+const editHistory = new WeakMap(), restoringTextField = new WeakSet();
+function editableTextField(field) {
+  if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) || field.disabled) return false;
+  return field instanceof HTMLTextAreaElement || ['text','search','url','tel','email','password'].includes(field.type);
+}
+function textFieldSnapshot(field) {
+  return {value:field.value,start:field.selectionStart ?? 0,end:field.selectionEnd ?? 0};
+}
+function textFieldHistory(field) {
+  let history = editHistory.get(field);
+  if (!history) {
+    history = {undo:[],redo:[],current:textFieldSnapshot(field)};
+    editHistory.set(field,history);
+  }
+  return history;
+}
+document.addEventListener('focusin',event => {
+  if (editableTextField(event.target)) textFieldHistory(event.target);
+},true);
+document.addEventListener('input',event => {
+  const field = event.target;
+  if (!editableTextField(field)) return;
+  const history = textFieldHistory(field), next = textFieldSnapshot(field);
+  if (restoringTextField.has(field)) { history.current = next; return; }
+  if (history.current.value !== next.value) {
+    history.undo.push(history.current);
+    if (history.undo.length > 80) history.undo.shift();
+    history.redo.length = 0;
+  }
+  history.current = next;
+},true);
+function restoreTextField(field,history,snapshot) {
+  field.value = snapshot.value;
+  field.setSelectionRange(snapshot.start,snapshot.end);
+  restoringTextField.add(field);
+  field.dispatchEvent(new Event('input',{bubbles:true}));
+  restoringTextField.delete(field);
+  history.current = snapshot;
+}
+document.addEventListener('keydown',event => {
+  const field = event.target;
+  if (!editableTextField(field) || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+  const key = event.key.toLowerCase(), history = textFieldHistory(field);
+  if (key === 'a') {
+    event.preventDefault(); event.stopImmediatePropagation();
+    field.setSelectionRange(0,field.value.length);
+  } else if (key === 'c' || key === 'x') {
+    if (field.type === 'password' || key === 'x' && field.readOnly) return;
+    const start = field.selectionStart ?? 0, end = field.selectionEnd ?? start;
+    if (end <= start) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    sendGame('clipboard-copy',{text:field.value.slice(start,end)});
+    if (key === 'x') {
+      field.setRangeText('',start,end,'start');
+      field.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+  } else if (key === 'z' || key === 'y') {
+    event.preventDefault(); event.stopImmediatePropagation();
+    const redo = key === 'y' || event.shiftKey, source = redo ? history.redo : history.undo;
+    const destination = redo ? history.undo : history.redo;
+    if (!source.length) return;
+    destination.push(textFieldSnapshot(field));
+    restoreTextField(field,history,source.pop());
+  }
+},true);
 function accountForm() {
   showDialog(t('Вход в GleamClient'),'<form id="game-login"><input name="login" placeholder="' + text(t('Логин')) + '" maxlength="24" required>'
     + '<input name="password" type="password" placeholder="' + text(t('Пароль')) + '" maxlength="128" required>'
@@ -401,6 +466,15 @@ window.paradox = {
       chat = data.chat;
       const latest = chat.items[chat.items.length-1];
       if (chat.peer && latest) chatRecent.set(chat.peer,latest);
+      if (chat.peer && previousChat.peer === chat.peer && previousChat.items.length && state.page !== 'chat') {
+        const previousId = previousChat.items.reduce((id,item) => Math.max(id,Number(item.id) || 0),0);
+        const incoming = chat.items.filter(item => !item.own && Number(item.id) > previousId);
+        if (incoming.length) {
+          const newest = incoming[incoming.length-1];
+          toast(t('Новое сообщение от') + ' ' + chat.peer + ': ' + newest.body,'chat');
+          sendGame('chat-notification-sound');
+        }
+      }
       if (chat.sent !== previousChat.sent && pendingChatDraft?.peer === chat.peer) {
         if (chatDrafts.get(chat.peer) === pendingChatDraft.draft) chatDrafts.delete(chat.peer);
         pendingChatDraft = null;
