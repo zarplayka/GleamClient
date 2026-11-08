@@ -1,11 +1,11 @@
-Orion Client Proprietary License
+Gleam Client Proprietary License
 
 Copyright (c) 2026 ZARPLAY (GitHub: zarplayka).
 All rights reserved.
 
 1. Scope and ownership
 
-This license applies only to original Orion Client code, documentation, and
+This license applies only to original Gleam Client code, documentation, and
 assets for which the copyright holder owns the relevant rights. No ownership
 of third-party material is claimed. Third-party components and dependencies,
 including Minecraft, Fabric, Gradle, and Microsoft components, remain subject
@@ -14,7 +14,7 @@ to their respective licenses and notices.
 2. Use of official releases
 
 You may download, install, run, and make personal backup copies of unmodified
-official Orion Client releases obtained from distribution channels authorized
+official Gleam Client releases obtained from distribution channels authorized
 by the copyright holder. This permission does not transfer ownership or grant
 permission to redistribute the software or its source code.
 
