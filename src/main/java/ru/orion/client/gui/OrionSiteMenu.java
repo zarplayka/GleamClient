@@ -149,6 +149,7 @@ final class OrionSiteMenu {
                 && event.key() == InputConstants.KEY_INSERT) return "paste";
         if (!event.hasControlDownWithQuirk() || event.hasAltDown()) return null;
         return switch (event.key()) {
+            case InputConstants.KEY_BACKSPACE -> "delete-word";
             case InputConstants.KEY_A -> "select";
             case InputConstants.KEY_C, InputConstants.KEY_INSERT -> "copy";
             case InputConstants.KEY_X -> "cut";

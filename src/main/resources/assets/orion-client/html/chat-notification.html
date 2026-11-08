@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; overflow: hidden; font: 14px sans-serif; }
+html { --panel: #25262a; --line: #3b3c41; --text: #e5e5e7; --muted: #b0b1b6; --accent: #939fe9; }
+html[data-light] { --panel: #fafbfe; --line: #c4ccda; --text: #22283a; --muted: #546077; --accent: #4257b2; }
+.toast {
+  display: flex; align-items: center; gap: 10px; margin: 4px; min-height: 60px;
+  padding: 8px 11px; border: 1px solid var(--line); border-radius: 11px;
+  background: var(--panel); color: var(--text); box-shadow: 0 4px 12px #080a1045;
+  opacity: 0; transform: translateX(18px);
+}
+.icon {
+  display: flex; align-items: center; justify-content: center; flex: 0 0 32px;
+  height: 32px; border: 1px solid var(--line); border-radius: 10px; color: var(--accent);
+}
+.label { min-width: 0; }
+.sender, .caption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sender { font-size: 14px; font-weight: bold; }
+.caption { margin-top: 3px; color: var(--muted); font-size: 11px; }
+</style>
+</head>
+<body>
+  <div class="toast" id="toast">
+    <span class="icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 5h16v12H9l-5 3zM8 9h8m-8 4h5"/>
+    </svg></span>
+    <div class="label"><div class="sender" id="sender"></div><div class="caption" id="caption"></div></div>
+  </div>
+  <script>
+  const toast = document.getElementById('toast');
+  window.paradox = {
+    update({title,detail,light,accent}) {
+      document.getElementById('sender').textContent = detail;
+      document.getElementById('caption').textContent = title;
+      const root = document.documentElement;
+      root.toggleAttribute('data-light',light);
+      if (/^#[0-9a-f]{6}$/i.test(accent)) root.style.setProperty('--accent',accent);
+      else root.style.removeProperty('--accent');
+    },
+    opening(progress) {
+      const ease = 1 - (1 - progress) ** 3;
+      toast.style.setProperty('opacity',String(ease));
+      toast.style.setProperty('transform','translateX(' + (1 - ease) * 18 + 'px)');
+    }
+  };
+  </script>
+</body>
+</html>
