@@ -286,6 +286,7 @@ public final class OrionConfigLibrary {
             if (expected == null || !expected.isJsonPrimitive() || !value.isJsonPrimitive()
                     || key.startsWith("discord") || key.startsWith("fakePrefix") || key.startsWith("protectName")
                     || key.equals("chatFilterEnabled") || key.equals("chatHighlightEnabled")
+                    || key.startsWith("chatNotification")
                     || key.equals("clickGuiCategoriesExpanded")) continue;
             var actual = value.getAsJsonPrimitive();
             var type = expected.getAsJsonPrimitive();

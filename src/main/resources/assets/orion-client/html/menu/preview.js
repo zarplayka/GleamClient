@@ -9,6 +9,13 @@ const paths = {
   user:'<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6"/>',
   users:'<circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 6 0 0 1 14 0M16 4.5a3.5 3.5 0 0 1 0 7m2 3a5 5 0 0 1 4 5"/>',
   chat:'<path d="M4 4h16v12H9l-5 4zM8 8h8m-8 4h5"/>',
+  smile:'<circle cx="12" cy="12" r="9"/><path d="M8 14c2 3 6 3 8 0M9 9h.01M15 9h.01"/>',
+  lock:'<rect x="6" y="10" width="12" height="10" rx="2"/><path d="M9 10V7a3 3 0 0 1 6 0v3m-3 4v2"/>',
+  heart:'<path d="M12 20 4.8 12.8a4.6 4.6 0 0 1 6.5-6.5l.7.7.7-.7a4.6 4.6 0 0 1 6.5 6.5Z"/>',
+  like:'<path d="M8 20H4V10h4m0 10V10l4-6c2 0 3 2 2 5h4a2 2 0 0 1 2 2l-1 7a2 2 0 0 1-2 2Z"/>',
+  laugh:'<circle cx="12" cy="12" r="9"/><path d="m7 10 2-2 2 2m2 0 2-2 2 2M8 14h8c-1 4-7 4-8 0Z"/>',
+  surprise:'<circle cx="12" cy="12" r="9"/><path d="M8 9h.01m8 0h.01"/><ellipse cx="12" cy="15" rx="2" ry="2.5"/>',
+  sad:'<circle cx="12" cy="12" r="9"/><path d="M9 9h.01m6 0h.01M9 16c1.5-2.5 4.5-2.5 6 0m2-5v2"/>',
   alert:'<path d="M12 3 2 20h20L12 3zm0 6v4m0 3h.01"/>',
   shirt:'<path d="m8 4-5 3 2 5 3-1v9h8v-9l3 1 2-5-5-3a4 4 0 0 1-8 0z"/>',
   pin:'<path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0z"/><circle cx="12" cy="10" r="2"/>',
@@ -66,6 +73,27 @@ let friends = {signedIn:false,busy:false,status:'',items:[]};
 let chat = {peer:'',items:[],busy:false,sent:0};
 const chatDrafts = new Map();
 const chatRecent = new Map();
+let chatUnread = {};
+const reactionIcons = new Map([['👍','like'],['❤️','heart'],['😂','laugh'],['😮','surprise'],['😢','sad']]);
+let lastChatBubbleClick;
+function reactToMessage(messageId,reaction) {
+  const item = chat.items.find(item => Number(item.id) === messageId);
+  if (!item || !reactionIcons.has(reaction) || typeof sendGame !== 'function') return;
+  const selected = !(item.reactions || []).some(entry => entry.emoji === reaction && entry.mine);
+  sendGame('chat-react',{messageId,reaction,selected});
+}
+function openReactionPicker(message,open) {
+  const trigger = message?.querySelector('.chat-reaction-toggle');
+  const picker = message?.querySelector('.chat-reaction-picker');
+  if (!trigger || !picker) return;
+  for (const previous of document.querySelectorAll('.chat-reaction-picker:not([hidden])')) {
+    previous.hidden = true;
+    previous.parentElement.querySelector('.chat-reaction-toggle').setAttribute('aria-expanded','false');
+  }
+  picker.hidden = !open;
+  picker.toggleAttribute('data-below',trigger.getBoundingClientRect().top - $('chat-messages').getBoundingClientRect().top < 42);
+  trigger.setAttribute('aria-expanded',String(open));
+}
 const toggleStyleKey = 'orion-preview-toggle-style';
 const windowSizeKey = 'orion-preview-window-size';
 const windowScaleKey = 'orion-preview-window-scale';
@@ -135,8 +163,9 @@ function navItem([id,title,svg], count) {
     + '<span>' + text(t(title)) + '</span>' + (count === undefined ? '' : '<small>' + count + '</small>') + '</button>';
 }
 function renderNavigation() {
+  const unread = Object.values(chatUnread).reduce((total,count) => total + count,0);
   $('primary-nav').innerHTML = sections.map(section => navItem(section,
-    section[0] === 'favorites' ? state.favorites.size : undefined)).join('');
+    section[0] === 'favorites' ? state.favorites.size : section[0] === 'chat' && unread ? Math.min(99,unread) : undefined)).join('');
   $('category-items').innerHTML = categories
     .map(category => navItem(category, catalog.filter(module => module.category === category[0]).length)).join('');
 }
@@ -258,6 +287,7 @@ function choiceControl(row,id,index,selected) {
     + '</span>' + icon('chevron-down') + '</button></div>';
 }
 let openChoice = null;
+const languages = [['auto','Как в Minecraft'],['ru','Русский'],['en','English'],['de','Deutsch'],['es','Español']];
 function showChoices(trigger,open) {
   const options = $('choice-popup');
   trigger.setAttribute('aria-expanded',String(open));
@@ -266,15 +296,24 @@ function showChoices(trigger,open) {
     openChoice = null;
     return;
   }
-  const index = Number(trigger.dataset.choiceToggle), module = byId.get(state.module);
-  const row = module.settings[index], selected = state.values.get(module.id + ':' + index) ?? row.value;
-  options.innerHTML = row.choices.map((choice,i) => '<button type="button" data-choice-option="' + i + '" aria-pressed="'
-    + (i === Number(selected)) + '"><span>' + text(choice) + '</span>' + icon('check') + '</button>').join('');
+  const language = trigger.id === 'language-trigger';
+  let count;
+  if (language) {
+    count = languages.length;
+    options.innerHTML = languages.map(([id,label]) => '<button type="button" data-look="languageChoice" data-value="' + id
+      + '" aria-pressed="' + (id === state.languageChoice) + '"><span>' + text(t(label)) + '</span>' + icon('check') + '</button>').join('');
+  } else {
+    const index = Number(trigger.dataset.choiceToggle), module = byId.get(state.module);
+    const row = module.settings[index], selected = state.values.get(module.id + ':' + index) ?? row.value;
+    count = row.choices.length;
+    options.innerHTML = row.choices.map((choice,i) => '<button type="button" data-choice-option="' + i + '" aria-pressed="'
+      + (i === Number(selected)) + '"><span>' + text(choice) + '</span>' + icon('check') + '</button>').join('');
+  }
   const anchor = trigger.getBoundingClientRect(), bounds = $('content').getBoundingClientRect();
   const scale = state.windowScale / 100, gap = 4 * scale;
   const below = bounds.bottom - anchor.bottom - gap * 2;
   const above = anchor.top - bounds.top - gap * 2;
-  const upward = below < Math.min(184,8 + row.choices.length * 31) * scale && above > below;
+  const upward = below < Math.min(184,8 + count * 31) * scale && above > below;
   options.style.setProperty('zoom',String(scale));
   options.style.left = anchor.left / scale + 'px';
   options.style.width = anchor.width / scale + 'px';
@@ -453,26 +492,32 @@ function renderChatMessages() {
     const previous = chat.items[i-1], next = chat.items[i+1];
     const newDay = !previous || new Date(previous.sent_at * 1000).toDateString() !== date.toDateString();
     const day = String(date.getDate()).padStart(2,'0') + '.' + String(date.getMonth()+1).padStart(2,'0');
-    const reactions = (item.reactions || []).map(reaction => '<button type="button" class="chat-reaction" data-chat-reaction="'
+    const reactions = (item.reactions || []).filter(reaction => reactionIcons.has(reaction.emoji))
+      .map(reaction => '<button type="button" class="chat-reaction" data-chat-reaction="'
       + item.id + '" data-emoji="' + text(reaction.emoji) + '" aria-pressed="' + Boolean(reaction.mine)
-      + '" aria-label="' + text(reaction.emoji + ' ' + reaction.count) + '">' + text(reaction.emoji)
+      + '" aria-label="' + text(reaction.emoji + ' ' + reaction.count) + '">' + icon(reactionIcons.get(reaction.emoji))
       + '<small>' + text(reaction.count) + '</small></button>').join('');
     const picker = '<span class="chat-reaction-picker" data-chat-picker="' + item.id + '" hidden>'
-      + ['👍','❤️','😂','😮','😢'].map(emoji => '<button type="button" data-chat-reaction="' + item.id + '" data-emoji="'
-        + emoji + '" aria-label="' + text(t('Добавить реакцию')) + ' ' + emoji + '">' + emoji + '</button>').join('') + '</span>';
+      + Array.from(reactionIcons,([emoji,name]) => '<button type="button" data-chat-reaction="' + item.id + '" data-emoji="'
+        + emoji + '" aria-label="' + text(t('Добавить реакцию')) + ' ' + emoji + '">' + icon(name) + '</button>').join('') + '</span>';
+    const body = item.unreadable ? t('Не удалось расшифровать сообщение') : item.body;
     return (newDay ? '<div class="chat-date"><span>' + day + '</span></div>' : '')
       + '<div class="chat-line' + (item.own ? ' own' : '') + (sameGroup(previous) ? ' continuation' : '')
-      + '"><div class="chat-message"><div class="chat-bubble"><span>' + text(item.body) + '</span>'
-      + (sameGroup(next) ? '' : '<time>' + chatTime(item.sent_at) + '</time>') + '</div><div class="chat-reaction-row">'
+      + '"><div class="chat-message"><div class="chat-bubble" data-chat-bubble="' + item.id + '"><span>' + text(body)
+      + (item.legacy ? '<small class="chat-legacy">' + text(t('Без сквозного шифрования')) + '</small>' : '') + '</span>'
+      + (sameGroup(next) ? '' : '<time>' + chatTime(item.sent_at) + '</time>') + '</div><div class="chat-reaction-row'
+      + (reactions ? ' has-reactions' : '') + '">'
       + reactions + '<button type="button" class="chat-reaction-toggle" data-chat-picker-toggle="' + item.id
-      + '" aria-expanded="false" aria-label="' + text(t('Добавить реакцию')) + '">+</button>' + picker
+      + '" aria-expanded="false" aria-label="' + text(t('Добавить реакцию')) + '">' + icon('smile') + '</button>' + picker
       + '</div></div></div>';
   }).join('');
   return (chat.older ? actionButton('chat-older',t('Ранние сообщения'),'','',chat.busy) : '') + '<div class="chat-log">' + rows + '</div>';
 }
 function renderChatThread() {
   const person = chatContacts().find(item => item.username === chat.peer);
-  const title = person ? '<div class="chat-heading">' + friendAvatar(person) + '<strong>' + text(person.username) + '</strong></div>' : '';
+  const title = person ? '<div class="chat-heading">' + friendAvatar(person) + '<strong>' + text(person.username) + '</strong>'
+    + '<button id="chat-verify" type="button" class="button" data-action="chat-verify"'
+    + (chat.verification ? '' : ' hidden') + '>' + icon('lock') + text(t('Код безопасности')) + '</button></div>' : '';
   const controls = person ? '<form id="chat-compose" class="chat-compose"><input name="body" autocomplete="off" maxlength="500"'
     + ' aria-label="' + text(t('Сообщение')) + '" placeholder="' + text(t('Напиши сообщение')) + '" value="'
     + text(chatDrafts.get(chat.peer) ?? '') + '"><button class="button primary chat-send" type="submit" aria-label="'
@@ -488,10 +533,12 @@ function renderChatContacts(contacts, query) {
   return contacts.filter(item => item.username.toLowerCase().includes(query)).sort((a,b) =>
     (chatRecent.get(b.username)?.sent_at ?? 0) - (chatRecent.get(a.username)?.sent_at ?? 0)).map(item => {
     const latest = chatRecent.get(item.username);
+    const unread = chatUnread[item.username];
     const draft = item.username === chat.peer ? '' : chatDrafts.get(item.username);
     return '<button type="button" class="chat-contact" data-chat-peer="' + text(item.username) + '" aria-pressed="'
       + (chat.peer === item.username) + '">' + friendAvatar(item) + '<span class="chat-contact-body"><span class="chat-contact-line"><b>'
-      + text(item.username) + '</b>' + (latest ? '<time>' + chatTime(latest.sent_at) + '</time>' : '')
+      + text(item.username) + '</b>' + (unread ? '<small class="chat-unread">' + Math.min(99,unread) + '</small>'
+        : latest ? '<time>' + chatTime(latest.sent_at) + '</time>' : '')
       + '</span>' + (draft || latest ? '<small>' + (draft ? '<em>' + text(t('Черновик')) + '</em> ' : '')
         + text(draft || latest.body) + '</small>' : '') + '</span></button>';
   }).join('')
@@ -536,6 +583,8 @@ function patchChat(previous, friendsChanged) {
   if (send) send.disabled = chat.busy;
   if (input && previous.sent !== chat.sent) input.value = chatDrafts.get(chat.peer) ?? '';
   const status = $('chat-status');
+  const verification = $('chat-verify');
+  if (verification) verification.hidden = !chat.verification;
   status.textContent = chat.status ?? '';
   status.hidden = !chat.status || chat.status === t('Сообщение отправлено');
   syncChatBottom();
@@ -709,16 +758,15 @@ function accentPicker() {
     + (state.accent || '#3c58e8') + '" aria-label="' + text(t('Свой цвет акцента')) + '">' + icon('plus') + '</label></div></div>';
 }
 function renderSettings() {
-  const languages = [['auto',t('Как в Minecraft')],['ru','Русский'],['en','English'],['de','Deutsch'],['es','Español']];
   const language = languages.find(([id]) => id === state.languageChoice) || languages[0];
   return pageHead(t('Настройки клиента')) + '<div class="look-settings"><section><h2>' + text(t('Язык интерфейса')) + '</h2>'
-    + '<div class="sheet look-block"><div class="language-picker" id="language-picker"><button type="button" class="button language-trigger" id="language-trigger"'
-      + ' data-language-toggle aria-haspopup="listbox" aria-controls="language-options" aria-expanded="false"><span>'
-      + text(language[1]) + '</span>' + icon('chevron-down') + '</button><div class="language-options" id="language-options" role="listbox" hidden>'
-      + languages.map(([id,label]) => '<button type="button" role="option" data-look="languageChoice" data-value="' + id
-        + '" aria-selected="' + (state.languageChoice === id) + '">' + text(label)
-        + (state.languageChoice === id ? icon('check') : '') + '</button>').join('')
-    + '</div></div></div></section><section><h2>' + text(t('Оформление')) + '</h2>'
+    + '<div class="sheet look-block"><button type="button" class="button language-trigger" id="language-trigger"'
+      + ' data-choice-toggle="language" aria-controls="choice-popup" aria-expanded="false"><span>'
+      + text(t(language[1])) + '</span>' + icon('chevron-down') + '</button></div></section>'
+    + '<section><h2>' + text(t('Уведомления чата')) + '</h2><div class="sheet">'
+    + chatPreference('chat-notification-toggle','chatNotifications','Всплывающие уведомления')
+    + chatPreference('chat-sound-toggle','chatNotificationSound','Звук сообщений')
+    + '</div></section><section><h2>' + text(t('Оформление')) + '</h2>'
     + '<div class="sheet look-block"><h3>' + text(t('Тема ClickGUI')) + '</h3><p>' + text(t('Выбери оформление меню')) + '</p><div class="look-options" role="group" aria-label="' + text(t('Тема ClickGUI')) + '">'
     + lookTile('theme','dark',t('Тёмная'),'dark',state.density) + lookTile('theme','light',t('Светлая'),'light',state.density)
     + '</div>' + accentPicker() + '</div></section><section><h2>' + text(t('Окно')) + '</h2><div class="sheet look-block">'
@@ -735,6 +783,12 @@ function renderSettings() {
     + '<section><h2>' + text(t('Переключатели модулей')) + '</h2><div class="sheet look-block"><h3>' + text(t('Стиль на карточках')) + '</h3>'
     + '<p>' + text(t('Выбери, как показывать состояние модуля')) + '</p><div class="look-options" role="group" aria-label="' + text(t('Стиль переключателя')) + '">'
     + toggleTile('label','ON/OFF') + toggleTile('switch',t('Тумблер')) + '</div></div></section></div>';
+}
+
+function chatPreference(id,key,label) {
+  return '<label class="setting-row" for="' + id + '"><span>' + text(t(label)) + '</span>'
+    + '<span class="setting-switch"><input type="checkbox" id="' + id + '" data-chat-preference="' + key + '"'
+    + (state[key] !== false ? ' checked' : '') + '>' + toggleMarkup + '</span></label>';
 }
 const renderers = {module:renderModule,profile:renderProfile,configs:renderConfigs,presets:renderPresets,
   waypoints:renderWaypoints,settings:renderSettings,friends:renderFriends,chat:renderChat,cosmetics:renderCosmetics};
@@ -996,6 +1050,18 @@ function showAccounts() {
 function currentConfig() { return configs[state.configTab].find(item => item.key === state.config) || configs[state.configTab][0]; }
 function configTab(tab) { state.configTab = tab; state.config = configs[tab][0]?.key ?? null; }
 const actions = {
+  'chat-verify'() {
+    if (!chat.verification) return;
+    const code = chat.verification.match(/.{1,4}/g).join(' ');
+    showDialog(t('Код безопасности'),'<p>' + text(t('Сравни этот код с другом через другой канал')) + '</p>'
+      + '<code class="chat-verification">' + text(code) + '</code>'
+      + actionButton('chat-copy-code',t('Скопировать'),'copy'));
+  },
+  'chat-copy-code'() {
+    if (!chat.verification || typeof sendGame !== 'function') return;
+    sendGame('clipboard-copy',{text:chat.verification.match(/.{1,4}/g).join(' ')});
+    toast(t('Скопировано'));
+  },
   'cosmetic-turn'() {
     state.cosmeticYaw = Math.cos(state.cosmeticYaw * Math.PI / 180) < 0 ? -19 : 158;
     render(false,false);
@@ -1060,27 +1126,27 @@ document.addEventListener('click', event => {
   if (!event.composedPath().includes($('account'))) accountOpen(false);
   if (openChoice && event.target.closest('[data-choice-toggle]') !== openChoice
       && !event.target.closest('#choice-popup')) showChoices(openChoice,false);
-  const languageOptions = $('language-options'), languageTrigger = $('language-trigger');
-  if (languageOptions && !event.target.closest('#language-picker')) {
-    languageOptions.hidden = true;
-    languageTrigger.setAttribute('aria-expanded','false');
+  for (const picker of document.querySelectorAll('.chat-reaction-picker:not([hidden])')) {
+    if (event.target.closest('.chat-reaction-row') === picker.parentElement) continue;
+    picker.hidden = true;
+    picker.parentElement.querySelector('.chat-reaction-toggle').setAttribute('aria-expanded','false');
+  }
+  const bubble = event.target.closest('[data-chat-bubble]');
+  if (bubble) {
+    const id = Number(bubble.dataset.chatBubble), now = Date.now();
+    if (lastChatBubbleClick?.id === id && now - lastChatBubbleClick.at < 300) {
+      reactToMessage(id,'👍');
+      lastChatBubbleClick = null;
+    } else lastChatBubbleClick = {id,at:now};
   }
   if (!button) return;
   const data = button.dataset;
-  if (data.languageToggle !== undefined) {
-    const open = languageOptions.hidden;
-    languageOptions.hidden = !open;
-    button.setAttribute('aria-expanded',String(open));
-  } else if (data.chatPickerToggle !== undefined) {
-    const picker = document.querySelector('[data-chat-picker="' + data.chatPickerToggle + '"]');
-    if (picker) {
-      picker.hidden = !picker.hidden;
-      button.setAttribute('aria-expanded',String(!picker.hidden));
-    }
+  if (data.chatPickerToggle !== undefined) {
+    openReactionPicker(button.closest('.chat-message'),button.getAttribute('aria-expanded') !== 'true');
   } else if (data.chatReaction !== undefined) {
     const messageId = Number(data.chatReaction), reaction = data.emoji;
-    if (Number.isSafeInteger(messageId) && messageId > 0 && ['👍','❤️','😂','😮','😢'].includes(reaction)) {
-      sendGame('chat-react',{messageId,reaction});
+    if (Number.isSafeInteger(messageId) && messageId > 0 && reactionIcons.has(reaction)) {
+      reactToMessage(messageId,reaction);
       const row = button.closest('.chat-reaction-row');
       const picker = row?.querySelector('.chat-reaction-picker');
       if (picker) picker.hidden = true;
@@ -1130,11 +1196,6 @@ document.addEventListener('click', event => {
     state[data.look] = data.value;
     if (data.look === 'toggleStyle') {
       try { localStorage.setItem(toggleStyleKey,state.toggleStyle); } catch {}
-    }
-    if (data.look === 'languageChoice') {
-      const options = $('language-options'), trigger = $('language-trigger');
-      if (options) options.hidden = true;
-      if (trigger) trigger.setAttribute('aria-expanded','false');
     }
     if (data.look === 'windowSize') {
       try { localStorage.setItem(windowSizeKey,state.windowSize); } catch {}
@@ -1271,17 +1332,23 @@ document.addEventListener('submit', event => {
   }
 });
 document.addEventListener('keydown', event => {
+  if ((event.key === 'ArrowDown' || event.key === 'ArrowUp')
+      && (event.target.id === 'language-trigger' || openChoice?.id === 'language-trigger' && event.target.closest('#choice-popup'))) {
+    const trigger = $('language-trigger');
+    if (openChoice !== trigger) showChoices(trigger,true);
+    const options = Array.from($('choice-popup').children);
+    const index = options.indexOf(event.target);
+    const direction = event.key === 'ArrowDown' ? 1 : -1;
+    const next = index < 0 ? options.find(option => option.getAttribute('aria-pressed') === 'true')
+      : options[(index + direction + options.length) % options.length];
+    (next || options[0])?.focus({preventScroll:true});
+    event.preventDefault();
+    return;
+  }
   if (event.key === 'Escape' && openChoice) {
     const trigger = openChoice;
     showChoices(trigger,false);
     trigger.focus({preventScroll:true});
-    event.preventDefault();
-    return;
-  }
-  if (event.key === 'Escape' && $('language-options') && !$('language-options').hidden) {
-    $('language-options').hidden = true;
-    $('language-trigger').setAttribute('aria-expanded','false');
-    $('language-trigger').focus({preventScroll:true});
     event.preventDefault();
     return;
   }

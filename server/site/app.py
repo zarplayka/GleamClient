@@ -107,6 +107,13 @@ def init_db():
             CHECK(low_id < high_id)
         )''')
         db.execute('CREATE INDEX IF NOT EXISTS friend_messages_pair ON friend_messages(low_id,high_id,id DESC)')
+        message_columns = {column['name'] for column in db.execute('PRAGMA table_info(friend_messages)')}
+        if 'envelope' not in message_columns:
+            db.execute('ALTER TABLE friend_messages ADD COLUMN envelope TEXT')
+        db.execute('''CREATE TABLE IF NOT EXISTS chat_keys (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            encryption TEXT NOT NULL, signing TEXT NOT NULL
+        )''')
         db.execute('''CREATE TABLE IF NOT EXISTS friend_message_reactions (
             message_id INTEGER NOT NULL REFERENCES friend_messages(id) ON DELETE CASCADE,
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -626,6 +633,60 @@ async def friends_update(request):
             db.execute('DELETE FROM friendships WHERE low_id=? AND high_id=?', pair)
     return web.json_response({'ok': True})
 
+async def chat_keys(request):
+    writing = request.method == 'POST'
+    user = auth_csrf(request) if writing else session(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'chat-keys', 120, 60): return error('rate', 429)
+    uid = user['id']
+    if writing:
+        data = await json_body(request)
+        keys = (data.get('encryption'), data.get('signing'))
+        try:
+            if any(not isinstance(key, str) or len(key) > 800 for key in keys): return error('invalid')
+            encryption, signing = (base64.b64decode(key, validate=True) for key in keys)
+            if len(encryption) != 422 or len(signing) != 44: return error('invalid')
+        except (ValueError, binascii.Error):
+            return error('invalid')
+        with connect() as db:
+            db.execute('INSERT OR IGNORE INTO chat_keys VALUES (?,?,?)', (uid, *keys))
+            row = db.execute('SELECT encryption,signing FROM chat_keys WHERE user_id=?', (uid,)).fetchone()
+            if tuple(row) != keys: return error('chat_device', 409)
+        return web.json_response({'ok': True})
+    peer = request.match_info['username']
+    if not valid_username(peer): return error('invalid')
+    with connect() as db:
+        row = db.execute('''SELECT k.encryption,k.signing FROM users u
+            JOIN friendships f ON f.low_id=min(u.id,?) AND f.high_id=max(u.id,?) AND f.accepted=1
+            JOIN chat_keys k ON k.user_id=u.id WHERE u.username_key=? AND u.banned_at IS NULL''',
+                         (uid, uid, peer.lower())).fetchone()
+    if not row: return error('chat_key_missing', 404)
+    return web.json_response(dict(row), headers={'Cache-Control': 'no-store'})
+
+async def chat_updates(request):
+    user = session(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'chat-updates', 30, 60): return error('rate', 429)
+    after = request.query.get('after')
+    if after is not None and not re.fullmatch(r'[0-9]{1,18}', after): return error('invalid')
+    uid = user['id']
+    with connect() as db:
+        db.execute('BEGIN')
+        latest = db.execute('SELECT COALESCE(MAX(id),0) FROM friend_messages').fetchone()[0]
+        if after is None:
+            cursor = latest
+            rows = []
+        else:
+            cursor = int(after)
+            rows = db.execute('''SELECT m.id,u.username FROM friend_messages m
+                JOIN friendships f ON f.low_id=m.low_id AND f.high_id=m.high_id AND f.accepted=1
+                JOIN users u ON u.id=m.sender_id AND u.banned_at IS NULL
+                WHERE m.id>? AND (m.low_id=? OR m.high_id=?) AND m.sender_id<>?
+                ORDER BY m.id LIMIT 100''', (cursor, uid, uid, uid)).fetchall()
+            cursor = rows[-1]['id'] if len(rows) == 100 else max(cursor, latest)
+    return web.json_response({'cursor': cursor, 'items': [dict(row) for row in rows]},
+                             headers={'Cache-Control': 'no-store'})
+
 async def friend_chat(request):
     writing = request.method == 'POST'
     user = auth_csrf(request) if writing else session(request)
@@ -638,20 +699,33 @@ async def friend_chat(request):
         return error('invalid')
     body = None
     reaction = None
+    envelope = None
+    secure = request.query.get('secure') == '1'
+    selected_reaction = None
     message_id = None
     if writing:
         payload = await json_body(request)
         if 'reaction' in payload:
             reaction = payload.get('reaction')
             message_id = payload.get('message_id')
-            if (reaction not in ('👍', '❤️', '😂', '😮', '😢') or isinstance(message_id, bool)
-                    or not isinstance(message_id, int) or message_id <= 0):
+            selected_reaction = payload.get('selected')
+            if (reaction not in ('👍', '❤️', '😂', '😮', '😢') or type(message_id) is not int
+                    or not 0 < message_id < 2**63 or (secure and type(selected_reaction) is not bool)):
                 return error('invalid')
         else:
-            body = payload.get('body')
-            if not isinstance(body, str) or not 1 <= len(body.strip()) <= 500 or '\x00' in body:
-                return error('invalid')
-            body = body.strip()
+            if secure:
+                envelope = payload.get('envelope')
+                if not isinstance(envelope, str) or len(envelope) > 3820: return error('invalid')
+                try:
+                    if not 861 <= len(base64.b64decode(envelope, validate=True)) <= 2860: return error('invalid')
+                except (ValueError, binascii.Error):
+                    return error('invalid')
+                body = '[encrypted]'
+            else:
+                body = payload.get('body')
+                if not isinstance(body, str) or not 1 <= len(body.strip()) <= 500 or '\x00' in body:
+                    return error('invalid')
+                body = body.strip()
     with connect() as db:
         db.execute('BEGIN IMMEDIATE' if writing else 'BEGIN')
         peer = db.execute('SELECT id FROM users WHERE username_key=? AND banned_at IS NULL', (name.lower(),)).fetchone()
@@ -665,19 +739,28 @@ async def friend_chat(request):
                                   (message_id, *pair)).fetchone():
                     return error('chat_unavailable', 403)
                 values = (message_id, user['id'], reaction)
-                if db.execute('SELECT 1 FROM friend_message_reactions WHERE message_id=? AND user_id=? AND reaction=?',
-                              values).fetchone():
-                    db.execute('DELETE FROM friend_message_reactions WHERE message_id=? AND user_id=? AND reaction=?', values)
+                if selected_reaction is None:
+                    selected_reaction = not db.execute('SELECT 1 FROM friend_message_reactions WHERE message_id=? AND user_id=? AND reaction=?', values).fetchone()
+                if selected_reaction:
+                    db.execute('DELETE FROM friend_message_reactions WHERE message_id=? AND user_id=?', values[:2])
+                    db.execute('INSERT INTO friend_message_reactions VALUES (?,?,?,?)', (*values, int(time.time())))
                 else:
-                    db.execute('INSERT INTO friend_message_reactions(message_id,user_id,reaction,created_at) VALUES (?,?,?,?)',
-                               (*values, int(time.time())))
+                    db.execute('DELETE FROM friend_message_reactions WHERE message_id=? AND user_id=? AND reaction=?', values)
             else:
-                db.execute('INSERT INTO friend_messages(low_id,high_id,sender_id,body,sent_at) VALUES (?,?,?,?,?)',
-                           (*pair, user['id'], body, int(time.time())))
-        rows = db.execute('''SELECT id, sender_id=? AS own, body, sent_at FROM friend_messages
-            WHERE low_id=? AND high_id=? AND id < ? ORDER BY id DESC LIMIT 51''',
-            (user['id'], *pair, int(before) if before and not writing else 9223372036854775807)).fetchall()
+                key_count = db.execute('SELECT count(*) FROM chat_keys WHERE user_id IN (?,?)', pair).fetchone()[0]
+                if envelope is None and key_count:
+                    return error('chat_encryption_required', 409)
+                if envelope is not None and key_count != 2:
+                    return error('chat_key_missing', 409)
+                db.execute('INSERT INTO friend_messages(low_id,high_id,sender_id,body,sent_at,envelope) VALUES (?,?,?,?,?,?)',
+                           (*pair, user['id'], body, int(time.time()), envelope))
+        rows = db.execute('''SELECT id, sender_id=? AS own, body, sent_at, envelope FROM friend_messages
+            WHERE low_id=? AND high_id=? AND (? OR envelope IS NULL) AND id < ?
+            ORDER BY id DESC LIMIT 51''',
+            (user['id'], *pair, secure, int(before) if before and not writing else 9223372036854775807)).fetchall()
         selected = list(reversed(rows[:50]))
+        if reaction is not None and secure:
+            selected = db.execute('SELECT id FROM friend_messages WHERE id=?', (message_id,)).fetchall()
         reaction_map = {}
         if selected:
             ids = [row['id'] for row in selected]
@@ -692,6 +775,13 @@ async def friend_chat(request):
         items = []
         for row in selected:
             item = dict(row)
+            if reaction is not None and secure:
+                return web.json_response({'id': message_id, 'reactions': list(reaction_map.get(message_id, {}).values())},
+                                         headers={'Cache-Control': 'no-store'})
+            if item['envelope'] is None:
+                del item['envelope']
+            else:
+                del item['body']
             item['own'] = bool(item['own'])
             item['reactions'] = list(reaction_map.get(row['id'], {}).values())
             items.append(item)
@@ -1062,6 +1152,9 @@ def create_app():
     app.router.add_post('/api/friends', friends_update)
     app.router.add_get('/api/friends/{username}/chat', friend_chat)
     app.router.add_post('/api/friends/{username}/chat', friend_chat)
+    app.router.add_post('/api/chat/keys', chat_keys)
+    app.router.add_get('/api/chat/keys/{username}', chat_keys)
+    app.router.add_get('/api/chat/updates', chat_updates)
     app.router.add_get('/api/admin/accounts', admin_accounts)
     app.router.add_post('/api/admin/accounts', admin_update)
     app.router.add_get('/api/pricing', pricing)
