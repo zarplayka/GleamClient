@@ -113,12 +113,12 @@ public final class OrionMirage {
                            GpuTextureView scene, GpuTextureView depth, GpuTextureView reflected, GpuTextureView target, GpuBufferSlice parameters) {
         var linear = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
         var nearest = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST);
-        try (var pass = encoder.createRenderPass(() -> "Orion Mirage reflections", reflected, Optional.empty())) {
+        try (var pass = encoder.createRenderPass(() -> "GleamClient Mirage reflections", reflected, Optional.empty())) {
             pass.setPipeline(reflection); pass.setUniform("DynamicTransforms", parameters);
             pass.setUniform("Sampler0", scene, linear); pass.setUniform("Sampler1", depth, nearest);
             pass.disableScissor(); pass.draw(3, 1, 0, 0);
         }
-        try (var pass = encoder.createRenderPass(() -> "Orion Mirage composite", target, Optional.empty())) {
+        try (var pass = encoder.createRenderPass(() -> "GleamClient Mirage composite", target, Optional.empty())) {
             pass.setPipeline(composite); pass.setUniform("DynamicTransforms", parameters);
             pass.setUniform("Sampler0", scene, linear); pass.setUniform("Sampler1", reflected, linear);
             pass.disableScissor(); pass.draw(3, 1, 0, 0);

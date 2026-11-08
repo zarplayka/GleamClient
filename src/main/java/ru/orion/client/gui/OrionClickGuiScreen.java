@@ -1,5 +1,8 @@
 package ru.orion.client.gui;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -10,6 +13,7 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
@@ -51,6 +55,8 @@ import java.net.URI;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -191,24 +197,31 @@ public final class OrionClickGuiScreen extends Screen {
     );
 
     private static final Palette PARADOX_PALETTE = new Palette(
-            false, new Color(0xF0, 0x00, 0xD7), new Color(0xBA, 0x00, 0xAD),
-            new Color(0x1E, 0x1E, 0x1C), new Color(0x16, 0x16, 0x15),
-            new Color(0x24, 0x24, 0x22), new Color(0x2A, 0x2A, 0x28),
-            new Color(0x35, 0x35, 0x35), new Color(0xEB, 0xEB, 0xEB),
-            new Color(0xB8, 0xB8, 0xB6), new Color(0x26, 0x26, 0x26),
-            new Color(0xA3, 0xA3, 0xA0));
+            false, new Color(0x8B9FFC), new Color(0x596DBA),
+            new Color(0x1A1D23), new Color(0x15171B),
+            new Color(0x232731), new Color(0x2B303C),
+            new Color(0x353A47), new Color(0xECEDF2),
+            new Color(0xA6ADBC), new Color(0x1A1D24),
+            new Color(0x858D9E));
 
     private static final Palette PARADOX_LIGHT_PALETTE = new Palette(
-            false, new Color(0x34, 0x7F, 0xF5), new Color(0x2B, 0x6D, 0xDB),
-            new Color(0xFA, 0xFA, 0xF8), new Color(0xF1, 0xF1, 0xEF),
-            Color.WHITE, new Color(0xF5, 0xF7, 0xFC),
-            new Color(0xE2, 0xE2, 0xDF), new Color(0x1B, 0x1B, 0x19),
-            new Color(0x79, 0x79, 0x77), new Color(0xEE, 0xEE, 0xEC),
-            new Color(0x9A, 0x9A, 0x97));
+            false, new Color(0x4257B2), new Color(0x32448C),
+            new Color(0xF3F5F9), new Color(0xE7EAF1),
+            new Color(0xFAFBFE), new Color(0xEDF0F9),
+            new Color(0xC4CCDA), new Color(0x22283A),
+            new Color(0x546077), new Color(0xE2E7F0),
+            new Color(0x647087));
     private static final String[] THEME_OPTIONS = {"Dark", "Light"};
     private static final int[] THEME_IDS = {3, 4};
-    private static final int GRID_COLUMNS = 3, GRID_GAP = 6;
+    private static final boolean SITE_MENU_ENABLED = Boolean.parseBoolean(
+            System.getProperty("orion.lumen.experimental", "true"));
+    private static final int GRID_GAP = 6;
     private static final int GRID_HEIGHT = 72, GRID_STEP = 78;
+    static final int MODULE_ICON_CELL = 64, MODULE_ICON_COLUMNS = 8;
+    private static final int HTML_GEAR_INSET = 4, HTML_CARD_CONTROL = 16;
+    private static final Identifier HTML_ICONS = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "textures/gui/click_gui_modules.png");
+    private static final Identifier HTML_LOGO = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "textures/cosmetics/orion_badge.png");
+    private static final String[] HTML_ACCENTS = {"", "#3b82f6", "#a78bfa", "#f472b6", "#ef6666", "#fb923c", "#e9bc32", "#34d399", "#22b8cf", "#ffffff"};
 
 
     private final OrionConfigManager configManager;
@@ -216,18 +229,62 @@ public final class OrionClickGuiScreen extends Screen {
     private boolean paradoxAll;
     private boolean paradoxFavoritesOnly;
     private boolean waypointPage;
-    private boolean presetsPage;
+    private boolean presetsPage, accountProfilePage;
     private boolean configsPage, configsLocal, configTitleFocused, configBusy, catalogMore;
     private int configOffset;
     private boolean configsPublished, configDeleteConfirm;
     private int configSelected = -1, configEditor, catalogTotal;
-    private static final int ACCOUNT_X = 8, ACCOUNT_W = 184, ACCOUNT_PAD = 9;
-    private static final int ACCOUNT_FOOTER_H = 26, ACCOUNT_ROW_H = 32, ACCOUNT_VISIBLE_ROWS = 4;
-    private static final int ACCOUNT_FORM_H = 177, ACCOUNT_LIST_Y = 30;
-    private static final int ACCOUNT_BUTTON_H = 23, ACCOUNT_LOGOUT_W = 55;
-    private static final URI ACCOUNT_PROFILE_PAGE = URI.create("https://orionclient.51-250-32-198.sslip.io/auth.html");
+    private static final int ACCOUNT_X = 8, ACCOUNT_FORM_W = 184, ACCOUNT_PAD = 6;
+    private static final int ACCOUNT_FOOTER_H = 26, ACCOUNT_FOOTER_BUTTON_H = 20, ACCOUNT_GEAR_W = 19;
+    private static final int ACCOUNT_ROW_H = 28, ACCOUNT_HEADER_H = 31, ACCOUNT_VISIBLE_ROWS = 4;
+    private static final int ACCOUNT_FORM_H = 177, ACCOUNT_LIST_Y = 7;
+    private static final int ACCOUNT_BUTTON_H = 16;
+    private static final String ACCOUNT_ID_COPIED = "ID скопирован";
+    private static final URI ACCOUNT_PROFILE_PAGE = URI.create(OrionAccounts.ORIGIN + "/auth.html");
     private final OrionAccounts accounts = OrionAccounts.INSTANCE;
-    private boolean accountsOpen, accountForm;
+    private OrionHtmlAccounts htmlAccounts;
+    private OrionLumenView htmlMenu;
+    private OrionSiteMenu siteMenu;
+    private JsonArray siteCatalog;
+    private String siteCatalogLanguage = "";
+    private boolean siteActive;
+    private String siteSection = "ALL", siteStatus = "";
+    private String friendsSession = "", friendsStatus = "";
+    private JsonArray friends = new JsonArray();
+    private final HashMap<String, BufferedImage> friendAvatarImages = new HashMap<>();
+    private JsonObject friendAvatars = new JsonObject();
+    private JsonObject friendProfile;
+    private boolean friendsBusy;
+    private int friendsRequest;
+    private String chatPeer = "", chatStatus = "";
+    private JsonArray chatMessages = new JsonArray();
+    private boolean chatBusy, chatLoading, chatLoaded, chatOlder;
+    private int chatRequest, chatSent;
+    private long nextChatPoll, nextChatFriends;
+    private record CosmeticStage(float x, float y, float w, float h, float clipTop, float clipBottom,
+                                 float yaw, float zoom, java.util.Set<String> items) { }
+    private CosmeticStage cosmeticPreview;
+    private JsonObject lastHtmlMenuState;
+    private boolean htmlModuleGrid, htmlActive, htmlCategoriesExpanded;
+    private boolean editingAccent;
+    private String accentInput = "";
+    private int htmlOptionsScroll, htmlScaleTrack, htmlScalePreview, htmlDetailScroll;
+    private Layout htmlLayout;
+    private boolean draggingHtmlScale;
+    private int htmlReturnCategory, htmlReturnScroll;
+    private long htmlSizeAt, htmlThemeAt;
+    private float htmlFromWidth, htmlFromHeight, htmlWidth, htmlHeight;
+    private String htmlSize;
+    private int htmlScale, htmlTheme = -1;
+    private Palette htmlThemeFrom;
+    private final List<HtmlAction> htmlActions = new ArrayList<>();
+
+    private record HtmlAction(int x, int y, int w, int h, Runnable action) { }
+    private boolean htmlAccountVisible;
+    private int categoryOffset;
+    private boolean accountsOpen, accountForm, accountSwitching;
+    private float accountMenuProgress, accountProfileProgress = 1F;
+    private static final float ACCOUNT_ANIMATION_MS = 220F;
     private boolean accountRefreshing;
     private int accountField, accountOffset;
     private int footballTeamSize;
@@ -303,6 +360,8 @@ public final class OrionClickGuiScreen extends Screen {
     private Color PLACEHOLDER = ORION_PALETTE.placeholder;
     private static final Identifier SETTINGS_TEXTURE = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "click_gui_settings");
     private static final Identifier SCROLL_THUMB_TEXTURE = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "click_gui_scroll_thumb");
+    private final AccountLayer accountMenuLayer = new AccountLayer("click_gui_account_menu");
+    private final AccountLayer accountProfileLayer = new AccountLayer("click_gui_account_profile");
     private DynamicTexture settingsTexture, scrollThumbTexture;
     private BufferedImage settingsCanvas;
     private int[] settingsUploadPixels;
@@ -329,6 +388,26 @@ public final class OrionClickGuiScreen extends Screen {
     private float scrollAnimation;
     private float[] settingToggleAnimation = new float[0];
 
+    private static final class AccountLayer {
+        private final Identifier id;
+        private DynamicTexture texture;
+        private BufferedImage image;
+        private int[] pixels;
+        private List<?> fingerprint;
+
+        private AccountLayer(String path) {
+            id = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, path);
+        }
+
+        private void release() {
+            if (texture != null) Minecraft.getInstance().getTextureManager().release(id);
+            texture = null;
+            image = null;
+            pixels = null;
+            fingerprint = null;
+        }
+    }
+
     /** Подготавливает Java2D и шрифты вне игрового потока до первого открытия меню. */
     public static void prepareInBackground() {
         Thread worker = new Thread(() -> {
@@ -338,15 +417,15 @@ public final class OrionClickGuiScreen extends Screen {
                 setupGraphics(graphics);
                 for (Font font : new Font[]{OrionInterfaceFonts.face(0, 8.5F), OrionInterfaceFonts.face(2, 10F)}) {
                     graphics.setFont(font);
-                    graphics.drawString("Orion Настройки ё", 0.0F, 16.0F);
-                    textWidth(graphics, font, "Orion Настройки ё");
+                    graphics.drawString("GleamClient Настройки ё", 0.0F, 16.0F);
+                    textWidth(graphics, font, "GleamClient Настройки ё");
                 }
             } catch (RuntimeException exception) {
-                LOGGER.warn("Не удалось заранее подготовить интерфейс Orion", exception);
+                LOGGER.warn("Не удалось заранее подготовить интерфейс GleamClient", exception);
             } finally {
                 graphics.dispose();
             }
-        }, "Orion GUI preparation");
+        }, "GleamClient GUI preparation");
         worker.setDaemon(true);
         worker.start();
     }
@@ -441,13 +520,22 @@ public final class OrionClickGuiScreen extends Screen {
 
     @Override
     public void removed() {
+        if (siteMenu != null) siteMenu.dispose();
+        boolean wasSite = siteActive;
+        siteActive = false;
+        if (htmlAccounts != null) htmlAccounts.dispose();
+        if (htmlMenu != null) htmlMenu.dispose();
+        lastHtmlMenuState = null;
+        htmlModuleGrid = htmlActive = false;
         closeAccounts();
         Minecraft.getInstance().onTextInputFocusChange(this, false);
-        configManager.getConfig().setClickGuiLastSection(selectedSection());
+        configManager.getConfig().setClickGuiLastSection(wasSite ? siteSection : selectedSection());
         configManager.save();
         Minecraft.getInstance().getTextureManager().release(GUI_TEXTURE);
         OrionGlassCompositor.INSTANCE.releaseMask(GUI_TEXTURE);
         releaseSettingsTextures();
+        accountMenuLayer.release();
+        accountProfileLayer.release();
         dynamicTexture = null;
         canvas = null;
         uploadPixels = null;
@@ -469,43 +557,1493 @@ public final class OrionClickGuiScreen extends Screen {
         super.extractRenderState(context, mouseX, mouseY, deltaTicks);
 
         applyPalette();
-        updateAnimations();
+        if (paradox && SITE_MENU_ENABLED) {
+            if (siteMenu == null) {
+                siteSection = configManager.getConfig().getClickGuiLastSection();
+                siteMenu = new OrionSiteMenu(Arrays.stream(Action.VALUES).map(Enum::name).toArray(String[]::new),this::onSiteAction);
+            }
+            siteActive = siteMenu.ready() && siteMenu.render(context,width,height,mouseX,mouseY,siteState());
+            if (siteActive) {
+                drawCosmeticPreview(context);
+                return;
+            }
+        } else siteActive = false;
+        Layout legacyLayout = L;
+        htmlActive = prepareHtmlMenu();
+        htmlModuleGrid = htmlActive && htmlModulesPage();
+        updateHtmlWindow();
+        if (htmlActive) {
+            L = htmlLayout;
+            if (!htmlModuleGrid && settingsFor != null)
+                settingsScroll = Math.clamp(settingsScroll,0,settingsMaxScroll(settingsRows));
+        }
+        prepareHtmlAccount();
         updateHover(toLocalX(mouseX), toLocalY(mouseY));
-        updateSettingsTexture();
-        updateTextureIfNeeded();
+        updateAnimations();
+        if (!htmlActive || !renderHtmlMenu(context)) {
+            htmlActive = htmlModuleGrid = false;
+            L = legacyLayout;
+            updateSettingsTexture();
+            updateTextureIfNeeded();
+            int x = guiX(), y = guiY();
+            if (dynamicTexture != null && !OrionGlassCompositor.INSTANCE.submit(GUI_TEXTURE, context, dynamicTexture,
+                    x, y, guiDisplayWidth(), guiDisplayHeight(), true)) {
+                context.blit(GUI_TEXTURE, x, y, x + guiDisplayWidth(), y + guiDisplayHeight(), 0F, 1F, 0F, 1F);
+            }
+            if (usesSettingsLayer() && settingsTexture != null) blitCachedSettings(context);
+            if (accountProfilePage && accountProfileProgress > 0F) drawAccountLayer(context, false);
+        }
+        if (accountMenuProgress > 0F) {
+            if (!htmlActive) drawAccountLayer(context, true);
+        }
+        if (htmlAccountVisible) {
+            htmlAccounts.render(context, mouseX, mouseY, SURFACE, TEXT, MUTED, BORDER, SURFACE_HOVER);
+        }
+    }
 
-        int x = guiX();
-        int y = guiY();
-        if(dynamicTexture!=null && !OrionGlassCompositor.INSTANCE.submit(GUI_TEXTURE,context,dynamicTexture,x,y,guiDisplayWidth(),guiDisplayHeight(),true))
-            context.blit(GUI_TEXTURE, x, y, x + guiDisplayWidth(), y + guiDisplayHeight(), 0.0F, 1.0F, 0.0F, 1.0F);
-        drawCachedSettings(context);
+    private JsonObject siteState() {
+        var data = new JsonObject();
+        String language = OrionGuiLanguage.language();
+        if (!language.equals(siteCatalogLanguage)) {
+            siteCatalogLanguage = language;
+            siteCatalog = siteCatalog();
+        }
+        data.addProperty("language",language);
+        data.addProperty("page", switch (siteSection) {
+            case "ALL" -> "all";
+            case "FAVORITES" -> "favorites";
+            case "SETTINGS" -> "settings";
+            case "WAYPOINTS" -> "waypoints";
+            case "PRESETS" -> "presets";
+            case "CONFIGS" -> "configs";
+            case "COSMETICS" -> "cosmetics";
+            case "FRIENDS" -> "friends";
+            case "CHAT" -> "chat";
+            default -> siteSection;
+        });
+        data.add("catalog",siteCatalog);
+        var enabled = new JsonArray();
+        var favorites = new JsonArray();
+        for (Action action : Action.VALUES) {
+            if (isActive(action)) enabled.add(action.name());
+            if (!isCosmetic(action) && paradoxFavorites.contains(action)) favorites.add(action.name());
+        }
+        data.add("enabled",enabled);
+        data.add("favorites",favorites);
+        if (settingsFor != null) {
+            var module = new JsonObject();
+            module.addProperty("id",settingsFor.action.name());
+            module.addProperty("binding",editingBind);
+            var rows = new JsonArray();
+            for (Setting row : settingsRows) rows.add(siteSetting(row));
+            module.add("settings",rows);
+            data.add("module",module);
+        }
+
+        var config = configManager.getConfig();
+        var look = new JsonObject();
+        look.addProperty("theme",config.getClickGuiTheme() == 4 ? "light" : "dark");
+        look.addProperty("density",config.isClickGuiCompactCards() ? "compact" : "normal");
+        look.addProperty("categoriesExpanded",config.isClickGuiCategoriesExpanded());
+        look.addProperty("toggleStyle",config.isClickGuiSwitchStyle() ? "switch" : "label");
+        look.addProperty("windowSize",config.getClickGuiWindowSize());
+        look.addProperty("windowScale",config.getClickGuiScale());
+        look.addProperty("accent",config.getClickGuiAccent());
+        look.addProperty("languageChoice",config.getClickGuiLanguage());
+        look.addProperty("windowX",config.getClickGuiWindowX());
+        look.addProperty("windowY",config.getClickGuiWindowY());
+        look.addProperty("wingsStyle",config.getWingsStyle());
+        data.add("look",look);
+
+        var users = new JsonArray();
+        int active = 0;
+        if (accounts.username().isEmpty()) users.add(siteAccount(0,tr("Аккаунт GleamClient"),"","","","orion-badge"));
+        List<String> usernames = accounts.usernames();
+        for (int i=0; i<usernames.size(); i++) {
+            String username = usernames.get(i);
+            boolean selected = username.equals(accounts.username());
+            if (selected) active = i+1;
+            OrionAccounts.Profile profile = accounts.profile(username);
+            users.add(siteAccount(i+1,username,profile == null ? "" : profile.id(),
+                    accounts.plusActive(username) ? "Plus" : "Free",accounts.badge(username),
+                    OrionSiteMenu.avatar(accounts.avatar(username))));
+        }
+        data.add("accounts",users);
+        data.addProperty("account",active);
+        var profile = accounts.profile();
+        data.addProperty("publication",profile != null && profile.published());
+        data.addProperty("publicationReady",profile != null && !accounts.busy());
+
+        boolean friendsAccountChanged = syncFriendsAccount();
+        boolean chatPage = "CHAT".equals(siteSection);
+        if ("FRIENDS".equals(siteSection) || chatPage) {
+            if (friendsAccountChanged) refreshFriends(null, null);
+            var social = new JsonObject();
+            social.addProperty("signedIn", !friendsSession.isEmpty());
+            social.addProperty("busy", friendsBusy);
+            social.addProperty("status", tr(friendsStatus));
+            social.add("items", friends);
+            social.add("avatars", friendAvatars);
+            if (friendProfile != null) social.add("profile", friendProfile);
+            data.add("friends", social);
+        }
+        if (chatPage) {
+            long now = System.nanoTime();
+            if (now >= nextChatFriends && !friendsBusy) {
+                nextChatFriends = now + 15_000_000_000L;
+                refreshFriends(null, null);
+            }
+            if (chatPeer.isEmpty() && !friendsBusy) {
+                for (var entry : friends) {
+                    var friend = entry.getAsJsonObject();
+                    if ("friend".equals(friend.get("status").getAsString())) {
+                        selectChat(friend.get("username").getAsString());
+                        break;
+                    }
+                }
+            }
+            if (!chatPeer.isEmpty() && now >= nextChatPoll) updateChat(null, false);
+            var chat = new JsonObject();
+            chat.addProperty("peer", chatPeer);
+            chat.addProperty("busy", chatLoading);
+            chat.addProperty("older", chatOlder);
+            chat.addProperty("sent", chatSent);
+            chat.addProperty("status", tr(chatStatus));
+            chat.add("items", chatMessages);
+            data.add("chat", chat);
+        }
+
+        var presets = new JsonArray();
+        var manager = configManager.getVisualPresets();
+        int applied = -1;
+        for (Profile item : Profile.values()) {
+            var preset = new JsonArray();
+            preset.add(tr(item.title));
+            preset.add(tr(item.description));
+            preset.add(item.renderDistance);
+            preset.add(item.simulationDistance);
+            preset.add(item.entityScale);
+            preset.add(tr(item.effectsSummary()));
+            presets.add(preset);
+            if (manager.wasApplied(item)) applied = item.ordinal();
+        }
+        data.add("presets",presets);
+        data.addProperty("appliedPreset",applied);
+        data.addProperty("canRestorePreset",manager.canRestore());
+
+        var points = new JsonArray();
+        var saved = currentWaypoints();
+        for (int i=0; i<saved.size(); i++) {
+            var point = saved.get(i);
+            var item = new JsonObject();
+            var position = new JsonArray();
+            position.add(point.x);
+            position.add(point.y);
+            position.add(point.z);
+            item.add("xyz",position);
+            item.addProperty("key",i+1);
+            item.addProperty("name",point.name);
+            points.add(item);
+        }
+        data.add("points",points);
+
+        if (configsPage) {
+            data.addProperty("configTab",siteConfigTab());
+            var entries = new JsonArray();
+            for (int i=0; i<configRowCount(); i++) {
+                var entry = configsLocal ? localConfigs.get(configOffset+i).entry() : catalogEntries.get(i);
+                var item = new JsonObject();
+                item.addProperty("key",entry.id());
+                item.addProperty("name",entry.id()==0 ? tr(entry.name()) : entry.name());
+                item.addProperty("author",entry.author());
+                item.addProperty("note",entry.id()<=0 ? tr("Локальный конфиг") : entry.downloads()+" "+tr("скачиваний"));
+                item.addProperty("downloaded",entry.id() > 0
+                        && localConfigs.stream().anyMatch(copy -> copy.entry().id() == entry.id()));
+                item.add("modules",new JsonArray());
+                entries.add(item);
+            }
+            data.add("configs",entries);
+            data.addProperty("configBusy",configBusy);
+            data.addProperty("configOffset",configOffset);
+            data.addProperty("configHasNext",configHasNext());
+            var selected = selectedConfig();
+            if (selected != null) data.addProperty("configSelected",selected.id());
+            data.addProperty("configLoading",configsLocal ? localConfigsPending : catalogPending[configsPublished ? 1 : 0]);
+            data.addProperty("configError",entries.isEmpty() ? tr(configStatus) : "");
+        }
+        String status = !siteStatus.isBlank() ? siteStatus : configsPage ? configStatus : accountStatus;
+        data.addProperty("status",tr(status));
+        data.addProperty("statusKind", status.matches("(?s)^(Не удалось|Неверн|Недоступ|Сайт|Укажите|Слишком|Войди).*")
+                ? "error" : "success");
+        return data;
+    }
+
+    private void drawCosmeticPreview(GuiGraphicsExtractor graphics) {
+        var preview = cosmeticPreview;
+        if (preview == null || minecraft.player == null || !"COSMETICS".equals(siteSection)) return;
+        float scale = minecraft.getWindow().getGuiScale();
+        int x = Math.round(preview.x() / scale);
+        int y = Math.round(preview.y() / scale);
+        int w = Math.round(preview.w() / scale);
+        int h = Math.round(preview.h() / scale);
+        int top = Math.max(y, Math.round(preview.clipTop() / scale));
+        int bottom = Math.min(y + h, Math.round(preview.clipBottom() / scale));
+        if (w < 12 || h < 12 || top >= bottom || x < 0 || x + w > width + 1) return;
+        var items = preview.items();
+        boolean wings = items.contains("angel") || items.contains("dragon");
+        float size = Math.min(w / (wings ? 5.5F : 2.6F), h / (wings ? 2.95F : 2.8F)) * preview.zoom();
+        int color = parseColor(configManager.getConfig().getAccentColor()).getRGB();
+        graphics.nextStratum();
+        graphics.enableScissor(x, top, x + w, bottom);
+        try {
+            OrionCosmeticPreview.draw(graphics, minecraft.player, items, preview.yaw(), color, x, y, x + w, y + h,
+                    size, wings || items.contains("hat") ? 1.20F : 1.04F);
+        } finally {
+            graphics.disableScissor();
+        }
+    }
+
+    private static JsonObject siteAccount(int key,String name,String uid,String plan,String badge,String avatar) {
+        var account = new JsonObject();
+        account.addProperty("key",key);
+        account.addProperty("name",name);
+        account.addProperty("uid",uid);
+        account.addProperty("plan",plan);
+        account.addProperty("badge",badge);
+        account.addProperty("avatar",avatar);
+        return account;
+    }
+
+    private JsonArray siteCatalog() {
+        JsonArray catalog = new JsonArray();
+        for (ModuleRow row : sortedThemeRows(ModuleRow.ALL)) {
+            var item = new JsonObject();
+            item.addProperty("id",row.action.name());
+            item.addProperty("name",row.title);
+            item.addProperty("description",tr(row.description));
+            item.addProperty("icon",row.action.name().toLowerCase(Locale.ROOT)+".png");
+            item.addProperty("configurable",hasSettings(row.action));
+            item.add("settings",new JsonArray());
+            if (isCosmetic(row.action)) {
+                item.addProperty("category","cosmetics");
+            } else {
+                for (Category category : Category.VALUES) {
+                    if (Arrays.asList(categoryRows(category)).contains(row)) {
+                        item.addProperty("category",category.name());
+                        break;
+                    }
+                }
+            }
+            catalog.add(item);
+        }
+        return catalog;
+    }
+
+    private static boolean isCosmetic(Action action) {
+        return switch (action) {
+            case WINGS, HALO, CHINA_HEAD, EMOTES -> true;
+            default -> false;
+        };
+    }
+
+    private boolean syncFriendsAccount() {
+        String session = accounts.sessionCookieHeader();
+        if (friendsSession.equals(session)) return false;
+        friendsSession = session;
+        friends = new JsonArray();
+        friendsStatus = "";
+        friendsBusy = false;
+        friendAvatarImages.clear();
+        friendAvatars = new JsonObject();
+        friendProfile = null;
+        selectChat("");
+        friendsRequest++;
+        return true;
+    }
+
+    private void refreshFriends(String username, String action) {
+        syncFriendsAccount();
+        if (friendsSession.isEmpty() || friendsBusy || accounts.busy()) return;
+        String session = friendsSession;
+        int requestId = ++friendsRequest;
+        friendsStatus = "";
+        friendsBusy = true;
+        var request = action == null ? accounts.friends() : accounts.changeFriend(username, action);
+        request.whenComplete((items, failure) -> Minecraft.getInstance().execute(() -> {
+            if (requestId != friendsRequest || !session.equals(accounts.sessionCookieHeader())) return;
+            friendsBusy = false;
+            if (failure == null) {
+                friends = items;
+                if (!chatPeer.isEmpty() && !isChatFriend(chatPeer)) selectChat("");
+                if ("request".equals(action)) friendsStatus = "Заявка отправлена";
+                var ids = items.asList().stream().map(item -> publicFriendId(item.getAsJsonObject()))
+                        .filter(id -> !id.isEmpty()).distinct().toList();
+                friendAvatarImages.keySet().retainAll(ids);
+                var avatars = new JsonObject();
+                friendAvatarImages.forEach((id,image) -> avatars.addProperty(id, OrionSiteMenu.avatar(image)));
+                friendAvatars = avatars;
+                var remaining = ids.stream().filter(id -> !friendAvatarImages.containsKey(id)).toList().iterator();
+                for (int i = 0; i < 4; i++) loadNextFriendAvatar(remaining, requestId, session);
+            } else {
+                Throwable cause = failure.getCause() == null ? failure : failure.getCause();
+                friendsStatus = cause instanceof IllegalStateException ? cause.getMessage() : "Сайт GleamClient недоступен";
+            }
+        }));
+    }
+
+    private boolean isChatFriend(String username) {
+        return friends.asList().stream().map(item -> item.getAsJsonObject()).anyMatch(item ->
+                "friend".equals(item.get("status").getAsString()) && username.equals(item.get("username").getAsString()));
+    }
+
+    private void selectChat(String peer) {
+        chatPeer = peer;
+        chatMessages = new JsonArray();
+        chatStatus = "";
+        chatBusy = chatLoading = chatLoaded = chatOlder = false;
+        nextChatPoll = 0;
+        chatRequest++;
+    }
+
+    private void updateChat(String message, boolean older) {
+        if (chatPeer.isEmpty() || chatBusy && (chatLoading || message == null && !older)) return;
+        chatBusy = true;
+        int request = ++chatRequest;
+        String session = friendsSession;
+        boolean initial = chatMessages.isEmpty();
+        chatLoading = !chatLoaded || older || message != null;
+        long before = older && !initial ? chatMessages.get(0).getAsJsonObject().get("id").getAsLong() : 0;
+        accounts.chat(chatPeer, before, message).whenComplete((response, failure) -> minecraft.execute(() -> {
+            if (request != chatRequest || !session.equals(accounts.sessionCookieHeader())) return;
+            chatBusy = chatLoading = false;
+            nextChatPoll = System.nanoTime() + 4_000_000_000L;
+            if (failure != null) {
+                Throwable cause = failure.getCause() == null ? failure : failure.getCause();
+                chatStatus = cause instanceof IllegalStateException ? cause.getMessage() : "Чат недоступен";
+                if ("Чат доступен только друзьям".equals(chatStatus)) {
+                    chatMessages = new JsonArray();
+                    chatOlder = false;
+                    nextChatFriends = 0;
+                }
+                return;
+            }
+            chatStatus = message == null ? "" : "Сообщение отправлено";
+            chatLoaded = true;
+            if (message != null) chatSent++;
+            var merged = new JsonArray();
+            var items = response.getAsJsonArray("items");
+            if (older) {
+                merged.addAll(items);
+                merged.addAll(chatMessages);
+            } else {
+                merged.addAll(chatMessages);
+                long last = initial ? 0 : chatMessages.get(chatMessages.size()-1).getAsJsonObject().get("id").getAsLong();
+                for (var item : items) if (item.getAsJsonObject().get("id").getAsLong() > last) merged.add(item);
+            }
+            if (older || initial) chatOlder = response.get("older").getAsBoolean();
+            chatMessages = merged;
+        }));
+    }
+
+    private static String publicFriendId(JsonObject friend) {
+        var id = friend.get("public_id");
+        return id == null || id.isJsonNull() ? "" : id.getAsString();
+    }
+
+    private void loadNextFriendAvatar(Iterator<String> ids, int requestId, String session) {
+        if (minecraft.gui.screen() != this || requestId != friendsRequest || !session.equals(accounts.sessionCookieHeader()) || !ids.hasNext()) return;
+        String id = ids.next();
+        accounts.publicAvatar(id).whenComplete((image, failure) -> minecraft.execute(() -> {
+            if (minecraft.gui.screen() != this || requestId != friendsRequest || !session.equals(accounts.sessionCookieHeader())) return;
+            if (image != null) {
+                friendAvatarImages.put(id, image);
+                JsonObject avatars = friendAvatars.deepCopy();
+                avatars.addProperty(id, OrionSiteMenu.avatar(image));
+                friendAvatars = avatars;
+            }
+            loadNextFriendAvatar(ids, requestId, session);
+        }));
+    }
+
+    private void openFriendProfile(String username) {
+        if (!"FRIENDS".equals(siteSection) || syncFriendsAccount() || friendsSession.isEmpty()) return;
+        for (var entry : friends) {
+            var friend = entry.getAsJsonObject();
+            if (!username.equals(friend.get("username").getAsString())) continue;
+            String id = publicFriendId(friend);
+            String session = friendsSession;
+            var loading = new JsonObject();
+            loading.addProperty("username", username);
+            loading.addProperty("status", tr(id.isEmpty() ? "Игрок скрыл свой профиль" : "Загрузка…"));
+            friendProfile = loading;
+            if (id.isEmpty()) return;
+            accounts.publicProfile(id).whenComplete((profile, failure) -> minecraft.execute(() -> {
+                if (friendProfile != loading || !session.equals(accounts.sessionCookieHeader())) return;
+                var result = new JsonObject();
+                result.addProperty("username", username);
+                if (failure == null) {
+                    result.addProperty("id", id);
+                    result.addProperty("role", profile.get("role").getAsString());
+                    result.addProperty("created", configDate(profile.get("created_at").getAsLong()));
+                } else {
+                    Throwable cause = failure.getCause() == null ? failure : failure.getCause();
+                    result.addProperty("status", tr(cause instanceof IllegalStateException
+                            ? cause.getMessage() : "Сайт GleamClient недоступен"));
+                }
+                friendProfile = result;
+            }));
+            return;
+        }
+    }
+
+    private JsonObject siteSetting(Setting row) {
+        var item = new JsonObject();
+        item.addProperty("label",tr(row.label()));
+        switch (row) {
+            case ToggleSetting toggle -> {
+                item.addProperty("kind","toggle");
+                item.addProperty("value",toggle.get.get());
+            }
+            case SliderSetting slider -> {
+                item.addProperty("kind","slider");
+                item.addProperty("min",slider.min);
+                item.addProperty("max",slider.max);
+                item.addProperty("step",slider.integer ? 1 : .01F);
+                item.addProperty("value",slider.get.get());
+            }
+            case ChoiceSetting choice -> {
+                item.addProperty("kind","choice");
+                var values = new JsonArray();
+                for (String option : choice.options) values.add(tr(option));
+                item.add("choices",values);
+                item.addProperty("value",choice.get.getAsInt());
+            }
+            case ColorSetting color -> {
+                item.addProperty("kind","color");
+                item.addProperty("value",color.get.get());
+            }
+            case TextSetting text -> {
+                item.addProperty("kind","text");
+                item.addProperty("value",text.get.get());
+                item.addProperty("maxLength",text.maxLength);
+            }
+            case KeybindSetting bind -> {
+                item.addProperty("kind","keybind");
+                item.addProperty("value",keybindLabel(bind.get.get()));
+            }
+            case ButtonSetting button -> {
+                item.addProperty("kind","button");
+                item.addProperty("caption",tr(button.buttonText));
+            }
+            case ValueSetting value -> {
+                item.addProperty("kind","value");
+                item.addProperty("value",tr(value.get.get()));
+            }
+        }
+        return item;
+    }
+
+    private void onSiteAction(JsonObject event) {
+        String action = event.get("action").getAsString();
+        siteStatus = "";
+        switch (action) {
+            case "close" -> onClose();
+            case "toggle" -> toggle(Action.valueOf(event.get("id").getAsString()));
+            case "favorite" -> {
+                Action target = Action.valueOf(event.get("id").getAsString());
+                if (isCosmetic(target)) return;
+                if (!paradoxFavorites.add(target)) paradoxFavorites.remove(target);
+                configManager.getConfig().setFavoriteModules(paradoxFavorites.stream().map(Enum::name).toList());
+                configManager.save();
+            }
+            case "module" -> {
+                Action target = Action.valueOf(event.get("id").getAsString());
+                if (!hasSettings(target)) return;
+                for (ModuleRow row : ModuleRow.ALL) if (row.action == target) { openSettings(row); break; }
+            }
+            case "setting", "setting-preview", "setting-button", "bind" -> applySiteSetting(action,event);
+            case "look" -> {
+                String key = event.get("key").getAsString();
+                if ("theme".equals(key) && event.has("reveal")) siteMenu.revealTheme(event.getAsJsonObject("reveal"));
+                applySiteLook(key,event.get("value").getAsString());
+            }
+            case "section" -> {
+                String section = event.get("page").getAsString().toUpperCase(Locale.ROOT);
+                if (section.matches("ALL|FAVORITES|COMBAT|PLAYER|MOVEMENT|RENDER|WORLD|MISC|SETTINGS|WAYPOINTS|PRESETS|CONFIGS|COSMETICS|FRIENDS|CHAT")) {
+                    siteSection = section;
+                    if ("FRIENDS".equals(section)) refreshFriends(null, null);
+                    if ("CHAT".equals(section)) nextChatFriends = 0;
+                }
+            }
+            case "window-position" -> {
+                configManager.getConfig().setClickGuiWindowPosition(event.get("x").getAsInt(), event.get("y").getAsInt());
+                configManager.save();
+            }
+            case "cosmetic-preview" -> {
+                cosmeticPreview = null;
+                if (!"COSMETICS".equals(siteSection) || !event.has("items")) return;
+                var items = new java.util.HashSet<String>();
+                for (var item : event.getAsJsonArray("items")) {
+                    String id = item.getAsString();
+                    if (id.matches("angel|dragon|halo|hat|dance")) items.add(id);
+                }
+                cosmeticPreview = new CosmeticStage(event.get("x").getAsFloat(), event.get("y").getAsFloat(),
+                        event.get("w").getAsFloat(), event.get("h").getAsFloat(), event.get("clipTop").getAsFloat(),
+                        event.get("clipBottom").getAsFloat(), event.get("yaw").getAsFloat(),
+                        Math.clamp(event.get("zoom").getAsFloat(), .65F, 1.35F), java.util.Set.copyOf(items));
+            }
+            case "chat-select", "chat-older", "chat-send" -> {
+                if (!"CHAT".equals(siteSection) || syncFriendsAccount() || friendsSession.isEmpty()) return;
+                if ("chat-select".equals(action)) {
+                    String peer = event.get("username").getAsString();
+                    if (isChatFriend(peer) && !peer.equals(chatPeer)) {
+                        selectChat(peer);
+                        updateChat(null, false);
+                    }
+                } else if ("chat-older".equals(action) && chatOlder) {
+                    updateChat(null, true);
+                } else if ("chat-send".equals(action)) {
+                    String message = event.get("body").getAsString().strip();
+                    if (!message.isEmpty() && message.codePointCount(0, message.length()) <= 500
+                            && message.indexOf(0) < 0 && isChatFriend(chatPeer)) updateChat(message, false);
+                }
+            }
+            case "cosmetic-wings" -> {
+                if ("COSMETICS".equals(siteSection)) {
+                    configManager.setWingsStyle(event.get("style").getAsInt());
+                    if (!isActive(Action.WINGS)) toggle(Action.WINGS);
+                }
+            }
+            case "friends-refresh" -> {
+                if ("FRIENDS".equals(siteSection)) refreshFriends(null, null);
+            }
+            case "friend-change" -> {
+                if (!"FRIENDS".equals(siteSection)) return;
+                String username = event.get("username").getAsString().strip();
+                String change = event.get("change").getAsString();
+                if (username.matches("[A-Za-z0-9_]{3,24}") && change.matches("request|accept|decline|cancel|remove"))
+                    refreshFriends(username, change);
+            }
+            case "friend-profile" -> openFriendProfile(event.get("username").getAsString());
+            case "friend-profile-back" -> friendProfile = null;
+            case "friend-profile-copy" -> {
+                if ("FRIENDS".equals(siteSection) && friendProfile != null && friendProfile.has("id")
+                        && friendsSession.equals(accounts.sessionCookieHeader())) {
+                    minecraft.keyboardHandler.setClipboard(friendProfile.get("id").getAsString());
+                    siteStatus = ACCOUNT_ID_COPIED;
+                }
+            }
+            case "copy" -> { copyAccountId(); siteStatus = accountStatus.equals(ACCOUNT_ID_COPIED) ? "Скопировано" : ""; }
+            case "profile" -> refreshAccountInBackground();
+            case "saved-accounts" -> accounts.loadSavedProfiles();
+            case "account" -> {
+                int i = event.get("key").getAsInt()-1;
+                var names = accounts.usernames();
+                if (!accounts.busy() && i>=0 && i<names.size() && !names.get(i).equals(accounts.username()))
+                    runAccountTask(accounts.select(names.get(i)));
+            }
+            case "login" -> {
+                if (accounts.busy()) return;
+                String name = event.get("name").getAsString().strip(), password = event.get("password").getAsString();
+                if (name.isBlank() || name.length()>24 || password.isEmpty() || password.codePointCount(0,password.length())>128) return;
+                runAccountTask(accounts.login(name,password));
+            }
+            case "logout" -> { if (!accounts.busy() && !accounts.username().isEmpty()) runAccountTask(accounts.logout()); }
+            case "publication" -> {
+                if (!accounts.busy() && accounts.profile()!=null)
+                    runAccountTask(accounts.setPublished(event.get("value").getAsBoolean()));
+            }
+            case "preset" -> {
+                int index = event.get("index").getAsInt();
+                if (index<0 || index>=Profile.values().length) return;
+                var manager = configManager.getVisualPresets();
+                manager.select(Profile.values()[index]);
+                manager.apply(Profile.values()[index],minecraft);
+                siteStatus = manager.status();
+            }
+            case "restore-preset" -> {
+                var manager = configManager.getVisualPresets();
+                manager.restore(minecraft);
+                siteStatus = manager.status();
+            }
+            case "point-add" -> {
+                waypointCurrentPosition();
+                waypointName = event.get("name").getAsString();
+                waypointColor = configManager.getConfig().getWaypointQuickColor();
+                saveWaypoint(false);
+                siteStatus = waypointStatus;
+            }
+            case "point-remove" -> {
+                waypointSelected = event.get("key").getAsInt();
+                deleteWaypoint();
+                siteStatus = waypointStatus;
+            }
+            case "configs" -> {
+                siteSection = "CONFIGS";
+                selectSiteConfigTab(event.get("tab").getAsString(),event.has("refresh"));
+            }
+            case "config-select", "config-use", "config-remove", "config-rename", "config-overwrite", "config-publish-copy" ->
+                    useSiteConfig(action,event);
+            case "config-page" -> {
+                if (isCurrentSiteConfigTab(event) && !configBusy) {
+                    int direction = event.get("direction").getAsInt();
+                    if (direction == -1 || direction == 1) moveConfigPage(direction);
+                }
+            }
+            case "config-add", "config-publish" -> {
+                if (configBusy) return;
+                configTitle = event.get("name").getAsString().strip();
+                if (configTitle.isEmpty() || configTitle.length()>32) return;
+                configEditor = action.equals("config-add") ? 1 : 4;
+                saveConfigEditor();
+            }
+            default -> { }
+        }
+    }
+
+    private void applySiteLook(String key,String value) {
+        var config = configManager.getConfig();
+        switch (key) {
+            case "theme" -> config.setClickGuiTheme(value.equals("light") ? 4 : 3);
+            case "density" -> config.setClickGuiCompactCards(value.equals("compact"));
+            case "categoriesExpanded" -> config.setClickGuiCategoriesExpanded(Boolean.parseBoolean(value));
+            case "toggleStyle" -> config.setClickGuiSwitchStyle(value.equals("switch"));
+            case "windowSize" -> config.setClickGuiWindowSize(value);
+            case "windowScale" -> config.setClickGuiScale(Integer.parseInt(value));
+            case "accent" -> config.setClickGuiAccent(value);
+            case "languageChoice" -> config.setClickGuiLanguage(value);
+            default -> { return; }
+        }
+        configManager.save();
+    }
+
+    private void applySiteSetting(String action,JsonObject event) {
+        int index = event.get("index").getAsInt();
+        if (settingsFor == null || index < 0 || index >= settingsRows.length
+                || !settingsFor.action.name().equals(event.get("id").getAsString())) return;
+        Setting row = settingsRows[index];
+        boolean preview = action.equals("setting-preview");
+        if (preview && !(row instanceof SliderSetting)) return;
+        if (action.equals("bind")) {
+            if (row instanceof KeybindSetting) editingBind = index;
+        } else if (action.equals("setting-button")) {
+            if (row instanceof ButtonSetting button) button.onClick.run();
+        } else {
+            var value = event.get("value");
+            switch (row) {
+                case ToggleSetting toggle -> toggle.set.accept(value.getAsBoolean());
+                case SliderSetting slider -> {
+                    float number = value.getAsFloat();
+                    if (!Float.isFinite(number)) return;
+                    number = Math.clamp(number,slider.min,slider.max);
+                    slider.set.accept(slider.integer ? (float)Math.round(number) : number);
+                }
+                case ChoiceSetting choice -> {
+                    int option = value.getAsInt();
+                    if (option<0 || option>=choice.options.length) return;
+                    choice.set.accept(option);
+                }
+                case ColorSetting color -> {
+                    String hex = value.getAsString();
+                    if (!hex.matches("#[0-9a-fA-F]{6}")) return;
+                    color.set.accept(hex);
+                }
+                case TextSetting text -> {
+                    String entered = value.getAsString();
+                    if (entered.length()>text.maxLength) return;
+                    text.set.accept(entered);
+                }
+                default -> { return; }
+            }
+            if (!preview) configManager.save();
+        }
+    }
+
+    private void selectSiteConfigTab(String tab,boolean refresh) {
+        if (configBusy) return;
+        int index = tab.equals("local") ? 1 : tab.equals("published") ? 2 : 0;
+        boolean wasOpen = configsPage;
+        if (!wasOpen) openConfigsPage();
+        if (!wasOpen || configsLocal != (index==1) || configsPublished != (index==2)) selectConfigTab(index);
+        else if (refresh) {
+            if (configsLocal) loadLocalConfigs();
+            else loadCatalog(configsPublished,configOffset,true);
+        }
+    }
+
+    private String siteConfigTab() {
+        return configsLocal ? "local" : configsPublished ? "published" : "catalog";
+    }
+
+    private boolean isCurrentSiteConfigTab(JsonObject event) {
+        return configsPage && event.has("tab") && siteConfigTab().equals(event.get("tab").getAsString());
+    }
+
+    private void useSiteConfig(String action,JsonObject event) {
+        if (configBusy || !isCurrentSiteConfigTab(event) || !event.has("key") || event.get("key").isJsonNull()) return;
+        int key = event.get("key").getAsInt();
+        for (int i=0; i<configRowCount(); i++) {
+            var entry = configsLocal ? localConfigs.get(configOffset+i).entry() : catalogEntries.get(i);
+            if (entry.id() != key) continue;
+            configSelected = i;
+            configEditor = 0;
+            switch (action) {
+                case "config-select" -> configDeleteConfirm = false;
+                case "config-use" -> useConfig(entry);
+                case "config-remove" -> { if (canEditConfig(entry)) removeConfig(entry); }
+                case "config-overwrite" -> { if (canEditConfig(entry)) overwriteConfig(entry); }
+                case "config-rename", "config-publish-copy" -> {
+                    boolean copy = action.equals("config-publish-copy");
+                    if (!(copy ? configsLocal : canEditConfig(entry)) || !event.has("name")) return;
+                    String title = event.get("name").getAsString().strip();
+                    if (title.isEmpty() || title.length() > 48) return;
+                    configTitle = title;
+                    configEditor = copy ? 3 : 2;
+                    saveConfigEditor();
+                }
+            }
+            return;
+        }
+    }
+
+
+    private boolean htmlModulesPage() {
+        return settingsFor == null && !presetsPage && !configsPage && !accountProfilePage
+                && (Category.VALUES[selectedCategory] != Category.SETTINGS || !searchQuery.isBlank());
+    }
+
+    private boolean prepareHtmlMenu() {
+        if (!paradox || !Boolean.getBoolean("orion.lumen.experimental")) return false;
+        if (htmlMenu == null) {
+            htmlMenu = new OrionLumenView("click-menu.html", "lumen_click_menu",
+                    "/assets/orion-client/fonts/paradox/ParadoxSans-Regular.ttf");
+        }
+        return htmlMenu.ready();
+    }
+
+    private void updateHtmlWindow() {
+        if (!htmlActive) return;
+        var config = configManager.getConfig();
+        String size = config.getClickGuiWindowSize();
+        int scale = config.getClickGuiScale();
+        float pixelScale = scale / (100F * minecraft.getWindow().getGuiScale());
+        float targetWidth = switch (size) { case "mini" -> 900; case "compact" -> 1000; default -> 1240; } * pixelScale;
+        float targetHeight = switch (size) { case "mini" -> 476; case "compact" -> 640; default -> 780; } * pixelScale;
+        if (htmlSize == null || htmlScale != scale) {
+            htmlWidth = htmlFromWidth = targetWidth;
+            htmlHeight = htmlFromHeight = targetHeight;
+            htmlSizeAt = 0;
+        } else if (!size.equals(htmlSize)) {
+            htmlFromWidth = htmlWidth;
+            htmlFromHeight = htmlHeight;
+            htmlSizeAt = System.nanoTime();
+        }
+        htmlSize = size;
+        htmlScale = scale;
+        float t = htmlSizeAt == 0 ? 1F : Math.clamp((System.nanoTime() - htmlSizeAt) / 240_000_000F, 0F, 1F);
+        float eased = accountEase(t);
+        htmlWidth = htmlFromWidth + (targetWidth - htmlFromWidth) * eased;
+        htmlHeight = htmlFromHeight + (targetHeight - htmlFromHeight) * eased;
+        float designScale = (660F / 1240F) / pixelScale;
+        int designWidth = Math.round(htmlWidth * designScale);
+        int designHeight = Math.round(htmlHeight * designScale);
+        int sidebar = Math.round((size.equals("mini") ? 204 : size.equals("compact") ? 212 : 232) * (660F/1240F));
+        boolean settingPage = settingsFor != null;
+        boolean hasToc = settingPage && (waypointPage || paradoxGroupStarts(settingsRows).length > 1);
+        int contentX = sidebar + (hasToc ? Math.min(112,designWidth/5) : 14);
+        htmlLayout = new Layout(designWidth,designHeight,5,sidebar,8,190,sidebar-16,18,19,
+                contentX,settingPage ? 80 : 64,designWidth-contentX-16,settingPage ? 26 : 30,
+                settingPage ? 28 : 34,18,11,16,settingPage ? 18 : 10,14,
+                Math.min(110,(designWidth-contentX)/3),Math.min(112,(designWidth-contentX)/3),10,13);
+    }
+
+    private boolean renderHtmlMenu(GuiGraphicsExtractor graphics) {
+        int width = guiDisplayWidth(), height = guiDisplayHeight();
+        float sx = width / (float) L.guiW, sy = height / (float) L.guiH;
+        float ratio = minecraft.getWindow().getGuiScale() * Math.max(sx, sy);
+        htmlMenu.resize(L.guiW, L.guiH, Math.max(.25F, Math.round(ratio * 4F) / 4F));
+        JsonObject state = htmlMenuState();
+        if (!state.equals(lastHtmlMenuState)) {
+            htmlMenu.update(state);
+            lastHtmlMenuState = state;
+        }
+        htmlMenu.frame();
+        if (!htmlMenu.draw(graphics, guiX(), guiY(), width, height, sx, sy)) return false;
+        drawHtmlIcons(graphics, state.getAsJsonArray("cards"), sx, sy);
+        if (accountProfilePage && !accounts.username().isEmpty() && !accountsOpen && htmlAccountVisible
+                && htmlDetailScroll <= 30 && 71 - htmlDetailScroll < L.guiH-4) {
+            int size = Math.max(1, Math.round(38 * Math.min(sx,sy)));
+            htmlAccounts.drawProfileAvatar(graphics,guiX()+Math.round(accountProfileX()*sx),guiY()+Math.round((33-htmlDetailScroll)*sy),size);
+        }
+        return true;
+    }
+
+    private void drawHtmlIcons(GuiGraphicsExtractor graphics, JsonArray cards, float sx, float sy) {
+        int atlasWidth = MODULE_ICON_COLUMNS * MODULE_ICON_CELL;
+        int atlasHeight = (Action.VALUES.length + MODULE_ICON_COLUMNS) / MODULE_ICON_COLUMNS * MODULE_ICON_CELL;
+        graphics.nextStratum();
+        var pose = graphics.pose();
+        pose.pushMatrix();
+        try {
+            pose.translate(guiX(), guiY());
+            pose.scale(sx, sy);
+            graphics.blit(HTML_LOGO, 8, 8, 23, 23, 0F, 1F, 0F, 1F);
+            for (var entry : cards) {
+                JsonObject card = entry.getAsJsonObject();
+                int size = card.get("artSize").getAsInt();
+                int x = card.get("x").getAsInt() + (card.get("w").getAsInt() - size) / 2;
+                int y = card.get("y").getAsInt() + 7 + card.get("slide").getAsInt();
+                int cell = card.get("iconCell").getAsInt();
+                graphics.blit(RenderPipelines.GUI_TEXTURED, HTML_ICONS, x, y,
+                        cell % MODULE_ICON_COLUMNS * MODULE_ICON_CELL, cell / MODULE_ICON_COLUMNS * MODULE_ICON_CELL,
+                        size, size, MODULE_ICON_CELL, MODULE_ICON_CELL, atlasWidth, atlasHeight,
+                        (card.get("opacity").getAsInt() << 24) | 0xFFFFFF);
+            }
+        } finally {
+            pose.popMatrix();
+        }
+    }
+
+    private JsonObject htmlMenuState() {
+        JsonObject state = new JsonObject();
+        state.addProperty("width", L.guiW);
+        state.addProperty("height", L.guiH);
+        state.addProperty("sidebar", L.sidebarW);
+        state.addProperty("contentX", L.moduleX);
+        state.addProperty("contentW", L.moduleW);
+        state.add("categoryBox", htmlBox(L.sideX, PARADOX_NAV_DIVIDER_Y - 2, L.sideW, 14));
+        state.addProperty("categoryLabel", tr("Категории"));
+        state.addProperty("categoryExpanded", htmlCategoriesExpanded);
+        state.addProperty("switchStyle", configManager.getConfig().isClickGuiSwitchStyle());
+        state.addProperty("onColor", OrionLumenView.hex(htmlOnColor()));
+        state.addProperty("onInk", OrionLumenView.hex(contrastInk(htmlOnColor())));
+        state.addProperty("content", htmlModuleGrid ? "modules" : "details");
+        state.addProperty("modules", tr("Модули"));
+        state.addProperty("title", modulePageTitle());
+        state.addProperty("empty", tr(searchQuery.isBlank() ? "В этой категории пока пусто" : "Ничего не найдено"));
+        state.addProperty("searchLabel", tr("Поиск"));
+        state.addProperty("search", searchQuery);
+        state.addProperty("searchFocused", searchFocused);
+        state.addProperty("caret", searchFocused && (System.currentTimeMillis() / 500L) % 2L == 0 ? textCaret : -1);
+
+        state.addProperty("accountLabel", htmlAccountVisible ? "" : tr("Аккаунт GleamClient"));
+        state.addProperty("settingsActive", !htmlModuleGrid && settingsFor == null && !presetsPage && !configsPage && !accountProfilePage);
+        state.add("searchBox", htmlBox(searchX(), searchY(), searchW(), searchH()));
+        state.add("footerBox", htmlBox(ACCOUNT_X, L.guiH - ACCOUNT_FOOTER_H,
+                L.sidebarW - 2 * ACCOUNT_X, ACCOUNT_FOOTER_BUTTON_H));
+        state.addProperty("background", OrionLumenView.hex(BG));
+        state.addProperty("side", OrionLumenView.hex(SIDEBAR_BG));
+        state.addProperty("surface", OrionLumenView.hex(SURFACE));
+        state.addProperty("hover", OrionLumenView.hex(SURFACE_HOVER));
+        state.addProperty("field", OrionLumenView.hex(SEARCH_BG));
+        state.addProperty("border", OrionLumenView.hex(BORDER));
+        state.addProperty("text", OrionLumenView.hex(TEXT));
+        state.addProperty("muted", OrionLumenView.hex(MUTED));
+        state.addProperty("accent", OrionLumenView.hex(PRIMARY));
+        state.addProperty("activeTrack", OrionLumenView.hex(mix(SEARCH_BG, PRIMARY, .62F)));
+        state.addProperty("hoverBorder", OrionLumenView.hex(mix(BORDER, PRIMARY, .36F)));
+
+        JsonArray navigation = new JsonArray();
+        navigation.add(htmlNav("Все модули", Icon.GRID, 69, htmlModuleGrid && paradoxAll, pagePointerY >= 69 && pagePointerY < 87));
+        navigation.add(htmlNav("Избранное", Icon.STAR, 88, htmlModuleGrid && paradoxFavoritesOnly, pagePointerY >= 88 && pagePointerY < 106));
+        navigation.add(htmlNav("Метки", Icon.PIN, WAYPOINT_NAV_Y, waypointPage, false));
+        navigation.add(htmlNav("Пресеты", Icon.MONITOR, PRESETS_NAV_Y, presetsPage, false));
+        navigation.add(htmlNav("Конфиги", Icon.FOLDER, CONFIGS_NAV_Y, configsPage, false));
+        for (int row = 0; row < visibleCategories(); row++) {
+            int index = categoryOffset + row;
+            Category category = Category.VALUES[index];
+            navigation.add(htmlNav(category.title, category.icon, categoryRowY(row),
+                    htmlModuleGrid && !paradoxAll && !paradoxFavoritesOnly && searchQuery.isBlank() && selectedCategory == index,
+                    index == hoveredCategory));
+        }
+        state.add("navigation", navigation);
+
+        htmlActions.clear();
+        if (accountMenuProgress > 0F && accountsOpen) state.add("accountForm", htmlAccountForm());
+        if (!htmlModuleGrid) {
+            state.add("cards", new JsonArray());
+            state.add("elements", htmlDetails());
+            state.addProperty("detailOpacity", Math.round(115 + 140 * accountEase(pageAnimation)));
+            return state;
+        }
+        ModuleRow[] rows = rowsForSelectedCategory();
+        moduleScroll = Math.clamp(moduleScroll, 0, moduleMaxScroll(rows.length));
+        state.addProperty("count", rows.length);
+        int hovered = moduleScroll + hoveredModule;
+        state.addProperty("description", hoveredModule >= 0 && hovered < rows.length ? tr(rows[hovered].description)
+                : tr("Выберите модуль, чтобы изменить его настройки"));
+        int visible = Math.min(rows.length - moduleScroll, maxVisibleRows());
+        JsonArray cards = new JsonArray();
+        for (int i = 0; i < visible; i++) {
+            ModuleRow row = rows[i + moduleScroll];
+            JsonObject card = htmlBox(gridCardX(i), gridCardY(i), gridCardWidth(), gridHeight());
+            card.addProperty("name", row.title);
+            card.addProperty("artSize", configManager.getConfig().isClickGuiCompactCards() ? 14 : 19);
+            card.addProperty("switchProgress", Math.round(toggleAnim[row.action.ordinal()] * 32F) / 32F);
+            float elapsed = (System.nanoTime() - pageStartedAt) / 1_000_000F;
+            int delay = Math.min(72, (i % gridColumns() + i / gridColumns()) * 14);
+            float entrance = searchFocused || !searchQuery.isBlank() ? 1F
+                    : accountEase(Math.clamp((elapsed - delay) / 175F,0F,1F));
+            card.addProperty("slide",Math.round((1F-entrance)*4));
+            card.addProperty("opacity",Math.round(115+140*entrance));
+            card.addProperty("iconCell", row.action.ordinal() + 1);
+            card.addProperty("active", isActive(row.action));
+            card.addProperty("favorite", paradoxFavorites.contains(row.action));
+            card.addProperty("settings", hasSettings(row.action));
+            card.addProperty("hover", i == hoveredModule);
+            float hover = moduleHoverAnim[i];
+            card.addProperty("controlOpacity", Math.round(255F * hover * hover * (3F - 2F * hover)));
+            card.addProperty("gearHover", htmlGearHit(pagePointerX, pagePointerY, i));
+            cards.add(card);
+        }
+        state.add("cards", cards);
+        int maximum = moduleMaxScroll(rows.length);
+        if (maximum > 0) {
+            float track = L.guiH - L.moduleY - 10;
+            float thumb = Math.max(16F, track * track / (track + maximum / gridColumns() * gridStep()));
+            int x = L.moduleX + L.moduleW + 3;
+            state.add("track", htmlBox(x, L.moduleY, 2, track));
+            state.add("thumb", htmlBox(x, L.moduleY + (track - thumb) * moduleScroll / maximum, 2, thumb));
+        }
+        return state;
+    }
+
+    private JsonArray htmlDetails() {
+        HtmlPage page = new HtmlPage();
+        if (htmlScrollableDetail()) {
+            Layout viewport = L;
+            htmlDetailScroll = Math.clamp(htmlDetailScroll,0,htmlDetailMaxScroll());
+            L = htmlDetailLayout();
+            try {
+                if (accountProfilePage) htmlProfile(page);
+                else if (presetsPage) htmlPresets(page);
+                else htmlConfigs(page);
+            } finally {
+                L = viewport;
+            }
+            JsonArray visible = new JsonArray();
+            for (var item : page.elements) {
+                JsonObject element = item.getAsJsonObject();
+                float top = element.get("y").getAsFloat() - htmlDetailScroll;
+                float height = element.get("h").getAsFloat();
+                if (top+height <= 3 || top >= L.guiH-4) continue;
+                if ("box".equals(element.get("type").getAsString())) {
+                    float end = Math.min(top+height,L.guiH-4);
+                    top = Math.max(3,top);
+                    element.addProperty("h",end-top);
+                } else if (top < 3 || top+height > L.guiH-4) continue;
+                element.addProperty("y",top);
+                visible.add(element);
+            }
+            return visible;
+        }
+        if (settingsFor != null) htmlModuleSettings(page);
+        else htmlOptions(page);
+        return page.elements;
+    }
+
+    private boolean htmlScrollableDetail() { return accountProfilePage || presetsPage || configsPage; }
+
+    private int htmlDetailHeight() {
+        return Math.max(L.guiH,accountProfilePage ? 277 : 416);
+    }
+
+    private int htmlDetailMaxScroll() { return htmlDetailHeight() - L.guiH; }
+
+    private Layout htmlDetailLayout() {
+        return new Layout(L.guiW,htmlDetailHeight(),L.windowRadius,L.sidebarW,L.sideX,L.sideY,L.sideW,L.sideH,L.sideStep,
+                L.moduleX,L.moduleY,L.moduleW,L.moduleH,L.moduleStep,L.toggleW,L.toggleH,L.gearSize,L.backY,L.arrowSize,
+                L.choiceValueW,L.sliderTrackW,L.swatchSize,L.swatchStep);
+    }
+
+    private boolean clickHtmlDetail(int x,int y) {
+        if (x < L.sidebarW || y < 3 || y >= L.guiH-4) return false;
+        Layout viewport = L;
+        int localY = y+htmlDetailScroll;
+        L = htmlDetailLayout();
+        try {
+            if (accountProfilePage) return accountProfileClick(x,localY);
+            if (presetsPage) return presetsClick(x,localY);
+            return configsClick(x,localY);
+        } finally {
+            L = viewport;
+        }
+    }
+
+    private final class HtmlPage {
+        final JsonArray elements = new JsonArray();
+
+        JsonObject element(String type, float x, float y, float w, float h) {
+            JsonObject element = htmlBox(x,y,w,h);
+            element.addProperty("type",type);
+            elements.add(element);
+            return element;
+        }
+
+        void box(float x, float y, float w, float h, Color color, float radius) {
+            if (w <= 0 || h <= 0) return;
+            var el = element("box",x,y,w,h);
+            el.addProperty("color",OrionLumenView.hex(color));
+            el.addProperty("radius",radius);
+        }
+
+        void text(String text, float x, float y, float w, float h, float size, Color color, boolean bold) {
+            if (text == null || text.isEmpty() || w <= 0) return;
+            var el = element("text",x,y,w,h);
+            el.addProperty("text",text);
+            el.addProperty("size",size);
+            el.addProperty("color",OrionLumenView.hex(color));
+            el.addProperty("bold",bold);
+        }
+
+        void title(String title, String hint) {
+            text(tr(title),L.moduleX,15,L.moduleW,23,16,TEXT,true);
+            text(tr(hint),L.moduleX,39,L.moduleW,14,8,MUTED,false);
+        }
+
+        void button(String label, int x, int y, int w, int h, boolean active) {
+            var el = element("button",x,y,w,h);
+            el.addProperty("text",tr(label));
+            el.addProperty("active",active);
+            el.addProperty("hover",isInside(pagePointerX,pagePointerY,x,y,w,h));
+        }
+
+        void action(String label, int x, int y, int w, int h, boolean active, Runnable action) {
+            button(label,x,y,w,h,active);
+            htmlActions.add(new HtmlAction(x,y,w,h,action));
+        }
+
+        void toggle(int x, int y, boolean enabled) {
+            box(x,y,19,8,enabled ? PRIMARY : BORDER,2);
+            box(x + (enabled ? 12 : 2),y+2,5,4,enabled ? contrastInk(PRIMARY) : MUTED,1);
+        }
+
+        void track(float x, float y, float w, float progress) {
+            float t = Math.clamp(progress,0F,1F);
+            box(x,y,w,3,BORDER,1);
+            box(x,y,w*t,3,PRIMARY,1);
+            box(x + w*t - 2.5F,y-1.5F,5,6,TEXT,2);
+        }
+
+    }
+
+    private int htmlOptionsMaxScroll() { return Math.max(0, 429 - L.guiH); }
+
+    private void htmlOptions(HtmlPage page) {
+        var config = configManager.getConfig();
+        int x = L.moduleX, w = Math.min(L.moduleW, 400), shift = htmlOptionsScroll;
+        int y = 59 - shift;
+        if (y + 105 >= 48) {
+            page.text(tr("Оформление"),x,y,w,14,9,TEXT,true);
+            page.box(x,y+17,w,95,SURFACE,4);
+            page.text(tr("Тема"),x+8,y+20,w-16,12,8,TEXT,false);
+            htmlAppearanceTile(page, x+8,y+35,85,38,"Тёмная",false,htmlTheme == 3,() -> configManager.setClickGuiTheme(3));
+            htmlAppearanceTile(page,x+99,y+35,85,38,"Светлая",true,htmlTheme == 4,() -> configManager.setClickGuiTheme(4));
+            page.text(tr("Акцент"),x+8,y+76,w-16,12,8,TEXT,false);
+            int colorY = y+91;
+            for (int i = 0; i < HTML_ACCENTS.length; i++) {
+                String color = HTML_ACCENTS[i];
+                int left = x+8+i*19;
+                boolean active = config.getClickGuiAccent().equals(color);
+                if (active) page.box(left,colorY,14,14,TEXT,7);
+                page.box(left+1,colorY+1,12,12,SURFACE,6);
+                page.box(left+2,colorY+2,10,10,color.isEmpty() ? new Color(0x3C58E8) : parseColor(color),5);
+                htmlActions.add(new HtmlAction(left,colorY,14,14,() -> setHtmlAccent(color)));
+            }
+            int customX = x+202;
+            page.action(editingAccent ? cursor(accentInput,true) : "+",customX,colorY-1,editingAccent ? 61 : 17,16,
+                    editingAccent || !Arrays.asList(HTML_ACCENTS).contains(config.getClickGuiAccent()),() -> {
+                        editingAccent = true;
+                        accentInput = config.getClickGuiAccent().isEmpty() ? "#3c58e8" : config.getClickGuiAccent();
+                    textCaret = accentInput.length();
+                    });
+        }
+        y = 182 - shift;
+        page.text(tr("Окно"),x,y,w,14,9,TEXT,true);
+        page.box(x,y+17,w,104,SURFACE,4);
+        page.text(tr("Размер окна"),x+8,y+21,w-16,13,8,TEXT,false);
+        String[] sizes = {"mini","compact","normal"};
+        String[] titles = {"Мини","Компактный","Обычный"};
+        for (int i = 0; i < sizes.length; i++) {
+            String size = sizes[i];
+            int left = x+8+i*77, top = y+38;
+            boolean selected = size.equals(config.getClickGuiWindowSize());
+            page.action(titles[i],left,top+29,71,13,selected,() -> {
+                config.setClickGuiWindowSize(size);
+                moduleScroll = 0;
+                configManager.save();
+            });
+            htmlActions.add(new HtmlAction(left,top,71,29,() -> {
+                config.setClickGuiWindowSize(size);
+                moduleScroll = 0;
+                configManager.save();
+            }));
+            page.box(left,top,71,29,SEARCH_BG,3);
+            int previewW = 33 + i*12, previewH = 13 + i*4;
+            page.box(left+(71-previewW)/2F,top+(29-previewH)/2F,previewW,previewH,selected ? PRIMARY : BORDER,2);
+            page.box(left+(71-previewW)/2F+1,top+(29-previewH)/2F+1,previewW-2,previewH-2,SIDEBAR_BG,1);
+            page.box(left+(71-previewW)/2F+previewW*.25F,top+(29-previewH)/2F+2,previewW*.73F-2,previewH-4,SURFACE,1);
+        }
+        int scaleY = y+91, scaleX = x+w-108;
+        int scale = draggingHtmlScale ? htmlScalePreview : config.getClickGuiScale();
+        page.text(tr("Масштаб") + " · " + scale + "%",x+8,scaleY,w-125,17,8,TEXT,false);
+        page.track(scaleX,scaleY+8,96,(scale-70)/90F);
+        htmlActions.add(new HtmlAction(scaleX-2,scaleY,100,18,() -> {
+            draggingHtmlScale = true;
+            htmlScaleTrack = scaleX;
+            setHtmlScalePreview(pagePointerX);
+        }));
+        y = 315 - shift;
+        page.text(tr("Размер карточек"),x,y,w,14,9,TEXT,true);
+        page.box(x,y+17,w,42,SURFACE,4);
+        page.action("Обычная",x+8,y+25,77,21,!config.isClickGuiCompactCards(),() -> {
+            config.setClickGuiCompactCards(false);
+            moduleScroll = 0;
+            configManager.save();
+        });
+        page.action("Компактная",x+92,y+25,77,21,config.isClickGuiCompactCards(),() -> {
+            config.setClickGuiCompactCards(true);
+            moduleScroll = 0;
+            configManager.save();
+        });
+        y = 382 - shift;
+        page.text(tr("Переключатели модулей"),x,y,w,14,9,TEXT,true);
+        page.action("ON/OFF",x+8,y+17,77,19,!config.isClickGuiSwitchStyle(),() -> {
+            config.setClickGuiSwitchStyle(false);
+            configManager.save();
+        });
+        page.action("Тумблер",x+92,y+17,77,19,config.isClickGuiSwitchStyle(),() -> {
+            config.setClickGuiSwitchStyle(true);
+            configManager.save();
+        });
+        page.box(x,4,w,45,BG,0);
+        page.title("Настройки клиента","");
+        htmlActions.removeIf(control -> control.y < 49 || control.y + control.h > L.guiH - 3);
+    }
+
+    private void htmlAppearanceTile(HtmlPage page, int x, int y, int w, int h, String title, boolean light, boolean selected, Runnable action) {
+        page.action(title,x,y+h-12,w,12,selected,action);
+        htmlActions.add(new HtmlAction(x,y,w,h-12,action));
+        Palette palette = light ? PARADOX_LIGHT_PALETTE : PARADOX_PALETTE;
+        page.box(x,y,w,h-13,selected ? PRIMARY : BORDER,3);
+        page.box(x+1,y+1,w-2,h-15,palette.sidebar,2);
+        page.box(x+22,y+3,w-25,h-19,palette.bg,2);
+        for (int i = 0; i < 3; i++) {
+            page.box(x+5,y+6+i*4,12,2,i==0 ? PRIMARY : palette.border,1);
+            page.box(x+25+i*17,y+9,14,10,palette.surface,1);
+        }
+    }
+
+    private void setHtmlAccent(String color) {
+        configManager.getConfig().setClickGuiAccent(color);
+        editingAccent = false;
+        configManager.save();
+    }
+
+    private void setHtmlScalePreview(int x) {
+        htmlScalePreview = 70 + Math.round(Math.clamp((x - htmlScaleTrack) / 96F,0F,1F)*90F);
+    }
+
+    private String cursor(String value, boolean editing) {
+        if (!editing || (System.currentTimeMillis() / 500L) % 2L != 0) return value;
+        int index = Math.clamp(textCaret,0,value.length());
+        return value.substring(0,index) + "│" + value.substring(index);
+    }
+
+    private void htmlModuleSettings(HtmlPage page) {
+        int left = L.sidebarW+12;
+        page.button("‹",left,L.backY,L.gearSize,L.gearSize,false);
+        page.text(tr(waypointPage ? "Метки мира" : "Модули"),left+L.gearSize+6,L.backY,L.moduleW,17,8,MUTED,false);
+        page.text(waypointPage ? tr("Метки") : settingsFor.title,left,35,L.guiW-left-123,22,14,TEXT,true);
+        page.text(tr(settingsFor.description),left,57,L.guiW-left-123,16,8,MUTED,false);
+        page.button(isActive(settingsFor.action) ? "Включён" : "Выключен",L.guiW-110,43,92,24,false);
+        page.toggle(L.guiW-43,51,isActive(settingsFor.action));
+        page.box(left,76,L.guiW-left-14,1,BORDER,0);
+
+        int[] groups = paradoxGroupStarts(settingsRows);
+        if (waypointPage) {
+            var points = currentWaypoints();
+            waypointListScroll = Math.clamp(waypointListScroll,0,Math.max(0,points.size()-waypointListVisible()));
+            int listWidth = L.moduleX-left-12;
+            page.text(tr("Метки мира") + " · " + points.size(),left,82,listWidth,16,8,MUTED,false);
+            page.button("+ Новая метка",left,104,listWidth,24,waypointSelected == 0);
+            for (int i = 0; i < Math.min(waypointListVisible(),points.size()-waypointListScroll); i++) {
+                int index = waypointListScroll+i, y = WAYPOINT_LIST_Y+i*WAYPOINT_LIST_STEP;
+                var point = points.get(index);
+                page.box(left,y,listWidth,26,waypointSelected == index+1 ? SURFACE_HOVER : SURFACE,3);
+                page.box(left+4,y+7,4,4,parseColor(point.color),2);
+                page.text(point.name,left+12,y+3,listWidth-16,11,8,TEXT,true);
+                page.text(point.x+" · "+point.y+" · "+point.z,left+12,y+14,listWidth-16,10,6.5F,MUTED,false);
+            }
+        } else if (groups.length > 1) {
+            page.text(tr("На этой странице"),left,81,L.moduleX-left-10,16,7,MUTED,false);
+            for (int i = 0; i < groups.length; i++)
+                page.button(paradoxGroupName(i),L.sidebarW+10,99+i*18,L.moduleX-L.sidebarW-20,17,selectedSettingsGroup()==i);
+        }
+
+        for (int i = 0; i < settingsRows.length; i++) {
+            int y = settingRowY(i);
+            if (y < L.moduleY || y + L.moduleH > L.guiH-8) continue;
+            Setting row = settingsRows[i];
+            page.box(L.moduleX,y,L.moduleW,L.moduleH,SURFACE,3);
+            String description = sportSettingDescription(row);
+            int right = row instanceof SliderSetting ? sliderTrackX() : row instanceof ToggleSetting ? toggleX() : textBoxX();
+            page.text(tr(row.label()),L.moduleX+8,y+(description.isEmpty()?0:4),right-L.moduleX-12,
+                    description.isEmpty()?L.moduleH:15,8.5F,TEXT,false);
+            page.text(tr(description),L.moduleX+8,y+20,right-L.moduleX-12,14,6.5F,MUTED,false);
+            int controlY = y+arrowOffsetY();
+            if (row instanceof ToggleSetting toggle) page.toggle(toggleX(),y+(L.moduleH-8)/2,toggle.get.get());
+            else if (row instanceof ChoiceSetting choice && choice.options.length > 0) {
+                page.button("‹",choiceLeftArrowX(),controlY,L.arrowSize,L.arrowSize,false);
+                page.button(tr(choice.options[Math.floorMod(choice.get.getAsInt(),choice.options.length)]),
+                        choiceLeftArrowX()+L.arrowSize,controlY,L.choiceValueW,L.arrowSize,false);
+                page.button("›",choiceRightArrowX(),controlY,L.arrowSize,L.arrowSize,false);
+            } else if (row instanceof SliderSetting slider) {
+                float value = slider.get.get();
+                page.track(sliderTrackX(),y+L.moduleH/2F-1,L.sliderTrackW,(value-slider.min)/(slider.max-slider.min));
+                page.text((slider.integer ? Integer.toString(Math.round(value)) : String.format(Locale.ROOT,"%.2f",value)) + tr(slider.suffix),
+                        sliderTrackX()+L.sliderTrackW+6,y,53,L.moduleH,7.5F,MUTED,false);
+            } else if (row instanceof ColorSetting color) {
+                page.button(color.get.get(),textBoxX(),controlY,textBoxW(),L.arrowSize,expandedColor==i);
+                page.box(L.moduleX+L.moduleW-22,controlY+4,10,10,parseColor(color.get.get()),2);
+            } else if (row instanceof TextSetting text) page.button(cursor(text.get.get(),editingText==i),textBoxX(),controlY,textBoxW(),L.arrowSize,editingText==i);
+            else if (row instanceof KeybindSetting bind) page.button(editingBind==i ? "Нажмите клавишу…" : keybindLabel(bind.get.get()),textBoxX(),controlY,textBoxW(),L.arrowSize,editingBind==i);
+            else if (row instanceof ButtonSetting button) page.button("Свои звуки (.wav, .aiff, .au)".equals(button.label) ? hitSoundFolderStatus : button.buttonText,
+                    textBoxX(),controlY,textBoxW(),L.arrowSize,false);
+            else if (row instanceof ValueSetting value) page.text(tr(value.get.get()),textBoxX(),y,textBoxW(),L.moduleH,7.5F,MUTED,false);
+        }
+        if (expandedColor >= 0 && expandedColor < settingsRows.length && settingsRows[expandedColor] instanceof ColorSetting color)
+            htmlColorPicker(page,color);
+    }
+
+    private void htmlColorPicker(HtmlPage page, ColorSetting setting) {
+        int y = expandedPanelY();
+        PickerLayout p = pickerLayout(y);
+        page.box(L.moduleX,y,L.moduleW,pickerPanelHeight(),SURFACE,4);
+        int steps = 12;
+        float unit = p.svS()/(float)steps;
+        for (int i = 0; i < steps; i++) {
+            for (int j = 0; j < steps; j++)
+                page.box(p.svX()+j*unit,p.svY()+i*unit,unit+.35F,unit+.35F,
+                        Color.getHSBColor(pickerHue,j/(float)(steps-1),1-i/(float)(steps-1)),0);
+            page.box(p.hueX(),p.svY()+i*unit,p.hueW(),unit+.35F,Color.getHSBColor(i/(float)steps,1,1),0);
+        }
+        page.box(p.svX()+pickerSat*p.svS()-2,p.svY()+(1-pickerVal)*p.svS()-2,4,4,Color.WHITE,2);
+        page.box(p.hueX()-1,p.svY()+pickerHue*p.svS()-1,p.hueW()+2,2,Color.WHITE,0);
+        page.text(setting.get.get(),p.hueX()+p.hueW()+8,p.svY()+2,64,16,8,TEXT,false);
+        String[] presets = setting.presets;
+        for (int i = 0; i < presets.length; i++)
+            page.box(p.rightX() + (i % 8) * p.dotStep(),p.dotsY() + (i / 8) * p.dotStep(),
+                    p.dotSize(),p.dotSize(),parseColor(presets[i]),p.dotSize()/2F);
+    }
+
+    private void htmlPresets(HtmlPage page) {
+        page.title("Пресеты","Выбери характер изображения");
+        var presets = configManager.getVisualPresets();
+        Profile[] profiles = Profile.values();
+        for (int i = 0; i < profiles.length; i++) {
+            Profile item = profiles[i];
+            int x = presetCardX(i), y = presetCardY(i), w = presetCardWidth(), h = presetCardHeight();
+            page.box(x,y,w,h,i == selectedPreset ? SURFACE_HOVER : SURFACE,4);
+            if (i == selectedPreset) page.box(x+1,y+7,2,h-14,PRIMARY,1);
+            page.text(tr(item.title),x+10,y+9,w-20,16,10,TEXT,true);
+            page.text(tr(item.description),x+10,y+27,w-20,13,8,MUTED,false);
+            if (presets.wasApplied(item)) page.text(tr("Применён"),x+10,y+45,w-20,12,7.5F,PRIMARY,false);
+        }
+        Profile chosen = profiles[selectedPreset];
+        int x = presetInfoX(), w = presetInfoWidth();
+        page.box(x,PROFILE_TOP,w,L.guiH-PROFILE_TOP-16,SURFACE,4);
+        page.text(tr(chosen.title),x+12,79,w-24,22,13,TEXT,true);
+        page.text(tr(chosen.detail),x+12,105,w-24,15,8,MUTED,false);
+        page.text(tr("Прорисовка") + " · " + chosen.renderDistance + " " + tr("чанков"),x+12,144,w-24,18,9,TEXT,false);
+        page.text(tr("Симуляция") + " · " + chosen.simulationDistance + " " + tr("чанков"),x+12,169,w-24,18,9,TEXT,false);
+        page.text(tr(chosen.effectsSummary()),x+12,204,w-24,18,8,MUTED,false);
+        page.button(presets.wasApplied(chosen) ? "Применить заново" : "Применить пресет",presetApplyX(),presetButtonY(),presetApplyWidth(),PAGE_BUTTON_H,true);
+        if (presets.canRestore()) page.button("Вернуть свои настройки",presetRestoreX(),presetButtonY()+32,presetRestoreWidth(),PAGE_BUTTON_H,false);
+    }
+
+    private void htmlConfigs(HtmlPage page) {
+        int x = L.moduleX;
+        page.title("Конфиги","");
+        String[] labels = {"Каталог","Мои конфиги","Публикации"};
+        int active = configsLocal ? 1 : configsPublished ? 2 : 0;
+        for (int i = 0; i < labels.length; i++) page.button(labels[i],configTabX(i),CONFIG_TABS_Y,configTabWidth(),CONFIG_BUTTON_H,active == i);
+        page.button("Обновить",configRefreshX(),CONFIG_TABS_Y,CONFIG_REFRESH_W,CONFIG_BUTTON_H,false);
+        page.button("Сохранить",configCommandX(0),CONFIG_COMMANDS_Y,CONFIG_COMMAND_W,CONFIG_BUTTON_H,false);
+        page.button("Опубликовать",configCommandX(1),CONFIG_COMMANDS_Y,CONFIG_COMMAND_W,CONFIG_BUTTON_H,true);
+        page.text(tr(configsLocal ? "В библиотеке" : configsPublished ? "Опубликовано" : "В каталоге") + " · "
+                + (configsLocal ? localConfigs.size() : catalogTotal),x,CONFIG_COMMANDS_Y,configListWidth(),18,8,MUTED,false);
+        for (int i = 0; i < configRowCount(); i++) {
+            var item = configsLocal ? localConfigs.get(configOffset+i).entry() : catalogEntries.get(i);
+            int y = CONFIG_ROWS_Y+i*configRowHeight();
+            page.box(x,y,configListWidth(),configRowHeight()-5,i==configSelected ? SURFACE_HOVER : SURFACE,3);
+            if (i == configSelected) page.box(x+1,y+5,2,configRowHeight()-15,PRIMARY,1);
+            page.text(item.id()==0 ? tr(item.name()) : item.name(),x+9,y+3,configListWidth()-18,14,9,TEXT,true);
+            page.text(item.id()<=0 ? tr(item.id()==0?"Исходные настройки":"Локальный конфиг") : item.author()+" · "+item.downloads()+" "+tr("скачиваний"),
+                    x+9,y+17,configListWidth()-18,12,7,MUTED,false);
+        }
+        if (configRowCount()==0) page.text(tr(configBusy || localConfigsPending || catalogPending[configsPublished ? 1 : 0]
+                ? "Загружаем…" : "Пока пусто"),x,CONFIG_ROWS_Y+12,configListWidth(),17,9,MUTED,false);
+        int ax=configActionX(), w=configActionWidth(), main=configMainY();
+        page.box(configInfoX(),CONFIG_ROWS_Y,configInfoWidth(),L.guiH-CONFIG_ROWS_Y-16,SURFACE,4);
+        var entry = selectedConfig();
+        if (configEditor != 0) {
+            page.text(tr(configEditor==1?"Новый конфиг":configEditor==2?"Переименовать":"Публикация конфига"),
+                    ax,CONFIG_ROWS_Y+11,w,21,10,TEXT,true);
+            page.button(configTitle.isEmpty()&&!configTitleFocused ? "Название конфига" : cursor(configTitle,configTitleFocused),
+                    ax,CONFIG_ROWS_Y+68,w,27,configTitleFocused);
+            page.button(configEditor<=2?"Сохранить":"Опубликовать",ax,main,w,PAGE_BUTTON_H,true);
+            page.button("Отмена",ax,main+30,w,PAGE_BUTTON_H,false);
+        } else if (entry != null) {
+            page.text(entry.id()==0 ? tr(entry.name()) : entry.name(),ax,CONFIG_ROWS_Y+10,w,23,11,TEXT,true);
+            page.text(entry.author().isEmpty()?tr("Локальная библиотека"):entry.author(),ax,CONFIG_ROWS_Y+38,w,15,8,MUTED,false);
+            page.text(tr("Скачивания")+" · "+(entry.id()>0?entry.downloads():"—"),ax,CONFIG_ROWS_Y+67,w,15,8,MUTED,false);
+            page.text(tr("Обновлён")+" · "+configDate(entry.updatedAt()),ax,CONFIG_ROWS_Y+88,w,15,8,MUTED,false);
+            page.text(tr("Создан")+" · "+configDate(entry.createdAt()),ax,CONFIG_ROWS_Y+109,w,15,8,MUTED,false);
+            if (entry.id()>0) page.text(tr("Версия")+" · "+entry.version(),ax,CONFIG_ROWS_Y+130,w,15,8,MUTED,false);
+            boolean downloaded = entry.id()>0 && localConfigs.stream().anyMatch(profile -> profile.entry().id()==entry.id());
+            page.button(configsLocal?"Применить":downloaded?"Обновить копию":"Скачать",ax,main,w,PAGE_BUTTON_H,true);
+            if (configsLocal && entry.id()!=0 || configsPublished) {
+                page.button("Название",ax,main+30,configHalfWidth(),24,false);
+                page.button(configDeleteConfirm?"Подтвердить":"Удалить",ax+configHalfWidth()+6,main+30,configHalfWidth(),24,configDeleteConfirm);
+                page.button("Обновить текущими",ax,main+60,w,24,false);
+            }
+            if (configsLocal) page.button("Опубликовать копию",ax,main+90,w,24,false);
+        }
+        if (configOffset>0) page.button("Назад",x,configFooterY(),62,20,false);
+        if (configHasNext()) page.button("Дальше",x+configListWidth()-62,configFooterY(),62,20,false);
+        page.text(tr(configStatus),x,configFooterY()-16,configListWidth(),14,8,MUTED,false);
+    }
+
+    private void htmlProfile(HtmlPage page) {
+        int x = accountProfileX(), w = accountProfileWidth();
+        var profile = accounts.profile();
+        page.text(tr("Профиль"),x,10,w,20,11,TEXT,true);
+        if (accounts.username().isEmpty()) {
+            page.text(tr("Войди в аккаунт GleamClient"),x,44,w,24,12,TEXT,true);
+            return;
+        }
+        page.text(accounts.username()+" · "+(accounts.plusActive()?"Plus":"Free"),x+50,33,w-50,24,15,TEXT,true);
+        if (profile!=null) page.text(ACCOUNT_ID_COPIED.equals(accountStatus) ? tr("Скопировано") : "ID "+profile.id(),
+                x+50,58,w-50,17,8,MUTED,false);
+        page.text(tr("Приватность"),x,84,w,16,9,TEXT,true);
+        page.box(x,105,w,67,SURFACE,4);
+        page.text(tr("Публичный профиль"),x+9,109,w-46,17,9,TEXT,false);
+        page.text(tr("Видимость в поиске GleamClient и по ссылке"),x+9,124,w-46,12,7.5F,MUTED,false);
+        if (profile!=null) page.toggle(x+w-30,115,profile.published());
+        page.box(x+8,137,w-16,1,BORDER,0);
+        page.text(tr("Дата регистрации")+(profile==null?"":" · "+configDate(profile.createdAt())),x+9,141,w-18,20,8,MUTED,false);
+        page.text(tr("Публикации"),x,178,w,16,9,TEXT,true);
+        page.box(x,197,w,28,SURFACE,4);
+        page.text(tr("Конфиги в каталоге"),x+9,197,w-108,28,8,TEXT,false);
+        page.button("Мои публикации",x+w-93,201,85,20,false);
+        page.button("Открыть сайт GleamClient",x,237,w,ACCOUNT_BUTTON_H,false);
+        page.text(tr(accounts.busy() || accounts.profileLoading() ? "Подключаемся к GleamClient…" : ACCOUNT_ID_COPIED.equals(accountStatus) ? "" : accountStatus),
+                x,258,w,15,8,MUTED,false);
+    }
+
+
+    private JsonArray htmlAccountForm() {
+        HtmlPage page = new HtmlPage();
+        int x = accountPanelX(), y = accountY() + accountSlideY(), w = accountWidth(), pad = ACCOUNT_PAD;
+        page.box(x,y,w,accountHeight(),SURFACE,4);
+        page.text(tr(accountForm ? "Вход в GleamClient" : "Аккаунты"),x+pad,y+7,w-32,17,10,TEXT,true);
+        page.button("×",x+w-26,y+6,18,18,false);
+        if (accountForm) {
+            page.button(accountLogin.isEmpty() && accountField!=1 ? "Логин" : cursor(accountLogin,accountField==1),
+                    x+pad,y+31,w-2*pad,27,accountField==1);
+            page.button(accountPassword.isEmpty() && accountField!=2 ? "Пароль" : cursor("•".repeat(accountPassword.length()),accountField==2),
+                    x+pad,y+63,w-2*pad,27,accountField==2);
+            page.button("Войти",x+pad,y+96,w-2*pad,22,true);
+            page.button("Открыть сайт GleamClient",x+pad,y+123,w-2*pad,ACCOUNT_BUTTON_H,false);
+            page.text(tr(accounts.busy()?"Подключаемся к GleamClient…":accountStatus),x+pad,y+146,w-2*pad,16,8,MUTED,false);
+        } else {
+            for (int row=0; row<accountRows(); row++) {
+                String name = accountNameAt(row);
+                if (name!=null) page.button(name,x+pad,y+accountRowY(row),w-2*pad,
+                        (row==0?ACCOUNT_HEADER_H:ACCOUNT_ROW_H)-1,name.equals(accounts.username()));
+            }
+            page.button("Добавить",x+pad,y+accountActionsY(),w-2*pad,ACCOUNT_BUTTON_H,false);
+            if (!accounts.username().isEmpty())
+                page.button("Выйти",x+pad,y+accountActionsY()+ACCOUNT_BUTTON_H,w-2*pad,ACCOUNT_BUTTON_H,false);
+        }
+        return page.elements;
+    }
+
+    private JsonObject htmlNav(String label, Icon icon, int y, boolean selected, boolean hovered) {
+        JsonObject item = htmlBox(L.sideX, y, L.sideW, L.sideH);
+        item.addProperty("text", tr(label));
+        item.addProperty("icon", icon.name());
+        item.addProperty("selected", selected);
+        item.addProperty("hover", hovered && pagePointerX >= L.sideX && pagePointerX < L.sideX + L.sideW);
+        return item;
+    }
+
+    private static JsonObject htmlBox(float x, float y, float width, float height) {
+        JsonObject box = new JsonObject();
+        box.addProperty("x", x);
+        box.addProperty("y", y);
+        box.addProperty("w", width);
+        box.addProperty("h", height);
+        return box;
+    }
+
+    private void openHtmlLogin() {
+        accountFooterClick(true);
+        accountForm = true;
+        focusAccountField(1);
+    }
+
+    private void prepareHtmlAccount() {
+        if (!Boolean.getBoolean("orion.lumen.experimental") || accounts.username().isEmpty() && htmlAccounts == null) return;
+        if (htmlAccounts == null) {
+            htmlAccounts = new OrionHtmlAccounts(this::refreshAccountInBackground, this::openAccountProfile, () -> {
+                if (!configBusy) {
+                    openConfigsPage();
+                    selectConfigTab(2);
+                }
+            }, this::openHtmlLogin, name -> runAccountTask(accounts.select(name)),
+                    () -> runAccountTask(accounts.logout()), () -> selectCategory(Category.SETTINGS.ordinal()));
+        }
+        float sx = guiDisplayWidth() / (float) L.guiW;
+        float sy = guiDisplayHeight() / (float) L.guiH;
+        int left = guiX() + Math.round(ACCOUNT_X * sx);
+        int sidebar = guiX() + Math.round((L.sidebarW - ACCOUNT_X) * sx) - left;
+        int bottom = guiY() + Math.round((L.guiH - ACCOUNT_FOOTER_H + ACCOUNT_FOOTER_BUTTON_H) * sy);
+        htmlAccountVisible = htmlAccounts.prepare(left, sidebar, bottom, Math.min(sx, sy));
+        categoryOffset = Math.min(categoryOffset, categoryCount() - visibleCategories());
     }
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        int localX = toLocalX(event.x());
-        int localY = toLocalY(event.y());
-        if (accountsOpen) {
-            if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) accountClick(localX, localY);
+        if (siteActive) {
+            if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) siteMenu.press(event.x(),event.y());
             return true;
         }
+        int localX = toLocalX(event.x());
+        int localY = toLocalY(event.y());
+        pagePointerX = localX;
+        pagePointerY = localY;
+        if (htmlAccountVisible && !accountsOpen) {
+            if (htmlAccounts.contains(event.x(), event.y())) {
+                htmlAccounts.press(event.x(), event.y(), event.button());
+                return true;
+            }
+            htmlAccounts.close();
+        }
         if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && accountFooterHit(localX, localY)) {
-            accountsOpen = true;
-            accountForm = accounts.usernames().isEmpty();
-            accountOffset = 0;
-            accountStatus = "";
-            accountLogin = "";
-            searchFocused = configTitleFocused = false;
-            editingText = editingBind = -1;
-            lastFingerprint = null;
-            if (accountForm && !accounts.busy()) focusAccountField(1);
-            refreshAccountInBackground();
+            if (htmlActive && accountGearHit(localX,localY) && !accountsOpen) selectCategory(Category.SETTINGS.ordinal());
+            else if (!htmlAccountVisible || accountsOpen) accountFooterClick(accountGearHit(localX, localY) || htmlAccountVisible);
+            return true;
+        }
+        if (accountsOpen) {
+            if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) accountClick(localX, localY);
             return true;
         }
         if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
             searchFocused = false;
             configTitleFocused = false;
-            if (settingsFor == null && !presetsPage && !configsPage) {
+            if (settingsFor == null && !presetsPage && !configsPage && !accountProfilePage) {
                 int index = moduleAt(localX, localY);
                 ModuleRow[] rows = rowsForSelectedCategory();
                 if (index >= 0 && index < rows.length && hasSettings(rows[index].action)) { openSettings(rows[index]); return true; }
@@ -521,18 +2059,24 @@ public final class OrionClickGuiScreen extends Screen {
         configTitleFocused = false;
 
         if (paradox) {
+            if (htmlActive && isInside(localX, localY, L.sideX, PARADOX_NAV_DIVIDER_Y - 2, L.sideW, 14)) {
+                htmlCategoriesExpanded = !htmlCategoriesExpanded;
+                categoryOffset = 0;
+                return true;
+            }
             if (isInside(localX, localY, 8, CONFIGS_NAV_Y, 110, PARADOX_NAV_ROW_HEIGHT)) { openConfigsPage(); return true; }
             if (isInside(localX, localY, 8, PRESETS_NAV_Y, 110, 18)) { openPresetsPage(); return true; }
             if (isInside(localX, localY, 8, WAYPOINT_NAV_Y, 110, 18)) { openWaypointPage(); return true; }
             if (isInside(localX, localY, L.guiW - 22, 7, 16, 16)) { onClose(); return true; }
             if (isInside(localX, localY, 8, 69, 110, 18) || isInside(localX, localY, 8, 88, 110, 18)) {
                 boolean favorites = localY >= 88;
+                if (htmlActive) htmlCategoriesExpanded = true;
                 closeSettings(); paradoxAll = !favorites; paradoxFavoritesOnly = favorites;
                 selectedCategory = 0; moduleScroll = 0; searchQuery = ""; lastFingerprint = null; return true;
             }
         }
 
-        if (!presetsPage && !configsPage && scrollBarHit(localX, localY)) {
+        if (!presetsPage && !configsPage && !accountProfilePage && scrollBarHit(localX, localY)) {
             if (settingsFor != null && settingsMaxScroll(settingsRows) > 0) {
                 draggingSettingsScroll = true;
                 applyScrollBar(localY, true);
@@ -558,17 +2102,20 @@ public final class OrionClickGuiScreen extends Screen {
         }
         int category = categoryAt(localX, localY);
         if (category >= 0) {
-            paradoxAll = false;
-            paradoxFavoritesOnly = false;
-            selectedCategory = category;
-            searchQuery = "";
-            moduleScroll = 0;
-            closeSettings();
-            Arrays.fill(moduleHoverAnim, 0.0F);
-            lastFingerprint = null;
+            selectCategory(category);
             return true;
         }
 
+        if (htmlActive) {
+            for (HtmlAction control : htmlActions) {
+                if (isInside(localX, localY, control.x, control.y, control.w, control.h)) {
+                    control.action.run();
+                    return true;
+                }
+            }
+        }
+        if (htmlActive && htmlScrollableDetail()) return clickHtmlDetail(localX,localY);
+        if (accountProfilePage) return accountProfileClick(localX, localY);
         if (presetsPage) return presetsClick(localX, localY);
         if (configsPage) return configsClick(localX, localY);
 
@@ -585,6 +2132,7 @@ public final class OrionClickGuiScreen extends Screen {
         }
 
         if (Category.VALUES[selectedCategory] == Category.SETTINGS && searchQuery.isBlank()) {
+            if (htmlActive) return true;
             if (settingsClick(localX, localY, globalSettings)) {
                 return true;
             }
@@ -598,7 +2146,14 @@ public final class OrionClickGuiScreen extends Screen {
             if (paradox) {
                 int index = module - moduleScroll;
                 int cx = gridCardX(index), cy = gridCardY(index);
-                if (isInside(localX, localY, cx + gridCardWidth() - 49, cy + 8, 16, 16)) {
+                if (htmlModuleGrid && hasSettings(row.action) && htmlGearHit(localX, localY, index)) {
+                    openSettings(row);
+                    return true;
+                }
+                boolean favoriteHit = htmlModuleGrid
+                        ? isInside(localX, localY, cx + HTML_GEAR_INSET, cy + HTML_GEAR_INSET, HTML_CARD_CONTROL, HTML_CARD_CONTROL)
+                        : isInside(localX, localY, cx + gridCardWidth() - 49, cy + 8, 16, 16);
+                if (favoriteHit) {
                     if (!paradoxFavorites.add(row.action)) paradoxFavorites.remove(row.action);
                     configManager.getConfig().setFavoriteModules(paradoxFavorites.stream().map(Enum::name).toList());
                     configManager.save(); lastFingerprint = null;
@@ -616,9 +2171,17 @@ public final class OrionClickGuiScreen extends Screen {
 
     @Override
     public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
+        if (siteActive) {
+            siteMenu.move(event.x(),event.y());
+            return true;
+        }
         if (accountsOpen) return true;
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return super.mouseDragged(event, dragX, dragY);
+        }
+        if (draggingHtmlScale) {
+            setHtmlScalePreview(toLocalX(event.x()));
+            return true;
         }
         if (draggingSettingsScroll || draggingModuleScroll) {
             applyScrollBar(toLocalY(event.y()), draggingSettingsScroll);
@@ -644,14 +2207,37 @@ public final class OrionClickGuiScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
+        if (siteActive) {
+            siteMenu.scroll(mouseX,mouseY,horizontal,vertical);
+            return true;
+        }
         if (accountsOpen) {
-            if (!accountForm && vertical != 0 && accountPanelHit(toLocalX(mouseX), toLocalY(mouseY))) {
+            if (accountSwitching && !accountForm && vertical != 0 && accountPanelHit(toLocalX(mouseX), toLocalY(mouseY))) {
                 accountOffset = Math.clamp(accountOffset + (vertical > 0 ? -1 : 1), 0,
                         Math.max(0, accounts.usernames().size() - ACCOUNT_VISIBLE_ROWS));
             }
             return true;
         }
-        if (presetsPage || configsPage) return true;
+        if (htmlActive || htmlAccountVisible) {
+            if (htmlAccountVisible && htmlAccounts.contains(mouseX, mouseY)) return htmlAccounts.scroll(vertical);
+            int x = toLocalX(mouseX), y = toLocalY(mouseY);
+            if (vertical != 0 && isInside(x, y, 0, categoryRowY(0), L.sidebarW, categoryBottom() - categoryRowY(0))) {
+                categoryOffset = Math.clamp(categoryOffset - (int) Math.signum(vertical),
+                        0, categoryCount() - visibleCategories());
+                return true;
+            }
+        }
+        if (htmlActive && !htmlModuleGrid && settingsFor == null && !presetsPage && !configsPage && !accountProfilePage) {
+            if (toLocalX(mouseX) >= L.sidebarW && vertical != 0)
+                htmlOptionsScroll = Math.clamp(htmlOptionsScroll - (int) Math.signum(vertical) * 26, 0, htmlOptionsMaxScroll());
+            return true;
+        }
+        if (htmlActive && htmlScrollableDetail()) {
+            if (toLocalX(mouseX) >= L.sidebarW && vertical != 0)
+                htmlDetailScroll = Math.clamp(htmlDetailScroll-(int)Math.signum(vertical)*24,0,htmlDetailMaxScroll());
+            return true;
+        }
+        if (presetsPage || configsPage || accountProfilePage) return true;
         TextSetting activeText = editingTextSetting();
         int localX = toLocalX(mouseX), localY = toLocalY(mouseY);
         if (activeText != null && isInside(localX, localY, textBoxX(), settingRowY(editingText) + arrowOffsetY(), textBoxW(), L.arrowSize)) {
@@ -677,7 +2263,7 @@ public final class OrionClickGuiScreen extends Screen {
                 && toLocalX(mouseX) >= L.moduleX && toLocalX(mouseX) < L.moduleX + L.moduleW
                 && toLocalY(mouseY) >= L.moduleY && toLocalY(mouseY) < L.guiH - 8) {
             int maxScroll = moduleMaxScroll(rowsForSelectedCategory().length);
-            moduleScroll = Math.max(0, Math.min(maxScroll, moduleScroll - (int) Math.signum(vertical) * (paradox ? GRID_COLUMNS : 1)));
+            moduleScroll = Math.max(0, Math.min(maxScroll, moduleScroll - (int) Math.signum(vertical) * (paradox ? gridColumns() : 1)));
             Arrays.fill(moduleHoverAnim, 0.0F);
             lastFingerprint = null;
             return true;
@@ -687,6 +2273,17 @@ public final class OrionClickGuiScreen extends Screen {
 
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
+        if (siteActive) {
+            if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) siteMenu.release(event.x(),event.y());
+            return true;
+        }
+        if (draggingHtmlScale && event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
+            draggingHtmlScale = false;
+            configManager.getConfig().setClickGuiScale(htmlScalePreview);
+            configManager.save();
+            return true;
+        }
+        if (htmlAccountVisible && htmlAccounts.release(event.x(), event.y(), event.button())) return true;
         if (accountsOpen) return true;
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return super.mouseReleased(event);
@@ -754,6 +2351,20 @@ public final class OrionClickGuiScreen extends Screen {
 
     @Override
     public boolean charTyped(CharacterEvent event) {
+        if (siteActive) {
+            if (bindAcceptedAt == 0 || System.nanoTime()-bindAcceptedAt >= 150_000_000L) {
+                if (event.isAllowedChatCharacter()) siteMenu.text(event.codepointAsString());
+            }
+            return true;
+        }
+        if (editingAccent) {
+            String c = event.codepointAsString();
+            if (accentInput.length() < 7 && c.matches("[#a-fA-F0-9]")) accentInput += c;
+            return true;
+        }
+        if (htmlAccounts != null && htmlAccounts.isOpen()) {
+            return true;
+        }
         if (bindAcceptedAt != 0 && System.nanoTime() - bindAcceptedAt < 150_000_000L) { bindAcceptedAt = 0; return true; }
         bindAcceptedAt = 0;
         TextSetting editing = editingTextSetting();
@@ -770,6 +2381,32 @@ public final class OrionClickGuiScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        if (siteActive && editingBind < 0) {
+            siteMenu.key(event,true);
+            return true;
+        }
+        if (editingAccent) {
+            switch (event.key()) {
+                case InputConstants.KEY_ESCAPE -> editingAccent = false;
+                case InputConstants.KEY_BACKSPACE -> { if (!accentInput.isEmpty()) accentInput = accentInput.substring(0,accentInput.length()-1); }
+                case InputConstants.KEY_DELETE -> accentInput = "#";
+                case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER -> {
+                    if (accentInput.matches("#[a-fA-F0-9]{6}")) setHtmlAccent(accentInput);
+                }
+                default -> {
+                    if (editShortcut(event,InputConstants.KEY_A)) accentInput = "";
+                    if (editShortcut(event,InputConstants.KEY_V)) {
+                        String pasted = minecraft.keyboardHandler.getClipboard().strip();
+                        if (pasted.matches("#[a-fA-F0-9]{6}")) accentInput = pasted;
+                    }
+                }
+            }
+            return true;
+        }
+        if (htmlAccounts != null && htmlAccounts.isOpen()) {
+            if (event.key() == InputConstants.KEY_ESCAPE) htmlAccounts.close();
+            return true;
+        }
         if (accountsOpen) {
             if (event.key() == InputConstants.KEY_ESCAPE) { closeAccounts(); return true; }
             if (accounts.busy() || !accountForm) return true;
@@ -845,7 +2482,16 @@ public final class OrionClickGuiScreen extends Screen {
         return super.keyPressed(event);
     }
 
+    @Override
+    public boolean keyReleased(KeyEvent event) {
+        if (!siteActive) return super.keyReleased(event);
+        siteMenu.key(event,false);
+        return true;
+    }
+
     private void openSettings(ModuleRow row) {
+        htmlReturnCategory = selectedCategory;
+        htmlReturnScroll = moduleScroll;
         if (paradox) {
             ModuleRow[][] categories = {ModuleRow.COMBAT, ModuleRow.PLAYER, ModuleRow.MOVEMENT,
                     ModuleRow.RENDER, ModuleRow.WORLD, ModuleRow.MISC, ModuleRow.SETTINGS};
@@ -871,8 +2517,21 @@ public final class OrionClickGuiScreen extends Screen {
         lastFingerprint = null;
     }
 
+    private void selectCategory(int category) {
+        paradoxAll = paradoxFavoritesOnly = searchFocused = false;
+        selectedCategory = category;
+        searchQuery = "";
+        moduleScroll = 0;
+        closeSettings();
+        Arrays.fill(moduleHoverAnim, 0.0F);
+        lastFingerprint = null;
+    }
+
     private void closeSettings() {
-        waypointPage = presetsPage = configsPage = configTitleFocused = false;
+        editingAccent = false;
+        draggingHtmlScale = false;
+        htmlDetailScroll = 0;
+        waypointPage = presetsPage = configsPage = configTitleFocused = accountProfilePage = false;
         settingsScroll = 0;
         draggingSettingsScroll = false;
         draggingModuleScroll = false;
@@ -894,6 +2553,10 @@ public final class OrionClickGuiScreen extends Screen {
             boolean wasWaypointPage = waypointPage;
             closeSettings();
             if (wasWaypointPage) paradoxAll = true;
+            else if (htmlActive) {
+                selectedCategory = htmlReturnCategory;
+                moduleScroll = htmlReturnScroll;
+            }
             return true;
         }
 
@@ -1201,7 +2864,7 @@ public final class OrionClickGuiScreen extends Screen {
                             "Чёрная дыра", "Ангельские крылья", "Кристальная тюрьма", "Душа дракона"},
                             () -> config.getKillEffectsStyle() == 8 ? 7 : config.getKillEffectsStyle(), value -> configManager.setKillEffectsStyle(value == 7 ? 8 : value)),
                     new ChoiceSetting("Цели", new String[]{"Только игроки", "Все сущности", "Только мобы"}, config::getKillEffectsTargets, configManager::setKillEffectsTargets),
-                    new SliderSetting("Высота на игроках", 0F, 2F, config::getKillEffectsPlayerLift, configManager::setKillEffectsPlayerLift, "м"),
+                    new SliderSetting("Высота на игроках", 0F, 2F, config::getKillEffectsPlayerLift, config::setKillEffectsPlayerLift, "м"),
                     new SliderSetting("Размер", 0.5F, 2.0F, config::getKillEffectsSize, config::setKillEffectsSize, "×"),
                     new SliderSetting("Скорость анимации", 0.5F, 2.0F, config::getKillEffectsSpeed, config::setKillEffectsSpeed, "×"),
                     new SliderSetting("Частицы", 0.0F, 1.0F, config::getKillEffectsParticles, config::setKillEffectsParticles, ""),
@@ -1413,8 +3076,8 @@ public final class OrionClickGuiScreen extends Screen {
                         new ButtonSetting("Настройки баскетбола", "Сбросить настройки", this::resetBasketballSettings),
                         new SliderSetting("Сила броска", 0.3F, 2F, config::getBasketballThrowPower, config::setBasketballThrowPower, "x"),
                         new SliderSetting("Скорость зарядки", 0.3F, 3F, config::getBasketballChargeSpeed, config::setBasketballChargeSpeed, "x"),
-                        new SliderSetting("Сила паса", 6F, 30F, config::getBasketballPassPower, configManager::setBasketballPassPower, " м/с"),
-                        new SliderSetting("Вращение мяча", 0F, 3F, config::getBasketballSpin, configManager::setBasketballSpin, "x"),
+                        new SliderSetting("Сила паса", 6F, 30F, config::getBasketballPassPower, config::setBasketballPassPower, " м/с"),
+                        new SliderSetting("Вращение мяча", 0F, 3F, config::getBasketballSpin, config::setBasketballSpin, "x"),
                         new ToggleSetting("Показывать дугу", config::isBasketballTrajectory, configManager::setBasketballTrajectory),
                         new ToggleSetting("Ловить самому", config::isBasketballAutoCatch, configManager::setBasketballAutoCatch),
                         new SliderSetting("Сила отскока", 0.1F, 2F, config::getBasketballBounce, config::setBasketballBounce, "x"),
@@ -1434,7 +3097,7 @@ public final class OrionClickGuiScreen extends Screen {
                             value -> config.setAnimationsDuration(Math.round(value)), " мс", true)
             };
             case ENCHANT_GLINT -> new Setting[]{
-                    new ChoiceSetting("Эффект", new String[]{"Orion", "Выкл", "Azure", "Rose", "Gold"}, config::getEnchantGlintMode, configManager::setEnchantGlintMode)
+                    new ChoiceSetting("Эффект", new String[]{"GleamClient", "Выкл", "Azure", "Rose", "Gold"}, config::getEnchantGlintMode, configManager::setEnchantGlintMode)
             };
             case PVP_SAFE -> new Setting[]{
                     new SliderSetting("Время после удара", 1F, 300F, () -> (float) config.getPvpSafeSeconds(),
@@ -1670,31 +3333,6 @@ public final class OrionClickGuiScreen extends Screen {
         lastThumbFingerprint = next;
     }
 
-    private void drawCachedSettings(GuiGraphicsExtractor context) {
-        if (!usesSettingsLayer() || settingsTexture == null) return;
-        if (!accountsOpen || L.moduleX >= ACCOUNT_X + ACCOUNT_W) {
-            blitCachedSettings(context);
-            return;
-        }
-        float sx = guiDisplayWidth() / (float) L.guiW, sy = guiDisplayHeight() / (float) L.guiH;
-        int left = guiX(), top = guiY(), right = left + guiDisplayWidth(), bottom = top + guiDisplayHeight();
-        int panelTop = top + (int) Math.floor(accountY() * sy);
-        int panelBottom = top + (int) Math.ceil((accountY() + accountHeight()) * sy);
-        int panelRight = left + (int) Math.ceil((ACCOUNT_X + ACCOUNT_W) * sx);
-        blitCachedSettingsClipped(context, left, top, right, panelTop);
-        blitCachedSettingsClipped(context, panelRight, panelTop, right, panelBottom);
-        blitCachedSettingsClipped(context, left, panelBottom, right, bottom);
-    }
-
-    private void blitCachedSettingsClipped(GuiGraphicsExtractor context, int x, int y, int right, int bottom) {
-        context.enableScissor(x, y, right, bottom);
-        try {
-            blitCachedSettings(context);
-        } finally {
-            context.disableScissor();
-        }
-    }
-
     private void blitCachedSettings(GuiGraphicsExtractor context) {
         float sx = guiDisplayWidth() / (float) L.guiW, sy = guiDisplayHeight() / (float) L.guiH;
         int x = guiX() + Math.round(L.moduleX * sx), y = guiY() + Math.round(L.moduleY * sy);
@@ -1763,7 +3401,7 @@ public final class OrionClickGuiScreen extends Screen {
         lastTextureUpdateNanos = System.nanoTime();
         long totalElapsed = lastTextureUpdateNanos - renderStart;
         if (totalElapsed > 250_000_000L) {
-            LOGGER.info("Подготовка меню Orion: Java2D {} мс, загрузка текстуры {} мс, размер {}x{}",
+            LOGGER.info("Подготовка меню GleamClient: Java2D {} мс, загрузка текстуры {} мс, размер {}x{}",
                     renderElapsed / 1_000_000L, (totalElapsed - renderElapsed) / 1_000_000L,
                     imageWidth, imageHeight);
         }
@@ -1782,6 +3420,85 @@ public final class OrionClickGuiScreen extends Screen {
         }
         target.getPixelBytes().order(ByteOrder.nativeOrder()).asIntBuffer().put(buffer);
         return buffer;
+    }
+
+    private List<?> accountLayerFingerprint(boolean menu, int width, int height) {
+        int theme = configManager.getConfig().getClickGuiTheme();
+        boolean english = OrionGuiLanguage.english();
+        if (menu) {
+            int hover = accountsOpen && accountMenuProgress == 1F ? accountTarget(pagePointerX, pagePointerY) : 0;
+            boolean caret = accountField != 0 && System.currentTimeMillis() / 500L % 2L == 0;
+            return List.of(width, height, theme, english, accounts.profileRevision(), accounts.usernames(), accounts.username(),
+                    accounts.badge(), accounts.busy(), accountStatus, accountForm, accountSwitching, accountOffset, hover,
+                    accountLogin, accountPassword.length(), accountField, textCaret, textAnchor, caret);
+        }
+        int hover = accountProfileProgress == 1F ? accountProfileTarget(pagePointerX, pagePointerY) : 0;
+        return List.of(width, height, theme, english, accounts.profileRevision(), accounts.username(), accounts.badge(),
+                accounts.profileLoading(), accounts.busy(), accountStatus, hover);
+    }
+
+    private BufferedImage renderAccountLayerImage(BufferedImage image, boolean menu, int left, int top, int width, int height,
+                                                   int pixelWidth, int pixelHeight) {
+        if (image == null || image.getWidth() != pixelWidth || image.getHeight() != pixelHeight) {
+            image = new BufferedImage(pixelWidth, pixelHeight, BufferedImage.TYPE_INT_ARGB);
+        }
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setComposite(AlphaComposite.Clear);
+            g.fillRect(0, 0, pixelWidth, pixelHeight);
+            g.setComposite(AlphaComposite.SrcOver);
+            setupGraphics(g);
+            g.scale(pixelWidth / (double) width, pixelHeight / (double) height);
+            g.translate(-left, -top);
+            if (menu) drawAccounts(g);
+            else drawAccountProfile(g);
+        } finally {
+            g.dispose();
+        }
+        return image;
+    }
+
+    private void drawAccountLayer(GuiGraphicsExtractor context, boolean menu) {
+        AccountLayer layer = menu ? accountMenuLayer : accountProfileLayer;
+        int left = menu ? accountPanelX() : accountProfileX() - 2;
+        int top = menu ? accountY() : 30;
+        int width = menu ? accountWidth() : accountProfileWidth() + 4;
+        int height = menu ? accountHeight() : 244;
+        float sx = guiDisplayWidth() / (float) L.guiW;
+        float sy = guiDisplayHeight() / (float) L.guiH;
+        int x = Math.round(left * sx), y = Math.round(top * sy);
+        int guiWidth = Math.max(1, Math.round((left + width) * sx) - x);
+        int guiHeight = Math.max(1, Math.round((top + height) * sy) - y);
+        int scale = textureScale();
+        int pixelWidth = guiWidth * scale, pixelHeight = guiHeight * scale;
+        List<?> fingerprint = accountLayerFingerprint(menu, pixelWidth, pixelHeight);
+        if (!fingerprint.equals(layer.fingerprint)) {
+            layer.image = renderAccountLayerImage(layer.image, menu, left, top, width, height, pixelWidth, pixelHeight);
+            NativeImage nativeImage = layer.texture == null ? null : layer.texture.getPixels();
+            if (nativeImage == null || nativeImage.isClosed() || nativeImage.getWidth() != pixelWidth || nativeImage.getHeight() != pixelHeight) {
+                if (layer.texture != null) minecraft.getTextureManager().release(layer.id);
+                nativeImage = new NativeImage(pixelWidth, pixelHeight, true);
+                layer.pixels = copyPixels(layer.image, nativeImage, layer.pixels);
+                layer.texture = new DynamicTexture(layer.id::getPath, nativeImage);
+                minecraft.getTextureManager().register(layer.id, layer.texture);
+            } else {
+                layer.pixels = copyPixels(layer.image, nativeImage, layer.pixels);
+                layer.texture.upload();
+            }
+            layer.fingerprint = fingerprint;
+        }
+
+        int opacity = Math.round(255F * accountEase(menu ? accountMenuProgress : accountProfileProgress));
+        int offset = Math.round((menu ? accountSlideY() : accountProfileSlideY()) * sy);
+        int bottom = guiY() + Math.round((menu ? accountPopupBottom() : L.guiH) * sy);
+        context.nextStratum();
+        context.enableScissor(guiX(), guiY(), guiX() + guiDisplayWidth(), bottom);
+        try {
+            context.blit(RenderPipelines.GUI_TEXTURED, layer.id, guiX() + x, guiY() + y + offset, 0F, 0F,
+                    guiWidth, guiHeight, pixelWidth, pixelHeight, pixelWidth, pixelHeight, opacity << 24 | 0xFFFFFF);
+        } finally {
+            context.disableScissor();
+        }
     }
 
     private BufferedImage renderImage(int scale) {
@@ -1811,8 +3528,6 @@ public final class OrionClickGuiScreen extends Screen {
                 (float)Math.sin(pageAnimation * Math.PI / 2)));
         drawContent(g);
         g.setComposite(contentComposite);
-        if (accountsOpen) drawAccounts(g);
-
         g.dispose();
         return image;
     }
@@ -1871,8 +3586,8 @@ public final class OrionClickGuiScreen extends Screen {
     private void drawHeader(Graphics2D g, Shape window) {
         if (paradox) {
             Font brand = OrionInterfaceFonts.face(3, 10F);
-            OrionBrandMark.drawBesideText(g, 16, 19, 9.0F, brand, "Orion Client", TEXT);
-            drawText(g, "Orion Client", 27, 19, brand, TEXT, false);
+            OrionBrandMark.drawBesideText(g, 16, 19, 9.0F, brand, "GleamClient", TEXT);
+            drawText(g, "GleamClient", 27, 19, brand, TEXT, false);
             drawSearchInput(g);
             drawText(g, tr("Разделы"), 10, 62, OrionInterfaceFonts.face(1,8F), MUTED, false);
             if (paradoxAll || paradoxFavoritesOnly) {
@@ -1932,22 +3647,24 @@ public final class OrionClickGuiScreen extends Screen {
         float cx = L.sidebarW / 2.0F;
         OrionBrandMark.draw(g, cx, 24, 26.0F, PRIMARY);
         Font brand = headingFont(7.5F);
-        float orionWidth = (float) g.getFontMetrics(brand).getStringBounds("Orion ", g).getWidth();
+        float orionWidth = (float) g.getFontMetrics(brand).getStringBounds("GleamClient ", g).getWidth();
         float clientWidth = (float) g.getFontMetrics(brand).getStringBounds("Client", g).getWidth();
         float start = cx - (orionWidth + clientWidth) / 2.0F;
-        drawText(g, "Orion ", start, 48, brand, PRIMARY, true);
+        drawText(g, "GleamClient ", start, 48, brand, PRIMARY, true);
         drawText(g, "Client", start + orionWidth, 48, brand, TEXT, true);
     }
 
     private void drawSidebar(Graphics2D g) {
-        for (int i = 0; i < Category.VALUES.length; i++) {
+        int visible = visibleCategories();
+        for (int row = 0; row < visible; row++) {
+            int i = categoryOffset + row;
             Category category = Category.VALUES[i];
-            int y = categoryRowY(i);
+            int y = categoryRowY(row);
             boolean active = i == selectedCategory;
             float hover = categoryHoverAnim[i];
 
             if (paradox) {
-                boolean selected = active && !paradoxAll && !paradoxFavoritesOnly && !waypointPage && !presetsPage && !configsPage;
+                boolean selected = active && !paradoxAll && !paradoxFavoritesOnly && !waypointPage && !presetsPage && !configsPage && !accountProfilePage;
                 if (selected || hover > .01F) {
                     g.setColor(selected ? SEARCH_BG : withAlpha(SURFACE_HOVER, Math.round(150 * hover)));
                     g.fill(new RoundRectangle2D.Float(L.sideX, y, L.sideW, 18, 5, 5));
@@ -1982,71 +3699,139 @@ public final class OrionClickGuiScreen extends Screen {
             }
         }
 
-        int footerY = L.guiH - ACCOUNT_FOOTER_H, footerW = L.sidebarW - 16;
-        if (accountsOpen || accountFooterHit(pagePointerX, pagePointerY)) {
-            g.setColor(accountsOpen ? SURFACE_HOVER : SEARCH_BG);
-            g.fill(new RoundRectangle2D.Float(ACCOUNT_X, footerY, footerW, 20, 6, 6));
+        if (htmlAccountVisible) return;
+        int footerY = L.guiH - ACCOUNT_FOOTER_H, gearX = accountGearX();
+        int buttonW = gearX - ACCOUNT_X - 3;
+        boolean overGear = accountGearHit(pagePointerX, pagePointerY);
+        boolean overAccount = accountFooterHit(pagePointerX, pagePointerY) && !overGear;
+        g.setColor(withAlpha(BORDER, 90));
+        g.setStroke(new BasicStroke(.7F));
+        g.draw(new Line2D.Float(1, accountPopupBottom() + .5F, L.sidebarW - 1, accountPopupBottom() + .5F));
+        if (overAccount || accountsOpen && !accountSwitching) {
+            g.setColor(SURFACE_HOVER);
+            g.fill(new RoundRectangle2D.Float(ACCOUNT_X, footerY, buttonW, ACCOUNT_FOOTER_BUTTON_H, 7, 7));
+        }
+        if (overGear || accountsOpen && accountSwitching) {
+            g.setColor(SURFACE_HOVER);
+            g.fill(new RoundRectangle2D.Float(gearX, footerY, ACCOUNT_GEAR_W, ACCOUNT_FOOTER_BUTTON_H, 7, 7));
         }
         String username = accounts.username();
-        Font font = bodyFont(orion3 ? 7.5F : 9F);
-        Color color = username.isEmpty() && !accountsOpen ? MUTED : TEXT;
-        String label = username.isEmpty() ? tr("Аккаунт Orion") : username;
-        if (username.isEmpty() && textWidth(g, font, label) > footerW - 32) label = "Orion";
-        drawAccountAvatar(g, accounts.avatar(), ACCOUNT_X + 3, footerY + 2, 16, color);
-        drawText(g, ellipsize(g, font, label, footerW - 35),
-                ACCOUNT_X + 23, footerY + 13, font, color, false);
-        int arrowX = ACCOUNT_X + footerW - 8;
-        int arrowY = footerY + 10;
-        Path2D.Float chevron = new Path2D.Float();
-        chevron.moveTo(arrowX - 2.5F, arrowY + 1.5F);
-        chevron.lineTo(arrowX, arrowY - 1);
-        chevron.lineTo(arrowX + 2.5F, arrowY + 1.5F);
-        g.setColor(color);
-        g.setStroke(new BasicStroke(.9F, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g.draw(chevron);
+        Font font = bodyFont(orion3 ? 6.4F : 7F);
+        Color color = username.isEmpty() ? MUTED : TEXT;
+        String label = username.isEmpty() ? tr("Аккаунт GleamClient") : username;
+        if (username.isEmpty() && textWidth(g, font, label) > buttonW - 21) label = "GleamClient";
+        drawAccountAvatar(g, accounts.avatar(), ACCOUNT_X + 3, footerY + 5, 10, color);
+        drawText(g, ellipsize(g, font, label, buttonW - 21), ACCOUNT_X + 18, footerY + 12.5F, font, color, false);
+        drawIcon(g, Icon.ACCOUNT_OPTIONS, gearX + ACCOUNT_GEAR_W * .5F, footerY + 10, overGear ? TEXT : MUTED, 1.4F, .32F);
     }
 
-    private int accountRows() { return Math.min(ACCOUNT_VISIBLE_ROWS, accounts.usernames().size()); }
-    private int accountActionsY() { return ACCOUNT_LIST_Y + Math.max(1, accountRows()) * ACCOUNT_ROW_H + 7; }
-    private int accountSiteY() { return accountForm ? 123 : accountActionsY() + ACCOUNT_BUTTON_H + 4; }
-    private int accountAddWidth() {
-        int width = ACCOUNT_W - 2 * ACCOUNT_PAD;
-        return accounts.username().isEmpty() ? width : width - ACCOUNT_LOGOUT_W - 5;
+    private int accountRows() { return accountSwitching ? Math.min(ACCOUNT_VISIBLE_ROWS, accounts.usernames().size()) : 1; }
+    private String accountNameAt(int row) {
+        List<String> names = accounts.usernames();
+        if (row < 0 || row >= Math.min(ACCOUNT_VISIBLE_ROWS, names.size())) return null;
+        int activeIndex = names.indexOf(accounts.username());
+        int offset = Math.clamp(accountOffset, 0, Math.max(0, names.size() - ACCOUNT_VISIBLE_ROWS));
+        if (activeIndex >= 0 && row == 0) return names.get(activeIndex);
+        int index = offset + row;
+        if (activeIndex < 0) return names.get(index);
+        return names.get(index <= activeIndex ? index - 1 : index);
     }
+    private int accountActionsY() {
+        return accountRowY(Math.max(1, accountRows())) + 4;
+    }
+    private int accountRowY(int row) {
+        return ACCOUNT_LIST_Y + (row == 0 ? 0 : ACCOUNT_HEADER_H + (row - 1) * ACCOUNT_ROW_H);
+    }
+    private int accountSiteY() { return accountForm ? 123 : accountActionsY(); }
+    private int accountPanelX() { return accountForm ? ACCOUNT_X : 1; }
+    private int accountWidth() { return accountForm ? ACCOUNT_FORM_W : L.sidebarW - 1; }
+    private int accountActionCount() { return accountSwitching && accounts.username().isEmpty() ? 1 : 2; }
     private int accountHeight() {
         if (accountForm) return ACCOUNT_FORM_H;
-        return accountSiteY() + ACCOUNT_BUTTON_H + (accounts.busy() || !accountStatus.isEmpty() ? 28 : 9);
+        int end = accountActionsY() + ACCOUNT_BUTTON_H * accountActionCount();
+        return end + (accounts.busy() || !accountStatus.isEmpty() && !ACCOUNT_ID_COPIED.equals(accountStatus) ? 28 : 5);
     }
-    private int accountY() { return L.guiH - ACCOUNT_FOOTER_H - accountHeight() - 6; }
+    private int accountPopupBottom() { return L.guiH - ACCOUNT_FOOTER_H - 4; }
+    private int accountY() { return accountPopupBottom() - accountHeight(); }
+    static float accountEase(float progress) {
+        if (progress <= 0F || progress >= 1F) return progress;
+        // Время задано осью X кривой cubic-bezier(.2, .7, .2, 1).
+        float low = 0F, high = 1F;
+        for (int i = 0; i < 10; i++) {
+            float t = (low + high) * .5F;
+            float rest = 1F - t;
+            float x = .6F * rest * t + t * t * t;
+            if (x < progress) low = t;
+            else high = t;
+        }
+        float t = (low + high) * .5F, rest = 1F - t;
+        return 2.1F * rest * rest * t + 3F * rest * t * t + t * t * t;
+    }
+    private int accountSlideY() { return Math.round(9F * (1F - accountEase(accountMenuProgress))); }
+    private int accountProfileSlideY() { return Math.round(5F * (1F - accountEase(accountProfileProgress))); }
 
     private boolean accountFooterHit(int x, int y) {
-        return isInside(x, y, ACCOUNT_X, L.guiH - ACCOUNT_FOOTER_H, L.sidebarW - 16, 20);
+        return isInside(x, y, ACCOUNT_X, L.guiH - ACCOUNT_FOOTER_H, L.sidebarW - 2 * ACCOUNT_X, ACCOUNT_FOOTER_BUTTON_H);
+    }
+
+    private int accountGearX() { return L.sidebarW - ACCOUNT_X - ACCOUNT_GEAR_W; }
+
+    private boolean accountGearHit(int x, int y) {
+        return isInside(x, y, accountGearX(), L.guiH - ACCOUNT_FOOTER_H, ACCOUNT_GEAR_W, ACCOUNT_FOOTER_BUTTON_H);
+    }
+
+    private void accountFooterClick(boolean settings) {
+        boolean switching = settings || accounts.username().isEmpty();
+        if (accountsOpen && (accountForm || accountSwitching == switching)) {
+            closeAccounts();
+            return;
+        }
+        accountsOpen = true;
+        accountForm = accounts.usernames().isEmpty();
+        accountSwitching = switching;
+        accountOffset = 0;
+        accountStatus = "";
+        accountLogin = "";
+        searchFocused = configTitleFocused = false;
+        editingText = editingBind = -1;
+        lastFingerprint = null;
+        if (accountForm && !accounts.busy()) focusAccountField(1);
+        refreshAccountInBackground();
+        accounts.loadSavedProfiles();
     }
 
     private boolean accountPanelHit(int x, int y) {
-        return isInside(x, y, ACCOUNT_X, accountY(), ACCOUNT_W, accountHeight());
+        return y < accountPopupBottom() && isInside(x, y - accountSlideY(), accountPanelX(), accountY(), accountWidth(), accountHeight());
     }
 
     private int accountTarget(int x, int y) {
-        x -= ACCOUNT_X;
-        y -= accountY();
-        if (isInside(x, y, ACCOUNT_W - 26, 6, 18, 18)) return 1;
-        if (isInside(x, y, ACCOUNT_PAD, accountSiteY(), ACCOUNT_W - 2 * ACCOUNT_PAD, ACCOUNT_BUTTON_H)) return 7;
+        x -= accountPanelX();
+        y -= accountY() + accountSlideY();
+        int innerWidth = accountWidth() - 2 * ACCOUNT_PAD;
         if (accountForm) {
-            if (isInside(x, y, ACCOUNT_PAD, 31, ACCOUNT_W - 2 * ACCOUNT_PAD, 27)) return 2;
-            if (isInside(x, y, ACCOUNT_PAD, 63, ACCOUNT_W - 2 * ACCOUNT_PAD, 27)) return 3;
-            return isInside(x, y, ACCOUNT_PAD, 96, ACCOUNT_W - 2 * ACCOUNT_PAD, 22) ? 4 : 0;
+            if (isInside(x, y, ACCOUNT_PAD, accountSiteY(), innerWidth, ACCOUNT_BUTTON_H - 1)) return 7;
+            if (isInside(x, y, accountWidth() - 26, 6, 18, 18)) return 1;
+            if (isInside(x, y, ACCOUNT_PAD, 31, innerWidth, 27)) return 2;
+            if (isInside(x, y, ACCOUNT_PAD, 63, innerWidth, 27)) return 3;
+            return isInside(x, y, ACCOUNT_PAD, 96, innerWidth, 22) ? 4 : 0;
         }
-        if (isInside(x, y, ACCOUNT_PAD, ACCOUNT_LIST_Y, ACCOUNT_W - 2 * ACCOUNT_PAD, accountRows() * ACCOUNT_ROW_H)) {
-            return 10 + (y - ACCOUNT_LIST_Y) / ACCOUNT_ROW_H;
+        for (int row = 0; row < accountRows(); row++) {
+            int rowY = accountRowY(row);
+            int rowHeight = row == 0 ? ACCOUNT_HEADER_H : ACCOUNT_ROW_H;
+            if (!isInside(x, y, ACCOUNT_PAD, rowY, innerWidth, rowHeight - 1)) continue;
+            if (accounts.username().equals(accountNameAt(row))) {
+                return accounts.profile() != null && y - rowY >= 16 ? 9 : 0;
+            }
+            return 10 + row;
         }
-        if (isInside(x, y, ACCOUNT_PAD, accountActionsY(), accountAddWidth(), ACCOUNT_BUTTON_H)) return 5;
-        return isInside(x, y, ACCOUNT_W - ACCOUNT_PAD - ACCOUNT_LOGOUT_W, accountActionsY(), ACCOUNT_LOGOUT_W, ACCOUNT_BUTTON_H) ? 6 : 0;
+        int actionsY = accountActionsY();
+        if (!isInside(x, y, ACCOUNT_PAD, actionsY, innerWidth, ACCOUNT_BUTTON_H * accountActionCount() - 1)) return 0;
+        int action = (y - actionsY) / ACCOUNT_BUTTON_H;
+        return accountSwitching ? (action == 0 ? 5 : 6) : (action == 0 ? 7 : 8);
     }
 
     private void closeAccounts() {
         accountsOpen = false;
-        accountForm = false;
         accountPassword = "";
         accountField = 0;
         lastFingerprint = null;
@@ -2068,8 +3853,10 @@ public final class OrionClickGuiScreen extends Screen {
             return;
         }
         runAccountTask(accounts.login(accountLogin.strip(), accountPassword), () -> {
+            if (htmlActive) closeAccounts();
             accountForm = false;
-            accountOffset = Math.max(0, accounts.usernames().size() - ACCOUNT_VISIBLE_ROWS);
+            accountSwitching = false;
+            accountOffset = 0;
         });
         accountPassword = "";
         focusAccountField(0);
@@ -2086,6 +3873,7 @@ public final class OrionClickGuiScreen extends Screen {
             accountRefreshing = false;
             if (failure == null) {
                 commit.run();
+                if (accountsOpen && !accountForm && accounts.username().isEmpty()) accountSwitching = true;
                 accountOffset = Math.min(accountOffset, Math.max(0, accounts.usernames().size() - ACCOUNT_VISIBLE_ROWS));
             }
         }));
@@ -2103,7 +3891,7 @@ public final class OrionClickGuiScreen extends Screen {
                 onSuccess.run();
             } else {
                 Throwable cause = failure.getCause() == null ? failure : failure.getCause();
-                accountStatus = cause instanceof IllegalStateException ? cause.getMessage() : "Сайт Orion недоступен";
+                accountStatus = cause instanceof IllegalStateException ? cause.getMessage() : "Сайт GleamClient недоступен";
             }
             lastFingerprint = null;
         }));
@@ -2115,18 +3903,41 @@ public final class OrionClickGuiScreen extends Screen {
         if (target == 1) { closeAccounts(); return; }
         if (accounts.busy()) return;
         if (target >= 10) {
-            String name = accounts.usernames().get(accountOffset + target - 10);
-            if (!name.equals(accounts.username())) runAccountTask(accounts.select(name));
+            String name = accountNameAt(target - 10);
+            if (name == null) return;
+            runAccountTask(accounts.select(name), () -> {
+                accountSwitching = accounts.username().isEmpty();
+                accountOffset = 0;
+            });
         } else if (target == 5) {
             accountForm = true;
             accountStatus = "";
             accountLogin = "";
             focusAccountField(1);
         } else if (target == 6 && !accounts.username().isEmpty()) runAccountTask(accounts.logout());
-        else if (target == 7) ConfirmLinkScreen.confirmLinkNow(this, ACCOUNT_PROFILE_PAGE, true);
+        else if (target == 7) {
+            if (accountForm || accounts.username().isEmpty()) ConfirmLinkScreen.confirmLinkNow(this, ACCOUNT_PROFILE_PAGE, true);
+            else openAccountProfile();
+        }
+        else if (target == 8 && !configBusy) {
+            closeAccounts();
+            openConfigsPage();
+            selectConfigTab(2);
+        }
         else if (target == 2 || target == 3) focusAccountField(target - 1);
         else if (target == 4) loginAccount();
+        else if (target == 9) copyAccountId();
         else focusAccountField(0);
+    }
+
+    private void openAccountProfile() {
+        closeAccounts();
+        closeSettings();
+        accountProfilePage = true;
+        accountProfileProgress = 0F;
+        paradoxAll = paradoxFavoritesOnly = false;
+        accountStatus = "";
+        refreshAccountInBackground();
     }
 
     private void drawAccountAvatar(Graphics2D g, BufferedImage image, int x, int y, int size, Color color) {
@@ -2145,74 +3956,88 @@ public final class OrionClickGuiScreen extends Screen {
 
     private void drawAccounts(Graphics2D g) {
         int y = accountY(), h = accountHeight();
-        int x = ACCOUNT_X + ACCOUNT_PAD, w = ACCOUNT_W - 2 * ACCOUNT_PAD;
+        int pointerY = accountsOpen && accountMenuProgress == 1F ? pagePointerY : -1;
+        int panelX = accountPanelX(), width = accountWidth(), x = panelX + ACCOUNT_PAD, w = width - 2 * ACCOUNT_PAD;
         Font body = bodyFont(9.5F);
-        g.setColor(BG);
-        g.fill(new RoundRectangle2D.Float(ACCOUNT_X, y, ACCOUNT_W, h, 9, 9));
-        g.setColor(BORDER);
-        g.setStroke(new BasicStroke(1F));
-        g.draw(new RoundRectangle2D.Float(ACCOUNT_X + .5F, y + .5F, ACCOUNT_W - 1, h - 1, 9, 9));
-        drawText(g, tr(accountForm ? "Вход в Orion" : "Аккаунты Orion"), x + 3, y + 19, bodyFont(11F), TEXT, false);
-        drawConfigButton(g, ACCOUNT_X + ACCOUNT_W - 26, y + 6, 18, 18, "×", false, body);
+        g.setColor(accountForm ? BG : SIDEBAR_BG);
+        g.fill(new RoundRectangle2D.Float(panelX, y, width, h + (accountForm ? 0 : 7), 10, 10));
         if (accountForm) {
+            g.setColor(BORDER);
+            g.setStroke(new BasicStroke(1F));
+            g.draw(new RoundRectangle2D.Float(panelX + .5F, y + .5F, width - 1, h - 1, 10, 10));
+        }
+        if (accountForm) {
+            drawText(g, tr("Вход в GleamClient"), x + 3, y + 19, bodyFont(11F), TEXT, false);
+            drawConfigButton(g, ACCOUNT_X + width - 26, y + 6, 18, 18, "×", false, body);
             drawPageInput(g, x, y + 31, w, body, accountLogin, "Логин", accountField == 1);
             drawPageInput(g, x, y + 63, w, body, "•".repeat(accountPassword.length()), "Пароль", accountField == 2);
-            drawConfigButton(g, x, y + 96, w, 22, "Войти в Orion", true, body);
+            drawConfigButton(g, x, y + 96, w, 22, "Войти в GleamClient", true, body);
         } else {
             List<String> names = accounts.usernames();
             for (int row = 0; row < accountRows(); row++) {
-                String name = names.get(accountOffset + row);
-                int rowY = y + ACCOUNT_LIST_Y + row * ACCOUNT_ROW_H;
+                String name = accountNameAt(row);
+                if (name == null) continue;
+                int rowY = y + accountRowY(row);
                 boolean active = name.equals(accounts.username());
-                boolean hover = !accounts.busy() && isInside(pagePointerX, pagePointerY, x, rowY, w, ACCOUNT_ROW_H);
-                if (active || hover) {
+                int rowHeight = row == 0 ? ACCOUNT_HEADER_H : ACCOUNT_ROW_H;
+                boolean hover = accountsOpen && !accounts.busy() && isInside(pagePointerX, pointerY, x, rowY, w, rowHeight - 1);
+                if (hover && !active) {
                     g.setColor(SURFACE_HOVER);
-                    g.fill(new RoundRectangle2D.Float(x, rowY, w, ACCOUNT_ROW_H - 3, 7, 7));
+                    g.fill(new RoundRectangle2D.Float(x, rowY, w, rowHeight - 2, 7, 7));
                 }
-                drawAccountAvatar(g, active ? accounts.avatar() : null, x + 4, rowY + 3, 23, MUTED);
-                String badge = active ? accounts.badge() : "";
-                Font badgeFont = bodyFont(8F);
-                int nameWidth = w - (active ? 54 : 40);
-                drawText(g, ellipsize(g, body, name, nameWidth), x + 34, rowY + (active ? 12 : 18), body, TEXT, false);
+                int avatarSize = active ? (orion3 ? 18 : 21) : 14;
+                drawAccountAvatar(g, accounts.avatar(name), x + 3, rowY + (rowHeight - avatarSize) / 2, avatarSize, MUTED);
+                String badge = accounts.badge(name);
+                Font badgeFont = bodyFont(orion3 ? 5.5F : 6.25F);
+                Font nameFont = bodyFont(active ? (orion3 ? 7.5F : 8.25F) : 7F);
+                if (active) nameFont = nameFont.deriveFont(Font.BOLD);
+                int textInset = avatarSize + 7;
+                int badgeInset = badge.isEmpty() ? 0 : 12;
+                int nameWidth = w - textInset - 4 - badgeInset;
+                String shownName = ellipsize(g, nameFont, name, nameWidth);
+                drawText(g, shownName, x + textInset, rowY + (active ? 13 : rowHeight / 2F + 2.5F), nameFont, TEXT, false);
+                drawAccountBadge(g, badge, x + textInset + textWidth(g, nameFont, shownName) + 6, rowY + (active ? 10 : rowHeight / 2F));
                 if (active) {
-                    String detail = badge.isEmpty() ? tr("Активный аккаунт") : badge;
-                    if (!badge.isEmpty() && !badge.equals("Plus") && accounts.plusActive()) detail += " · Plus";
-                    drawText(g, ellipsize(g, badgeFont, detail, nameWidth), x + 34, rowY + 24, badgeFont, MUTED, false);
-                    Path2D.Float check = new Path2D.Float();
-                    check.moveTo(x + w - 15, rowY + 15);
-                    check.lineTo(x + w - 12, rowY + 18);
-                    check.lineTo(x + w - 7, rowY + 12);
-                    g.setColor(PRIMARY);
-                    g.setStroke(new BasicStroke(1F, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                    g.draw(check);
+                    int target = hover ? accountTarget(pagePointerX, pagePointerY) : 0;
+                    OrionAccounts.Profile profile = accounts.profile();
+                    boolean copied = ACCOUNT_ID_COPIED.equals(accountStatus);
+                    String detail = copied ? tr(ACCOUNT_ID_COPIED) : profile == null ? tr("Активный аккаунт") : "UID " + profile.id();
+                    int detailWidth = w - textInset - (profile == null ? 4 : 13);
+                    if (!copied && profile != null && textWidth(g, badgeFont, detail) > detailWidth) {
+                        detail = profile.id();
+                        float measuredWidth = textWidth(g, badgeFont, detail);
+                        if (measuredWidth > detailWidth) {
+                            badgeFont = badgeFont.deriveFont(badgeFont.getSize2D() * (detailWidth - 1) / measuredWidth);
+                        }
+                    }
+                    Color uidColor = target == 9 ? TEXT : MUTED;
+                    drawText(g, ellipsize(g, badgeFont, detail, detailWidth), x + textInset, rowY + 23, badgeFont, uidColor, false);
+                    if (profile != null && target == 9) drawIcon(g, Icon.COPY, x + w - 7, rowY + 20, uidColor, 1.5F, .27F);
                 }
             }
-            if (names.isEmpty()) drawText(g, tr("Ты ещё не вошёл в Orion"), x + 3, y + ACCOUNT_LIST_Y + 19, body, MUTED, false);
-            if (names.size() > ACCOUNT_VISIBLE_ROWS) {
-                float track = ACCOUNT_VISIBLE_ROWS * ACCOUNT_ROW_H - 2;
-                float thumb = track * ACCOUNT_VISIBLE_ROWS / names.size();
-                float scroll = (track - thumb) * accountOffset / (names.size() - ACCOUNT_VISIBLE_ROWS);
+            if (names.isEmpty()) drawText(g, tr("Гость"), x + 3, y + ACCOUNT_LIST_Y + 19, body, MUTED, false);
+            if (accountSwitching && names.size() > ACCOUNT_VISIBLE_ROWS) {
+                float track = (ACCOUNT_VISIBLE_ROWS - 1) * ACCOUNT_ROW_H - 2;
+                float thumb = track * (ACCOUNT_VISIBLE_ROWS - 1) / (names.size() - 1);
+                int offset = Math.clamp(accountOffset, 0, names.size() - ACCOUNT_VISIBLE_ROWS);
+                float scroll = (track - thumb) * offset / (names.size() - ACCOUNT_VISIBLE_ROWS);
                 g.setColor(BORDER);
-                g.fill(new RoundRectangle2D.Float(x + w + 3, y + ACCOUNT_LIST_Y + scroll, 2, thumb, 2, 2));
+                g.fill(new RoundRectangle2D.Float(x + w + 3, y + accountRowY(1) + scroll, 2, thumb, 2, 2));
             }
             int actionsY = y + accountActionsY();
-            g.setColor(BORDER);
+            g.setColor(withAlpha(BORDER, 90));
+            g.setStroke(new BasicStroke(.7F));
             g.draw(new Line2D.Float(x, actionsY - 3.5F, x + w, actionsY - 3.5F));
-            Font actionFont = bodyFont(8.5F);
-            drawConfigButton(g, x, actionsY, accountAddWidth(), ACCOUNT_BUTTON_H, "Добавить аккаунт", false, actionFont);
-            if (!accounts.username().isEmpty()) drawConfigButton(g, x + w - ACCOUNT_LOGOUT_W, actionsY, ACCOUNT_LOGOUT_W, ACCOUNT_BUTTON_H, "Выйти", false, actionFont);
+            if (accountSwitching) {
+                drawAccountAction(g, x, actionsY, w, "Добавить", Icon.PLUS, false, pointerY);
+                if (!accounts.username().isEmpty()) drawAccountAction(g, x, actionsY + ACCOUNT_BUTTON_H, w, "Выйти", Icon.LOGOUT, false, pointerY);
+            } else {
+                drawAccountAction(g, x, actionsY, w, "Профиль", Icon.PLAYER, false, pointerY);
+                drawAccountAction(g, x, actionsY + ACCOUNT_BUTTON_H, w, "Мои конфиги", Icon.ACCOUNT_CONFIGS, false, pointerY);
+            }
         }
-        int siteY = y + accountSiteY();
-        boolean siteHover = isInside(pagePointerX, pagePointerY, x, siteY, w, ACCOUNT_BUTTON_H);
-        if (siteHover) {
-            g.setColor(SURFACE_HOVER);
-            g.fill(new RoundRectangle2D.Float(x, siteY, w, ACCOUNT_BUTTON_H, 5, 5));
-        }
-        Color linkColor = siteHover ? TEXT : MUTED;
-        drawText(g, tr(accounts.username().isEmpty() ? "Открыть сайт Orion" : "Профиль на сайте"),
-                x + 5, siteY + 14, bodyFont(8.5F), linkColor, false);
-        drawText(g, "↗", x + w - 15, siteY + 14, bodyFont(9F), linkColor, false);
-        String status = tr(accounts.busy() ? "Подключаемся к Orion…" : accountStatus);
+        if (accountForm) drawAccountAction(g, x, y + accountSiteY(), w, "Открыть сайт GleamClient", Icon.PLAYER, true, pointerY);
+        String status = tr(accounts.busy() ? "Подключаемся к GleamClient…" : ACCOUNT_ID_COPIED.equals(accountStatus) ? "" : accountStatus);
         int split = status.length();
         while (split > 0 && textWidth(g, body, status.substring(0, split)) > w - 4) {
             split = status.lastIndexOf(' ', split - 1);
@@ -2224,7 +4049,112 @@ public final class OrionClickGuiScreen extends Screen {
         drawText(g, ellipsize(g, body, status, w - 4), x + 2, y + h - 7, body, MUTED, false);
     }
 
+    private void drawAccountAction(Graphics2D g, int x, int y, int w, String label, Icon icon, boolean external, int pointerY) {
+        boolean hover = isInside(pagePointerX, pointerY, x, y, w, ACCOUNT_BUTTON_H - 1);
+        if (hover) {
+            g.setColor(SURFACE_HOVER);
+            g.fill(new RoundRectangle2D.Float(x, y, w, ACCOUNT_BUTTON_H, 5, 5));
+        }
+        Font font = bodyFont(orion3 ? 6.4F : 6.9F);
+        drawIcon(g, icon, x + 7, y + 8, hover ? TEXT : MUTED, 1.45F, .26F);
+        int endInset = external ? 13 : 3;
+        drawText(g, ellipsize(g, font, tr(label), w - 15 - endInset), x + 15, y + 11, font, hover ? TEXT : MUTED, false);
+        if (external) drawIcon(g, Icon.EXTERNAL, x + w - 7, y + 8, MUTED, 1.4F, .35F);
+    }
+
+    private void drawAccountBadge(Graphics2D g, String badge, float x, float y) {
+        Icon icon = switch (badge) {
+            case "Plus" -> Icon.PLUS;
+            case "Admin" -> Icon.SHIELD;
+            case "Owner" -> Icon.OWNER_MARK;
+            default -> null;
+        };
+        if (icon != null) drawIcon(g, icon, x, y, MUTED, 1.9F, .34F);
+    }
+
+    private void copyAccountId() {
+        OrionAccounts.Profile profile = accounts.profile();
+        if (profile == null) return;
+        minecraft.keyboardHandler.setClipboard(profile.id());
+        accountStatus = ACCOUNT_ID_COPIED;
+        lastFingerprint = null;
+    }
+
+    private int accountProfileX() { return L.sidebarW + 16; }
+    private int accountProfileWidth() { return L.guiW - accountProfileX() - 16; }
+    private int accountProfileTarget(int x, int y) {
+        if (!htmlActive) y -= accountProfileSlideY();
+        int left = accountProfileX(), width = accountProfileWidth();
+        if (isInside(x, y, left + 50, 58, width - 50, 17) && accounts.profile() != null) return 1;
+        if (isInside(x, y, left, 105, width, 32) && accounts.profile() != null) return 2;
+        if (isInside(x, y, left + width - 93, 201, 85, 20)) return 3;
+        return isInside(x, y, left, 237, width, ACCOUNT_BUTTON_H) ? 4 : 0;
+    }
+
+    private boolean accountProfileClick(int x, int y) {
+        int target = accountProfileTarget(x, y);
+        if (target == 1) copyAccountId();
+        if (target == 2 && !accounts.busy() && !accounts.profileLoading()) {
+            runAccountTask(accounts.setPublished(!accounts.profile().published()));
+        }
+        if (target == 3 && !configBusy) {
+            openConfigsPage();
+            selectConfigTab(2);
+        }
+        if (target == 4) ConfirmLinkScreen.confirmLinkNow(this, ACCOUNT_PROFILE_PAGE, true);
+        return true;
+    }
+
+    private void drawAccountProfile(Graphics2D g) {
+        int x = accountProfileX(), w = accountProfileWidth();
+        Font nameFont = bodyFont(15F), body = bodyFont(9F), small = bodyFont(8F);
+        OrionAccounts.Profile profile = accounts.profile();
+        String name = accounts.username();
+        if (name.isEmpty()) {
+            drawText(g, tr("Профиль"), x, 49, nameFont, TEXT, false);
+            drawText(g, tr("Войди в аккаунт GleamClient"), x, 68, body, MUTED, false);
+            return;
+        }
+        drawAccountAvatar(g, accounts.avatar(), x, 33, 38, MUTED);
+        String badge = accounts.badge();
+        float badgeWidth = badge.isEmpty() ? 0F : 19F + textWidth(g, small, badge);
+        String label = ellipsize(g, nameFont, name, w - 54 - badgeWidth);
+        drawText(g, label, x + 50, 51, nameFont, TEXT, false);
+        float badgeX = x + 58 + textWidth(g, nameFont, label);
+        drawAccountBadge(g, badge, badgeX, 46);
+        if (!badge.isEmpty() && badgeX + 11 < x + w) {
+            drawText(g, ellipsize(g, small, badge, x + w - badgeX - 10), badgeX + 9, 49, small, MUTED, false);
+        }
+        if (profile != null) {
+            String uid = "UID " + profile.id();
+            Color color = accountProfileTarget(pagePointerX, pagePointerY) == 1 ? TEXT : MUTED;
+            drawText(g, uid, x + 50, 69, small, color, false);
+            drawIcon(g, Icon.COPY, x + 59 + textWidth(g, small, uid), 66, color, 1.5F, .4F);
+        }
+        g.setColor(BORDER);
+        g.setStroke(new BasicStroke(1F));
+        g.draw(new Line2D.Float(x, 83.5F, x + w, 83.5F));
+        drawText(g, tr("Приватность"), x, 98, body, TEXT, false);
+        pageSurface(g, x, 105, w, 67, false);
+        drawText(g, tr("Публичный профиль"), x + 9, 118, body, TEXT, false);
+        drawText(g, ellipsize(g, small, tr("Видимость в поиске GleamClient и по ссылке"), w - 46), x + 9, 130, small, MUTED, false);
+        if (profile != null) drawToggle(g, x + w - L.toggleW - 10, 112, profile.published() ? 1F : 0F);
+        g.setColor(BORDER);
+        g.draw(new Line2D.Float(x + 8, 137.5F, x + w - 8, 137.5F));
+        drawText(g, tr("Дата регистрации"), x + 9, 151, body, TEXT, false);
+        if (profile != null) drawText(g, configDate(profile.createdAt()), x + 9, 163, small, MUTED, false);
+        drawText(g, tr("Публикации"), x, 191, body, TEXT, false);
+        pageSurface(g, x, 197, w, 28, false);
+        drawText(g, ellipsize(g, small, tr("Конфиги в каталоге"), w - 106), x + 9, 214, small, MUTED, false);
+        drawConfigButton(g, x + w - 93, 201, 85, 20, "Мои публикации", false, small);
+        drawAccountAction(g, x, 237, w, "Открыть сайт GleamClient", Icon.PLAYER, true, pagePointerY - accountProfileSlideY());
+        String status = tr(accounts.busy() || accounts.profileLoading() ? "Подключаемся к GleamClient…"
+                : profile == null && accountStatus.isEmpty() ? "Не удалось загрузить профиль" : accountStatus);
+        drawText(g, ellipsize(g, small, status, w), x, 268, small, MUTED, false);
+    }
+
     private void drawContent(Graphics2D g) {
+        if (accountProfilePage) return;
         if (presetsPage) { drawPresets(g); return; }
         if (configsPage) { drawConfigs(g); return; }
         if (settingsFor != null) {
@@ -2238,7 +4168,7 @@ public final class OrionClickGuiScreen extends Screen {
         }
 
         boolean searching = !searchQuery.isBlank();
-        String title = tr(searching ? "Поиск" : paradox && paradoxAll ? "Все модули" : paradox && paradoxFavoritesOnly ? "Избранное" : Category.VALUES[selectedCategory].title);
+        String title = modulePageTitle();
         if (paradox) {
             drawText(g, tr("Модули") + " / " + title, L.moduleX, 18, OrionInterfaceFonts.face(1,9F), MUTED, false);
             drawText(g, title, L.moduleX, 39, OrionInterfaceFonts.face(3,15F), TEXT, false);
@@ -2265,23 +4195,43 @@ public final class OrionClickGuiScreen extends Screen {
             if (paradox) drawGridModule(g, rows[i + moduleScroll], i, hover);
             else drawModule(g, rows[i + moduleScroll], L.moduleY + i * L.moduleStep, hover);
         }
-        if (rows.length > visible) drawScrollIndicator(g, paradox ? moduleScroll / GRID_COLUMNS * GRID_STEP : moduleScroll * L.moduleStep,
-                paradox ? moduleMaxScroll(rows.length) / GRID_COLUMNS * GRID_STEP : (rows.length - visible) * L.moduleStep);
+        if (rows.length > visible) drawScrollIndicator(g, paradox ? moduleScroll / gridColumns() * gridStep() : moduleScroll * L.moduleStep,
+                paradox ? moduleMaxScroll(rows.length) / gridColumns() * gridStep() : (rows.length - visible) * L.moduleStep);
+    }
+
+    private String modulePageTitle() {
+        return tr(!searchQuery.isBlank() ? "Поиск" : paradox && paradoxAll ? "Все модули"
+                : paradox && paradoxFavoritesOnly ? "Избранное" : Category.VALUES[selectedCategory].title);
     }
 
     private int maxVisibleRows() {
-        if (paradox) return GRID_COLUMNS * Math.max(1, (L.guiH - L.moduleY - 8 + 6) / GRID_STEP);
+        if (paradox) return gridColumns() * Math.max(1, (L.guiH - L.moduleY - 8 + 6) / gridStep());
         return (L.guiH - L.moduleY - 8) / L.moduleStep;
     }
 
     private int moduleMaxScroll(int count) {
         int remaining = Math.max(0, count - maxVisibleRows());
-        return paradox ? (remaining + GRID_COLUMNS - 1) / GRID_COLUMNS * GRID_COLUMNS : remaining;
+        return paradox ? (remaining + gridColumns() - 1) / gridColumns() * gridColumns() : remaining;
     }
 
-    private int gridCardWidth() { return (L.moduleW - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS; }
-    private int gridCardX(int index) { return L.moduleX + index % GRID_COLUMNS * (gridCardWidth() + GRID_GAP); }
-    private int gridCardY(int index) { return L.moduleY + index / GRID_COLUMNS * GRID_STEP; }
+    private boolean htmlGearHit(int x, int y, int index) {
+        return isInside(x, y, gridCardX(index) + gridCardWidth() - HTML_GEAR_INSET - HTML_CARD_CONTROL,
+                gridCardY(index) + HTML_GEAR_INSET, HTML_CARD_CONTROL, HTML_CARD_CONTROL);
+    }
+
+    private int gridHeight() { return htmlModuleGrid ? configManager.getConfig().isClickGuiCompactCards() ? 45 : 55 : GRID_HEIGHT; }
+    private int gridStep() { return htmlModuleGrid ? gridHeight() + GRID_GAP : GRID_STEP; }
+    private int gridColumns() {
+        if (!htmlModuleGrid) return 3;
+        return switch (configManager.getConfig().getClickGuiWindowSize()) {
+            case "mini" -> 2;
+            case "compact" -> 3;
+            default -> 4;
+        };
+    }
+    private int gridCardWidth() { return (L.moduleW - GRID_GAP * (gridColumns() - 1)) / gridColumns(); }
+    private int gridCardX(int index) { return L.moduleX + index % gridColumns() * (gridCardWidth() + GRID_GAP); }
+    private int gridCardY(int index) { return L.moduleY + index / gridColumns() * gridStep(); }
 
     private void drawGridModule(Graphics2D g, ModuleRow row, int index, float hover) {
         float progress = Math.max(0F, Math.min(1F, (cardsAnimation * 600F - Math.min(index,18) * 22F) / 200F));
@@ -2290,10 +4240,10 @@ public final class OrionClickGuiScreen extends Screen {
         g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, progress));
         int x = gridCardX(index), y = gridCardY(index), w = gridCardWidth();
         g.setColor(mix(SURFACE, SURFACE_HOVER, hover));
-        g.fill(new RoundRectangle2D.Float(x, y, w, GRID_HEIGHT, 7.5F, 7.5F));
+        g.fill(new RoundRectangle2D.Float(x, y, w, gridHeight(), 7.5F, 7.5F));
         g.setColor(mix(BORDER, PRIMARY, hover * .35F));
         g.setStroke(new BasicStroke(.65F));
-        g.draw(new RoundRectangle2D.Float(x + .5F, y + .5F, w - 1, GRID_HEIGHT - 1, 7.5F, 7.5F));
+        g.draw(new RoundRectangle2D.Float(x + .5F, y + .5F, w - 1, gridHeight() - 1, 7.5F, 7.5F));
         float active = toggleAnim[row.action.ordinal()];
         g.setColor(mix(SEARCH_BG, SURFACE_HOVER, active));
         g.fill(new RoundRectangle2D.Float(x + 8, y + 7, 20, 20, 6, 6));
@@ -2302,7 +4252,7 @@ public final class OrionClickGuiScreen extends Screen {
         if (hover > .01F || paradoxFavorites.contains(row.action)) drawFavoriteStar(g, x + w - 41, y + 16,
                 paradoxFavorites.contains(row.action));
         Font titleFont=OrionInterfaceFonts.face(2,11F);
-        drawText(g, ellipsize(g, titleFont, tr(row.title), w - 16), x + 8, y + 37,
+        drawText(g, ellipsize(g, titleFont, row.title, w - 16), x + 8, y + 37,
                 titleFont, TEXT, false);
         Font font = OrionInterfaceFonts.face(1,9F);
         String remaining = tr(row.description);
@@ -2412,14 +4362,22 @@ public final class OrionClickGuiScreen extends Screen {
                 presetRestoreWidth(), PAGE_BUTTON_H, "Вернуть свои настройки", false, body);
     }
 
-    private static final int CONFIG_ROWS_Y = 112;
+    private static final int CONFIG_ROWS_Y = 96;
+    private static final int CONFIG_TABS_Y = 42, CONFIG_COMMANDS_Y = 68, CONFIG_BUTTON_H = 18;
+    private static final int CONFIG_REFRESH_W = 62, CONFIG_COMMAND_W = 67, CONFIG_BUTTON_GAP = 5;
+    private int configTabWidth() { return Math.min(80, (L.moduleW - CONFIG_REFRESH_W - 3 * CONFIG_BUTTON_GAP) / 3); }
+    private int configTabX(int tab) { return L.moduleX + tab * (configTabWidth() + CONFIG_BUTTON_GAP); }
+    private int configRefreshX() { return L.moduleX + L.moduleW - CONFIG_REFRESH_W; }
+    private int configCommandX(int command) {
+        return L.moduleX + L.moduleW - CONFIG_COMMAND_W - (1 - command) * (CONFIG_COMMAND_W + CONFIG_BUTTON_GAP);
+    }
     private int configInfoWidth() { return Math.min(192, L.moduleW / 2); }
     private int configListWidth() { return L.moduleW - configInfoWidth() - 12; }
     private int configInfoX() { return L.moduleX + configListWidth() + 12; }
     private int configActionX() { return configInfoX() + 12; }
     private int configActionWidth() { return configInfoWidth() - 24; }
     private int configFooterY() { return L.guiH - 31; }
-    private int configRowHeight() { return Math.min(48, (L.guiH - CONFIG_ROWS_Y - 48) / OrionConfigLibrary.PAGE_SIZE); }
+    private int configRowHeight() { return Math.min(38, (L.guiH - CONFIG_ROWS_Y - 48) / OrionConfigLibrary.PAGE_SIZE); }
     private int configMainY() {
         int actionsHeight = configEditor != 0 ? 54 : configsLocal ? 114 : configsPublished ? 84 : 24;
         return L.guiH - 28 - actionsHeight;
@@ -2433,9 +4391,8 @@ public final class OrionClickGuiScreen extends Screen {
         paradoxAll = paradoxFavoritesOnly = false;
         selectedCategory = moduleScroll = 0;
         searchQuery = "";
-        if (localConfigs.isEmpty()) loadLocalConfigs();
         selectConfigTab(0);
-        if (catalogCache[1] == null) loadCatalog(true, 0);
+        if (localConfigs.isEmpty()) loadLocalConfigs();
     }
 
     private void selectConfigTab(int tab) {
@@ -2451,12 +4408,17 @@ public final class OrionClickGuiScreen extends Screen {
         } else {
             int index = configsPublished ? 1 : 0;
             CatalogSnapshot cached = catalogCache[index];
+            if (cached == null && !configsPublished) {
+                var firstPage = configManager.getConfigLibrary().cachedFirstCatalog();
+                if (firstPage != null) cached = catalogCache[index] = new CatalogSnapshot(0,firstPage,0);
+            }
             if (cached == null) {
                 catalogEntries = List.of();
                 catalogMore = false;
                 catalogTotal = 0;
             } else showCatalog(cached);
-            if (cached == null || catalogStale[index] || System.nanoTime() - cached.fetchedAt() >= CATALOG_REFRESH_NANOS) {
+            if (cached == null || cached.fetchedAt() == 0 || catalogStale[index]
+                    || System.nanoTime() - cached.fetchedAt() >= CATALOG_REFRESH_NANOS) {
                 loadCatalog(configsPublished, configOffset);
             }
         }
@@ -2503,12 +4465,16 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void loadCatalog(boolean published, int offset) {
+        loadCatalog(published,offset,catalogStale[published ? 1 : 0]);
+    }
+
+    private void loadCatalog(boolean published, int offset, boolean refresh) {
         int index = published ? 1 : 0;
         if (catalogPending[index]) return;
         catalogPending[index] = true;
         var user = Minecraft.getInstance().getUser();
         configManager.getConfigLibrary().catalog(offset,
-                published ? user.getProfileId() : null, published ? user.getName() : null).whenComplete((page, failure) -> {
+                published ? user.getProfileId() : null, published ? user.getName() : null, refresh).whenComplete((page, failure) -> {
             Minecraft.getInstance().execute(() -> {
                 catalogPending[index] = false;
                 boolean visible = configsPage && !configsLocal && configsPublished == published;
@@ -2584,7 +4550,7 @@ public final class OrionClickGuiScreen extends Screen {
         } else if (configEditor == 2 && selected != null && configsLocal) {
             int id = selected.id();
             runConfigTask(library.renameLocal(id, title), profiles -> {
-                acceptLocalConfigs(profiles); configOffset = 0; configSelected = 1;
+                configOffset = 0; configSelected = 1; acceptLocalConfigs(profiles);
                 configStatus = "Конфиг переименован";
             });
         } else if (configEditor == 2 && selected != null && configsPublished) {
@@ -2607,22 +4573,109 @@ public final class OrionClickGuiScreen extends Screen {
         configTitleFocused = false;
     }
 
+    private boolean canEditConfig(OrionConfigLibrary.Entry entry) {
+        return configsPublished || configsLocal && entry.id() != 0;
+    }
+
+    private void moveConfigPage(int direction) {
+        if (direction < 0 ? configOffset == 0 : !configHasNext()) return;
+        configEditor = 0;
+        configDeleteConfirm = false;
+        int offset = configOffset + direction * OrionConfigLibrary.PAGE_SIZE;
+        if (configsLocal) {
+            configOffset = offset;
+            configSelected = 0;
+        } else loadCatalog(offset);
+        lastFingerprint = null;
+    }
+
+    private void useConfig(OrionConfigLibrary.Entry entry) {
+        configDeleteConfirm = false;
+        if (configsLocal) {
+            try {
+                configManager.applyProfile(localConfigs.get(configOffset + configSelected).settings());
+                ru.orion.client.effect.OrionBadgePresence.requestRefresh();
+                configStatus = "Конфиг применён";
+            } catch (java.io.IOException | RuntimeException exception) {
+                configStatus = "Не удалось применить конфиг";
+                LOGGER.warn("Не удалось применить конфиг", exception);
+            }
+        } else {
+            var user = minecraft.getUser();
+            runConfigTask(configManager.getConfigLibrary().download(entry.id(), user.getProfileId(), user.getName()), profiles -> {
+                localConfigs = profiles;
+                var updated = profiles.stream().filter(profile -> profile.entry().id() == entry.id()).findFirst().orElseThrow().entry();
+                if (configSelected >= 0 && configSelected < catalogEntries.size()
+                        && catalogEntries.get(configSelected).id() == entry.id()) {
+                    var entries = new ArrayList<>(catalogEntries);
+                    entries.set(configSelected, updated);
+                    catalogEntries = List.copyOf(entries);
+                    int index = configsPublished ? 1 : 0;
+                    var cached = catalogCache[index];
+                    if (cached != null && cached.offset() == configOffset) {
+                        catalogCache[index] = new CatalogSnapshot(configOffset,
+                                new OrionConfigLibrary.Page(catalogEntries, catalogMore, catalogTotal), cached.fetchedAt());
+                    }
+                }
+                configStatus = "Конфиг добавлен в «Мои конфиги»";
+            });
+        }
+        lastFingerprint = null;
+    }
+
+    private void removeConfig(OrionConfigLibrary.Entry entry) {
+        var library = configManager.getConfigLibrary();
+        if (configsLocal) runConfigTask(library.removeLocal(entry.id()), profiles -> {
+            acceptLocalConfigs(profiles);
+            configStatus = "Локальная копия удалена";
+        });
+        else {
+            var user = minecraft.getUser();
+            runConfigTask(library.removePublication(entry, user.getProfileId(), user.getName()), ignored -> {
+                invalidateCatalogs();
+                loadCatalog(Math.max(0, configOffset - (catalogEntries.size() == 1 ? OrionConfigLibrary.PAGE_SIZE : 0)));
+                configStatus = "Публикация удалена";
+            });
+        }
+    }
+
+    private void overwriteConfig(OrionConfigLibrary.Entry entry) {
+        var library = configManager.getConfigLibrary();
+        var settings = configManager.exportProfile();
+        if (configsLocal) runConfigTask(library.updateLocal(entry.id(), settings), profiles -> {
+            configOffset = 0;
+            configSelected = 1;
+            acceptLocalConfigs(profiles);
+            configStatus = "Конфиг обновлён";
+        });
+        else {
+            var user = minecraft.getUser();
+            runConfigTask(library.editPublication(entry, entry.name(), settings, user.getProfileId(), user.getName())
+                    .thenCompose(profile -> library.local(settings)), profiles -> {
+                invalidateCatalogs();
+                localConfigs = profiles;
+                loadCatalog(configOffset);
+                configStatus = "Публикация обновлена";
+            });
+        }
+    }
+
     private boolean configsClick(int x, int y) {
         if (configBusy) return true;
         for (int tab = 0; tab < 3; tab++) {
-            if (isInside(x, y, L.moduleX + tab * 99, 48, 93, 24)) {
+            if (isInside(x, y, configTabX(tab), CONFIG_TABS_Y, configTabWidth(), CONFIG_BUTTON_H)) {
                 selectConfigTab(tab);
                 return true;
             }
         }
-        if (isInside(x, y, L.moduleX + L.moduleW - 76, 48, 76, 24)) {
+        if (isInside(x, y, configRefreshX(), CONFIG_TABS_Y, CONFIG_REFRESH_W, CONFIG_BUTTON_H)) {
             configStatus = "";
             if (configsLocal) loadLocalConfigs();
             else loadCatalog(configOffset);
             return true;
         }
-        if (isInside(x, y, L.moduleX + L.moduleW - 166, 80, 80, 22)) { beginConfigEditor(1); return true; }
-        if (isInside(x, y, L.moduleX + L.moduleW - 80, 80, 80, 22)) { beginConfigEditor(4); return true; }
+        if (isInside(x, y, configCommandX(0), CONFIG_COMMANDS_Y, CONFIG_COMMAND_W, CONFIG_BUTTON_H)) { beginConfigEditor(1); return true; }
+        if (isInside(x, y, configCommandX(1), CONFIG_COMMANDS_Y, CONFIG_COMMAND_W, CONFIG_BUTTON_H)) { beginConfigEditor(4); return true; }
         int actionX = configActionX(), w = configActionWidth(), mainY = configMainY();
         if (configEditor != 0) {
             if (isInside(x, y, actionX, CONFIG_ROWS_Y + 68, w, 27)) {
@@ -2639,70 +4692,28 @@ public final class OrionClickGuiScreen extends Screen {
             }
         }
         if (configOffset > 0 && isInside(x, y, L.moduleX, configFooterY(), 62, 20)) {
-            configEditor = 0; configDeleteConfirm = false;
-            if (configsLocal) { configOffset -= OrionConfigLibrary.PAGE_SIZE; configSelected = 0; }
-            else loadCatalog(configOffset - OrionConfigLibrary.PAGE_SIZE);
-            lastFingerprint = null; return true;
+            moveConfigPage(-1);
+            return true;
         }
         if (configHasNext() && isInside(x, y, L.moduleX + configListWidth() - 62, configFooterY(), 62, 20)) {
-            configEditor = 0; configDeleteConfirm = false;
-            if (configsLocal) { configOffset += OrionConfigLibrary.PAGE_SIZE; configSelected = 0; }
-            else loadCatalog(configOffset + OrionConfigLibrary.PAGE_SIZE);
-            lastFingerprint = null; return true;
+            moveConfigPage(1);
+            return true;
         }
         var entry = selectedConfig();
         if (entry == null || configEditor != 0) return true;
-        var library = configManager.getConfigLibrary();
-        var user = minecraft.getUser();
         if (isInside(x, y, actionX, mainY, w, PAGE_BUTTON_H)) {
-            configDeleteConfirm = false;
-            if (configsLocal) {
-                try {
-                    configManager.applyProfile(localConfigs.get(configOffset + configSelected).settings());
-                    ru.orion.client.effect.OrionBadgePresence.requestRefresh();
-                    configStatus = "Конфиг применён";
-                } catch (java.io.IOException | RuntimeException exception) {
-                    configStatus = "Не удалось применить конфиг";
-                    LOGGER.warn("Не удалось применить конфиг", exception);
-                }
-            } else {
-                runConfigTask(library.download(entry.id(), user.getProfileId(), user.getName()), profiles -> {
-                    localConfigs = profiles;
-                    var updated = profiles.stream().filter(profile -> profile.entry().id() == entry.id()).findFirst().orElseThrow().entry();
-                    var entries = new ArrayList<>(catalogEntries); entries.set(configSelected, updated); catalogEntries = List.copyOf(entries);
-                    int index = configsPublished ? 1 : 0;
-                    var cached = catalogCache[index];
-                    if (cached != null && cached.offset() == configOffset) {
-                        catalogCache[index] = new CatalogSnapshot(configOffset,
-                                new OrionConfigLibrary.Page(catalogEntries, catalogMore, catalogTotal), cached.fetchedAt());
-                    }
-                    configStatus = "Конфиг добавлен в «Мои конфиги»";
-                });
-            }
-            lastFingerprint = null; return true;
+            useConfig(entry);
+            return true;
         }
-        if ((configsLocal && entry.id() != 0) || configsPublished) {
+        if (canEditConfig(entry)) {
             if (isInside(x, y, actionX, mainY + 30, configHalfWidth(), 24)) { beginConfigEditor(2); return true; }
             if (isInside(x, y, actionX + configHalfWidth() + 6, mainY + 30, configHalfWidth(), 24)) {
                 if (!configDeleteConfirm) { configDeleteConfirm = true; lastFingerprint = null; return true; }
-                if (configsLocal) runConfigTask(library.removeLocal(entry.id()), profiles -> {
-                    acceptLocalConfigs(profiles); configStatus = "Локальная копия удалена";
-                });
-                else runConfigTask(library.removePublication(entry, user.getProfileId(), user.getName()), ignored -> {
-                    invalidateCatalogs();
-                    loadCatalog(Math.max(0, configOffset - (catalogEntries.size() == 1 ? OrionConfigLibrary.PAGE_SIZE : 0)));
-                    configStatus = "Публикация удалена";
-                });
+                removeConfig(entry);
                 return true;
             }
             if (isInside(x, y, actionX, mainY + 60, w, 24)) {
-                var settings = configManager.exportProfile();
-                if (configsLocal) runConfigTask(library.updateLocal(entry.id(), settings), this::acceptLocalConfigs);
-                else runConfigTask(library.editPublication(entry, entry.name(), settings, user.getProfileId(), user.getName())
-                        .thenCompose(profile -> library.local(settings)), profiles -> {
-                    invalidateCatalogs();
-                    localConfigs = profiles; loadCatalog(configOffset); configStatus = "Публикация обновлена";
-                });
+                overwriteConfig(entry);
                 return true;
             }
         }
@@ -2720,16 +4731,16 @@ public final class OrionClickGuiScreen extends Screen {
 
     private void drawConfigs(Graphics2D g) {
         int x = L.moduleX;
-        Font title = OrionInterfaceFonts.face(3, 15F), body = OrionInterfaceFonts.face(0, 8F), name = OrionInterfaceFonts.face(2, 9F);
+        Font title = OrionInterfaceFonts.face(3, 13F), body = OrionInterfaceFonts.face(0, 7.5F), name = OrionInterfaceFonts.face(2, 8.5F);
         drawText(g, tr("Конфиги"), x, 29, title, TEXT, false);
         String[] tabs = {"Каталог", "Мои конфиги", "Публикации"};
         int activeTab = configsLocal ? 1 : configsPublished ? 2 : 0;
-        for (int tab = 0; tab < 3; tab++) drawConfigButton(g, x + tab * 99, 48, 93, 24, tabs[tab], activeTab == tab, body);
-        drawConfigButton(g, x + L.moduleW - 76, 48, 76, 24, "Обновить", false, body);
+        for (int tab = 0; tab < 3; tab++) drawConfigButton(g, configTabX(tab), CONFIG_TABS_Y, configTabWidth(), CONFIG_BUTTON_H, tabs[tab], activeTab == tab, body);
+        drawConfigButton(g, configRefreshX(), CONFIG_TABS_Y, CONFIG_REFRESH_W, CONFIG_BUTTON_H, "Обновить", false, body);
         int total = configsLocal ? localConfigs.size() : catalogTotal;
-        drawText(g, tr(configsLocal ? "В библиотеке" : configsPublished ? "Опубликовано" : "В каталоге") + " · " + total, x, 94, body, MUTED, false);
-        drawConfigButton(g, x + L.moduleW - 166, 80, 80, 22, "Сохранить", false, body);
-        drawConfigButton(g, x + L.moduleW - 80, 80, 80, 22, "Опубликовать", true, body);
+        drawText(g, tr(configsLocal ? "В библиотеке" : configsPublished ? "Опубликовано" : "В каталоге") + " · " + total, x, CONFIG_COMMANDS_Y + 12, body, MUTED, false);
+        drawConfigButton(g, configCommandX(0), CONFIG_COMMANDS_Y, CONFIG_COMMAND_W, CONFIG_BUTTON_H, "Сохранить", false, body);
+        drawConfigButton(g, configCommandX(1), CONFIG_COMMANDS_Y, CONFIG_COMMAND_W, CONFIG_BUTTON_H, "Опубликовать", true, body);
         int h = configRowHeight();
         for (int row = 0; row < configRowCount(); row++) {
             var entry = configsLocal ? localConfigs.get(configOffset + row).entry() : catalogEntries.get(row);
@@ -2737,12 +4748,12 @@ public final class OrionClickGuiScreen extends Screen {
             boolean selected = configSelected == row;
             pageSurface(g, x, y, configListWidth(), h - 5, selected);
             g.setColor(selected ? PRIMARY : MUTED);
-            drawIcon(g, entry.id() <= 0 ? Icon.FOLDER : Icon.MONITOR, x + 17, y + 17, g.getColor(), .9F, .29F);
+            drawIcon(g, entry.id() <= 0 ? Icon.FOLDER : Icon.MONITOR, x + 13, y + 13, g.getColor(), .9F, .26F);
             String label = entry.id() == 0 ? tr(entry.name()) : entry.name();
-            drawText(g, ellipsize(g, name, label, configListWidth() - 46), x + 33, y + 17, name, TEXT, false);
+            drawText(g, ellipsize(g, name, label, configListWidth() - 35), x + 26, y + 13, name, TEXT, false);
             String meta = entry.id() <= 0 ? tr(entry.id() == 0 ? "Исходные настройки" : "Локальный конфиг")
                     : entry.author() + " · " + entry.downloads() + " " + tr("скачиваний");
-            drawText(g, ellipsize(g, body, meta, configListWidth() - 46), x + 33, y + 31, body, MUTED, false);
+            drawText(g, ellipsize(g, body, meta, configListWidth() - 35), x + 26, y + 25, body, MUTED, false);
         }
         if (configRowCount() == 0) {
             pageSurface(g, x, CONFIG_ROWS_Y, configListWidth(), 100, false);
@@ -2759,7 +4770,7 @@ public final class OrionClickGuiScreen extends Screen {
         if (configEditor != 0) {
             String heading = configEditor == 1 ? "Новый конфиг" : configEditor == 2 ? "Переименовать" : "Публикация конфига";
             drawText(g, tr(heading), actionX, CONFIG_ROWS_Y + 23, name, TEXT, false);
-            drawPageParagraph(g, tr(configEditor <= 2 ? "Название поможет найти конфиг в списке" : "Этот конфиг увидят все пользователи Orion"),
+            drawPageParagraph(g, tr(configEditor <= 2 ? "Название поможет найти конфиг в списке" : "Этот конфиг увидят все пользователи GleamClient"),
                     actionX, CONFIG_ROWS_Y + 42, actionW, body, MUTED, 2);
             drawConfigNameInput(g, actionX, CONFIG_ROWS_Y + 68, actionW, body);
             drawConfigButton(g, actionX, configMainY(), actionW, PAGE_BUTTON_H, configEditor <= 2 ? "Сохранить" : "Опубликовать", true, body);
@@ -2880,10 +4891,10 @@ public final class OrionClickGuiScreen extends Screen {
             if (isInside(x, y, presetRestoreX(), presetButtonY() + 32, presetRestoreWidth(), PAGE_BUTTON_H)) return 11;
         }
         if (configsPage) {
-            for (int tab = 0; tab < 3; tab++) if (isInside(x, y, L.moduleX + tab * 99, 48, 93, 24)) return 20 + tab;
-            if (isInside(x, y, L.moduleX + L.moduleW - 76, 48, 76, 24)) return 23;
-            if (isInside(x, y, L.moduleX + L.moduleW - 166, 80, 80, 22)) return 24;
-            if (isInside(x, y, L.moduleX + L.moduleW - 80, 80, 80, 22)) return 25;
+            for (int tab = 0; tab < 3; tab++) if (isInside(x, y, configTabX(tab), CONFIG_TABS_Y, configTabWidth(), CONFIG_BUTTON_H)) return 20 + tab;
+            if (isInside(x, y, configRefreshX(), CONFIG_TABS_Y, CONFIG_REFRESH_W, CONFIG_BUTTON_H)) return 23;
+            if (isInside(x, y, configCommandX(0), CONFIG_COMMANDS_Y, CONFIG_COMMAND_W, CONFIG_BUTTON_H)) return 24;
+            if (isInside(x, y, configCommandX(1), CONFIG_COMMANDS_Y, CONFIG_COMMAND_W, CONFIG_BUTTON_H)) return 25;
             if (isInside(x, y, configActionX(), configMainY(), configActionWidth(), PAGE_BUTTON_H)) return 26;
             if (configEditor != 0) {
                 if (isInside(x, y, configActionX(), configMainY() + 30, configActionWidth(), PAGE_BUTTON_H)) return 27;
@@ -2964,13 +4975,13 @@ public final class OrionClickGuiScreen extends Screen {
     private void applyScrollBar(int y, boolean settings) {
         int moduleMaximum = moduleMaxScroll(rowsForSelectedCategory().length);
         int maximum = settings ? settingsMaxScroll(settingsRows)
-                : (paradox ? moduleMaximum / GRID_COLUMNS * GRID_STEP : moduleMaximum * L.moduleStep);
+                : (paradox ? moduleMaximum / gridColumns() * gridStep() : moduleMaximum * L.moduleStep);
         float trackHeight = L.guiH - L.moduleY - 10;
         float thumbHeight = Math.max(16, trackHeight * trackHeight / (trackHeight + maximum));
         float available = trackHeight - thumbHeight;
         float progress = available <= 0 ? 0 : Math.max(0, Math.min(1, (y - L.moduleY - thumbHeight / 2) / available));
         if (settings) { settingsScroll = Math.round(progress * maximum); if (paradox) scrollAnimation = settingsScroll; }
-        else moduleScroll = paradox ? Math.min(moduleMaximum,Math.round(progress * moduleMaximum / GRID_COLUMNS) * GRID_COLUMNS)
+        else moduleScroll = paradox ? Math.min(moduleMaximum,Math.round(progress * moduleMaximum / gridColumns()) * gridColumns())
                 : Math.round(progress * maximum / L.moduleStep);
         lastFingerprint = null;
     }
@@ -3006,10 +5017,10 @@ public final class OrionClickGuiScreen extends Screen {
         g.draw(new Line2D.Float(acx - 4 * sc, acy, acx - 0.5F * sc, acy + 3.5F * sc));
 
         if (orion3) {
-            drawText(g, tr(settingsFor.title), L.moduleX + L.gearSize + 6, L.backY + L.gearSize - 4, headingFont(9.0F), PRIMARY, true);
+            drawText(g, settingsFor.title, L.moduleX + L.gearSize + 6, L.backY + L.gearSize - 4, headingFont(9.0F), PRIMARY, true);
             drawText(g, tr("Настройки модуля · прокрутка колёсиком"), L.moduleX + L.gearSize + 6, L.backY + L.gearSize + 6, bodyFont(6.2F), MUTED, false);
         } else {
-            drawText(g, tr(settingsFor.title), CONTENT_X + GEAR_SIZE + 9, 62, headingFont(12.5F), PRIMARY, true);
+            drawText(g, settingsFor.title, CONTENT_X + GEAR_SIZE + 9, 62, headingFont(12.5F), PRIMARY, true);
             drawText(g, tr("Настройки"), CONTENT_X + GEAR_SIZE + 9, 73, bodyFont(7.0F), MUTED, false);
         }
 
@@ -3026,10 +5037,10 @@ public final class OrionClickGuiScreen extends Screen {
         g.draw(new Line2D.Float(backX + 5, cy, backX + 8, cy - 3));
         g.draw(new Line2D.Float(backX + 5, cy, backX + 8, cy + 3));
         Font crumb = OrionInterfaceFonts.face(1, 8F);
-        String moduleTitle = waypointPage ? "Метки" : settingsFor.action == Action.BASKETBALL ? "Баскетбол" : settingsFor.action == Action.FOOTBALL ? "Футбол" : settingsFor.title;
+        String moduleTitle = waypointPage ? tr("Метки") : settingsFor.title;
         String section = tr(settingsFor.action == Action.BASKETBALL || settingsFor.action == Action.FOOTBALL ? "Games" : Category.VALUES[selectedCategory].title);
         String breadcrumb = waypointPage ? tr("Метки") + " / " + tr(waypointSelected == 0 ? "Новая метка" : waypointName)
-                : tr("Модули") + " / " + section + " / " + tr(moduleTitle);
+                : tr("Модули") + " / " + section + " / " + moduleTitle;
         drawText(g, ellipsize(g, crumb, breadcrumb, 320), backX + 23, 23, crumb, MUTED, false);
 
         float iconX = L.sidebarW + 13;
@@ -3038,7 +5049,7 @@ public final class OrionClickGuiScreen extends Screen {
         drawModuleSymbol(g, settingsFor, iconX + 13, 56, TEXT);
 
         Font moduleTitleFont=OrionInterfaceFonts.face(3, 14F);
-        drawText(g, ellipsize(g,moduleTitleFont,tr(moduleTitle),185), iconX + 36, 51, moduleTitleFont, TEXT, false);
+        drawText(g, ellipsize(g,moduleTitleFont,moduleTitle,185), iconX + 36, 51, moduleTitleFont, TEXT, false);
         Font description = OrionInterfaceFonts.face(1, 8F);
         drawText(g, ellipsize(g, description, tr(settingsFor.description), 185), iconX + 36, 64, description, MUTED, false);
 
@@ -3480,7 +5491,7 @@ public final class OrionClickGuiScreen extends Screen {
 
     private int searchX() { return paradox ? 8 : orion3 ? L.moduleX + L.moduleW - 126 : 303; }
     private int searchY() { return paradox ? 30 : orion3 ? 13 : 44; }
-    private int searchW() { return paradox ? 110 : orion3 ? 126 : 138; }
+    private int searchW() { return htmlActive ? L.sideW : paradox ? 110 : orion3 ? 126 : 138; }
     private int searchH() { return paradox ? 19 : orion3 ? 25 : 27; }
     private void drawSearch(Graphics2D g) { drawSearchInput(g); }
     private void drawSearchInput(Graphics2D g) {
@@ -3538,7 +5549,7 @@ public final class OrionClickGuiScreen extends Screen {
             drawIcon(g, row.icon, L.moduleX + 17, y + 15, active ? PRIMARY : MUTED, 1F, .32F);
             Font name = headingFont(7.3F), detail = bodyFont(5.8F);
             float max = gearX() - L.moduleX - 63;
-            drawText(g, ellipsize(g, name, tr(row.title), max), L.moduleX + 35, y + 12, name, TEXT, false);
+            drawText(g, ellipsize(g, name, row.title, max), L.moduleX + 35, y + 12, name, TEXT, false);
             drawText(g, ellipsize(g, detail, tr(row.description), max), L.moduleX + 35, y + 22, detail, MUTED, false);
             drawFavoriteStar(g, gearX() - 11, y + 15, paradoxFavorites.contains(row.action));
             drawToggle(g, toggleX(), y + (L.moduleH - L.toggleH) / 2F, animation);
@@ -3565,7 +5576,7 @@ public final class OrionClickGuiScreen extends Screen {
             float textW = Math.max(10, gearX() - textX - 7);
             Font titleFont = headingFont(8.2F);
             Font descriptionFont = bodyFont(6.2F);
-            drawText(g, ellipsize(g, titleFont, tr(row.title), textW), textX, y + 14, titleFont, TEXT, true);
+            drawText(g, ellipsize(g, titleFont, row.title, textW), textX, y + 14, titleFont, TEXT, true);
             drawText(g, ellipsize(g, descriptionFont, tr(row.description), textW), textX, y + 24, descriptionFont, MUTED, false);
         } else {
             if (active) {
@@ -3580,7 +5591,7 @@ public final class OrionClickGuiScreen extends Screen {
             Color iconColor = mix(TEXT, PRIMARY, animation);
             drawIcon(g, row.icon, L.moduleX + 23, y + 26, iconColor, 1.8F, 1.0F);
             int textX = L.moduleX + 23 + 12 + ICON_TEXT_GAP;
-            drawText(g, tr(row.title), textX, y + 22.5F, headingFont(10.8F), TEXT, true);
+            drawText(g, row.title, textX, y + 22.5F, headingFont(10.8F), TEXT, true);
             // Описание всегда нейтрально-серое: акцентный оранжевый на тёмном фоне при таком кегле нечитаем.
             drawText(g, tr(row.description), textX, y + 36.5F, bodyFont(8.2F), mix(MUTED, TEXT, animation * 0.35F), false);
         }
@@ -3923,6 +5934,79 @@ public final class OrionClickGuiScreen extends Screen {
                     }
                 }
             }
+            case PLUS -> {
+                g.draw(new Line2D.Float(-9, 0, 9, 0));
+                g.draw(new Line2D.Float(0, -9, 0, 9));
+            }
+            case LOGOUT -> {
+                Path2D.Float outline = new Path2D.Float();
+                outline.moveTo(0, -10);
+                outline.lineTo(-10, -10);
+                outline.lineTo(-10, 10);
+                outline.lineTo(0, 10);
+                outline.moveTo(-3, 0);
+                outline.lineTo(11, 0);
+                outline.moveTo(6, -5);
+                outline.lineTo(11, 0);
+                outline.lineTo(6, 5);
+                g.draw(outline);
+            }
+            case EXTERNAL -> {
+                g.draw(new Line2D.Float(-7, 7, 7, -7));
+                g.draw(new Line2D.Float(-2, -7, 7, -7));
+                g.draw(new Line2D.Float(7, -7, 7, 2));
+            }
+            case COPY -> {
+                g.draw(new RoundRectangle2D.Float(-5, -5, 14, 15, 3, 3));
+                g.draw(new Line2D.Float(-9, 5, -9, -10));
+                g.draw(new Line2D.Float(-9, -10, 5, -10));
+            }
+            case ACCOUNT_OPTIONS -> {
+                Path2D.Float outline = new Path2D.Float();
+                outline.moveTo(0, -10);
+                outline.lineTo(8.5F, -5);
+                outline.lineTo(8.5F, 5);
+                outline.lineTo(0, 10);
+                outline.lineTo(-8.5F, 5);
+                outline.lineTo(-8.5F, -5);
+                outline.closePath();
+                g.draw(outline);
+                g.draw(new Ellipse2D.Float(-3, -3, 6, 6));
+            }
+            case ACCOUNT_CONFIGS -> {
+                Path2D.Float stack = new Path2D.Float();
+                stack.moveTo(0, -10);
+                stack.lineTo(10, -5);
+                stack.lineTo(0, 0);
+                stack.lineTo(-10, -5);
+                stack.closePath();
+                for (int y = 1; y <= 6; y += 5) {
+                    stack.moveTo(-10, y);
+                    stack.lineTo(0, y + 5);
+                    stack.lineTo(10, y);
+                }
+                g.draw(stack);
+            }
+            case SHIELD -> {
+                Path2D.Float shield = new Path2D.Float();
+                shield.moveTo(0, -10);
+                shield.lineTo(8, -7);
+                shield.lineTo(8, 1);
+                shield.quadTo(7, 6, 0, 10);
+                shield.quadTo(-7, 6, -8, 1);
+                shield.lineTo(-8, -7);
+                shield.closePath();
+                g.draw(shield);
+            }
+            case OWNER_MARK -> {
+                Path2D.Float star = new Path2D.Float();
+                star.moveTo(0, -11);
+                star.quadTo(2, -2, 11, 0);
+                star.quadTo(2, 2, 0, 11);
+                star.quadTo(-2, 2, -11, 0);
+                star.quadTo(-2, -2, 0, -11);
+                g.draw(star);
+            }
             case FOLDER -> {
                 Path2D path = new Path2D.Float();
                 path.moveTo(-12, -8);
@@ -4032,23 +6116,40 @@ public final class OrionClickGuiScreen extends Screen {
     private void updateHover(int localX, int localY) {
         pagePointerX = localX; pagePointerY = localY;
         pageHover = profilePageHover(localX, localY);
-        hoveredCategory = categoryAt(localX, localY);
-        int module = settingsFor == null && !presetsPage && !configsPage ? moduleAt(localX, localY) : -1;
+        hoveredCategory = accountsOpen && accountPanelHit(localX, localY) ? -1 : categoryAt(localX, localY);
+        int module = settingsFor == null && !presetsPage && !configsPage && !accountProfilePage ? moduleAt(localX, localY) : -1;
         hoveredModule = module < 0 ? -1 : module - moduleScroll;
     }
 
     private int categoryAt(int localX, int localY) {
-        for (int i = 0; i < Category.VALUES.length; i++) {
-            int y = categoryRowY(i);
-            if (isInside(localX, localY, L.sideX, y, L.sideW, paradox ? 18 : L.sideH)) {
-                return i;
+        int visible = visibleCategories();
+        for (int row = 0; row < visible; row++) {
+            if (isInside(localX, localY, L.sideX, categoryRowY(row), L.sideW, paradox ? 18 : L.sideH)) {
+                return categoryOffset + row;
             }
         }
         return -1;
     }
 
+    private int categoryBottom() {
+        return htmlAccountVisible ? toLocalY(htmlAccounts.top()) - 4 : L.guiH - (htmlActive ? ACCOUNT_FOOTER_H + 4 : 0);
+    }
+
+    private int categoryCount() { return htmlActive ? Category.SETTINGS.ordinal() : Category.VALUES.length; }
+
+    private int visibleCategories() {
+        if (htmlActive && !htmlCategoriesExpanded) return 0;
+        if (!htmlAccountVisible && !htmlActive) return Category.VALUES.length;
+        int visible = 0, bottom = categoryBottom();
+        int total = categoryCount();
+        while (visible < total && categoryRowY(visible) + (paradox ? 18 : L.sideH) <= bottom) {
+            visible++;
+        }
+        return visible;
+    }
+
     private int categoryRowY(int index) {
-        return paradox ? PARADOX_CATEGORY_START_Y + index * 22 : L.sideY + index * L.sideStep;
+        return paradox ? PARADOX_CATEGORY_START_Y + (htmlActive ? 6 : 0) + index * (htmlActive ? 19 : 22) : L.sideY + index * L.sideStep;
     }
 
     private int moduleAt(int localX, int localY) {
@@ -4056,7 +6157,7 @@ public final class OrionClickGuiScreen extends Screen {
         int visible = Math.min(Math.max(0, rows.length - moduleScroll), maxVisibleRows());
         for (int i = 0; i < visible; i++) {
             if (paradox) {
-                if (isInside(localX, localY, gridCardX(i), gridCardY(i), gridCardWidth(), GRID_HEIGHT)) return i + moduleScroll;
+                if (isInside(localX, localY, gridCardX(i), gridCardY(i), gridCardWidth(), gridHeight())) return i + moduleScroll;
                 continue;
             }
             int y = L.moduleY + i * L.moduleStep;
@@ -4312,13 +6413,16 @@ public final class OrionClickGuiScreen extends Screen {
             String query = searchQuery.toLowerCase(Locale.ROOT).trim();
             return Arrays.stream(ModuleRow.ALL)
                     .filter(row -> row.title.toLowerCase(Locale.ROOT).contains(query)
-                            || tr(row.title).toLowerCase(Locale.ROOT).contains(query)
                             || (row.description.toLowerCase(Locale.ROOT).contains(query) || tr(row.description).toLowerCase(Locale.ROOT).contains(query)))
                     .toArray(ModuleRow[]::new);
         }
         if (paradox && paradoxFavoritesOnly) return sortedThemeRows(Arrays.stream(ModuleRow.ALL).filter(row -> paradoxFavorites.contains(row.action)).toArray(ModuleRow[]::new));
         if (paradox && paradoxAll) return sortedThemeRows(ModuleRow.ALL);
-        ModuleRow[] rows = switch (Category.VALUES[selectedCategory]) {
+        return sortedThemeRows(categoryRows(Category.VALUES[selectedCategory]));
+    }
+
+    private static ModuleRow[] categoryRows(Category category) {
+        return switch (category) {
             case COMBAT -> ModuleRow.COMBAT;
             case PLAYER -> ModuleRow.PLAYER;
             case MOVEMENT -> ModuleRow.MOVEMENT;
@@ -4327,7 +6431,6 @@ public final class OrionClickGuiScreen extends Screen {
             case MISC -> ModuleRow.MISC;
             case SETTINGS -> ModuleRow.SETTINGS;
         };
-        return sortedThemeRows(rows);
     }
 
     private ModuleRow[] sortedThemeRows(ModuleRow[] rows) {
@@ -4339,8 +6442,11 @@ public final class OrionClickGuiScreen extends Screen {
         long now = System.nanoTime();
         float dt = lastFrameNanos == 0L ? 0.0F : (now - lastFrameNanos) / 1_000_000_000.0F;
         lastFrameNanos = now;
+        float accountStep = Math.min(1F, dt * 1000F / ACCOUNT_ANIMATION_MS);
+        accountMenuProgress = approach(accountMenuProgress, accountsOpen ? 1F : 0F, accountStep);
+        if (accountProfilePage) accountProfileProgress = approach(accountProfileProgress, 1F, accountStep);
         if (paradox) {
-            List<Object> identity = List.of(configManager.getConfig().getClickGuiTheme(), selectedCategory, paradoxAll, paradoxFavoritesOnly, waypointPage, presetsPage, configsPage, searchQuery,
+            List<Object> identity = List.of(configManager.getConfig().getClickGuiTheme(), selectedCategory, paradoxAll, paradoxFavoritesOnly, waypointPage, presetsPage, configsPage, accountProfilePage, searchQuery,
                     settingsFor == null ? "" : settingsFor.action.name());
             if (!identity.equals(pageIdentity)) {
                 pageIdentity = identity; pageStartedAt = now; pageAnimation = 0F; scrollAnimation = settingsScroll;
@@ -4371,8 +6477,10 @@ public final class OrionClickGuiScreen extends Screen {
         for (int i = 0; i < categoryHoverAnim.length; i++) {
             categoryHoverAnim[i] = approach(categoryHoverAnim[i], i == hoveredCategory ? 1.0F : 0.0F, hoverStep);
         }
+        // После пропуска кадра шестерёнка должна проявиться, а не перескочить сразу в видимое состояние.
+        float moduleHoverStep = htmlModuleGrid ? Math.min(hoverStep, .25F) : hoverStep;
         for (int i = 0; i < moduleHoverAnim.length; i++) {
-            moduleHoverAnim[i] = approach(moduleHoverAnim[i], i == hoveredModule ? 1.0F : 0.0F, hoverStep);
+            moduleHoverAnim[i] = approach(moduleHoverAnim[i], i == hoveredModule ? 1.0F : 0.0F, moduleHoverStep);
         }
     }
 
@@ -4383,17 +6491,17 @@ public final class OrionClickGuiScreen extends Screen {
         values.add(scale);
         values.add(OrionGuiLanguage.english() ? 1 : 0);
         values.add(guiDisplayWidth());
+        values.add(htmlAccountVisible ? 1 : 0);
+        values.add(categoryOffset);
+        values.add(visibleCategories());
         values.add(guiDisplayHeight());
         values.add(configManager.getConfig().getClickGuiTheme());
         values.add(selectedCategory);
         if (!contentOnly) {
-            values.add(java.util.Objects.hash(accounts.username(), accounts.avatar(), accountsOpen, accountFooterHit(pagePointerX, pagePointerY)));
-            if (accountsOpen) values.add(java.util.Objects.hash(accountLogin, accountPassword.length(), accountField,
-                    textCaret, textAnchor, accountStatus, accounts.badge(), accounts.plusActive(), accounts.busy(), accounts.usernames(),
-                    accountForm, accountOffset, accountTarget(pagePointerX, pagePointerY),
-                    accountField != 0 && System.currentTimeMillis() / 500L % 2L == 0));
+            values.add(java.util.Objects.hash(accounts.username(), accounts.avatar(), accountsOpen, accountSwitching,
+                    accountFooterHit(pagePointerX, pagePointerY), accountGearHit(pagePointerX, pagePointerY)));
         }
-        if (paradox) {
+        if (paradox && !accountProfilePage) {
             values.add(contentOnly ? 0 : Math.round(pageAnimation * 255));
             values.add(contentOnly ? 0 : Math.round(cardsAnimation * 255));
             values.add(contentOnly ? 0 : usesSettingsLayer() ? selectedSettingsGroup() : Math.round(scrollAnimation));
@@ -4404,6 +6512,7 @@ public final class OrionClickGuiScreen extends Screen {
         values.add(waypointPage ? 1 : 0);
         values.add(presetsPage ? 1 : 0);
         values.add(configsPage ? 1 : 0);
+        values.add(accountProfilePage ? 1 : 0);
         if (configsPage) values.add(java.util.Objects.hash(configsLocal, configBusy, configOffset, configStatus, configTitle,
                 configTitleFocused, configsPublished, configSelected, configEditor, configDeleteConfirm, catalogTotal, pageHover, textCaret, textAnchor, configTitleFocused && System.currentTimeMillis() / 500L % 2L == 0));
         values.add(selectedPreset);
@@ -4480,6 +6589,15 @@ public final class OrionClickGuiScreen extends Screen {
             case 2 -> ORION3_PALETTE;
             default -> ORION_PALETTE;
         };
+        if (paradox && Boolean.getBoolean("orion.lumen.experimental")) {
+            if (htmlTheme >= 0 && htmlTheme != theme) {
+                htmlThemeFrom = htmlTheme == 4 ? PARADOX_LIGHT_PALETTE : PARADOX_PALETTE;
+                htmlThemeAt = System.nanoTime();
+            }
+            htmlTheme = theme;
+            float t = Math.clamp((System.nanoTime() - htmlThemeAt) / 260_000_000F, 0F, 1F);
+            if (htmlThemeFrom != null && t < 1F) pal = blendPalette(htmlThemeFrom, pal, accountEase(t));
+        }
         PRIMARY = pal.accent;
         PRIMARY_DARK = pal.accentDark;
         BG = pal.bg;
@@ -4491,6 +6609,42 @@ public final class OrionClickGuiScreen extends Screen {
         MUTED = pal.muted;
         SEARCH_BG = pal.inset;
         PLACEHOLDER = pal.placeholder;
+        String accent = configManager.getConfig().getClickGuiAccent();
+        if (paradox && !accent.isEmpty()) {
+            Color chosen = parseColor(accent);
+            PRIMARY = luminanceDifference(chosen, BG) < .17F ? mix(chosen, theme == 4 ? Color.BLACK : Color.WHITE, .55F) : chosen;
+            PRIMARY_DARK = mix(PRIMARY, Color.BLACK, .22F);
+        }
+    }
+
+    private Color htmlOnColor() {
+        String accent = configManager.getConfig().getClickGuiAccent();
+        return accent.isEmpty() ? new Color(0x3C58E8) : parseColor(accent);
+    }
+
+    private static float luminance(Color color) {
+        return linearChannel(color.getRed()) * .2126F + linearChannel(color.getGreen()) * .7152F
+                + linearChannel(color.getBlue()) * .0722F;
+    }
+
+    private static float linearChannel(int channel) {
+        float value = channel / 255F;
+        return value <= .04045F ? value / 12.92F : (float)Math.pow((value + .055F) / 1.055F,2.4F);
+    }
+
+    private static float luminanceDifference(Color first, Color second) {
+        return Math.abs(luminance(first) - luminance(second));
+    }
+
+    private static Color contrastInk(Color color) {
+        return luminance(color) > .179F ? Color.BLACK : Color.WHITE;
+    }
+
+    private static Palette blendPalette(Palette a, Palette b, float t) {
+        return new Palette(b.classic, mix(a.accent, b.accent, t), mix(a.accentDark, b.accentDark, t),
+                mix(a.bg, b.bg, t), mix(a.sidebar, b.sidebar, t), mix(a.surface, b.surface, t),
+                mix(a.surfaceHover, b.surfaceHover, t), mix(a.border, b.border, t), mix(a.text, b.text, t),
+                mix(a.muted, b.muted, t), mix(a.inset, b.inset, t), mix(a.placeholder, b.placeholder, t));
     }
 
     private int guiX() {
@@ -4517,11 +6671,17 @@ public final class OrionClickGuiScreen extends Screen {
         return Math.max(paradox ? 0.1F : 0.4F, factor);
     }
 
+    private float htmlFit() {
+        return Math.clamp(Math.min((width-SCREEN_FIT_MARGIN)/htmlWidth,(height-SCREEN_FIT_MARGIN)/htmlHeight),0F,1F);
+    }
+
     private int guiDisplayWidth() {
+        if (htmlActive && htmlWidth > 0) return Math.max(1, Math.round(htmlWidth * htmlFit()));
         return Math.max(1, Math.round(L.guiW * displayFactor()));
     }
 
     private int guiDisplayHeight() {
+        if (htmlActive && htmlHeight > 0) return Math.max(1, Math.round(htmlHeight * htmlFit()));
         return Math.max(1, Math.round(L.guiH * displayFactor()));
     }
 
@@ -4664,7 +6824,8 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private enum Icon {
-        CROSSHAIR, PLAYER, MOVEMENT, EYE, CUBE, GRID, PIN, FOLDER, SETTINGS, HAT, RINGS, EXPAND, MUSIC, MONITOR, SUN, CHAT
+        CROSSHAIR, PLAYER, MOVEMENT, EYE, CUBE, GRID, PIN, FOLDER, SETTINGS, STAR, HAT, RINGS, EXPAND, MUSIC, MONITOR, SUN, CHAT,
+        PLUS, LOGOUT, EXTERNAL, COPY, ACCOUNT_OPTIONS, ACCOUNT_CONFIGS, SHIELD, OWNER_MARK
     }
 
     private sealed interface Setting permits ChoiceSetting, SliderSetting, ColorSetting, ToggleSetting, TextSetting, KeybindSetting,
@@ -4726,9 +6887,9 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("Fresh Animations", "Выразительные взмахи рук и более живой шаг", Icon.PLAYER, Action.FRESH_ANIMATIONS),
                 new ModuleRow("3D Skin Layers", "Объёмный внешний слой скина", Icon.PLAYER, Action.SKIN_LAYERS),
                 new ModuleRow("Item Scroller", "Перенос предметов колесом мыши", Icon.GRID, Action.ITEM_SCROLLER),
-                new ModuleRow("Танцы", "Синхронные танцы для пользователей Orion", Icon.PLAYER, Action.EMOTES),
-                new ModuleRow("Wings", "Объёмные крылья для пользователей Orion", Icon.PLAYER, Action.WINGS),
-                new ModuleRow("Halo", "Золотой нимб для пользователей Orion", Icon.RINGS, Action.HALO),
+                new ModuleRow("Emotes", "Синхронные танцы для пользователей GleamClient", Icon.PLAYER, Action.EMOTES),
+                new ModuleRow("Wings", "Объёмные крылья для пользователей GleamClient", Icon.PLAYER, Action.WINGS),
+                new ModuleRow("Halo", "Золотой нимб для пользователей GleamClient", Icon.RINGS, Action.HALO),
                 new ModuleRow("ChinaHead", "Рисует шляпу над головой", Icon.HAT, Action.CHINA_HEAD),
                 new ModuleRow("Aspect", "Растягивает обзор (stretch)", Icon.EXPAND, Action.ASPECT),
                 new ModuleRow("ProtectName", "Прячет ваш ник за псевдонимом", Icon.PLAYER, Action.PROTECT_NAME),

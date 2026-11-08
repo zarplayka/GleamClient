@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Интерактивный локальный макет ClickGUI GleamClient">
+<title>GleamClient · локальный просмотр</title>
+<link rel="icon" type="image/png" href="assets/orion-badge.png">
+<link rel="stylesheet" href="style.css">
+<script defer src="catalog.js"></script>
+<script defer src="preview.js"></script>
+</head>
+<body>
+<div class="review">
+  <header class="reviewbar">
+    <div class="review-label"><span class="live-dot"></span> Локальный просмотр <span class="review-divider"></span><span>GleamClient</span></div>
+    <div class="review-controls">
+      <button class="review-button" id="density" type="button" aria-pressed="false">Компактный</button>
+      <button class="review-button" id="theme" type="button" aria-pressed="false">Светлая тема</button>
+      <button class="review-button" id="reopen" type="button" hidden>Открыть меню</button>
+    </div>
+  </header>
+  <div class="stage" id="stage">
+  <main class="window" id="window" aria-label="ClickGUI GleamClient">
+    <aside class="sidebar">
+      <button class="brand" type="button" data-page="all"><img src="assets/orion-badge.png" width="23" height="23" alt=""><b>GleamClient</b></button>
+      <div class="search-wrap" id="search-wrap">
+        <label class="search"><span data-icon="search"></span><input id="search" type="search" aria-label="Поиск модулей" placeholder="Поиск модулей" autocomplete="off"><kbd>/</kbd></label>
+      </div>
+      <nav class="primary-nav" id="primary-nav" aria-label="Разделы"></nav>
+      <nav class="categories" id="categories" aria-label="Категории модулей">
+        <button class="category-toggle" id="category-toggle" type="button" aria-expanded="true" aria-controls="category-list">
+          <span>Категории</span><span data-icon="chevron-down"></span>
+        </button>
+        <div class="category-fold" id="category-list" aria-hidden="false"><div class="category-items" id="category-items"></div></div>
+      </nav>
+      <footer class="account" id="account">
+        <div class="account-pop" id="account-pop" aria-hidden="true" inert></div>
+        <div class="account-footer">
+          <button class="account-trigger" id="account-trigger" type="button" aria-expanded="false" aria-controls="account-pop"></button>
+          <button class="icon-button account-settings" type="button" data-page="settings" aria-label="Настройки клиента" title="Настройки клиента"><span data-icon="gear"></span></button>
+        </div>
+      </footer>
+    </aside>
+    <section class="workspace" aria-label="Текущий раздел">
+      <header class="workspace-header">
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
+        <button class="icon-button close-window" type="button" id="close-window" aria-label="Свернуть макет" title="Свернуть макет"><span data-icon="close"></span></button>
+      </header>
+      <div id="content" class="content" tabindex="-1"></div>
+    </section>
+  </main>
+  </div>
+  <p class="review-note">Демонстрационные данные <span>·</span> Все изменения действуют только в этом просмотре</p>
+</div>
+<div id="choice-popup" class="setting-options" hidden></div>
+<div id="dialog-overlay" hidden><dialog id="dialog" aria-modal="true" aria-labelledby="dialog-title"></dialog></div>
+</body>
+</html>

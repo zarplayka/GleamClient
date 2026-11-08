@@ -1,0 +1,190 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; }
+#card, #switcher, .saved-account, .saved-plan, #footer-surface, #footer, #footer-text, #footer-rule, #settings, #settings-rule, #divider, #name, #uid, .action { position: absolute; }
+#card { overflow: hidden; }
+button { border: 0; padding: 0; background: transparent; color: inherit; }
+#name, #footer-text, #settings, #uid, .action, .saved-account, .saved-plan { display: flex; flex-direction: row; align-items: center; }
+.label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#name { font-weight: 600; }
+#settings { justify-content: center; }
+#plan { flex: none; white-space: nowrap; }
+#uid { gap: 2px; padding: 0 2px; border-radius: 3px; }
+.action { gap: 4px; border-radius: 4px; }
+.saved-account { border-radius: 3px; }
+.saved-account .label { flex: 1; }
+svg { display: block; flex: none; }
+</style>
+<div id="footer-surface"></div>
+<div id="footer-rule"></div>
+<div id="settings-rule"></div>
+<button id="footer" aria-label="Аккаунт GleamClient">
+    <span id="footer-text"><span class="label"></span><span id="plan"></span></span>
+</button>
+<button id="settings" aria-label="Настройки">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 3-.7 2.6-2 .9-2.4-.9-2 3.4 1.9 1.8v2.4L2.9 15l2 3.4 2.4-.9 2 .9L10 21h4l.7-2.6 2-.9 2.4.9 2-3.4-1.9-1.8v-2.4l1.9-1.8-2-3.4-2.4.9-2-.9L14 3z"/><circle cx="12" cy="12" r="3"/></svg>
+</button>
+<section id="card">
+    <div id="name"><span class="label"></span></div>
+    <button id="uid" aria-label="Скопировать ID"><span class="label"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+    </button>
+    <div id="divider"></div>
+    <button class="action" id="profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 6 0 0 1 14 0"/></svg>
+        <span class="label"></span>
+    </button>
+    <button class="action" id="configs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8 9-5 9 5-9 5-9-5Zm0 4 9 5 9-5M3 16l9 5 9-5"/></svg>
+        <span class="label"></span>
+    </button>
+    <button class="action" id="accounts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 6 0 0 1 14 0M16 4.5a3.5 3.5 0 0 1 0 7m2 3a5 5 0 0 1 4 5"/></svg>
+        <span class="label"></span>
+    </button>
+    <div id="switcher"></div>
+</section>
+<script>
+const byId = id => document.getElementById(id);
+const style = (node, property, value) => node.style.setProperty(property, value);
+const px = (node, property, value) => style(node, property, value + 'px');
+const opacity = (space, fade) => Math.max(0, Math.min(1, space / fade));
+function box(node, x, y, w, h) {
+    px(node, 'left', x); px(node, 'top', y);
+    px(node, 'width', w); px(node, 'height', h);
+}
+function label(node, text) { node.querySelector('.label').textContent = text; }
+function iconSize(node, size) {
+    const icon = node.querySelector('svg');
+    px(icon, 'width', size);
+    px(icon, 'height', size);
+}
+const actions = ['profile', 'configs', 'accounts'].map(byId);
+const card = byId('card'), footer = byId('footer'), footerText = byId('footer-text'), settings = byId('settings');
+const plan = byId('plan'), rule = byId('footer-rule'), divider = byId('divider');
+const uid = byId('uid'), name = byId('name');
+let hover, hovered;
+const send = (action, name) => window.webkit.messageHandlers.paradox.postMessage(JSON.stringify({action,name}));
+function createSavedButton(parent, action) {
+    const button = document.createElement('button');
+    button.className = 'saved-account';
+    button.innerHTML = '<span class="label"></span>';
+    button.addEventListener('click',() => send(action,button.dataset.name));
+    parent.appendChild(button);
+    return button;
+}
+const switcher = byId('switcher');
+const back = createSavedButton(switcher,'back');
+const add = createSavedButton(switcher,'add'), logout = createSavedButton(switcher,'logout');
+const saved = [0,1,2,3].map(() => createSavedButton(switcher,'select'));
+[footer, settings, uid, ...actions].forEach(button => {
+    button.addEventListener('click', () => {
+        const action = button === footer ? 'toggle' : button === uid ? 'copy' : button.id;
+        send(action);
+    });
+    button.addEventListener('mouseenter', () => {
+        hovered = button;
+        style(button, 'background-color', hover);
+    });
+    button.addEventListener('mouseleave', () => {
+        if (hovered === button) hovered = null;
+        style(button, 'background-color', 'transparent');
+    });
+});
+window.paradox = {
+    update(s) {
+        hover = s.hover;
+        const w = s.width, k = s.unit, inset = 4 * k;
+        const popupHeight = s.popupHeight, headerVisible = popupHeight >= 30 * k;
+        box(rule, 0, s.footerY - 2 * k, w, k);
+        style(rule, 'background-color', s.border);
+        const footerH = s.height - s.footerY, gearW = 20 * k;
+        const footerSurface = byId('footer-surface'), settingsRule = byId('settings-rule');
+        box(footerSurface, 0, s.footerY, w, footerH);
+        px(footerSurface, 'border-radius', 3 * k);
+        style(footerSurface, 'background-color', s.panel);
+        box(footer, 0, s.footerY, w - gearW, footerH);
+        px(footer, 'border-radius', 3 * k);
+        box(footerText, 22 * k, 0, w - gearW - 25 * k, footerH);
+        px(footerText, 'font-size', 8 * k);
+        px(footerText, 'gap', 2 * k);
+        style(footerText, 'color', s.text);
+        label(footerText, s.name);
+        plan.textContent = '· ' + s.plan;
+        style(plan, 'color', s.muted);
+        box(settings, w - gearW, s.footerY, gearW, footerH);
+        box(settingsRule, w - gearW, s.footerY + 5 * k, k, footerH - 10 * k);
+        style(settingsRule, 'background-color', s.border);
+        px(settings, 'border-radius', 3 * k);
+        iconSize(settings, 10 * k);
+        style(settings, 'color', s.muted);
+
+        box(card, 0, 0, w, popupHeight);
+        px(card, 'border-radius', 4 * k);
+        style(card, 'background-color', s.panel);
+        style(card, 'display', popupHeight ? 'block' : 'none');
+        box(name, 32 * k, 5 * k, w - 38 * k, 12 * k);
+        label(name, s.name);
+        px(name, 'font-size', 8.5 * k);
+        style(name, 'color', s.text);
+        style(name, 'display', headerVisible ? 'flex' : 'none');
+        box(uid, 30 * k, 17 * k, w - 34 * k, 12 * k);
+        label(uid, s.uid);
+        iconSize(uid, 6.5 * k);
+        px(uid, 'font-size', 6.25 * k);
+        style(uid, 'color', s.muted);
+        style(uid, 'display', s.uid && headerVisible ? 'flex' : 'none');
+        style(uid, 'pointer-events', s.actions ? 'auto' : 'none');
+        box(divider, inset, 33 * k, w - 2 * inset, k);
+        style(divider, 'background-color', s.border);
+        style(divider, 'display', popupHeight >= 34 * k ? 'block' : 'none');
+        const labels = [s.profile, s.configs, s.accounts];
+        actions.forEach((button, i) => {
+            const top = (37 + 17 * i) * k, rowH = 16 * k;
+            box(button, inset, top, w - 2 * inset, rowH);
+            px(button, 'padding-left', 5 * k);
+            px(button, 'border-radius', 4 * k);
+            px(button, 'font-size', 7 * k);
+            label(button, labels[i]);
+            iconSize(button, 8 * k);
+            style(button.querySelector('svg'), 'color', s.muted);
+            style(button, 'color', s.text);
+            style(button, 'display', popupHeight >= top + rowH ? 'flex' : 'none');
+            style(button, 'opacity', opacity(popupHeight - top - rowH, 3 * k));
+            style(button, 'pointer-events', s.actions ? 'auto' : 'none');
+        });
+        style(switcher,'display',s.switching ? 'block' : 'none');
+        box(switcher,0,0,w,popupHeight);
+        if (s.switching) {
+            [name,uid,divider,...actions].forEach(node => style(node,'display','none'));
+            const putButton = (button,title,x,y,width,height) => {
+                label(button,title);
+                box(button,x*k,y*k,width,height*k);
+                px(button,'font-size',7.5*k);
+                style(button,'color',s.text);
+                style(button,'pointer-events',s.actions ? 'auto' : 'none');
+            };
+            putButton(back,'‹  '+s.accounts,4,3,w-8*k,15);
+            px(back,'padding-left',3*k);
+            saved.forEach((button,i) => {
+                const row = s.saved[i];
+                style(button,'display',row && (40+i*20)*k<=popupHeight ? 'flex' : 'none');
+                if (!row) return;
+                button.dataset.name = row.name;
+                putButton(button,row.name+' · '+row.plan,4,20+i*20,w-8*k,18);
+                px(button,'padding-left',18*k);
+                style(button,'background-color',row.active?s.hover:'transparent');
+                style(button,'pointer-events',s.busy||!s.actions?'none':'auto');
+            });
+            const buttonsY = Math.max(65,24+s.saved.length*20);
+            putButton(add,'+ '+s.add,4,buttonsY,w/2-5*k,16);
+            putButton(logout,s.logout,(w/2)/k+1,buttonsY,w/2-5*k,16);
+            px(add,'padding-left',3*k); px(logout,'padding-left',3*k);
+        }
+        [footer, settings, uid, ...actions].forEach(button =>
+            style(button, 'background-color', hovered === button ? hover : 'transparent'));
+    }
+};
+</script>

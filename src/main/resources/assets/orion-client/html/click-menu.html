@@ -1,0 +1,238 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; }
+#window, #page, #brand, #search, #category-label, #crumb, #title, #subtitle, #close, #footer,
+#track, #thumb, .nav-item, .nav-mark, .card, .card-inner, .switch, .switch-thumb, .card-title, .control { position: absolute; }
+#page { z-index: 0; }
+#navigation, #cards, #details, #account-form { position: absolute; inset: 0; z-index: 1; }
+#brand, #search, #category-label, #crumb, #title, #subtitle, #close, #footer, #track, #thumb { z-index: 2; }
+#brand, #search, #close, #footer, .nav-item, .control, .card-title {
+    display: flex; flex-direction: row; align-items: center;
+}
+#close, .control, .card-title { justify-content: center; }
+#category-label { display:flex;align-items:center;justify-content:space-between;font-size:7px; }
+#footer-gear { position:absolute;display:flex;align-items:center;justify-content:center;z-index:2; }
+.detail { position:absolute; }
+.detail-text,.detail-button,.status-strip { display:flex;align-items:center; }
+.detail-button,.status-strip { justify-content:center; }
+.status-strip { position:absolute;font-size:6px;font-weight:600; }
+#account-form { z-index:3; }
+#brand { font-size: 11px; font-weight: 600; }
+#search { gap: 6px; padding: 0 6px; border-radius: 3px; font-size: 8.5px; }
+#search-value { flex: 1; min-width: 0; }
+#sections, #crumb { font-size: 8px; }
+#title { font-size: 17px; font-weight: 600; letter-spacing: -.35px; }
+#subtitle { font-size: 8.5px; }
+
+#footer { padding: 0 5px; gap: 5px; border-radius: 5px; font-size: 8px; }
+.nav-item { gap: 7px; padding: 0 7px; border-radius: 3px; font-size: 8.5px; }
+.card { border-radius: 3px; }
+.card-inner, .control { border-radius: 2px; }
+.card-title { font-size: 10px; font-weight: 600; text-align: center; }
+.switch { border-radius: 2px; }
+.switch-thumb { border-radius: 1px; }
+.label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+svg { flex: none; display: block; }
+</style>
+<div id="window">
+    <div id="page"></div>
+    <div id="brand">GleamClient</div>
+    <div id="search"><span class="icon"></span><span class="label" id="search-value"></span></div>
+    <div id="category-label"><span class="label"></span><span class="icon"></span></div>
+    <div id="navigation"></div>
+    <div id="crumb"></div>
+    <div id="title"></div>
+    <div id="subtitle" class="label"></div>
+
+    <div id="close"><span class="icon"></span></div>
+    <div id="footer"><span class="icon"></span><span class="label"></span></div>
+    <div id="footer-gear"><span class="icon"></span></div>
+    <div id="cards"></div>
+    <div id="details"></div>
+    <div id="account-form"></div>
+    <div id="track"></div>
+    <div id="thumb"></div>
+</div>
+<script>
+const icons = {
+    CHEVRON: '<path d="m7 9 5 5 5-5"/>',
+    FOLDED: '<path d="m9 7 5 5-5 5"/>',
+    SEARCH: '<circle cx="10" cy="10" r="5.5"/><path d="m14 14 5 5"/>',
+    CLOSE: '<path d="m6 6 12 12M18 6 6 18"/>',
+    GRID: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
+    STAR: '<path d="m12 3 2.7 5.4 5.9.9-4.3 4.2 1 5.9-5.3-2.8-5.3 2.8 1-5.9-4.3-4.2 5.9-.9z"/>',
+    CROSSHAIR: '<circle cx="12" cy="12" r="7"/><path d="M12 2v5m0 10v5M2 12h5m10 0h5"/>',
+    PLAYER: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6"/>',
+    MOVEMENT: '<path d="m7 17 10-10M8 7h9v9M3 13l5-5m3 13 5-5"/>',
+    EYE: '<path d="M2 12c5-9 15-9 20 0-5 9-15 9-20 0z"/><circle cx="12" cy="12" r="3"/>',
+    CUBE: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3zM4 7.5l8 4.5 8-4.5M12 12v9"/>',
+    SETTINGS: '<path d="m10 3-.7 2.6-2 .9-2.4-.9-2 3.4 1.9 1.8v2.4L2.9 15l2 3.4 2.4-.9 2 .9L10 21h4l.7-2.6 2-.9 2.4.9 2-3.4-1.9-1.8v-2.4l1.9-1.8-2-3.4-2.4.9-2-.9L14 3z"/><circle cx="12" cy="12" r="3"/>',
+    PIN: '<path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0z"/><circle cx="12" cy="10" r="2"/>',
+    FOLDER: '<path d="M3 6h7l2 3h9v10H3z"/>',
+    MONITOR: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',
+    HAT: '<path d="M6 15l2-8h8l2 8m-15 0h18v3H3z"/>',
+    RINGS: '<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>',
+    EXPAND: '<path d="M8 4H4v4m12-4h4v4m0 8v4h-4M4 16v4h4"/>',
+    MUSIC: '<path d="M10 18V6l9-2v12M10 17l9-2"/><circle cx="7.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>',
+    SUN: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/>',
+    CHAT: '<path d="M4 5h16v12h-8l-5 4v-4H4zM8 9h8m-8 4h6"/>',
+    SHIELD: '<path d="m12 3 7 3v6c0 5-7 9-7 9s-7-4-7-9V6z"/>'
+};
+const byId = id => document.getElementById(id);
+const put = (el, name, value) => el.style.setProperty(name, value);
+const px = (el, name, value) => put(el, name, value + 'px');
+const fill = (el, color) => put(el, 'background-color', color);
+const ink = (el, color) => put(el, 'color', color);
+function alpha(color, opacity) {
+    return 'rgba(' + parseInt(color.slice(1, 3), 16) + ',' + parseInt(color.slice(3, 5), 16) + ',' +
+        parseInt(color.slice(5, 7), 16) + ',' + (opacity / 255) + ')';
+}
+function box(el, x, y, w, h) {
+    px(el, 'left', x); px(el, 'top', y); px(el, 'width', w); px(el, 'height', h);
+}
+function at(el, b) { box(el, b.x, b.y, b.w, b.h); }
+function show(el, visible, mode) { put(el, 'display', visible ? mode : 'none'); }
+function icon(el, name, size, color) {
+    if (el.dataset.icon !== name) {
+        el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (icons[name] || icons.GRID) + '</svg>';
+        el.dataset.icon = name;
+    }
+    const svg = el.querySelector('svg');
+    px(svg, 'width', size); px(svg, 'height', size); ink(svg, color);
+}
+function label(el, text) { el.querySelector('.label').textContent = text; }
+function placeText(id, text, x, y, w, h, color) {
+    const el = byId(id);
+    box(el, x, y, w, h);
+    el.textContent = text;
+    ink(el, color);
+}
+function pool(parent, items, markup, state, paint) {
+    while (parent.children.length < items.length) {
+        const el = document.createElement('div');
+        el.innerHTML = markup;
+        parent.appendChild(el);
+    }
+    for (let i = 0; i < parent.children.length; i++) {
+        const el = parent.children[i], item = items[i];
+        show(el, !!item, 'flex');
+        if (item) paint(el, item, state);
+    }
+}
+function paintNav(el, item, s) {
+    el.className = 'nav-item';
+    at(el, item);
+    fill(el, item.selected ? s.surface : item.hover ? s.hover : 'transparent');
+    const mark = el.querySelector('.nav-mark');
+    box(mark, 0, 4, 1, item.h - 8);
+    fill(mark, s.accent);
+    show(mark, item.selected, 'block');
+    icon(el.querySelector('.icon'), item.icon, 9, item.selected ? s.accent : s.muted);
+    label(el, item.text);
+    ink(el, s.text);
+}
+function paintCard(el, item, s) {
+    el.className = 'card';
+    at(el, item);
+    px(el,'top',item.y+item.slide);
+    put(el,'opacity',item.opacity/255);
+    fill(el, item.hover ? s.hoverBorder : s.border);
+    const inner = el.querySelector('.card-inner');
+    const title = el.querySelector('.card-title'), favorite = el.querySelector('.favorite');
+    const gear = el.querySelector('.gear'), toggle = el.querySelector('.switch');
+    const thumb = el.querySelector('.switch-thumb');
+    box(inner, 1, 1, item.w - 2, item.h - 2);
+    fill(inner, item.hover ? s.hover : s.surface);
+    box(title, 5, item.artSize + 8, item.w - 12, 12);
+    px(title, 'font-size', item.h < 50 ? 7 : 8);
+    label(title, item.name);
+    ink(title, s.text);
+    box(favorite, 3, 3, 16, 16);
+    show(favorite, item.controlOpacity > 0 || item.favorite, 'flex');
+    icon(favorite, 'STAR', 9, item.favorite ? '#d8a33d' : alpha(s.muted, item.controlOpacity));
+    box(gear, item.w - 21, 3, 16, 16);
+    show(gear, item.settings && item.controlOpacity > 0, 'flex');
+    fill(gear, item.gearHover ? alpha(s.field, item.controlOpacity) : 'transparent');
+    icon(gear, 'SETTINGS', 10, alpha(item.gearHover ? s.text : s.muted, item.controlOpacity));
+    const status = el.querySelector('.status-strip'), bottom = item.h - 13;
+    box(status, 0, bottom, item.w - 2, 11);
+    show(status,true,'flex');
+    fill(status,!s.switchStyle && item.active ? s.onColor : s.field);
+    ink(status,item.active ? s.onInk : s.muted);
+    status.textContent = s.switchStyle ? '' : item.active ? 'ON' : 'OFF';
+    show(toggle,s.switchStyle,'block');
+    if (s.switchStyle) {
+        box(toggle,(item.w-19)/2,bottom+2,17,7);
+        fill(toggle,item.active ? s.onColor : s.border);
+        box(thumb,2 + 7 * item.switchProgress,2,6,3);
+        fill(thumb,item.active ? s.onInk : s.muted);
+    }
+}
+function paintDetail(el, item, s) {
+    at(el,item);
+    el.className = 'detail detail-' + item.type;
+    show(el,item.type !== 'image',item.type === 'text' || item.type === 'button' ? 'flex' : 'block');
+    px(el,'border-radius',item.radius || (item.type === 'button' ? 3 : 0));
+    px(el,'font-size',item.size || 7.5);
+    put(el,'font-weight',item.bold ? '600' : '400');
+    fill(el,item.type === 'box' ? item.color : item.type === 'button'
+        ? item.active ? s.activeTrack : item.hover ? s.hover : s.field : 'transparent');
+    ink(el,item.type === 'text' ? item.color : s.text);
+    label(el,item.text || '');
+}
+window.paradox = {
+    update(s) {
+        const root = byId('window'), page = byId('page');
+        box(root, 0, 0, s.width, s.height); px(root, 'border-radius', 5); fill(root, s.side);
+        box(page, s.sidebar, 3, s.width - s.sidebar - 3, s.height - 6);
+        px(page, 'border-radius', 3); fill(page, s.background);
+
+        const brand = byId('brand');
+        box(brand, 28, 6, s.sidebar - 36, 20);
+        ink(brand, s.text);
+        const search = byId('search');
+        at(search, s.searchBox); fill(search, s.searchFocused ? s.hover : s.field);
+        icon(search.querySelector('.icon'), 'SEARCH', 9, s.searchFocused ? s.accent : s.muted);
+        const value = byId('search-value');
+        if (s.caret >= 0) {
+            const at = Math.min(s.caret, s.search.length);
+            value.textContent = s.search.slice(0, at) + '│' + s.search.slice(at);
+        } else value.textContent = s.search || (s.searchFocused ? '' : s.searchLabel);
+        ink(value, s.search || s.searchFocused ? s.text : s.muted);
+        const category = byId('category-label');
+        at(category,s.categoryBox); label(category,s.categoryLabel); ink(category,s.muted);
+        icon(category.querySelector('.icon'),s.categoryExpanded ? 'CHEVRON' : 'FOLDED',7,s.muted);
+        pool(byId('navigation'), s.navigation, '<span class="nav-mark"></span><span class="icon"></span><span class="label"></span>', s, paintNav);
+
+        const footer = byId('footer');
+        at(footer, s.footerBox); show(footer, !!s.accountLabel, 'flex');
+        icon(footer.querySelector('.icon'), 'PLAYER', 9, s.muted);
+        const footerGear = byId('footer-gear');
+        box(footerGear,s.footerBox.x + s.footerBox.w - 19,s.footerBox.y,19,s.footerBox.h);
+        show(footerGear,!!s.accountLabel,'flex');
+        icon(footerGear.querySelector('.icon'),'SETTINGS',9,s.settingsActive ? s.accent : s.muted);
+        label(footer, s.accountLabel); ink(footer, s.text); fill(footer, s.field);
+        const close = byId('close');
+        box(close, s.width - 22, 7, 16, 16);
+        icon(close.querySelector('.icon'), 'CLOSE', 10, s.muted);
+
+        for (const id of ['crumb','title','subtitle']) show(byId(id),s.content === 'modules','block');
+        put(byId('details'),'opacity',(s.detailOpacity || 255)/255);
+        pool(byId('details'),s.elements || [],'<span class="label"></span>',s,paintDetail);
+        pool(byId('account-form'),s.accountForm || [],'<span class="label"></span>',s,paintDetail);
+        if (s.content === 'modules') {
+        placeText('crumb', s.modules + ' · ' + s.count, s.contentX, 11, s.contentW, 12, s.muted);
+        placeText('title', s.title, s.contentX, 25, s.contentW, 21, s.text);
+        placeText('subtitle', s.count ? s.description : s.empty, s.contentX, 46, s.contentW, 14, s.muted);
+        }
+        pool(byId('cards'), s.cards, '<div class="card-inner"><div class="card-title"><span class="label"></span></div><div class="control favorite"></div><div class="control gear"></div><div class="status-strip"></div><div class="switch"><div class="switch-thumb"></div></div></div>', s, paintCard);
+
+        const track = byId('track'), thumb = byId('thumb');
+        show(track, !!s.track, 'block'); show(thumb, !!s.thumb, 'block');
+        if (s.track) { at(track, s.track); px(track, 'border-radius', 1); fill(track, s.border); }
+        if (s.thumb) { at(thumb, s.thumb); px(thumb, 'border-radius', 1); fill(thumb, s.accent); }
+    }
+};
+</script>

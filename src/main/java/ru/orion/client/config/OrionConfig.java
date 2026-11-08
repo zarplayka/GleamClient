@@ -267,7 +267,7 @@ public final class OrionConfig {
     private boolean discordRpcEnabled = true;
     private String discordApplicationId = DEFAULT_DISCORD_APPLICATION_ID;
     private String discordLargeImageKey = "orion_icon";
-    private String discordLargeImageText = "Orion Client";
+    private String discordLargeImageText = "GleamClient";
     private boolean jumpCircleEnabled = true;
     private String jumpCircleColor = "#FF7C00";
     private float jumpCircleSize = 1.0F;
@@ -359,6 +359,44 @@ public final class OrionConfig {
     private String worldChangerSkyColor = "#64D9FF";
     private String worldChangerFogColor = "#14111F";
     private int clickGuiTheme = 3;
+    private String clickGuiWindowSize = "normal";
+    private String clickGuiLanguage = "auto";
+    private int clickGuiWindowX, clickGuiWindowY;
+    private int clickGuiScale = 100;
+    private boolean clickGuiCompactCards;
+    private boolean clickGuiCategoriesExpanded = true;
+    private boolean clickGuiSwitchStyle;
+    private String clickGuiAccent = "";
+
+    public String getClickGuiWindowSize() { return clickGuiWindowSize; }
+    public void setClickGuiWindowSize(String size) { clickGuiWindowSize = normalizeClickGuiSize(size); }
+    public String getClickGuiLanguage() { return clickGuiLanguage; }
+    public void setClickGuiLanguage(String value) {
+        clickGuiLanguage = value != null && value.matches("ru|en|de|es") ? value : "auto";
+    }
+    public int getClickGuiWindowX() { return clickGuiWindowX; }
+    public int getClickGuiWindowY() { return clickGuiWindowY; }
+    public void setClickGuiWindowPosition(int x, int y) {
+        clickGuiWindowX = Math.clamp(x, -1000, 1000);
+        clickGuiWindowY = Math.clamp(y, -1000, 1000);
+    }
+    public int getClickGuiScale() { return clickGuiScale; }
+    public void setClickGuiScale(int scale) { clickGuiScale = Math.clamp(scale, 70, 160); }
+    public boolean isClickGuiCompactCards() { return clickGuiCompactCards; }
+    public void setClickGuiCompactCards(boolean compact) { clickGuiCompactCards = compact; }
+    public boolean isClickGuiCategoriesExpanded() { return clickGuiCategoriesExpanded; }
+    public void setClickGuiCategoriesExpanded(boolean expanded) { clickGuiCategoriesExpanded = expanded; }
+    public boolean isClickGuiSwitchStyle() { return clickGuiSwitchStyle; }
+    public void setClickGuiSwitchStyle(boolean switches) { clickGuiSwitchStyle = switches; }
+    public String getClickGuiAccent() { return clickGuiAccent; }
+    public void setClickGuiAccent(String accent) {
+        clickGuiAccent = accent != null && accent.matches("#[0-9a-fA-F]{6}") ? accent.toLowerCase(java.util.Locale.ROOT) : "";
+    }
+
+    private static String normalizeClickGuiSize(String size) {
+        return "mini".equals(size) || "compact".equals(size) ? size : "normal";
+    }
+
     private String visualPresetSelection = "";
     private String appliedVisualPreset = "";
     public String getVisualPresetSelection() { return visualPresetSelection; }
@@ -375,7 +413,8 @@ public final class OrionConfig {
     private static String normalizeSection(String value) {
         if (value == null) return "ALL";
         return switch (value) {
-            case "ALL", "FAVORITES", "WAYPOINTS", "PRESETS", "CONFIGS", "COMBAT", "PLAYER", "MOVEMENT", "RENDER", "WORLD", "MISC", "SETTINGS" -> value;
+            case "ALL", "FAVORITES", "WAYPOINTS", "PRESETS", "CONFIGS", "COSMETICS", "FRIENDS", "CHAT",
+                    "COMBAT", "PLAYER", "MOVEMENT", "RENDER", "WORLD", "MISC", "SETTINGS" -> value;
             default -> "ALL";
         };
     }
@@ -1198,6 +1237,11 @@ public final class OrionConfig {
         if (hudElementGlass == null) hudElementGlass = new java.util.HashMap<>();
         hudElementGlass.entrySet().removeIf(entry -> entry.getKey() == null || entry.getValue() == null);
         clickGuiTheme = clickGuiTheme == 4 ? 4 : 3;
+        clickGuiWindowSize = normalizeClickGuiSize(clickGuiWindowSize);
+        setClickGuiLanguage(clickGuiLanguage);
+        setClickGuiWindowPosition(clickGuiWindowX, clickGuiWindowY);
+        setClickGuiScale(clickGuiScale);
+        setClickGuiAccent(clickGuiAccent);
         if (favoriteModules == null) favoriteModules = new java.util.ArrayList<>();
         favoriteModules.removeIf(value -> value == null || value.length() > 64);
 
@@ -1213,8 +1257,9 @@ public final class OrionConfig {
             discordLargeImageKey = "orion_icon";
         }
 
-        if (discordLargeImageText == null || discordLargeImageText.isBlank()) {
-            discordLargeImageText = "Orion Client";
+        if (discordLargeImageText == null || discordLargeImageText.isBlank()
+                || "Orion Client".equals(discordLargeImageText)) {
+            discordLargeImageText = "GleamClient";
         }
 
         if (jumpCircleColor == null || !jumpCircleColor.matches("^#[0-9a-fA-F]{6}$")) {

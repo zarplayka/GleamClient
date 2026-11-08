@@ -120,7 +120,7 @@ public final class OrionMediaController {
 
     public void register() {
         running = true;
-        pollThread = new Thread(this::pollLoop, "Orion Client Media Poll");
+        pollThread = new Thread(this::pollLoop, "GleamClient Media Poll");
         pollThread.setDaemon(true);
         pollThread.start();
 
@@ -234,7 +234,7 @@ public final class OrionMediaController {
             } catch (Exception exception) {
                 // volume control unavailable; slider stays optimistic
             }
-        }, "Orion Client Volume Set");
+        }, "GleamClient Volume Set");
         thread.setDaemon(true);
         thread.start();
     }
@@ -279,7 +279,7 @@ public final class OrionMediaController {
             volumeHelperExePath = extractHelper("OrionVolume.exe").toString();
             volumeHelperReady = true;
         } catch (IOException exception) {
-            LOGGER.warn("Orion Client could not extract the bundled volume helper; volume control unavailable.", exception);
+            LOGGER.warn("GleamClient could not extract the bundled volume helper; volume control unavailable.", exception);
         }
     }
 
@@ -310,9 +310,9 @@ public final class OrionMediaController {
                     process.destroyForcibly();
                 }
             } catch (Exception exception) {
-                LOGGER.warn("Orion Client media control failed.", exception);
+                LOGGER.warn("GleamClient media control failed.", exception);
             }
-        }, "Orion Client Media Control");
+        }, "GleamClient Media Control");
         thread.setDaemon(true);
         thread.start();
     }
@@ -443,7 +443,7 @@ public final class OrionMediaController {
             helperExePath = extractHelper("OrionThumbnail.exe").toString();
             helperReady = true;
         } catch (IOException exception) {
-            LOGGER.warn("Orion Client could not extract the bundled cover-art helper; album art unavailable.", exception);
+            LOGGER.warn("GleamClient could not extract the bundled cover-art helper; album art unavailable.", exception);
         }
     }
 

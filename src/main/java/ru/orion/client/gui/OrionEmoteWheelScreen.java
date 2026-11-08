@@ -35,7 +35,7 @@ public final class OrionEmoteWheelScreen extends Screen {
     private int selected = -1;
     private boolean confirmed;
 
-    public OrionEmoteWheelScreen() { super(Component.literal("Orion Emotes")); }
+    public OrionEmoteWheelScreen() { super(Component.literal("GleamClient Emotes")); }
     @Override public boolean isPauseScreen() { return false; }
 
     private int size() { return Math.max(1, Math.min(330, Math.min(width, height) - 16)); }
@@ -114,7 +114,7 @@ public final class OrionEmoteWheelScreen extends Screen {
             if (texture != null) Minecraft.getInstance().getTextureManager().release(TEXTURE);
             NativeImage nativeImage = new NativeImage(pixels, pixels, true);
             OrionHudRenderer.copyPixels(image, nativeImage);
-            texture = new DynamicTexture(() -> "Orion emote wheel", nativeImage);
+            texture = new DynamicTexture(() -> "GleamClient emote wheel", nativeImage);
             Minecraft.getInstance().getTextureManager().register(TEXTURE, texture);
             textureSize = pixels;
         } else {

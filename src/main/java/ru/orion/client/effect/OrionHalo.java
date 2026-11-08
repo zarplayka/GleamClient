@@ -56,6 +56,11 @@ public final class OrionHalo {
         ring(pose, vertices, .41F, .46F, ARGB.color(145, 255, 175, 35), ARGB.color(20, 255, 145, 20));
     }
 
+    public static void submitPreview(PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector, float height) {
+        pose.translate(0F, height + HEIGHT_ABOVE_HEAD, 0F);
+        collector.submitCustomGeometry(pose, OrionEspRenderTypes.colorQuadsDepthTested(), OrionHalo::build);
+    }
+
     private static void ring(PoseStack.Pose pose, VertexConsumer vc, float inner, float outer, int innerColor, int outerColor) {
         for (int i = 0; i < SEGMENTS; i++) {
             vc.addVertex(pose, inner * COS[i], 0, inner * SIN[i]).setColor(innerColor);

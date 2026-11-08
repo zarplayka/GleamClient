@@ -46,7 +46,7 @@ import ru.orion.client.media.OrionMediaPlayerHud;
 public final class OrionClient implements ClientModInitializer {
     public static final String MOD_ID = "orion-client";
     public static final String VERSION_LABEL = "v0.2.1";
-    public static final String VERSION_TEXT = "Orion Client " + VERSION_LABEL;
+    public static final String VERSION_TEXT = "GleamClient " + VERSION_LABEL;
 
     private static OrionClient instance;
 
@@ -97,6 +97,7 @@ public final class OrionClient implements ClientModInitializer {
 
         OrionClickGuiScreen.prepareInBackground();
         configManager.load();
+        configManager.getConfigLibrary().catalog(0);
         basketball.register();
         football.register();
         footballHud.register();
@@ -143,7 +144,7 @@ public final class OrionClient implements ClientModInitializer {
 
     public static OrionClient getInstance() {
         if (instance == null) {
-            throw new IllegalStateException("Orion Client is not initialized yet.");
+            throw new IllegalStateException("GleamClient is not initialized yet.");
         }
 
         return instance;

@@ -85,6 +85,10 @@ public final class OrionEmotes {
     }
 
     public static void apply(HumanoidModel<?> model, AvatarRenderState state) {
+        if (state instanceof ru.orion.client.gui.OrionCosmeticPreview preview) {
+            if (preview.dances()) applyPose(model, 3, (System.nanoTime() % 10_000_000_000L) / 1e9, 1F);
+            return;
+        }
         var config = OrionClient.getConfigOrNull();
         Minecraft client = Minecraft.getInstance();
         if (config == null || !config.isEmotesEnabled() || (config.isNoAnimationsEnabled()
@@ -94,12 +98,16 @@ public final class OrionEmotes {
         double age = (System.nanoTime() - dance.start) / 1e9;
         if (age < 0 || age >= DURATION) return;
         float blend = (float) Math.min(1D, Math.min(age / .20D, (DURATION - age) / .25D));
+        applyPose(model, dance.id, age, blend);
+    }
+
+    private static void applyPose(HumanoidModel<?> model, int danceId, double age, float blend) {
         float t = (float) (age * Math.PI * 2D);
         float beat = (float) Math.sin(t * 1.8F);
         float alternate = (float) Math.cos(t * 1.8F);
         float bodyX = 0, bodyY = 0, bodyZ = 0;
         float rightX = 0, leftX = 0, rightZ = 0, leftZ = 0, rightLeg = 0, leftLeg = 0;
-        switch (dance.id) {
+        switch (danceId) {
             case 1 -> {
                 rightLeg = beat * .8F; leftLeg = -rightLeg;
                 rightX = alternate * .65F; leftX = -rightX;

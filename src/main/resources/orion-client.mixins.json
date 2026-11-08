@@ -25,6 +25,7 @@
     "OrionZoomHudMixin",
     "OrionNoAnimationsMixin",
     "OrionEmoteModelMixin",
+    "OrionCosmeticPreviewMixin",
     "OrionSkinModelMixin",
     "OrionSkinPartMixin",
     "OrionSkinHandMixin",

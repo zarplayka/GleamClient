@@ -79,6 +79,11 @@ public final class OrionChinaHeadRenderer {
         }
     }
 
+    public static void submitPreview(PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector, float eyeHeight, int accent) {
+        pose.translate(0F, eyeHeight + HEAD_OFFSET, 0F);
+        collector.submitCustomGeometry(pose, RenderTypes.debugTriangleFan(), (current, vertices) -> buildHat(current, vertices, accent));
+    }
+
     private static Vec3 interpolatedPosition(Entity entity, float tickDelta) {
         double x = Mth.lerp(tickDelta, entity.xOld, entity.getX());
         double y = Mth.lerp(tickDelta, entity.yOld, entity.getY());

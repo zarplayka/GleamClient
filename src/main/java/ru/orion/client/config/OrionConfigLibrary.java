@@ -23,11 +23,15 @@ import java.util.concurrent.Executors;
 public final class OrionConfigLibrary {
     public static final int PAGE_SIZE = 5;
     private static final int MAX_LOCAL = 100;
+    private static final long CATALOG_CACHE_NANOS = java.time.Duration.ofSeconds(30).toNanos();
     private static final JsonObject DEFAULTS = OrionConfigManager.GSON.toJsonTree(OrionConfig.createDefault()).getAsJsonObject();
     private static final Set<String> CORNERS = Set.of("TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT");
     private final Path file;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(Thread.ofVirtual().name("orion-config-library").factory());
     private List<Profile> local;
+    private volatile Page cachedFirstCatalog;
+    private CompletableFuture<Page> firstCatalogPage;
+    private long firstCatalogRequestedAt;
 
     OrionConfigLibrary(Path file) { this.file = file; }
 
@@ -69,6 +73,30 @@ public final class OrionConfigLibrary {
     public CompletableFuture<Page> catalog(int offset) { return catalog(offset, null, null); }
 
     public CompletableFuture<Page> catalog(int offset, UUID owner, String name) {
+        return catalog(offset,owner,name,false);
+    }
+
+    public CompletableFuture<Page> catalog(int offset, UUID owner, String name, boolean refresh) {
+        return offset == 0 && owner == null ? firstCatalogPage(refresh) : requestCatalog(offset,owner,name);
+    }
+
+    public Page cachedFirstCatalog() {
+        return cachedFirstCatalog;
+    }
+
+    private synchronized CompletableFuture<Page> firstCatalogPage(boolean refresh) {
+        long now = System.nanoTime();
+        if (firstCatalogPage != null && (!firstCatalogPage.isDone()
+                || !refresh && !firstCatalogPage.isCompletedExceptionally()
+                && now - firstCatalogRequestedAt < CATALOG_CACHE_NANOS)) return firstCatalogPage;
+        firstCatalogRequestedAt = now;
+        return firstCatalogPage = requestCatalog(0,null,null).thenApply(page -> {
+            cachedFirstCatalog = page;
+            return page;
+        });
+    }
+
+    private CompletableFuture<Page> requestCatalog(int offset, UUID owner, String name) {
         return submit(() -> {
             JsonObject result = OrionBadgePresence.sharedConfigs((owner == null ? "" : "/mine") + "?offset=" + offset
                     + "&limit=" + PAGE_SIZE, null, owner, name);
@@ -257,7 +285,8 @@ public final class OrionConfigLibrary {
             JsonElement expected = DEFAULTS.get(key);
             if (expected == null || !expected.isJsonPrimitive() || !value.isJsonPrimitive()
                     || key.startsWith("discord") || key.startsWith("fakePrefix") || key.startsWith("protectName")
-                    || key.equals("chatFilterEnabled") || key.equals("chatHighlightEnabled")) continue;
+                    || key.equals("chatFilterEnabled") || key.equals("chatHighlightEnabled")
+                    || key.equals("clickGuiCategoriesExpanded")) continue;
             var actual = value.getAsJsonPrimitive();
             var type = expected.getAsJsonPrimitive();
             if (type.isBoolean() && actual.isBoolean()) result.add(key, actual);

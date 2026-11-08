@@ -91,7 +91,7 @@ public final class OrionConfigManager {
             config = loadedConfig;
             save();
         } catch (Exception exception) {
-            LOGGER.warn("Failed to load Orion Client config. Restoring default config.", exception);
+            LOGGER.warn("Failed to load GleamClient config. Restoring default config.", exception);
             config = OrionConfig.createDefault();
             save();
         }
@@ -105,7 +105,7 @@ public final class OrionConfigManager {
                 GSON.toJson(config, writer);
             }
         } catch (IOException exception) {
-            LOGGER.error("Failed to save Orion Client config.", exception);
+            LOGGER.error("Failed to save GleamClient config.", exception);
         }
     }
 

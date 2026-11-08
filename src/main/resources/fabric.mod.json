@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "orion-client",
   "version": "${version}",
-  "name": "Orion Client",
-  "description": "A lightweight client-side Fabric base for Orion Client.",
+  "name": "GleamClient",
+  "description": "A lightweight client-side Fabric base for GleamClient.",
   "authors": [
-    "Orion"
+    "GleamClient"
   ],
   "license": "All-Rights-Reserved",
   "environment": "client",

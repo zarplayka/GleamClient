@@ -43,7 +43,7 @@ public final class OrionHudRenderer {
     private static final Color VERSION_COLOR = new Color(0xD4, 0xDA, 0xE8);
     private static final Color LABEL_COLOR = new Color(0xB6, 0xC0, 0xD2);
 
-    private static final String NAME_TEXT = "Orion Client";
+    private static final String NAME_TEXT = "GleamClient";
     private static final String VERSION_LABEL = OrionClient.VERSION_LABEL;
 
     private final OrionConfigManager configManager;

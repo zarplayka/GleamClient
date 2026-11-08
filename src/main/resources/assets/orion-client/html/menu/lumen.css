@@ -1,0 +1,98 @@
+/* Совместимость страницы макета с Lumen. Размеры и оформление берутся из style.css. */
+@font-face{font-family:OrionRegular;src:url("assets/orion-regular.ttf")}
+@font-face{font-family:OrionMedium;src:url("assets/orion-medium.ttf")}
+@font-face{font-family:OrionSemibold;src:url("assets/orion-semibold.ttf")}
+@font-face{font-family:OrionBold;src:url("assets/orion-bold.ttf")}
+body{min-width:0;min-height:100vh;background:transparent;font-family:OrionRegular}
+button,input,select{font-family:OrionRegular}
+/* Движок считает программный фокус после клика видимым. Клавиша Tab возвращает обводку. */
+html[data-pointer-focus] :focus-visible,html[data-pointer-focus] .setting-switch input:focus-visible+.switch,
+html[data-pointer-focus] .range-control:focus-within .range-thumb{outline:none}
+.brand b,.page-head h1{font-family:OrionBold;font-weight:normal}
+.brand img{width:23px;height:23px}
+.module-name,.module-toggle,.nav-item,.category-toggle,.breadcrumb b,.account-name,.account-option-text b,.button{font-family:OrionMedium;font-weight:normal}
+.nav-item,.account-trigger,.account-option,.account-back,.account-actions button,.list-row{text-align:left}
+.account-head b,.account-back,.settings-group-title h2,.look-settings h2,.look-block h3,.button.primary,.list-row .row-name{font-family:OrionSemibold;font-weight:normal}
+.look-mini-nav img{width:11px;height:11px}
+/* Lumen рисует полосу прокрутки поверх содержимого и игнорирует scrollbar-gutter. */
+.content[data-grid]{display:flex;flex-direction:column;padding-bottom:10px}
+.content[data-grid]>.page-head,.content[data-grid]>.empty{flex:none}
+.modules-grid{flex:1 1 0px;min-height:0;align-content:start;padding-right:10px;overflow-x:hidden;overflow-y:auto}
+.category-fold{display:block;overflow:hidden;max-height:220px;transition:none}
+.category-fold[data-animate]{transition:max-height .24s cubic-bezier(.2,.7,.2,1)}
+.category-fold[aria-hidden="true"]{max-height:0;pointer-events:none}
+.account-pop[data-beside-categories]{left:calc(100% + 8px);right:auto;bottom:0;width:100%;border:1px solid var(--rule);border-radius:7px}
+.window[data-compact-layout]{--sidebar:min(190px,32%);--inset:16px}
+.window[data-small-layout]{--sidebar:min(148px,37%);--inset:10px}
+.window[data-small-layout] .sidebar{padding:0 6px}
+.window[data-small-layout] .brand{font-size:14px;gap:6px}
+.window[data-small-layout] .brand img{width:19px;height:19px}
+.window[data-small-layout] .search kbd{display:none}
+.window[data-small-layout] .account-trigger{gap:5px;padding:5px 4px}
+.window[data-small-layout] .account-trigger>.avatar{width:19px;height:19px}
+.window[data-small-layout] .account-trigger .plan{font-size:10px}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:120px;padding:16px;gap:7px}
+.empty b,.empty span{flex:none}
+.native-config-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:none}
+.config-entry-actions{display:flex;flex-wrap:wrap;gap:6px}
+.native-config-actions .button,.config-entry-actions .button{flex:none}
+.config-entry-actions .button{margin-top:0}
+.config-pagination{display:flex;gap:6px;margin-top:6px}
+.native-config-actions button:disabled,.config-entry-actions button:disabled,.config-pagination button:disabled{opacity:.5;cursor:default}
+.split,.module-settings.with-toc{display:flex;align-items:flex-start;gap:12px}
+.split>.list-panel,.split>.preset-info,.module-settings .settings-groups{flex:1 1 0px;min-width:0;width:100%}
+.list-panel,.settings-groups,.settings-toc{display:flex;flex-direction:column}
+.list-row>span:first-of-type{flex:1;min-width:0}
+.row-name,.row-note{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.module-settings .settings-toc{flex:0 0 158px;min-width:0}
+.module-settings .setting-row>label{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.module-settings .setting-row>small,.module-settings .setting-row input[type="text"]{max-width:48%}
+.content[data-stacked] .split,.content[data-stacked] .module-settings.with-toc{flex-direction:column}
+.content[data-stacked] .split>*,.content[data-stacked] .module-settings.with-toc>*{flex:none;width:100%}
+.content[data-stacked] .settings-toc{position:static}
+.content[data-stacked] .page-head{flex-wrap:wrap;align-items:flex-start;gap:8px}
+.content[data-stacked] .native-config-actions{flex-wrap:wrap;justify-content:flex-start;max-width:100%}
+.range{flex:none}
+.range-control{position:relative;display:block;width:160px;height:24px;flex:none}
+.content[data-stacked] .range-control{width:100px}
+.range-control input[type="range"]{position:absolute;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+/* Lumen исключает полностью прозрачные поля из обработки кликов. */
+.range-control input[type="range"],.module-settings .setting-switch input{opacity:.01}
+.window-scale .range-control{cursor:ew-resize}
+.range-control #window-scale{pointer-events:none}
+.range-track{display:block;position:absolute;left:8px;right:8px;top:10px;height:4px;background:var(--rule);border-radius:2px;pointer-events:none}
+.range-fill{display:block;width:var(--range-progress);height:100%;background:var(--accent);border-radius:2px}
+.range-thumb{position:absolute;left:var(--range-progress);top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;background:var(--text);border-radius:50%}
+.range-control:focus-within .range-thumb{outline:1px solid var(--accent);outline-offset:2px}
+:root{--toggle-fill:#1e2129}
+:root[data-theme="light"]{--toggle-fill:#eceff6}
+.module-toggle{background:var(--toggle-fill)}
+.module-toggle:hover{background:var(--hover)}
+.module:hover,.module:focus-within{border-color:var(--module-hover-border,var(--rule))}
+.list-row:hover,.list-row[aria-pressed="true"]{border-color:var(--list-hover-border,var(--rule))}
+body::before,.reviewbar,.review-note{display:none}
+.review{display:block;height:100vh;min-height:0;padding:0}
+.stage{display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;padding:0}
+.module-toggle[data-toggle-style="label"][aria-checked="true"],
+.module-toggle[data-toggle-style="label"][data-state="on"]{background:var(--on-fill);border-top-color:var(--toggle-on-line);color:var(--on-ink);font-family:OrionBold;font-weight:normal}
+button.module-toggle[data-toggle-style="label"][aria-checked="true"]:hover{background:var(--toggle-on-hover)}
+[aria-checked="true"] .switch,.module-toggle[data-state="on"] .switch{background:var(--accent)}
+[aria-checked="true"] .switch::before,.module-toggle[data-state="on"] .switch::before{transform:translateX(15px);background:var(--accent-ink)}
+.account-list{max-height:132px}
+/* Lumen запекает SVG в атлас без состояния вложенных кругов. */
+.accent-swatch svg{display:none}
+.accent-swatch::before,.accent-swatch::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
+.accent-swatch::before{inset:6px;background:var(--swatch)}
+.accent-swatch::after{inset:1.25px;border:1.5px solid var(--rule);opacity:0;transition:opacity .15s}
+.accent-swatch:hover::after{opacity:1}
+.accent-swatch[aria-pressed="true"]::after{border-color:var(--text);opacity:1}
+.accent-custom input{width:62px;height:22px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--field);font-size:10px}
+.accent-custom{width:66px;border-radius:3px}
+.accent-custom svg{display:none}
+#game-login{display:grid}
+#dialog-overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#080b12a3;z-index:20}
+#dialog-overlay[hidden]{display:none}
+#dialog-overlay dialog[open]{display:block;position:relative;margin:0;max-height:calc(100% - 24px);overflow:auto}
+#game-config-command p{flex:1;min-width:0;margin:0;overflow-wrap:anywhere}
+dialog:not([open]){display:none}
+[hidden]{display:none}

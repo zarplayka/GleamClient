@@ -101,7 +101,7 @@ public final class OrionMotionBlur {
             encoder.copyTextureToTexture(source, texture, 0, 0, 0, 0, 0, texture.getWidth(0), texture.getHeight(0));
             var transforms = RenderSystem.getDynamicUniforms().writeTransform(new Matrix4f(),
                     new Vector4f(blurX, blurY, radialBlur, 1));
-            try (var pass = encoder.createRenderPass(() -> "Orion motion blur", target.getColorTextureView(), Optional.empty())) {
+            try (var pass = encoder.createRenderPass(() -> "GleamClient motion blur", target.getColorTextureView(), Optional.empty())) {
                 pass.setPipeline(compiled);
                 pass.setUniform("DynamicTransforms", transforms);
                 pass.setUniform("Sampler0", view, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));

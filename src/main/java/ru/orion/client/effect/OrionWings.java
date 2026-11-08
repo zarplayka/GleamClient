@@ -82,6 +82,18 @@ public final class OrionWings {
             vertex(pose, vc, face.d(), face.color(),cy,sy,cz,sz);
         }
     }
+
+    public static void submitPreview(PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector, int style) {
+        pose.translate(0F, 1.37F, .16F);
+        for (int side : new int[]{-1, 1}) {
+            pose.pushPose();
+            pose.scale(side, 1F, 1F);
+            pose.rotate(Axis.YP.rotationDegrees(-13F));
+            collector.submitCustomGeometry(pose, OrionEspRenderTypes.cosmeticWings(),
+                    (current, vertices) -> draw(current, vertices, style, true, 1F, 0F, 1F, 0F));
+            pose.popPose();
+        }
+    }
     private static void vertex(PoseStack.Pose pose, VertexConsumer vc, OrionWingMesh.Point p, int color,float cy,float sy,float cz,float sz) {
         float x=p.x(),y=p.y(),z=p.z();
         if(x>.82F){

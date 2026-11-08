@@ -1,14 +1,14 @@
 <div align="center">
-  <img src="src/main/resources/assets/orion-client/textures/cosmetics/orion_badge.png" width="112" alt="Orion Client">
+  <img src="src/main/resources/assets/orion-client/textures/cosmetics/orion_badge.png" width="112" alt="GleamClient">
 
-  # Gleam Client
+  # GleamClient
 
   **Your Minecraft. Your interface. Your style.**
 
   A client-side Minecraft mod with a customizable interface, visual effects,
   cosmetics, and useful features for your game.
 
-  [Download](https://github.com/zarplayka/OrionClient/releases) · [Installation](#installation) · [Features](#features) · [Controls](#controls)
+  [Download](https://github.com/zarplayka/GleamClient/releases) · [Installation](#installation) · [Features](#features) · [Controls](#controls)
 
   `Minecraft 26.3` &nbsp; `Fabric` &nbsp; `Java 25`
 </div>
@@ -19,7 +19,7 @@
 
 ### Interface & convenience
 
-- **ClickGUI** — browse modules with search, favorites, and multiple themes.
+- **ClickGUI** — browse modules with search, favorites, and multiple themes, including Paradox.
 - **HUD** — see client information, keystrokes, inventory contents, and nearby players.
 - **Zoom** — zoom in smoothly and adjust the zoom temporarily with the mouse wheel.
 - **ChatFilter & ChatHighlight** — hide or highlight messages using your own keywords.
@@ -44,7 +44,11 @@
 
 ### Cosmetics & mini-games
 
-Equip a **halo** or choose **angel or dragon wings**. Other players using a compatible version of Orion can see your cosmetics through online synchronization. You can also play **basketball** and **football** in the client.
+Try on a **halo**, a **hat** or **angel and dragon wings** in the wardrobe before equipping them. Other players using a compatible version of GleamClient can see synchronized cosmetics. The client also includes **basketball** and **football**.
+
+### Friends & chat
+
+Sign in with your GleamClient account to manage friend requests and open private conversations with accepted friends.
 
 > Cosmetic synchronization requires access to its online service. Availability may vary by region and network.
 
@@ -52,8 +56,8 @@ Equip a **halo** or choose **angel or dragon wings**. Other players using a comp
 
 1. Install **Minecraft 26.3** and [Fabric Loader](https://fabricmc.net/use/installer/).
 2. Download a compatible version of [Fabric API](https://modrinth.com/mod/fabric-api) and place it in your `mods` folder.
-3. Download the official Orion Client JAR from [Releases](https://github.com/zarplayka/OrionClient/releases) and place it in the same folder.
-4. Launch your Fabric profile and press **Right Shift** to open the Orion menu.
+3. Download the official GleamClient JAR from [Releases](https://github.com/zarplayka/GleamClient/releases) and place it in the same folder.
+4. Launch your Fabric profile and press **Right Shift** to open the GleamClient menu.
 
 Check the Minecraft version in the release description: a published release may be older than the current repository.
 

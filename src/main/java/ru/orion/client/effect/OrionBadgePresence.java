@@ -32,15 +32,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Проверяет пользователей Orion в фоне, не задерживая игровой поток. */
 public final class OrionBadgePresence {
-    private static final String BASE = "https://orion-cosmetics.51-250-32-198.sslip.io";
+    private static final String BASE = OrionAccounts.ORIGIN;
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(task -> {
-        Thread thread = new Thread(task, "Orion Badge Sync");
+        Thread thread = new Thread(task, "GleamClient Badge Sync");
         thread.setDaemon(true);
         return thread;
     });
     private static final ExecutorService WATCHER = Executors.newSingleThreadExecutor(task -> {
-        Thread thread = new Thread(task, "Orion Cosmetics Watch");
+        Thread thread = new Thread(task, "GleamClient Cosmetics Watch");
         thread.setDaemon(true);
         return thread;
     });
@@ -348,7 +348,7 @@ public final class OrionBadgePresence {
         HttpResponse<java.io.InputStream> response = HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
         try (var stream = response.body()) {
             if (response.statusCode() == 429) throw new IllegalStateException("Лимит публикаций исчерпан");
-            if (response.statusCode() == 401 && !orionCookie.isEmpty()) throw new IllegalStateException("Войди в аккаунт Orion заново");
+            if (response.statusCode() == 401 && !orionCookie.isEmpty()) throw new IllegalStateException("Войди в аккаунт GleamClient заново");
             if (response.statusCode() == 403) throw new IllegalStateException("Изменять публикацию может только автор");
             if (response.statusCode() == 404) throw new IllegalStateException("Публикация уже удалена");
             if (response.statusCode() == 409) throw new IllegalStateException("Конфиг изменился — обнови список");
