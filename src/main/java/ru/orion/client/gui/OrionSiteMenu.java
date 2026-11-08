@@ -92,10 +92,6 @@ final class OrionSiteMenu {
         receive();
     }
 
-    void messageContext(double x, double y) {
-        view.messageContext((float)x / sx, (float)y / sy);
-    }
-
     void move(double x,double y) {
         view.move((float)x/sx,(float)y/sy);
         receive();
