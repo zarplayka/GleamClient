@@ -92,6 +92,10 @@ final class OrionSiteMenu {
         receive();
     }
 
+    void messageContext(double x, double y) {
+        view.messageContext((float)x / sx, (float)y / sy);
+    }
+
     void move(double x,double y) {
         view.move((float)x/sx,(float)y/sy);
         receive();
@@ -103,8 +107,16 @@ final class OrionSiteMenu {
     }
 
     boolean key(KeyEvent event,boolean down) {
-        if (down && event.isPaste()) {
-            text(Minecraft.getInstance().keyboardHandler.getClipboard());
+        String shortcut = editingShortcut(event);
+        if (shortcut != null) {
+            if (down) {
+                var payload = new JsonObject();
+                payload.addProperty("command", shortcut);
+                if ("paste".equals(shortcut))
+                    payload.addProperty("text", Minecraft.getInstance().keyboardHandler.getClipboard());
+                view.editShortcut(payload);
+                receive();
+            }
             return true;
         }
         int value = event.key();
@@ -130,6 +142,21 @@ final class OrionSiteMenu {
         boolean consumed = view.key(key,code,modifiers,down);
         receive();
         return consumed;
+    }
+
+    private static String editingShortcut(KeyEvent event) {
+        if (event.hasShiftDown() && !event.hasControlDownWithQuirk() && !event.hasAltDown()
+                && event.key() == InputConstants.KEY_INSERT) return "paste";
+        if (!event.hasControlDownWithQuirk() || event.hasAltDown()) return null;
+        return switch (event.key()) {
+            case InputConstants.KEY_A -> "select";
+            case InputConstants.KEY_C, InputConstants.KEY_INSERT -> "copy";
+            case InputConstants.KEY_X -> "cut";
+            case InputConstants.KEY_V -> "paste";
+            case InputConstants.KEY_Z -> event.hasShiftDown() ? "redo" : "undo";
+            case InputConstants.KEY_Y -> "redo";
+            default -> null;
+        };
     }
 
     void text(String text) {

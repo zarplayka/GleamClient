@@ -8,8 +8,15 @@ import com.sun.jna.Platform;
 import com.sun.jna.platform.win32.Crypt32Util;
 import com.sun.jna.platform.win32.WinCrypt;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.toasts.SystemToast;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
+import ru.orion.client.OrionClient;
+import ru.orion.client.gui.OrionClickGuiScreen;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
@@ -53,6 +60,15 @@ public final class OrionAccounts {
     private final LinkedHashMap<String, Profile> profiles = new LinkedHashMap<>();
     private final LinkedHashMap<String, Session> pendingProfiles = new LinkedHashMap<>();
     private long profileRevision;
+    private Session registeredChatSession, notificationSession;
+    private CompletableFuture<OrionChatCrypto.Identity> registeredChatIdentity;
+    private long notificationCursor = -1, nextNotificationPoll;
+    private boolean notificationLoading;
+    private final LinkedHashMap<String, Integer> unreadChats = new LinkedHashMap<>();
+    // Кэш читается только в очереди хранения и сбрасывается при смене пары.
+    private String decodedChatPair = "";
+    private final LinkedHashMap<String, String> decodedMessages = new LinkedHashMap<>(128, .75f, true);
+    private static final SystemToast.SystemToastId CHAT_TOAST = new SystemToast.SystemToastId(4500);
 
     public record Profile(String id, long createdAt, boolean published, BufferedImage avatar) { }
     private boolean busy;
@@ -66,6 +82,7 @@ public final class OrionAccounts {
         if (!Platform.isWindows()) return;
         sessionFile = FabricLoader.getInstance().getConfigDir().resolve("orion-account-sessions.json");
         ClientLifecycleEvents.CLIENT_STARTED.register(this::restore);
+        ClientTickEvents.END_CLIENT_TICK.register(this::pollChatNotifications);
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             try {
                 lastWrite.get(2, TimeUnit.SECONDS);
@@ -275,19 +292,89 @@ public final class OrionAccounts {
         Session session = active;
         if (session == null || !username.matches("[A-Za-z0-9_]{3,24}"))
             return CompletableFuture.failedFuture(new IllegalStateException("Чат недоступен"));
-        JsonObject body = null;
-        if (message != null) {
-            body = new JsonObject();
-            body.addProperty("body", message);
-        }
-        String path = "/api/friends/" + username + "/chat" + (before > 0 ? "?before=" + before : "");
-        return send(path, body, session, message != null).thenApply(response -> {
-            if (response.statusCode() == 403) throw new IllegalStateException("Чат доступен только друзьям");
-            return friendResponse(response);
-        });
+        String path = "/api/friends/" + username + "/chat?secure=1" + (before > 0 ? "&before=" + before : "");
+        return chatIdentity(session).thenCompose(identity ->
+            send("/api/chat/keys/" + username, null, session, false).thenCompose(keys ->
+                CompletableFuture.supplyAsync(() -> {
+                    if (keys.statusCode() == 404) return null;
+                    return chatCrypto(() -> OrionChatCrypto.pin(session.username(), username, friendResponse(keys)));
+                }, storage).thenCompose(peer -> {
+                    if (message == null) return send(path, null, session, false).thenCompose(response -> decodeChat(response, identity, peer, session, username));
+                    if (peer == null) return CompletableFuture.failedFuture(new IllegalStateException("Друг ещё не настроил защищённый чат"));
+                    return CompletableFuture.supplyAsync(() -> {
+                        var body = new JsonObject();
+                        body.addProperty("envelope", chatCrypto(() -> OrionChatCrypto.seal(message, identity, peer, session.username(), username)));
+                        return body;
+                    }, storage).thenCompose(body -> send(path, body, session, true))
+                            .thenCompose(response -> decodeChat(response, identity, peer, session, username));
+                })));
     }
 
-    public CompletableFuture<JsonObject> chatReaction(String username, long messageId, String reaction) {
+    private CompletableFuture<OrionChatCrypto.Identity> chatIdentity(Session session) {
+        if (!Platform.isWindows()) return CompletableFuture.failedFuture(new IllegalStateException("Защищённый чат доступен на Windows"));
+        if (registeredChatSession == session && registeredChatIdentity != null && !registeredChatIdentity.isCompletedExceptionally())
+            return registeredChatIdentity;
+        registeredChatSession = session;
+        registeredChatIdentity = CompletableFuture.supplyAsync(
+                () -> chatCrypto(() -> OrionChatCrypto.identity(session.username())), storage)
+                .thenCompose(identity -> send("/api/chat/keys", identity.publicKeys(), session, true).thenApply(response -> {
+                    friendResponse(response);
+                    return identity;
+                }));
+        return registeredChatIdentity;
+    }
+
+    private CompletableFuture<JsonObject> decodeChat(HttpResponse<String> response, OrionChatCrypto.Identity identity,
+                                                     OrionChatCrypto.Peer peer, Session session, String username) {
+        if (response.statusCode() == 403)
+            return CompletableFuture.failedFuture(new IllegalStateException("Чат доступен только друзьям"));
+        return CompletableFuture.supplyAsync(() -> {
+            var result = friendResponse(response);
+            String pair = session.username() + "/" + username;
+            if (!pair.equals(decodedChatPair)) {
+                decodedChatPair = pair;
+                decodedMessages.clear();
+            }
+            if (peer != null) result.addProperty("verification", chatCrypto(
+                    () -> OrionChatCrypto.verificationCode(identity, peer, session.username(), username)));
+            for (var element : result.getAsJsonArray("items")) {
+                var item = element.getAsJsonObject();
+                var envelope = item.remove("envelope");
+                if (envelope == null) {
+                    item.addProperty("legacy", true);
+                    continue;
+                }
+                try {
+                    if (peer == null) throw new IllegalStateException("Missing chat peer key");
+                    boolean own = item.get("own").getAsBoolean();
+                    String packet = envelope.getAsString(), key = (own ? "o" : "i") + packet;
+                    String plain = decodedMessages.get(key);
+                    if (plain == null) {
+                        plain = OrionChatCrypto.open(packet, identity, peer, session.username(), username, own);
+                        decodedMessages.put(key, plain);
+                        if (decodedMessages.size() > 128) decodedMessages.pollFirstEntry();
+                    }
+                    item.addProperty("body", plain);
+                } catch (java.security.GeneralSecurityException | RuntimeException failure) {
+                    item.addProperty("unreadable", true);
+                    item.addProperty("body", "");
+                }
+            }
+            return result;
+        }, storage);
+    }
+
+    private static <T> T chatCrypto(java.util.concurrent.Callable<T> operation) {
+        try {
+            return operation.call();
+        } catch (IllegalStateException failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new IllegalStateException("Ключи защищённого чата недоступны", failure);
+        }
+    }
+
+    public CompletableFuture<JsonObject> chatReaction(String username, long messageId, String reaction, boolean selected) {
         Session session = active;
         if (session == null || !username.matches("[A-Za-z0-9_]{3,24}") || messageId <= 0
                 || !List.of("👍", "❤️", "😂", "😮", "😢").contains(reaction))
@@ -295,10 +382,65 @@ public final class OrionAccounts {
         JsonObject body = new JsonObject();
         body.addProperty("message_id", messageId);
         body.addProperty("reaction", reaction);
-        return send("/api/friends/" + username + "/chat", body, session, true).thenApply(response -> {
+        body.addProperty("selected", selected);
+        return send("/api/friends/" + username + "/chat?secure=1", body, session, true).thenApply(response -> {
             if (response.statusCode() == 403) throw new IllegalStateException("Чат доступен только друзьям");
             return friendResponse(response);
         });
+    }
+
+    private void pollChatNotifications(Minecraft client) {
+        var config = OrionClient.getConfigOrNull();
+        if (notificationSession != active) {
+            notificationSession = active;
+            notificationCursor = -1;
+            unreadChats.clear();
+            notificationLoading = false;
+            nextNotificationPoll = 0;
+        }
+        if (active == null || busy || config == null) return;
+        long now = System.nanoTime();
+        if (notificationLoading || now < nextNotificationPoll) return;
+        notificationLoading = true;
+        nextNotificationPoll = now + TimeUnit.SECONDS.toNanos(6);
+        var session = active;
+        String path = "/api/chat/updates" + (notificationCursor < 0 ? "" : "?after=" + notificationCursor);
+        send(path, null, session, false).thenApply(OrionAccounts::friendResponse).whenComplete((result, failure) ->
+            client.execute(() -> {
+                if (active != session || notificationSession != session) return;
+                notificationLoading = false;
+                if (failure != null) {
+                    nextNotificationPoll = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+                    return;
+                }
+                notificationCursor = result.get("cursor").getAsLong();
+                var senders = new LinkedHashMap<String, Integer>();
+                for (var entry : result.getAsJsonArray("items")) {
+                    String username = entry.getAsJsonObject().get("username").getAsString();
+                    if (client.gui.screen() instanceof OrionClickGuiScreen screen && screen.isViewingChat(username)) continue;
+                    senders.merge(username, 1, Integer::sum);
+                    unreadChats.merge(username, 1, Integer::sum);
+                }
+                if (senders.isEmpty()) return;
+                int count = senders.values().stream().mapToInt(Integer::intValue).sum();
+                String title = ru.orion.client.gui.OrionGuiLanguage.translate(count == 1 ? "Новое сообщение" : "Новые сообщения");
+                String detail = senders.size() == 1 ? senders.keySet().iterator().next() : String.join(", ", senders.keySet().stream().limit(2).toList());
+                if (count > 1) detail += " · " + count;
+                if (config.isChatNotifications())
+                    SystemToast.addOrUpdate(client.gui.toastManager(), CHAT_TOAST, Component.literal(title), Component.literal(detail));
+                if (config.isChatNotificationSound())
+                    client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_PLING.value(), 1.15F, .75F));
+            }));
+    }
+
+    public JsonObject chatUnread() {
+        var result = new JsonObject();
+        if (notificationSession == active) unreadChats.forEach(result::addProperty);
+        return result;
+    }
+
+    public void markChatRead(String username) {
+        if (notificationSession == active) unreadChats.remove(username);
     }
 
     public CompletableFuture<JsonArray> changeFriend(String username, String action) {
@@ -331,6 +473,9 @@ public final class OrionAccounts {
             case "friend_state" -> "Статус заявки уже изменился";
             case "friend_limit" -> "Достигнут лимит друзей или заявок";
             case "friend_unavailable" -> "Этот аккаунт заблокирован";
+            case "chat_device" -> "Защищённый чат привязан к другому устройству";
+            case "chat_key_missing" -> "Друг ещё не настроил защищённый чат";
+            case "chat_encryption_required" -> "Чат требует обновления клиента";
             default -> "Не удалось выполнить действие";
         });
     }

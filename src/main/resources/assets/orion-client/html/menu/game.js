@@ -8,8 +8,8 @@ document.addEventListener('keydown',event => {
 },true);
 const editHistory = new WeakMap(), restoringTextField = new WeakSet();
 function editableTextField(field) {
-  if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) || field.disabled) return false;
-  return field instanceof HTMLTextAreaElement || ['text','search','url','tel','email','password'].includes(field.type);
+  if (!field?.matches('input,textarea') || field.disabled) return false;
+  return field.matches('textarea') || ['text','search','url','tel','password'].includes(field.getAttribute('type') ?? 'text');
 }
 function textFieldSnapshot(field) {
   return {value:field.value,start:field.selectionStart ?? 0,end:field.selectionEnd ?? 0};
@@ -45,32 +45,42 @@ function restoreTextField(field,history,snapshot) {
   restoringTextField.delete(field);
   history.current = snapshot;
 }
-document.addEventListener('keydown',event => {
-  const field = event.target;
-  if (!editableTextField(field) || !(event.ctrlKey || event.metaKey) || event.altKey) return;
-  const key = event.key.toLowerCase(), history = textFieldHistory(field);
-  if (key === 'a') {
-    event.preventDefault(); event.stopImmediatePropagation();
-    field.setSelectionRange(0,field.value.length);
-  } else if (key === 'c' || key === 'x') {
-    if (field.type === 'password' || key === 'x' && field.readOnly) return;
-    const start = field.selectionStart ?? 0, end = field.selectionEnd ?? start;
-    if (end <= start) return;
-    event.preventDefault(); event.stopImmediatePropagation();
+function applyEditShortcut({command,text:clipboard}) {
+  const field = document.activeElement;
+  if (!editableTextField(field)) return;
+  const history = textFieldHistory(field);
+  const start = field.selectionStart ?? 0, end = field.selectionEnd ?? start;
+  if (command === 'select') {
+    if (typeof field.select === 'function') field.select();
+    else field.setSelectionRange(0,field.value.length);
+    return;
+  }
+  if (command === 'copy' || command === 'cut') {
+    if (field.type === 'password' || start === end || command === 'cut' && field.readOnly) return;
     sendGame('clipboard-copy',{text:field.value.slice(start,end)});
-    if (key === 'x') {
-      field.setRangeText('',start,end,'start');
-      field.dispatchEvent(new Event('input',{bubbles:true}));
-    }
-  } else if (key === 'z' || key === 'y') {
-    event.preventDefault(); event.stopImmediatePropagation();
-    const redo = key === 'y' || event.shiftKey, source = redo ? history.redo : history.undo;
-    const destination = redo ? history.undo : history.redo;
+    if (command === 'copy') return;
+  }
+  if (field.readOnly) return;
+  if (command === 'undo' || command === 'redo') {
+    const source = history[command], destination = history[command === 'undo' ? 'redo' : 'undo'];
     if (!source.length) return;
     destination.push(textFieldSnapshot(field));
     restoreTextField(field,history,source.pop());
+  } else if (command === 'paste' || command === 'cut') {
+    let inserted = command === 'cut' ? '' : (clipboard ?? '').replace(/[\u0000-\u001f\u007f]/g,'');
+    if (field.maxLength >= 0) {
+      const limit = Math.max(0,field.maxLength - field.value.length + end - start);
+      inserted = inserted.slice(0,limit).replace(/[\uD800-\uDBFF]$/,'');
+    }
+    if (command === 'paste' && !inserted) return;
+    history.current = textFieldSnapshot(field);
+    field.value = field.value.slice(0,start) + inserted + field.value.slice(end);
+    field.setSelectionRange(start + inserted.length,start + inserted.length);
+    field.dispatchEvent(new Event('input',{bubbles:true}));
   }
-},true);
+  if (field.dataset?.setting !== undefined || field.id === 'custom-accent')
+    field.dispatchEvent(new Event('change',{bubbles:true}));
+}
 function accountForm() {
   showDialog(t('Вход в GleamClient'),'<form id="game-login"><input name="login" placeholder="' + text(t('Логин')) + '" maxlength="24" required>'
     + '<input name="password" type="password" placeholder="' + text(t('Пароль')) + '" maxlength="128" required>'
@@ -265,6 +275,10 @@ document.addEventListener('change',event => {
   if (field.dataset?.setting !== undefined) {
     sendGame('setting',{id:state.module,index:Number(field.dataset.setting),
       value:field.type === 'checkbox' ? field.checked : field.value});
+  } else if (field.dataset?.chatPreference) {
+    const key = field.dataset.chatPreference;
+    state[key] = field.checked;
+    sendGame('look',{key,value:field.checked});
   } else if (field.id === 'window-scale') {
     sendGame('look',{key:'windowScale',value:field.value});
   } else if (field.id === 'custom-accent' && /^#[0-9a-f]{6}$/i.test(field.value)) {
@@ -371,6 +385,11 @@ function syncModuleSettings(module) {
   return false;
 }
 window.paradox = {
+  editShortcut:applyEditShortcut,
+  messageContext({x,y}) {
+    const message = document.elementFromPoint(x,y)?.closest('.chat-message');
+    if (message) openReactionPicker(message,true);
+  },
   opening(progress) {
     if (reducedMotion.matches) return;
     const eased = 1 - (1 - progress) ** 3, menu = $('window');
@@ -462,19 +481,16 @@ window.paradox = {
       redraw = redraw || state.page === 'friends' || state.page === 'chat' && authChanged;
     }
     const previousChat = chat;
+    const unread = data.chatUnread ?? {};
+    if (JSON.stringify(unread) !== JSON.stringify(chatUnread)) {
+      chatUnread = unread;
+      renderNavigation();
+      chatChanged = true;
+    }
     if (data.chat && JSON.stringify(chat) !== JSON.stringify(data.chat)) {
       chat = data.chat;
       const latest = chat.items[chat.items.length-1];
       if (chat.peer && latest) chatRecent.set(chat.peer,latest);
-      if (chat.peer && previousChat.peer === chat.peer && previousChat.items.length && state.page !== 'chat') {
-        const previousId = previousChat.items.reduce((id,item) => Math.max(id,Number(item.id) || 0),0);
-        const incoming = chat.items.filter(item => !item.own && Number(item.id) > previousId);
-        if (incoming.length) {
-          const newest = incoming[incoming.length-1];
-          toast(t('Новое сообщение от') + ' ' + chat.peer + ': ' + newest.body,'chat');
-          sendGame('chat-notification-sound');
-        }
-      }
       if (chat.sent !== previousChat.sent && pendingChatDraft?.peer === chat.peer) {
         if (chatDrafts.get(chat.peer) === pendingChatDraft.draft) chatDrafts.delete(chat.peer);
         pendingChatDraft = null;

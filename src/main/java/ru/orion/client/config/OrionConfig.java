@@ -361,6 +361,13 @@ public final class OrionConfig {
     private int clickGuiTheme = 3;
     private String clickGuiWindowSize = "normal";
     private String clickGuiLanguage = "auto";
+    private boolean chatNotifications = true;
+    private boolean chatNotificationSound = true;
+
+    public boolean isChatNotifications() { return chatNotifications; }
+    public void setChatNotifications(boolean enabled) { chatNotifications = enabled; }
+    public boolean isChatNotificationSound() { return chatNotificationSound; }
+    public void setChatNotificationSound(boolean enabled) { chatNotificationSound = enabled; }
     private int clickGuiWindowX, clickGuiWindowY;
     private int clickGuiScale = 100;
     private boolean clickGuiCompactCards;

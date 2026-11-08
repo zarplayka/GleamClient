@@ -11,13 +11,11 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import net.minecraft.sounds.SoundEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
@@ -259,9 +257,9 @@ public final class OrionClickGuiScreen extends Screen {
     private JsonObject friendProfile;
     private boolean friendsBusy;
     private int friendsRequest;
-    private String chatPeer = "", chatStatus = "";
+    private String chatPeer = "", chatStatus = "", chatVerification = "";
     private JsonArray chatMessages = new JsonArray();
-    private boolean chatBusy, chatLoading, chatLoaded, chatOlder, chatRefreshAfterReaction;
+    private boolean chatBusy, chatLoading, chatLoaded, chatOlder, chatReactionPending;
     private int chatRequest, chatSent;
     private long nextChatPoll, nextChatFriends;
     private record CosmeticStage(float x, float y, float w, float h, float clipTop, float clipBottom,
@@ -653,6 +651,8 @@ public final class OrionClickGuiScreen extends Screen {
         look.addProperty("windowScale",config.getClickGuiScale());
         look.addProperty("accent",config.getClickGuiAccent());
         look.addProperty("languageChoice",config.getClickGuiLanguage());
+        look.addProperty("chatNotifications",config.isChatNotifications());
+        look.addProperty("chatNotificationSound",config.isChatNotificationSound());
         look.addProperty("windowX",config.getClickGuiWindowX());
         look.addProperty("windowY",config.getClickGuiWindowY());
         look.addProperty("wingsStyle",config.getWingsStyle());
@@ -679,6 +679,7 @@ public final class OrionClickGuiScreen extends Screen {
 
         boolean friendsAccountChanged = syncFriendsAccount();
         boolean chatPage = "CHAT".equals(siteSection);
+        data.add("chatUnread", accounts.chatUnread());
         long chatNow = System.nanoTime();
         if ("FRIENDS".equals(siteSection) || chatPage) {
             if (friendsAccountChanged) refreshFriends(null, null);
@@ -706,14 +707,15 @@ public final class OrionClickGuiScreen extends Screen {
                 }
             }
         }
-        if (!friendsSession.isEmpty() && !chatPeer.isEmpty() && chatNow >= nextChatPoll) updateChat(null, false);
-        if (chatPage || !chatPeer.isEmpty()) {
+        if (chatPage && !friendsSession.isEmpty() && !chatPeer.isEmpty() && chatNow >= nextChatPoll) updateChat(null, false);
+        if (chatPage) {
             var chat = new JsonObject();
             chat.addProperty("peer", chatPeer);
             chat.addProperty("busy", chatLoading);
             chat.addProperty("older", chatOlder);
             chat.addProperty("sent", chatSent);
             chat.addProperty("status", tr(chatStatus));
+            chat.addProperty("verification", chatVerification);
             chat.add("items", chatMessages);
             data.add("chat", chat);
         }
@@ -904,11 +906,15 @@ public final class OrionClickGuiScreen extends Screen {
     private void selectChat(String peer) {
         chatPeer = peer;
         chatMessages = new JsonArray();
-        chatStatus = "";
+        chatStatus = chatVerification = "";
         chatBusy = chatLoading = chatLoaded = chatOlder = false;
-        chatRefreshAfterReaction = false;
+        chatReactionPending = false;
         nextChatPoll = 0;
         chatRequest++;
+    }
+
+    public boolean isViewingChat(String username) {
+        return siteActive && "CHAT".equals(siteSection) && chatPeer.equalsIgnoreCase(username);
     }
 
     private void updateChat(String message, boolean older) {
@@ -922,11 +928,8 @@ public final class OrionClickGuiScreen extends Screen {
         accounts.chat(chatPeer, before, message).whenComplete((response, failure) -> minecraft.execute(() -> {
             if (request != chatRequest || !session.equals(accounts.sessionCookieHeader())) return;
             chatBusy = chatLoading = false;
-            boolean refreshReaction = chatRefreshAfterReaction;
-            chatRefreshAfterReaction = false;
-            nextChatPoll = refreshReaction ? 0 : System.nanoTime() + 4_000_000_000L;
+            nextChatPoll = System.nanoTime() + 4_000_000_000L;
             if (failure != null) {
-                nextChatPoll = System.nanoTime() + 4_000_000_000L;
                 Throwable cause = failure.getCause() == null ? failure : failure.getCause();
                 chatStatus = cause instanceof IllegalStateException ? cause.getMessage() : "Чат недоступен";
                 if ("Чат доступен только друзьям".equals(chatStatus)) {
@@ -937,6 +940,8 @@ public final class OrionClickGuiScreen extends Screen {
                 return;
             }
             chatStatus = message == null ? "" : "Сообщение отправлено";
+            if (!older && isViewingChat(chatPeer)) accounts.markChatRead(chatPeer);
+            chatVerification = response.has("verification") ? response.get("verification").getAsString() : "";
             chatLoaded = true;
             if (message != null) chatSent++;
             var merged = new JsonArray();
@@ -1127,22 +1132,22 @@ public final class OrionClickGuiScreen extends Screen {
                 } else if ("chat-react".equals(action)) {
                     long messageId = event.get("messageId").getAsLong();
                     String reaction = event.get("reaction").getAsString(), peer = chatPeer, session = friendsSession;
-                    if (messageId <= 0 || !isChatFriend(peer) || !List.of("👍", "❤️", "😂", "😮", "😢").contains(reaction)) return;
-                    accounts.chatReaction(peer, messageId, reaction).whenComplete((response, failure) -> minecraft.execute(() -> {
+                    if (chatReactionPending || messageId <= 0 || !isChatFriend(peer)) return;
+                    chatReactionPending = true;
+                    accounts.chatReaction(peer, messageId, reaction, event.get("selected").getAsBoolean()).whenComplete((response, failure) -> minecraft.execute(() -> {
                         if (!session.equals(accounts.sessionCookieHeader()) || !peer.equals(chatPeer)) return;
-                        if (failure != null) {
+                        chatReactionPending = false;
+                        if (failure != null || !response.has("reactions")) {
                             chatStatus = "Не удалось поставить реакцию";
-                            nextChatPoll = System.nanoTime() + 4_000_000_000L;
-                        } else if (chatBusy) {
-                            chatRefreshAfterReaction = true;
-                        } else {
-                            updateChat(null, false);
+                            return;
                         }
+                        var updated = chatMessages.deepCopy();
+                        for (var item : updated) if (item.getAsJsonObject().get("id").getAsLong() == messageId)
+                            item.getAsJsonObject().add("reactions", response.getAsJsonArray("reactions"));
+                        chatMessages = updated;
                     }));
                 }
             }
-            case "chat-notification-sound" -> Minecraft.getInstance().getSoundManager()
-                    .play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, .45F));
             case "clipboard-copy" -> {
                 if (event.has("text")) minecraft.keyboardHandler.setClipboard(event.get("text").getAsString());
             }
@@ -1250,6 +1255,8 @@ public final class OrionClickGuiScreen extends Screen {
             case "windowScale" -> config.setClickGuiScale(Integer.parseInt(value));
             case "accent" -> config.setClickGuiAccent(value);
             case "languageChoice" -> config.setClickGuiLanguage(value);
+            case "chatNotifications" -> config.setChatNotifications(Boolean.parseBoolean(value));
+            case "chatNotificationSound" -> config.setChatNotificationSound(Boolean.parseBoolean(value));
             default -> { return; }
         }
         configManager.save();
@@ -2056,6 +2063,8 @@ public final class OrionClickGuiScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (siteActive) {
             if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) siteMenu.press(event.x(),event.y());
+            else if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT && "CHAT".equals(siteSection))
+                siteMenu.messageContext(event.x(), event.y());
             return true;
         }
         int localX = toLocalX(event.x());
@@ -2420,13 +2429,6 @@ public final class OrionClickGuiScreen extends Screen {
     @Override
     public boolean keyPressed(KeyEvent event) {
         if (siteActive && editingBind < 0) {
-            if (event.hasControlDownWithQuirk() && !event.hasAltDown()) {
-                switch (event.key()) {
-                    case InputConstants.KEY_A, InputConstants.KEY_C, InputConstants.KEY_V, InputConstants.KEY_X,
-                            InputConstants.KEY_Y, InputConstants.KEY_Z -> bindAcceptedAt = System.nanoTime();
-                    default -> { }
-                }
-            }
             siteMenu.key(event,true);
             return true;
         }
