@@ -49,7 +49,8 @@ function applyEditShortcut({command,text:clipboard}) {
   const field = document.activeElement;
   if (!editableTextField(field)) return;
   const history = textFieldHistory(field);
-  const start = field.selectionStart ?? 0, end = field.selectionEnd ?? start;
+  let start = field.selectionStart ?? 0;
+  const end = field.selectionEnd ?? start;
   if (command === 'select') {
     if (typeof field.select === 'function') field.select();
     else field.setSelectionRange(0,field.value.length);
@@ -66,8 +67,14 @@ function applyEditShortcut({command,text:clipboard}) {
     if (!source.length) return;
     destination.push(textFieldSnapshot(field));
     restoreTextField(field,history,source.pop());
-  } else if (command === 'paste' || command === 'cut') {
-    let inserted = command === 'cut' ? '' : (clipboard ?? '').replace(/[\u0000-\u001f\u007f]/g,'');
+  } else if (command === 'paste' || command === 'cut' || command === 'delete-word') {
+    if (command === 'delete-word' && start === end) {
+      if (!start) return;
+      const before = field.value.slice(0,start).trimEnd();
+      const word = before.match(/[\p{L}\p{M}\p{N}_]+$/u) ?? before.match(/[^\p{L}\p{M}\p{N}_\s]+$/u);
+      start = before.length - (word?.[0].length ?? 0);
+    }
+    let inserted = command === 'paste' ? (clipboard ?? '').replace(/[\u0000-\u001f\u007f]/g,'') : '';
     if (field.maxLength >= 0) {
       const limit = Math.max(0,field.maxLength - field.value.length + end - start);
       inserted = inserted.slice(0,limit).replace(/[\uD800-\uDBFF]$/,'');
@@ -387,7 +394,7 @@ function syncModuleSettings(module) {
 window.paradox = {
   editShortcut:applyEditShortcut,
   messageContext({x,y}) {
-    const message = document.elementFromPoint(x,y)?.closest('.chat-message');
+    const message = document.elementFromPoint(x,y)?.closest('.chat-line');
     if (message) openReactionPicker(message,true);
   },
   opening(progress) {

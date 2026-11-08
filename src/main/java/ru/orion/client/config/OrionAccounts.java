@@ -11,12 +11,11 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import ru.orion.client.OrionClient;
 import ru.orion.client.gui.OrionClickGuiScreen;
+import ru.orion.client.gui.OrionChatNotifications;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
@@ -68,7 +67,6 @@ public final class OrionAccounts {
     // Кэш читается только в очереди хранения и сбрасывается при смене пары.
     private String decodedChatPair = "";
     private final LinkedHashMap<String, String> decodedMessages = new LinkedHashMap<>(128, .75f, true);
-    private static final SystemToast.SystemToastId CHAT_TOAST = new SystemToast.SystemToastId(4500);
 
     public record Profile(String id, long createdAt, boolean published, BufferedImage avatar) { }
     private boolean busy;
@@ -83,6 +81,7 @@ public final class OrionAccounts {
         sessionFile = FabricLoader.getInstance().getConfigDir().resolve("orion-account-sessions.json");
         ClientLifecycleEvents.CLIENT_STARTED.register(this::restore);
         ClientTickEvents.END_CLIENT_TICK.register(this::pollChatNotifications);
+        OrionChatNotifications.register();
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             try {
                 lastWrite.get(2, TimeUnit.SECONDS);
@@ -169,6 +168,10 @@ public final class OrionAccounts {
     public boolean plusActive(String username) {
         Session session = sessions.get(username);
         return session != null && session.plusExpiresAt() > Instant.now().getEpochSecond();
+    }
+    public long plusExpiresAt(String username) {
+        Session session = sessions.get(username);
+        return session == null ? 0 : session.plusExpiresAt();
     }
 
     public String badge() { return badge(username()); }
@@ -392,6 +395,7 @@ public final class OrionAccounts {
     private void pollChatNotifications(Minecraft client) {
         var config = OrionClient.getConfigOrNull();
         if (notificationSession != active) {
+            OrionChatNotifications.clear();
             notificationSession = active;
             notificationCursor = -1;
             unreadChats.clear();
@@ -427,7 +431,7 @@ public final class OrionAccounts {
                 String detail = senders.size() == 1 ? senders.keySet().iterator().next() : String.join(", ", senders.keySet().stream().limit(2).toList());
                 if (count > 1) detail += " · " + count;
                 if (config.isChatNotifications())
-                    SystemToast.addOrUpdate(client.gui.toastManager(), CHAT_TOAST, Component.literal(title), Component.literal(detail));
+                    OrionChatNotifications.show(title, detail);
                 if (config.isChatNotificationSound())
                     client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_PLING.value(), 1.15F, .75F));
             }));

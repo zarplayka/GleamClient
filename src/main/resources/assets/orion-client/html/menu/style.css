@@ -312,6 +312,8 @@ button.module-toggle[data-toggle-style="label"][aria-checked="true"]:hover{backg
 .profile-top{display:flex;align-items:center;gap:12px;padding:13px}
 .profile-top h2{margin:0;font-size:17px;word-break:break-all}
 .profile-top p{margin:3px 0 0;color:var(--muted);font-size:12px}
+.profile-plus{color:var(--accent);font-size:13px;font-variant-numeric:tabular-nums}
+.profile-plus[aria-label]{font-size:20px}
 .map-preview{height:184px;position:relative;overflow:hidden;background-color:var(--field);background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:22px 22px;display:grid;place-items:center}
 .map-marker{color:var(--accent);display:grid;justify-items:center;gap:3px;font-size:11px}
 .map-marker svg{width:23px;height:23px}
@@ -352,6 +354,7 @@ dialog::backdrop{background:#080b12a3}
 .chat-thread{position:relative;flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;background:var(--card);overflow:hidden}
 .chat-heading{padding:10px 13px;border-bottom:1px solid var(--line);font-size:14px}
 .chat-heading strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chat-heading-avatar{display:flex;flex:none}
 #chat-verify{margin-left:auto;min-height:25px;padding:3px 6px;font-size:10px}
 .chat-verification{display:block;margin-bottom:10px;padding:10px;background:var(--field);color:var(--text);line-height:1.5;white-space:normal;user-select:text}
 .chat-legacy{display:block;margin-top:2px;color:var(--muted);font-size:9px}
@@ -360,10 +363,12 @@ dialog::backdrop{background:#080b12a3}
 .chat-log{margin-top:auto;flex:none}
 .chat-date{display:flex;align-items:center;justify-content:center;gap:10px;margin:8px 0 10px;color:var(--subtle);font-size:10px;font-variant-numeric:tabular-nums}
 .chat-date::before,.chat-date::after{content:"";height:1px;flex:1;background:var(--line)}
-.chat-line{display:flex;justify-content:flex-start;margin-top:7px}
+.chat-line{display:flex;align-items:flex-start;justify-content:flex-start;gap:5px;margin-top:7px}
 .chat-line.continuation{margin-top:3px}
 .chat-line.own{justify-content:flex-end}
-.chat-message{position:relative;min-width:0;max-width:min(82%,420px)}
+.chat-message-avatar{display:flex;align-self:flex-end;flex:0 0 21px;min-height:21px}
+.chat-message-avatar .avatar,.chat-message-avatar .friend-initial{width:21px;height:21px;border-radius:50%;font-size:10px}
+.chat-message{position:relative;min-width:0;max-width:min(calc(100% - 85px),420px)}
 .chat-bubble{display:flex;align-items:flex-end;gap:8px;max-width:100%;padding:7px 9px;border-radius:8px 8px 8px 3px;background:var(--field);font-size:12px;line-height:1.35}
 .chat-line.own .chat-bubble{background:var(--accent-surface);border-radius:8px 8px 3px 8px}
 .chat-bubble span{min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}
@@ -374,9 +379,10 @@ dialog::backdrop{background:#080b12a3}
 .chat-reaction[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-surface);color:var(--text)}
 .chat-reaction small{font-size:9px;color:inherit}
 .chat-reaction svg,.chat-reaction-toggle svg{width:13px;height:13px}
-.chat-reaction-toggle{position:absolute;top:2px;left:calc(100% + 3px);width:20px;padding:0;border-radius:6px;opacity:.01;transition:opacity .14s,color .14s,background-color .14s}
-.chat-line.own .chat-reaction-toggle{left:auto;right:calc(100% + 3px)}
-.chat-message:hover .chat-reaction-toggle,.chat-message:focus-within .chat-reaction-toggle,.chat-reaction-toggle[aria-expanded="true"]{opacity:1}
+.chat-reaction-tools{display:flex;flex:none;align-items:center;gap:2px;margin-top:2px}
+.chat-line.own .chat-reaction-tools{order:-1}
+.chat-reaction-toggle{width:22px;height:22px;padding:0;border-color:transparent;border-radius:6px;background:transparent}
+.chat-reaction-toggle[aria-pressed="true"],.chat-reaction-toggle[aria-expanded="true"]{background:var(--accent-surface);color:var(--accent)}
 .chat-reaction-toggle:hover,.chat-reaction-picker button:hover{color:var(--text);background:var(--hover)}
 .chat-reaction-picker{position:absolute;left:0;bottom:calc(100% + 3px);z-index:4;display:flex;gap:3px;padding:4px;border:1px solid var(--rule);border-radius:18px;background:var(--card);box-shadow:0 5px 14px #080a1045}
 .chat-reaction-picker[data-below]{top:calc(100% + 3px);bottom:auto}

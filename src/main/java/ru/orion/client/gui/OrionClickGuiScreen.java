@@ -566,6 +566,7 @@ public final class OrionClickGuiScreen extends Screen {
             siteActive = siteMenu.ready() && siteMenu.render(context,width,height,mouseX,mouseY,siteState());
             if (siteActive) {
                 drawCosmeticPreview(context);
+                OrionChatNotifications.render(context);
                 return;
             }
         } else siteActive = false;
@@ -600,6 +601,7 @@ public final class OrionClickGuiScreen extends Screen {
         if (htmlAccountVisible) {
             htmlAccounts.render(context, mouseX, mouseY, SURFACE, TEXT, MUTED, BORDER, SURFACE_HOVER);
         }
+        OrionChatNotifications.render(context);
     }
 
     private JsonObject siteState() {
@@ -667,9 +669,16 @@ public final class OrionClickGuiScreen extends Screen {
             boolean selected = username.equals(accounts.username());
             if (selected) active = i+1;
             OrionAccounts.Profile profile = accounts.profile(username);
-            users.add(siteAccount(i+1,username,profile == null ? "" : profile.id(),
+            var account = siteAccount(i+1,username,profile == null ? "" : profile.id(),
                     accounts.plusActive(username) ? "Plus" : "Free",accounts.badge(username),
-                    OrionSiteMenu.avatar(accounts.avatar(username))));
+                    OrionSiteMenu.avatar(accounts.avatar(username)));
+            long expiry = accounts.plusExpiresAt(username);
+            if (expiry == Long.MAX_VALUE) account.addProperty("plusRemaining", "∞");
+            else {
+                long remaining = expiry - java.time.Instant.now().getEpochSecond();
+                if (remaining > 0) account.addProperty("plusRemaining", plusTimeRemaining(remaining));
+            }
+            users.add(account);
         }
         data.add("accounts",users);
         data.addProperty("account",active);
@@ -819,6 +828,15 @@ public final class OrionClickGuiScreen extends Screen {
         account.addProperty("badge",badge);
         account.addProperty("avatar",avatar);
         return account;
+    }
+
+    private static String plusTimeRemaining(long seconds) {
+        long minutes = 1 + (seconds - 1) / 60;
+        if (minutes >= 1440) return tr("{days} дн. {hours} ч.")
+                .replace("{days}", Long.toString(minutes / 1440)).replace("{hours}", Long.toString(minutes / 60 % 24));
+        if (minutes >= 60) return tr("{hours} ч. {minutes} мин.")
+                .replace("{hours}", Long.toString(minutes / 60)).replace("{minutes}", Long.toString(minutes % 60));
+        return tr("{minutes} мин.").replace("{minutes}", Long.toString(minutes));
     }
 
     private JsonArray siteCatalog() {
