@@ -6,6 +6,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.phys.Vec3;
 
 public final class OrionBasketballAudio {
    public static final SoundEvent IDWMWDOMTOCVRHWDIMTOCVRHWDIMTO = helper24(
@@ -50,6 +51,19 @@ public final class OrionBasketballAudio {
 
    public static void helper22(double var0, double var2, double var4, boolean var6) {
       helper23(DDWMWDOMTOCVRHWDIMTOCVRHWDIMTO, var0, var2, var4, var6 ? 0.85F : 0.65F, var6 ? 1.06F : 0.98F);
+   }
+
+   static void playMatchSound(int kind, Vec3 point, float volume, float pitch) {
+      SoundEvent sound = switch (kind) {
+         case 0, 6 -> IDWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
+         case 1 -> ODWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
+         case 2 -> RDWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
+         case 3 -> DDWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
+         case 4 -> TDWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
+         case 5 -> VDWMWDOMTOCVRHWDIMTOCVRHWDIMTO;
+         default -> null;
+      };
+      helper23(sound, point.x, point.y, point.z, volume, pitch);
    }
 
    public static void helper23(SoundEvent var0, double var1, double var3, double var5, float var7, float var8) {

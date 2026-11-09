@@ -50,6 +50,7 @@ jobs:
           }
           Copy-Item "$packaged/SHA256SUMS" build/libs/media-SHA256SUMS
           Get-ChildItem build/libs/*.jar | Get-FileHash -Algorithm SHA256 | Format-Table -AutoSize
+          Copy-Item $jar.FullName build/libs/gleamclient.jar
       - uses: actions/upload-artifact@v4
         with:
           name: orion-client-verified

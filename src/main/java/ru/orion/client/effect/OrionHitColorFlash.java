@@ -2,29 +2,35 @@ package ru.orion.client.effect;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import it.unimi.dsi.fastutil.ints.Int2LongOpenHashMap;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.util.ARGB;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import ru.orion.client.config.OrionConfigManager;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.WeakHashMap;
 
 /**
  * HitColor: при ударе по сущности подсвечивается именно её хитбокс — рамка по рёбрам
  * плюс полупрозрачная заливка граней. Цвет и прозрачность заливки настраиваются;
- * вспышка затухает за FLASH_MS.
+ * вспышка плавно затухает за заданное время.
  */
 public final class OrionHitColorFlash {
-    private static final long FLASH_MS = 350L;
     private static final float LINE_WIDTH = 2.5F;
     private static final float EDGE_INFLATE = 0.004F; // рамка чуть шире заливки, чтобы не мерцали друг об друга
 
     private final OrionConfigManager configManager;
-    private final Int2LongOpenHashMap hitTimes = new Int2LongOpenHashMap();
+    private final Map<UUID, Long> hitTimes = new HashMap<>();
+    private final WeakHashMap<LivingEntityRenderState, Integer> modelTints = new WeakHashMap<>();
+    private Object level;
 
     public OrionHitColorFlash(OrionConfigManager configManager) {
         this.configManager = configManager;
@@ -36,9 +42,39 @@ public final class OrionHitColorFlash {
 
     /** Вызывается из MultiPlayerGameModeMixin при атаке. */
     public void recordHit(Entity target) {
-        if (configManager.getConfig().isHitColorEnabled()) {
-            hitTimes.put(target.getId(), System.currentTimeMillis());
+        var config = configManager.getConfig();
+        if (config.isHitColorEnabled() && (!config.isHitColorPlayersOnly() || target instanceof Player)) {
+            if (level != Minecraft.getInstance().level) {
+                hitTimes.clear();
+                modelTints.clear();
+                level = Minecraft.getInstance().level;
+            }
+            hitTimes.put(target.getUUID(), System.nanoTime());
         }
+    }
+
+    public void prepareModel(Entity entity, LivingEntityRenderState state) {
+        modelTints.remove(state);
+        var config = configManager.getConfig();
+        if (!config.isHitColorEnabled() || config.isHitColorPlayersOnly() && !(entity instanceof Player)) return;
+        state.hasRedOverlay = false;
+        if (config.getHitColorMode() != 1 || Minecraft.getInstance().level != level) return;
+        float fade = fade(entity.getUUID(), System.nanoTime());
+        if (fade <= 0) return;
+        int color = OrionRainbow.orElse(parseColor(config.getHitColorColor()));
+        float strength = fade * config.getHitColorOpacity() / 100F;
+        int tint = ARGB.srgbLerp(strength, -1, color);
+        modelTints.put(state, tint);
+    }
+
+    public int modelTint(LivingEntityRenderState state, int original) {
+        Integer tint = modelTints.get(state);
+        return tint == null ? original : ARGB.multiply(original, tint);
+    }
+
+    private float fade(UUID id, long now) {
+        Long hit = hitTimes.get(id);
+        return hit == null ? 0 : Math.max(0, 1 - (now - hit) / (configManager.getConfig().getHitColorDuration() * 1_000_000F));
     }
 
     private void render(LevelRenderContext context) {
@@ -48,13 +84,16 @@ public final class OrionHitColorFlash {
         }
 
         Minecraft client = Minecraft.getInstance();
-        if (client.level == null) {
+        if (client.level == null || client.level != level) {
             hitTimes.clear();
+            modelTints.clear();
             return;
         }
 
-        long now = System.currentTimeMillis();
-        hitTimes.values().removeIf((long time) -> now - time > FLASH_MS);
+        long now = System.nanoTime();
+        long lifetime = configManager.getConfig().getHitColorDuration() * 1_000_000L;
+        hitTimes.values().removeIf(time -> now - time > lifetime);
+        if (configManager.getConfig().getHitColorMode() == 1) return;
         if (hitTimes.isEmpty()) {
             return;
         }
@@ -66,12 +105,11 @@ public final class OrionHitColorFlash {
         PoseStack poseStack = context.poseStack();
 
         for (Entity entity : client.level.entitiesForRendering()) {
-            long hitAt = hitTimes.getOrDefault(entity.getId(), -1L);
-            if (hitAt < 0) {
+            if (!hitTimes.containsKey(entity.getUUID())) {
                 continue;
             }
 
-            float fade = 1.0F - (now - hitAt) / (float) FLASH_MS;
+            float fade = fade(entity.getUUID(), now);
             int fillAlpha = Math.round(255.0F * opacity * fade);
             if (fillAlpha <= 2) {
                 continue;
@@ -87,7 +125,7 @@ public final class OrionHitColorFlash {
             float sx = (float) (box.maxX - box.minX);
             float sy = (float) (box.maxY - box.minY);
             float sz = (float) (box.maxZ - box.minZ);
-            context.submitNodeCollector().submitCustomGeometry(
+            if (configManager.getConfig().getHitColorMode() == 0) context.submitNodeCollector().submitCustomGeometry(
                     poseStack,
                     RenderTypes.debugQuads(),
                     (pose, vertexConsumer) -> buildFilledBox(pose, vertexConsumer, sx, sy, sz, fillColor)

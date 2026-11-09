@@ -60,11 +60,13 @@ temporary executables are scheduled for deletion on normal JVM exit. Missing
 helpers disable the corresponding feature and are logged; there is no compilation
 fallback.
 
-`OrionThumbnail.exe` reads the current Windows media session and writes its cover
-to the path passed by Java. `OrionVolume.exe` reads the Windows master volume or
-sets it to a scalar argument from 0 to 1. Neither helper uses the network. The
-existing embedded PowerShell scripts query/control media sessions using Windows
-APIs; `Add-Type -AssemblyName` loads a system assembly and does not compile source.
+`OrionThumbnail.exe snapshot` reads the selected Windows media session as JSON.
+Playback commands and cover extraction receive its source application ID, so a
+change in the foreground application cannot redirect a pending command.
+`OrionVolume.exe <source-app-id> [0..1]` reads or changes only matching application
+audio sessions through `ISimpleAudioVolume`. It reports unavailable when the
+application cannot be identified. Neither helper accesses master endpoint volume
+or uses the network. Java executes both helpers outside the render thread.
 
 ## Modrinth submission
 

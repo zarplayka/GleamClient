@@ -2,12 +2,12 @@ package ru.orion.client;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import ru.orion.client.command.OrionFakeBanCommand;
 import ru.orion.client.basketball.OrionBasketball;
 import ru.orion.client.football.OrionFootball;
 import ru.orion.client.football.OrionFootballHud;
 import ru.orion.client.basketball.OrionBasketballHud;
-import ru.orion.client.command.OrionChatClearCommand;
 import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionAccounts;
 import ru.orion.client.config.OrionConfigManager;
@@ -34,18 +34,19 @@ import ru.orion.client.effect.OrionTargetEsp;
 import ru.orion.client.effect.OrionWorldParticles;
 import ru.orion.client.hud.OrionBetterNearHud;
 import ru.orion.client.hud.OrionCustomCrosshair;
-import ru.orion.client.hud.OrionHudRenderer;
 import ru.orion.client.hud.OrionStatusHud;
 import ru.orion.client.hud.OrionHotbarLocks;
 import ru.orion.client.hud.OrionInventoryHud;
 import ru.orion.client.gui.OrionClickGuiScreen;
+import ru.orion.client.gui.OrionTitleMenu;
 import ru.orion.client.keybind.OrionKeybinds;
 import ru.orion.client.media.OrionMediaController;
 import ru.orion.client.media.OrionMediaPlayerHud;
 
 public final class OrionClient implements ClientModInitializer {
     public static final String MOD_ID = "orion-client";
-    public static final String VERSION_LABEL = "v0.2.1";
+    public static final String VERSION_LABEL = FabricLoader.getInstance().getModContainer(MOD_ID)
+            .map(mod -> "v" + mod.getMetadata().getVersion().getFriendlyString()).orElse("dev");
     public static final String VERSION_TEXT = "GleamClient " + VERSION_LABEL;
 
     private static OrionClient instance;
@@ -61,7 +62,6 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionHotbarLocks hotbarLocks = new OrionHotbarLocks(configManager);
     private final OrionInventoryHud inventoryHud = new OrionInventoryHud(configManager);
     private final OrionStatusHud statusHud = new OrionStatusHud(configManager);
-    private final OrionHudRenderer hudRenderer = new OrionHudRenderer(configManager);
     private final OrionKeybinds keybinds = new OrionKeybinds(configManager);
     private final OrionDiscordPresenceService discordPresenceService = new OrionDiscordPresenceService(configManager);
     private final OrionJumpCircleEffect jumpCircleEffect = new OrionJumpCircleEffect(configManager);
@@ -87,13 +87,15 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionHitSound hitSound = new OrionHitSound(configManager);
     private final OrionCustomCrosshair customCrosshair = new OrionCustomCrosshair(configManager);
     private final OrionBetterNearHud betterNearHud = new OrionBetterNearHud(configManager);
-    private final OrionChatClearCommand chatClearCommand = new OrionChatClearCommand();
     private final OrionFakeBanCommand fakeBanCommand = new OrionFakeBanCommand();
 
     @Override
     public void onInitializeClient() {
         OrionAccounts.INSTANCE.register();
+        net.minecraft.client.renderer.rendertype.OrionGlintRenderTypes.register();
         instance = this;
+
+        OrionTitleMenu.register();
 
         OrionClickGuiScreen.prepareInBackground();
         configManager.load();
@@ -105,7 +107,6 @@ public final class OrionClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> OrionChatHistory.ensureLoaded());
         waypoints.register();
         ru.orion.client.effect.OrionBadgePresence.register();
-        hudRenderer.register();
         statusHud.register();
         hotbarLocks.register();
         inventoryHud.register();
@@ -138,7 +139,6 @@ public final class OrionClient implements ClientModInitializer {
         customCrosshair.register();
         betterNearHud.register();
         fakeBanCommand.register();
-        chatClearCommand.register();
         ru.orion.client.hud.OrionHudDrag.registerOverlay();
     }
 

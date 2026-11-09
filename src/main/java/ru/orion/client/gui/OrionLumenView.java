@@ -32,15 +32,18 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.joml.Matrix3x2f;
 
 /** Локальная страница Lumen и отрисовка её команд в интерфейсе Minecraft. */
-final class OrionLumenView {
+public final class OrionLumenView {
     private static final String DLL_SHA256 = "3649f329387a11e4870f95cec92fb17d1f9029d0fa5e866c371ceb486b9b73c1";
     private static final int ATLAS_SIZE = 1024;
     private static final int COMMAND_SIZE = 64;
+    private static final int GRADIENT_DATA_WIDTH = 4112;
+    private static final int GRADIENT_CACHE_LIMIT = 64;
     private static final long THEME_REVEAL_NANOS = 410_000_000L;
     private static final byte[] UPDATE = bytes("update");
     private static final byte[] OPENING = bytes("opening");
@@ -49,6 +52,7 @@ final class OrionLumenView {
     private final Supplier<byte[]> pageSource;
     private final Map<Integer, DynamicTexture> atlases = new HashMap<>();
     private final Map<Integer, DynamicTexture> images = new HashMap<>();
+    private final LinkedHashMap<GradientKey, DynamicTexture> gradients = new LinkedHashMap<>(16, .75F, true);
     private ByteBuffer display, alpha;
     private int displayLength;
     private ThemeReveal themeReveal;
@@ -57,20 +61,22 @@ final class OrionLumenView {
     private float pixelRatio = 1F;
     private boolean unavailable;
 
-    OrionLumenView(String resource, String texturePrefix, String fontResource) {
+    public OrionLumenView(String resource, String texturePrefix, String fontResource) {
         this(resource,texturePrefix,fontResource,null);
     }
 
-    OrionLumenView(String resource, String texturePrefix, String fontResource, Supplier<byte[]> pageSource) {
+    public OrionLumenView(String resource, String texturePrefix, String fontResource, Supplier<byte[]> pageSource) {
         this.resource = "/assets/orion-client/html/" + resource;
         this.texturePrefix = texturePrefix;
         this.fontResource = fontResource;
         this.pageSource = pageSource;
     }
 
-    boolean ready() {
+    public boolean ready() {
         return !unavailable && (page != 0 || initialize());
     }
+
+    static void registerPipelines() { Paint.initialize(); }
 
     private boolean initialize() {
         try (var html = OrionLumenView.class.getResourceAsStream(resource)) {
@@ -113,12 +119,14 @@ final class OrionLumenView {
         }
     }
 
-    void dispose() {
+    public void dispose() {
         var textures = Minecraft.getInstance().getTextureManager();
         for (int index : atlases.keySet()) textures.release(atlasId(index));
         atlases.clear();
         for (int id : images.keySet()) textures.release(imageId(id));
         images.clear();
+        for (GradientKey key : gradients.keySet()) textures.release(gradientId(key));
+        gradients.clear();
         if (page != 0) LumenNative.pageClose(page);
         if (engine != 0) LumenNative.destroy(engine);
         page = engine = 0;
@@ -129,7 +137,7 @@ final class OrionLumenView {
         frameAt = 0;
     }
 
-    void resize(int width, int height, float ratio) {
+    public void resize(int width, int height, float ratio) {
         if (pixelRatio != ratio) {
             pixelRatio = ratio;
             LumenNative.setPixelRatio(engine, ratio);
@@ -143,19 +151,37 @@ final class OrionLumenView {
         }
     }
 
-    void update(JsonObject state) {
+    public void update(JsonObject state) {
         LumenNative.pageCall(page, engine, UPDATE, bytes(state.toString()));
+    }
+
+    public void cancelPointer() {
+        LumenNative.pageCall(page, engine, bytes("cancelPointer"), bytes("{}"));
+    }
+
+    public void registerImage(String name, byte[] png) {
+        LumenNative.registerImage(bytes(name), png);
+        var textures = Minecraft.getInstance().getTextureManager();
+        for (int id : images.keySet()) textures.release(imageId(id));
+        images.clear();
     }
 
     void editShortcut(JsonObject shortcut) {
         LumenNative.pageCall(page, engine, bytes("editShortcut"), bytes(shortcut.toString()));
+    }
+    void pointerModifiers(boolean shift) {
+        LumenNative.pageCall(page, engine, bytes("pointerModifiers"), bytes("{\"shift\":" + shift + "}"));
+    }
+
+    void chatContext(JsonObject point) {
+        LumenNative.pageCall(page, engine, bytes("chatContext"), bytes(point.toString()));
     }
 
     void opening(float progress) {
         LumenNative.pageCall(page, engine, OPENING, bytes(Float.toString(progress)));
     }
 
-    void frame() {
+    public void frame() {
         long now = System.nanoTime();
         float dt = Math.clamp((now - frameAt) / 1_000_000_000F, 0F, .05F);
         frameAt = now;
@@ -164,10 +190,12 @@ final class OrionLumenView {
         LumenNative.pageAfterFrame(page, engine);
     }
 
-    void move(float x, float y) { LumenNative.pageMove(page, engine, x, y); }
-    void press(float x, float y) { LumenNative.pageDown(page, engine, 0, x, y); }
-    void release(float x, float y) { LumenNative.pageUp(page, engine, 0, x, y); }
-    byte[] messages() { return LumenNative.pageMessages(page); }
+    public void move(float x, float y) { LumenNative.pageMove(page, engine, x, y); }
+    public void press(float x, float y) { press(x, y, 0); }
+    public void release(float x, float y) { release(x, y, 0); }
+    public void press(float x, float y, int button) { LumenNative.pageDown(page, engine, button, x, y); }
+    public void release(float x, float y, int button) { LumenNative.pageUp(page, engine, button, x, y); }
+    public byte[] messages() { return LumenNative.pageMessages(page); }
     byte[] logs() { return LumenNative.pageLogs(page); }
     boolean wheel(float x,float y,float h,float v) { return LumenNative.pageWheel(page,engine,x,y,h,v); }
     boolean key(String key,String code,int modifiers,boolean pressed) {
@@ -192,7 +220,7 @@ final class OrionLumenView {
         themeReveal = new ThemeReveal(previous, x, y, reach, from, to, now);
     }
 
-    boolean draw(GuiGraphicsExtractor graphics, int x, int y, int width, int height, float sx, float sy) {
+    public boolean draw(GuiGraphicsExtractor graphics, int x, int y, int width, int height, float sx, float sy) {
         displayLength = 0;
         int size = LumenNative.displaySize(engine);
         if (size < 16 || size > 1_048_576) return false;
@@ -206,6 +234,9 @@ final class OrionLumenView {
         if (count <= 0 || clips < 0 || clipBase + 16L * clips > size) return false;
         if (RenderSystem.getCompiledPipelineNullable(Paint.SHAPE) == null
                 || RenderSystem.getCompiledPipelineNullable(Paint.TEXTURED) == null) return false;
+        while (gradients.size() > GRADIENT_CACHE_LIMIT) {
+            Minecraft.getInstance().getTextureManager().release(gradientId(gradients.pollFirstEntry().getKey()));
+        }
         int revision = LumenNative.atlasRevision(engine);
         boolean refresh = revision != atlasRevision;
         atlasRevision = revision;
@@ -292,14 +323,8 @@ final class OrionLumenView {
                         } else {
                             int id = commands.getInt(at + 48) - 65536;
                             if (id < 0) continue;
-                            pixels = images.get(id);
-                            if (pixels == null) {
-                                long sizeOfImage = LumenNative.imageSize(id);
-                                int tw = (int)(sizeOfImage >>> 32), th = (int)sizeOfImage;
-                                if (tw <= 0 || th <= 0 || tw > 2048 || th > 2048) continue;
-                                pixels = uploadImage(id, tw, th);
-                                if (pixels == null) continue;
-                            }
+                            pixels = kind == 12 ? gradientTexture(id, commands.getInt(at + 56)) : imageTexture(id);
+                            if (pixels == null) continue;
                             variant = Math.round(parameter);
                             if (kind == 8 && commands.getInt(at + 60) == 0) filter = FilterMode.LINEAR;
                         }
@@ -359,7 +384,29 @@ final class OrionLumenView {
         }
     }
 
-    private DynamicTexture uploadImage(int id,int width,int height) {
+    private DynamicTexture imageTexture(int id) {
+        DynamicTexture texture = images.get(id);
+        if (texture != null) return texture;
+        long dimensions = LumenNative.imageSize(id);
+        int width = (int) (dimensions >>> 32), height = (int) dimensions;
+        if (width <= 0 || height <= 0 || width > 2048 || height > 2048) return null;
+        texture = uploadImage(id, width, height, imageId(id));
+        if (texture != null) images.put(id, texture);
+        return texture;
+    }
+
+    private DynamicTexture gradientTexture(int id, int revision) {
+        var key = new GradientKey(id, revision);
+        DynamicTexture texture = gradients.get(key);
+        if (texture != null) return texture;
+        long dimensions = LumenNative.imageSize(id);
+        if (dimensions != ((long) GRADIENT_DATA_WIDTH << 32 | 1L)) return null;
+        texture = uploadImage(id, GRADIENT_DATA_WIDTH, 1, gradientId(key));
+        if (texture != null) gradients.put(key, texture);
+        return texture;
+    }
+
+    private DynamicTexture uploadImage(int id, int width, int height, Identifier key) {
         ByteBuffer rgba = ByteBuffer.allocateDirect(width*height*4);
         if (LumenNative.copyImage(id,rgba) != rgba.capacity()) return null;
         var pixels = new NativeImage(width,height,false);
@@ -368,11 +415,16 @@ final class OrionLumenView {
             pixels.setPixel(i%width,i/width,(rgba.get(at+3)&255)<<24 | (rgba.get(at)&255)<<16
                     | (rgba.get(at+1)&255)<<8 | (rgba.get(at+2)&255));
         }
-        Identifier key = imageId(id);
         var texture = new DynamicTexture(key::getPath, pixels);
         Minecraft.getInstance().getTextureManager().register(key, texture);
-        images.put(id, texture);
         return texture;
+    }
+
+    private record GradientKey(int id, int revision) { }
+
+    private Identifier gradientId(GradientKey key) {
+        return Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,
+                texturePrefix + "_gradient_" + key.id() + "_" + Integer.toUnsignedString(key.revision()));
     }
 
     private Identifier imageId(int id) {
@@ -440,6 +492,9 @@ final class OrionLumenView {
                 .build();
         private static final RenderPipeline SHAPE = pipeline("lumen_shape", false);
         private static final RenderPipeline TEXTURED = pipeline("lumen_texture", true);
+
+        // Инициализация класса регистрирует пайплайны до первого resource reload.
+        private static void initialize() { }
 
         private static RenderPipeline pipeline(String name, boolean textured) {
             var builder = RenderPipeline.builder(RenderPipelinesAccessor.orion$getGuiSnippet())

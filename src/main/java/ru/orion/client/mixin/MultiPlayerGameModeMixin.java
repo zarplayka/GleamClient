@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.orion.client.OrionClient;
 import ru.orion.client.effect.OrionHitColorFlash;
+import ru.orion.client.effect.OrionHealthTags;
 import ru.orion.client.effect.OrionTargetEsp;
 
 @Mixin(MultiPlayerGameMode.class)
@@ -31,6 +32,7 @@ public final class MultiPlayerGameModeMixin {
 
         var indicators = OrionClient.getDamageIndicatorsOrNull();
         if (indicators != null) indicators.onAttack(target);
+        OrionHealthTags.onAttack(target);
 
         var hitParticles = OrionClient.getHitParticlesOrNull();
         if (hitParticles != null) hitParticles.onHit(target);

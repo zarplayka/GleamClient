@@ -17,8 +17,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /** Комната, виртуальное поле и обмен кадрами между участниками. */
@@ -43,6 +45,8 @@ final class OrionFootballMatch {
 
     private final OrionFootballPhysics ball = new OrionFootballPhysics();
     private final List<OrionGoalkeeperAI> keepers = List.of(new OrionGoalkeeperAI(0), new OrionGoalkeeperAI(1));
+    private List<UUID> participants = List.of();
+    private boolean onlineKeepers;
     private Room room;
     private ClientLevel level;
     private String scope, status = "";
@@ -84,7 +88,8 @@ final class OrionFootballMatch {
         return switch (room.phase()) {
             case "lobby" -> room.ready() ? "Ждём остальных" : "Нажми «Готов»";
             case "kickoff" -> "Займи стартовую точку";
-            case "finished" -> room.red() >= 5 ? "Красные победили" : "Синие победили";
+            case "finished" -> room.ready() ? "Готов к новой игре · ждём остальных"
+                    : (room.red() >= 5 ? "Красные победили" : "Синие победили") + " · " + "Нажми «Готов» для новой игры";
             default -> outAt != 0 && System.nanoTime() - outAt < 1_200_000_000L ? "Аут · мяч в центре" : "Матч идёт";
         };
     }
@@ -171,7 +176,7 @@ final class OrionFootballMatch {
     }
 
     void ready() {
-        if (room != null && "lobby".equals(room.phase())) {
+        if (room != null && ("lobby".equals(room.phase()) || "finished".equals(room.phase()))) {
             readyWanted = !(readyWanted == null ? room.ready() : readyWanted);
             nextPoll = 0;
         }
@@ -193,6 +198,9 @@ final class OrionFootballMatch {
         readyWanted = null;
         kicks.clear();
         recentBall.clear();
+        participants = List.of();
+        onlineKeepers = false;
+        keepers.forEach(keeper -> keeper.setEnabled(false));
         kickId = 0;
         ack = 0;
         pendingGoal = -1;
@@ -222,7 +230,7 @@ final class OrionFootballMatch {
         if (room.host() && playable() && pendingGoal < 0 && !pendingOut) {
             if (recentBall.size() >= 6) recentBall.removeFirst();
             recentBall.addLast(ball.position());
-            var result = ball.advance(.05, PITCH, GOALS, keepers, (kind, point, speed) -> { });
+            var result = ball.advance(.05, PITCH, GOALS, keepers, bodies(client), (kind, point, speed) -> { });
             if (result.goals() > 0) pendingGoal = ball.goalIndex();
             else pendingOut = outside(ball.position());
             if (pendingGoal >= 0 || pendingOut) nextPoll = 0;
@@ -242,6 +250,17 @@ final class OrionFootballMatch {
                 frame.add("ball", array(pendingGoal >= 0 ? ball.goalPoint() : ball.position()));
                 frame.addProperty("roll", roll(ball.roll()));
                 frame.add("velocity", array(ball.velocity()));
+                if (onlineKeepers) {
+                    var poses = new JsonArray();
+                    for (var keeper : keepers) {
+                        var pose = keeper.pose();
+                        var encoded = new JsonArray();
+                        encoded.add(pose.x()); encoded.add(pose.vertical()); encoded.add(pose.lean());
+                        encoded.add(pose.height()); encoded.add(pose.action().ordinal());
+                        poses.add(encoded);
+                    }
+                    frame.add("keeperPoses", poses);
+                }
                 if (pendingGoal >= 0) frame.addProperty("goal", pendingGoal);
                 if (pendingOut) frame.addProperty("out", true);
                 request.add("frame", frame);
@@ -250,6 +269,18 @@ final class OrionFootballMatch {
         var nextKick = kicks.peekFirst();
         if (nextKick != null) request.add("kick", nextKick);
         submit(client, request, nextKick);
+    }
+
+    private List<OrionFootballPhysics.PlayerBody> bodies(Minecraft client) {
+        var result = new ArrayList<OrionFootballPhysics.PlayerBody>(participants.size());
+        for (UUID id : participants) {
+            var player = id.equals(client.player.getUUID()) ? client.player : client.level.getPlayerByUUID(id);
+            if (player != null && player.isAlive() && !player.isSpectator()
+                    && insidePitch(vector(player.position()).subtract(room.origin()))) {
+                result.add(OrionFootballWorld.playerBody(player, room.origin()));
+            }
+        }
+        return result;
     }
 
     boolean kick(Vec3 feet, Vec3 direction, float power, boolean curve) {
@@ -351,11 +382,32 @@ final class OrionFootballMatch {
             pendingOut = false;
             kicks.clear();
             recentBall.clear();
+            keepers.forEach(OrionGoalkeeperAI::reset);
         }
         room = next;
+        onlineKeepers = next.size() == 1 && reply.has("keeperPoses");
+        keepers.forEach(keeper -> keeper.setEnabled(onlineKeepers));
+        var members = reply.getAsJsonArray("playerIds");
+        if (members != null) {
+            var ids = new ArrayList<UUID>(members.size());
+            for (var member : members) {
+                String id = member.getAsString().replaceFirst("(.{8})(.{4})(.{4})(.{4})(.{12})", "$1-$2-$3-$4-$5");
+                ids.add(UUID.fromString(id));
+            }
+            participants = List.copyOf(ids);
+        }
         lastPacket = System.nanoTime();
         if (readyWanted != null && readyWanted == next.ready()) readyWanted = null;
         if (!next.host()) {
+            if (onlineKeepers) {
+                var poses = reply.getAsJsonArray("keeperPoses");
+                for (int i = 0; i < keepers.size() && i < poses.size(); i++) {
+                    var pose = poses.get(i).getAsJsonArray();
+                    keepers.get(i).displayPose(new OrionGoalkeeperAI.Pose(pose.get(0).getAsDouble(),
+                            pose.get(1).getAsDouble(), pose.get(2).getAsDouble(), pose.get(3).getAsDouble(),
+                            OrionGoalkeeperAI.Action.values()[pose.get(4).getAsInt()]));
+                }
+            }
             authoritative = vector(reply.getAsJsonArray("ball"));
             var point = authoritative;
             if (playable() && reply.has("velocity")) {
@@ -428,12 +480,15 @@ final class OrionFootballMatch {
     void render(LevelRenderContext context) {
         if (room == null) return;
         OrionFootballRenderer.pitch(context, room.origin(), room.spawn(), room.slot() % 2, "kickoff".equals(room.phase()));
-        for (var goal : GOALS) {
-            var placed = new OrionFootballGoal(room.origin().add(goal.base()), goal.yaw(), 1);
-            OrionFootballRenderer.goal(context, placed, null, false, 0, 0, null);
-        }
-        double part = blend(System.nanoTime());
+        long now = System.nanoTime();
+        double part = blend(now);
         var point = room.origin().add(renderPosition(part));
+        float animationTime = (float) (now / 1e9 % 1000);
+        for (int i = 0; i < GOALS.size(); i++) {
+            var goal = GOALS.get(i);
+            var placed = new OrionFootballGoal(room.origin().add(goal.base()), goal.yaw(), 1);
+            OrionFootballRenderer.goal(context, placed, onlineKeepers ? keepers.get(i) : null, false, 0, animationTime, point);
+        }
         float angle = (float) (previousRoll + Math.IEEEremainder(currentRoll - previousRoll, Math.TAU) * part);
         OrionFootballRenderer.ball(context, point, angle);
     }

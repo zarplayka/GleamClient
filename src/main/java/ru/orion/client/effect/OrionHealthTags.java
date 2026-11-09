@@ -5,17 +5,28 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.resources.Identifier;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
+import ru.orion.client.config.OrionConfig.IndicatorOptions;
+
+import java.lang.ref.WeakReference;
+import java.util.WeakHashMap;
 
 /**
  * Vanilla-style pixel hearts above players and mobs, rendered the same way as the
@@ -25,8 +36,8 @@ import ru.orion.client.config.OrionConfigManager;
  * z offset, rows of ten hearts stacking upwards, absorption hearts appended in gold.
  */
 public final class OrionHealthTags {
-    private static final double MAX_DISTANCE = 64.0D;
-    private static final double MAX_DISTANCE_SQ = MAX_DISTANCE * MAX_DISTANCE;
+    private static final WeakHashMap<Entity, Boolean> ATTACKED = new WeakHashMap<>();
+    private static WeakReference<ClientLevel> attackLevel = new WeakReference<>(null);
     private static final int FULL_BRIGHT = 0xF000F0;
     private static final float SCALE = 0.025F;
     private static final float HEART_SIZE = 9.0F;
@@ -52,7 +63,8 @@ public final class OrionHealthTags {
     }
 
     private void render(LevelRenderContext context) {
-        if (!configManager.getConfig().isHealthTagsEnabled()) {
+        var config = configManager.getConfig();
+        if (!config.isHealthTagsEnabled()) {
             return;
         }
 
@@ -69,27 +81,78 @@ public final class OrionHealthTags {
         Vec3 cameraPos = cameraState.pos;
         float tickDelta = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
 
+        IndicatorOptions options = config.getHealthIndicatorOptions();
         for (Entity entity : client.level.entitiesForRendering()) {
-            if (!(entity instanceof LivingEntity living) || living == client.player
-                    || living instanceof ArmorStand || !living.isAlive()
-                    || living.isInvisibleTo(client.player)) {
-                continue;
-            }
+            if (!(entity instanceof LivingEntity living) || !visible(client, living, options)
+                    || options.changedOnly && living.getHealth() >= living.getMaxHealth()) continue;
 
             double x = Mth.lerp(tickDelta, living.xOld, living.getX());
             double y = Mth.lerp(tickDelta, living.yOld, living.getY());
             double z = Mth.lerp(tickDelta, living.zOld, living.getZ());
             double distanceSq = cameraPos.distanceToSqr(x, y, z);
-            if (distanceSq > MAX_DISTANCE_SQ) {
+            if (distanceSq > options.distance * options.distance) {
                 continue;
             }
 
-            submitHearts(context, living, x - cameraPos.x, y - cameraPos.y, z - cameraPos.z, cameraState, distanceSq);
+            double dx = x - cameraPos.x, dy = y - cameraPos.y, dz = z - cameraPos.z;
+            if (options.mode == 0) {
+                submitHearts(context, living, dx, dy, dz, cameraState, distanceSq, options);
+            } else {
+                int health = options.mode == 1 ? Mth.ceil(living.getHealth())
+                        : Math.round(100 * living.getHealth() / Math.max(1F, living.getMaxHealth()));
+                String value = health + (options.mode == 2 ? "%" : "");
+                int absorption = Mth.ceil(living.getAbsorptionAmount());
+                if (absorption > 0) value += " +" + absorption;
+                submitNumber(context, client.font, value, 0xFFFF737A, dx,
+                        dy + baseLift(living, options), dz, cameraState, options.scale);
+            }
         }
     }
 
+    public static void onAttack(Entity entity) {
+        var config = OrionClient.getConfigOrNull();
+        if (config == null || !(config.getHealthIndicatorOptions().attackedOnly || config.getArmorIndicatorOptions().attackedOnly)) return;
+        var level = Minecraft.getInstance().level;
+        if (attackLevel.get() != level) {
+            ATTACKED.clear();
+            attackLevel = new WeakReference<>(level);
+        }
+        ATTACKED.put(entity, Boolean.TRUE);
+    }
+
+    static boolean visible(Minecraft client, LivingEntity living, IndicatorOptions options) {
+        if (!living.isAlive() || living instanceof ArmorStand || living.isInvisibleTo(client.player)) return false;
+        if (living == client.player) {
+            if (!options.self || client.options.getCameraType().isFirstPerson()) return false;
+        } else if (living instanceof Player ? !options.players : living instanceof Enemy ? !options.hostile : !options.passive) {
+            return false;
+        }
+        if (options.targetOnly && (!(client.hitResult instanceof EntityHitResult hit) || hit.getEntity() != living)) return false;
+        if (options.attackedOnly && (attackLevel.get() != client.level || !ATTACKED.containsKey(living))) return false;
+        if (options.hidden.isBlank()) return true;
+        String entityId = BuiltInRegistries.ENTITY_TYPE.getKey(living.getType()).toString();
+        for (String hidden : options.hidden.split("[,;\\s]+")) {
+            if (hidden.equalsIgnoreCase(entityId) || hidden.equalsIgnoreCase(living.getScoreboardName())) return false;
+        }
+        return true;
+    }
+
+    static void submitNumber(LevelRenderContext context, Font font, String value, int color, double x, double y, double z,
+                             CameraRenderState camera, float scale) {
+        PoseStack stack = context.poseStack();
+        stack.pushPose();
+        stack.translate(x, y, z);
+        stack.rotate(camera.orientation);
+        stack.scale(SCALE * scale, -SCALE * scale, SCALE * scale);
+        var text = Component.literal(value).getVisualOrderText();
+        context.submitNodeCollector().submitText(stack, -font.width(text) / 2F, 0, text, true,
+                Font.DisplayMode.NORMAL, FULL_BRIGHT, color, 0, 0);
+        stack.popPose();
+    }
+
     private void submitHearts(LevelRenderContext context, LivingEntity living,
-                              double dx, double dy, double dz, CameraRenderState cameraState, double distanceSq) {
+                              double dx, double dy, double dz, CameraRenderState cameraState, double distanceSq,
+                              IndicatorOptions options) {
         int healthRed = Mth.ceil(living.getHealth());
         int maxHealth = Mth.ceil(living.getMaxHealth());
         int healthYellow = Mth.ceil(living.getAbsorptionAmount());
@@ -105,8 +168,7 @@ public final class OrionHealthTags {
         float maxX = pixelsTotal / 2.0F;
         double heartDensity = 50.0D - Math.max(4.0D - Math.ceil((double) heartsTotal / HEARTS_PER_ROW), -3.0D) * 5.0D;
 
-        boolean hasNameLine = living instanceof Player || living.hasCustomName();
-        float baseLift = living.getBbHeight() + 0.5F + (hasNameLine ? NAME_LINE_LIFT : 0.0F);
+        double baseLift = baseLift(living, options);
 
         // Same trick as HealthIndicators: the fill goes toward the camera and the container away
         // from it, with the gap growing with distance so depth precision never lets the dark
@@ -133,9 +195,9 @@ public final class OrionHealthTags {
             float x = maxX - (heart % HEARTS_PER_ROW) * HEART_STEP;
 
             poseStack.pushPose();
-            poseStack.translate(dx, dy + baseLift + rowLift, dz);
+            poseStack.translate(dx, dy + baseLift + rowLift * options.scale, dz);
             poseStack.rotate(cameraState.orientation);
-            poseStack.scale(-SCALE, SCALE, SCALE);
+            poseStack.scale(-SCALE * options.scale, SCALE * options.scale, SCALE * options.scale);
 
             submitHeart(context, poseStack, HEART_CONTAINER, x, -zOffset);
             if (fill != null) {
@@ -145,12 +207,16 @@ public final class OrionHealthTags {
         }
     }
 
-    static double topOffset(LivingEntity living) {
+    private static double baseLift(LivingEntity living, IndicatorOptions options) {
+        return living.getBbHeight() + .5 + options.offset + (living instanceof Player || living.hasCustomName() ? NAME_LINE_LIFT : 0);
+    }
+
+    static double topOffset(LivingEntity living, IndicatorOptions options) {
+        if (options.mode != 0) return baseLift(living, options);
         int count = Math.max(1, Mth.ceil(Mth.ceil(living.getMaxHealth()) / 2F))
                 + Mth.ceil(Mth.ceil(living.getAbsorptionAmount()) / 2F);
         double density = 50D - Math.max(4D - Math.ceil((double) count / HEARTS_PER_ROW), -3D) * 5D;
-        return living.getBbHeight() + 0.5F + (living instanceof Player || living.hasCustomName() ? NAME_LINE_LIFT : 0)
-                + ((count - 1) / HEARTS_PER_ROW * HEARTS_PER_ROW) / density;
+        return baseLift(living, options) + ((count - 1) / HEARTS_PER_ROW * HEARTS_PER_ROW) / density * options.scale;
     }
 
     private static void submitHeart(LevelRenderContext context, PoseStack poseStack, Identifier texture, float x, float z) {

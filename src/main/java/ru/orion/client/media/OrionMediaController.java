@@ -1,518 +1,329 @@
 package ru.orion.client.media;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 
-import java.io.BufferedReader;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
-/**
- * Читает и управляет медиасессией Windows через PowerShell
- * Обложки и громкость обслуживают готовые помощники из JAR — компиляции на компьютере игрока нет
- */
+/** Медиасессии Windows и громкость выбранного приложения. Весь I/O выполняется вне игрового потока. */
 public final class OrionMediaController {
     private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
     private static final boolean WINDOWS = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
-    private static final long POLL_INTERVAL_MS = 3_000L;
-    private static final String DELIMITER = "|||";
-
-    private static final String SESSION_SELECTION_SCRIPT = """
-              function GetPlayingSession($manager){
-                $current=$manager.GetCurrentSession()
-                try {
-                  if($current -and $current.GetPlaybackInfo().PlaybackStatus.ToString() -eq 'Playing'){ return $current }
-                } catch { }
-                try {
-                  foreach($candidate in @($manager.GetSessions())){
-                    try {
-                      if($candidate.GetPlaybackInfo().PlaybackStatus.ToString() -eq 'Playing'){ return $candidate }
-                    } catch { }
-                  }
-                } catch { }
-                return $current
-              }
-            """;
-
-    // Controls the current media session directly (reliable; also enables seeking). %ACTION% is one call.
-    private static final String CONTROL_SCRIPT = """
-            [Console]::OutputEncoding=[System.Text.Encoding]::UTF8
-            $ErrorActionPreference='Stop'
-            try {
-              Add-Type -AssemblyName System.Runtime.WindowsRuntime | Out-Null
-              $ext=[System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' }
-              $asTask=$ext[0]
-              function Await($op,$t){ $m=$asTask.MakeGenericMethod($t); $task=$m.Invoke($null,@($op)); $task.Wait(-1)|Out-Null; $task.Result }
-              [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime]|Out-Null
-              $mgr=Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
-              %SESSION_SELECTION%
-              $s=GetPlayingSession $mgr
-              if($s){ %ACTION% }
-            } catch { }
-            """.replace("%SESSION_SELECTION%", SESSION_SELECTION_SCRIPT);
-
-    private static final String HELPERS_RESOURCE = "/assets/orion-client/media/";
-
-    private static final String COVER_PATH =
-            (System.getProperty("java.io.tmpdir") + "/orion_cover.png").replace('\\', '/');
-
-    // PowerShell snippet that asks the Windows GlobalSystemMediaTransportControls for the current track.
-    private static final String NOW_PLAYING_SCRIPT = """
-            [Console]::OutputEncoding=[System.Text.Encoding]::UTF8
-            $ErrorActionPreference='Stop'
-            try {
-              Add-Type -AssemblyName System.Runtime.WindowsRuntime | Out-Null
-              $ext=[System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' }
-              $asTask=$ext[0]
-              function Await($op,$t){ $m=$asTask.MakeGenericMethod($t); $task=$m.Invoke($null,@($op)); $task.Wait(-1)|Out-Null; $task.Result }
-              [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime]|Out-Null
-              $mgr=Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
-              %SESSION_SELECTION%
-              $s=GetPlayingSession $mgr
-              if($s){ $p=Await ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties]); $pb=$s.GetPlaybackInfo(); $st=$pb.PlaybackStatus.ToString(); $tl=$s.GetTimelineProperties(); $now=[DateTimeOffset]::UtcNow; $posMs=$tl.Position.TotalMilliseconds; if($st -eq 'Playing' -and $tl.LastUpdatedTime.Year -gt 2000){ $d=($now - $tl.LastUpdatedTime).TotalMilliseconds; if($d -gt 0){ $posMs += $d } }; $durMs=$tl.EndTime.TotalMilliseconds; if($durMs -gt 0 -and $posMs -gt $durMs){ $posMs=$durMs }; $posMs=[math]::Round($posMs); $durMs=[math]::Round($durMs); $cap=$now.ToUnixTimeMilliseconds(); $sh=''; if($pb.IsShuffleActive -ne $null){ $sh=$pb.IsShuffleActive.ToString() }; $rm=''; if($pb.AutoRepeatMode -ne $null){ $rm=$pb.AutoRepeatMode.ToString() }; $trackTitle=[string]$p.Title; if([string]::IsNullOrWhiteSpace($trackTitle)){ $trackTitle=[string]$p.AlbumTitle }; $trackArtist=[string]$p.Artist; if([string]::IsNullOrWhiteSpace($trackArtist)){ $trackArtist=[string]$p.AlbumArtist }; Write-Output ($trackTitle + '|||' + $trackArtist + '|||' + $st + '|||' + $posMs + '|||' + $durMs + '|||' + $cap + '|||' + $sh + '|||' + $rm) }
-            } catch { }
-            """.replace("%SESSION_SELECTION%", SESSION_SELECTION_SCRIPT);
-
-    private final OrionConfigManager configManager;
-
-    private volatile String title = "";
-    private volatile String artist = "";
-    private volatile boolean playing;
-    private volatile boolean active;
+    private static final String RESOURCE = "/assets/orion-client/media/";
+    private final OrionConfigManager manager;
+    private final ScheduledExecutorService polling = Executors.newSingleThreadScheduledExecutor(
+            Thread.ofPlatform().daemon().name("gleam-media-poll").factory());
+    private final ThreadPoolExecutor controls = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(12), Thread.ofPlatform().daemon().name("gleam-media-control").factory(),
+            new ThreadPoolExecutor.AbortPolicy());
+    private final AtomicLong revision = new AtomicLong();
+    private final AtomicReference<VolumeRequest> pendingVolume = new AtomicReference<>();
+    private final AtomicBoolean volumeQueued = new AtomicBoolean();
+    private volatile JsonObject state = new JsonObject();
     private volatile boolean running;
-    private volatile long positionMs;
-    private volatile long durationMs;
-    private volatile long capturedAtMs;
+    private volatile float volume = .7F;
+    private volatile boolean volumeAvailable;
+    private volatile long lastVolumeSend, lastAction;
+    private volatile String error = "";
+    private volatile byte[] coverPng;
     private volatile int coverGeneration;
-    private String lastFetchedTitle = "";
-    private String lastPolledTitle = "";
-    private long lastRawPositionMs = -1L;
+    private volatile String coverAccent = "#A7B8F4";
+    private long nextVolumePoll;
+    private String fetchedTrack = "";
+    private Path directory, mediaHelper, volumeHelper;
 
-    private volatile boolean shuffleActive;
-    private volatile int repeatMode; // 0 = None, 1 = List, 2 = Track
-    private volatile float volume = 0.7F;
-    private volatile long lastVolumeSendMs;
+    private record Reply(int status, String output) { }
+    private record VolumeRequest(String source, float value) { }
 
-    private volatile boolean helperReady;
-    private boolean helperChecked;
-    private String helperExePath;
-
-    private volatile boolean volumeHelperReady;
-    private boolean volumeHelperChecked;
-    private String volumeHelperExePath;
-    private Path helperDirectory;
-
-    private Thread pollThread;
-
-    public OrionMediaController(OrionConfigManager configManager) {
-        this.configManager = configManager;
-    }
+    public OrionMediaController(OrionConfigManager manager) { this.manager = manager; }
 
     public void register() {
         running = true;
-        pollThread = new Thread(this::pollLoop, "GleamClient Media Poll");
-        pollThread.setDaemon(true);
-        pollThread.start();
-
-        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> running = false);
+        polling.scheduleWithFixedDelay(this::poll, 0, 900, TimeUnit.MILLISECONDS);
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            running = false;
+            pendingVolume.set(null);
+            polling.shutdownNow();
+            controls.shutdownNow();
+        });
     }
 
-    public String getTitle() {
-        return title;
-    }
+    public boolean isActive() { return state.has("source"); }
+    public String getSource() { return string(state, "source"); }
+    public String getTitle() { return string(state, "title"); }
+    public String getArtist() { return string(state, "artist"); }
+    public boolean isPlaying() { return flag(state, "playing"); }
+    public boolean isShuffleActive() { return flag(state, "shuffle"); }
+    public int getRepeatMode() { return state.has("repeat") ? state.get("repeat").getAsInt() : 0; }
+    public float getVolume() { return volume; }
+    public boolean isVolumeAvailable() { return volumeAvailable; }
+    public int getCoverGeneration() { return coverGeneration; }
+    public byte[] getCoverPng() { return coverPng; }
 
-    public String getArtist() {
-        return artist;
-    }
-
-    public boolean isPlaying() {
-        return playing;
-    }
-
-    public boolean isActive() {
-        return active;
-    }
-
-    /** Current playback position in seconds, interpolated from the capture timestamp while playing. */
+    public double getDurationSeconds() { return number(state, "duration"); }
     public double getCurrentSeconds() {
-        long current = positionMs;
-        if (playing && capturedAtMs != 0L) {
-            current += System.currentTimeMillis() - capturedAtMs;
-        }
-        if (durationMs > 0 && current > durationMs) {
-            current = durationMs;
-        }
-        return Math.max(0L, current) / 1000.0;
+        JsonObject current = state;
+        double position = number(current, "position");
+        if (flag(current, "playing") && current.has("_capturedAt"))
+            position += Math.max(0, (System.nanoTime() - current.get("_capturedAt").getAsLong()) / 1e9);
+        double duration = number(current, "duration");
+        return duration > 0 ? Math.min(position, duration) : position;
     }
 
-    public double getDurationSeconds() {
-        return durationMs / 1000.0;
+    public JsonObject viewState() {
+        var view = state.deepCopy();
+        view.remove("_capturedAt");
+        view.addProperty("active", isActive());
+        view.addProperty("position", Math.floor(getCurrentSeconds() * 5) / 5);
+        view.addProperty("volume", volume);
+        view.addProperty("canVolume", volumeAvailable);
+        view.addProperty("coverColor", coverAccent);
+        view.addProperty("error", System.currentTimeMillis() - lastAction < 6000 ? error : "");
+        return view;
     }
 
-    public void playPause() {
-        runControl("Await ($s.TryTogglePlayPauseAsync()) ([bool]) | Out-Null");
-        playing = !playing; // optimistic; the next poll corrects it
-    }
-
-    public void next() {
-        runControl("Await ($s.TrySkipNextAsync()) ([bool]) | Out-Null");
-    }
-
-    public void previous() {
-        runControl("Await ($s.TrySkipPreviousAsync()) ([bool]) | Out-Null");
-    }
-
-    public boolean isShuffleActive() {
-        return shuffleActive;
-    }
-
-    /** 0 = off, 1 = repeat all, 2 = repeat one. */
-    public int getRepeatMode() {
-        return repeatMode;
-    }
-
-    public float getVolume() {
-        return volume;
-    }
-
-    /** Toggles shuffle; reads the real state inside the script to avoid stale flips. */
-    public void toggleShuffle() {
-        shuffleActive = !shuffleActive; // optimistic; the next poll corrects it
-        runControl("$pb=$s.GetPlaybackInfo(); $cur=$pb.IsShuffleActive; if($cur -eq $null){$cur=$false}; "
-                + "Await ($s.TryChangeShuffleActiveAsync(-not $cur)) ([bool]) | Out-Null");
-    }
-
-    /** Cycles repeat: off -> all -> one -> off. */
-    public void cycleRepeat() {
-        repeatMode = (repeatMode + 1) % 3; // optimistic; the next poll corrects it
-        runControl("$pb=$s.GetPlaybackInfo(); $cur=$pb.AutoRepeatMode; "
-                + "$next=[Windows.Media.MediaPlaybackAutoRepeatMode]::List; "
-                + "if($cur -eq [Windows.Media.MediaPlaybackAutoRepeatMode]::List){$next=[Windows.Media.MediaPlaybackAutoRepeatMode]::Track} "
-                + "elseif($cur -eq [Windows.Media.MediaPlaybackAutoRepeatMode]::Track){$next=[Windows.Media.MediaPlaybackAutoRepeatMode]::None}; "
-                + "Await ($s.TryChangeAutoRepeatModeAsync($next)) ([bool]) | Out-Null");
-    }
-
-    /**
-     * Sets the Windows master volume (0..1). The UI value updates immediately; the actual helper
-     * call is throttled so slider drags do not spawn a process per frame.
-     */
-    public void setVolume(float value, boolean force) {
-        float clamped = Math.max(0.0F, Math.min(1.0F, value));
-        volume = clamped;
-
-        long now = System.currentTimeMillis();
-        if (!force && now - lastVolumeSendMs < 120L) {
-            return;
-        }
-        lastVolumeSendMs = now;
-
-        if (!WINDOWS) {
-            return;
-        }
-
-        Thread thread = new Thread(() -> {
-            ensureVolumeHelper();
-            if (!volumeHelperReady || volumeHelperExePath == null) {
-                return;
-            }
-            try {
-                Process process = new ProcessBuilder(volumeHelperExePath,
-                        String.format(Locale.ROOT, "%.4f", clamped)).start();
-                if (!process.waitFor(3, TimeUnit.SECONDS)) {
-                    process.destroyForcibly();
-                }
-            } catch (Exception exception) {
-                // volume control unavailable; slider stays optimistic
-            }
-        }, "GleamClient Volume Set");
-        thread.setDaemon(true);
-        thread.start();
-    }
-
-    private void pollVolume() {
-        ensureVolumeHelper();
-        if (!volumeHelperReady || volumeHelperExePath == null) {
-            return;
-        }
-
-        // A fresh user drag wins over the polled value for a moment.
-        if (System.currentTimeMillis() - lastVolumeSendMs < 1_500L) {
-            return;
-        }
-
-        try {
-            Process process = new ProcessBuilder(volumeHelperExePath).start();
-            if (!process.waitFor(3, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
-                return;
-            }
-            String line = process.exitValue() == 0 ? readFirstLine(process) : null;
-            if (line != null) {
-                float parsed = Float.parseFloat(line.trim());
-                if (parsed >= 0.0F && parsed <= 1.0F) {
-                    volume = parsed;
-                }
-            }
-        } catch (Exception exception) {
-            // keep the last known value
-        }
-    }
-
-    /** Распаковывает готовый помощник громкости один раз */
-    private synchronized void ensureVolumeHelper() {
-        if (volumeHelperChecked) {
-            return;
-        }
-        volumeHelperChecked = true;
-
-        try {
-            volumeHelperExePath = extractHelper("OrionVolume.exe").toString();
-            volumeHelperReady = true;
-        } catch (IOException exception) {
-            LOGGER.warn("GleamClient could not extract the bundled volume helper; volume control unavailable.", exception);
-        }
-    }
-
-    /** Seeks the current track to the given second (if the app supports position changes). */
+    public void playPause() { command("toggle", "canPlay", null); }
+    public void next() { command("next", "canNext", null); }
+    public void previous() { command("previous", "canPrevious", null); }
+    public void toggleShuffle() { command("shuffle", "canShuffle", null); }
+    public void cycleRepeat() { command("repeat", "canRepeat", null); }
     public void seek(double seconds) {
-        double target = Math.max(0.0, seconds);
-        long ticks = (long) (target * 10_000_000L); // 100-ns units
-        runControl("Await ($s.TryChangePlaybackPositionAsync(" + ticks + ")) ([bool]) | Out-Null");
-        positionMs = (long) (target * 1000.0);
-        capturedAtMs = System.currentTimeMillis();
+        if (!Double.isFinite(seconds) || seconds < 0) return;
+        command("seek", "canSeek", String.format(Locale.ROOT, "%.3f", Math.min(seconds, getDurationSeconds())));
     }
 
-    /**
-     * Runs a single media-session command via PowerShell off-thread (launching PowerShell is slow).
-     * Controls the current session directly, which is far more reliable than synthetic media keys.
-     */
-    private void runControl(String action) {
-        if (!WINDOWS) {
+    private void command(String action, String capability, String argument) {
+        String source = getSource();
+        if (!running || !flag(state, capability) || source.isEmpty()) return;
+        revision.incrementAndGet();
+        lastAction = System.currentTimeMillis();
+        error = "";
+        enqueue(() -> {
+            if (!source.equals(getSource())) return;
+            try {
+                List<String> args = new ArrayList<>(List.of(action, source));
+                if (argument != null) args.add(argument);
+                Reply result = run(helper(false), args);
+                if (!source.equals(getSource())) return;
+                if (result.status() != 0) error = "Плеер не выполнил команду";
+                else polling.execute(this::poll);
+            } catch (Exception failure) {
+                if (running) error = "Управление плеером недоступно";
+            }
+        });
+    }
+
+    public void setVolume(float requested, boolean force) {
+        if (!Float.isFinite(requested) || !running || !volumeAvailable) return;
+        String source = getSource();
+        if (source.isEmpty()) return;
+        volume = Math.clamp(requested, 0, 1);
+        long now = System.currentTimeMillis();
+        if (!force && now - lastVolumeSend < 120) return;
+        lastVolumeSend = lastAction = now;
+        error = "";
+        revision.incrementAndGet();
+        pendingVolume.set(new VolumeRequest(source, volume));
+        queueVolume();
+    }
+
+    private void queueVolume() {
+        if (!volumeQueued.compareAndSet(false, true)) return;
+        if (!enqueue(() -> {
+            try {
+                VolumeRequest request;
+                while (running && (request = pendingVolume.getAndSet(null)) != null) {
+                    if (!request.source().equals(getSource())) continue;
+                    try {
+                        Reply result = run(helper(true), List.of(request.source(), String.format(Locale.ROOT, "%.4f", request.value())));
+                        if (result.status() != 0 && request.source().equals(getSource())) {
+                            volumeAvailable = false;
+                            error = "Громкость этого приложения недоступна";
+                        }
+                    } catch (Exception failure) {
+                        if (running) error = "Громкость этого приложения недоступна";
+                    }
+                }
+            } finally {
+                volumeQueued.set(false);
+                if (running && pendingVolume.get() != null) queueVolume();
+            }
+        })) volumeQueued.set(false);
+    }
+
+    private boolean enqueue(Runnable work) {
+        try {
+            controls.execute(work);
+            return true;
+        } catch (RejectedExecutionException full) {
+            if (running) error = "Подожди выполнения предыдущей команды";
+            return false;
+        }
+    }
+
+    private void poll() {
+        if (!running) return;
+        if (!WINDOWS || !manager.getConfig().isMediaPlayerEnabled()) {
+            clear();
             return;
         }
-
-        String script = CONTROL_SCRIPT.replace("%ACTION%", action);
-        Thread thread = new Thread(() -> {
-            try {
-                Process process = new ProcessBuilder(
-                        "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script).start();
-                if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                    process.destroyForcibly();
-                }
-            } catch (Exception exception) {
-                LOGGER.warn("GleamClient media control failed.", exception);
+        try {
+            long startedRevision = revision.get();
+            Reply result = run(helper(false), List.of("snapshot"));
+            if (!running) return;
+            if (result.status() != 0) { clear(); return; }
+            JsonObject next = JsonParser.parseString(result.output()).getAsJsonObject();
+            if (!next.has("source") || string(next, "source").isBlank()) { clear(); return; }
+            String source = string(next, "source");
+            if (source.length() > 512 || !validNumbers(next)) throw new IOException("Invalid media snapshot");
+            if (startedRevision != revision.get() && source.equals(getSource())) return;
+            if (!source.equals(getSource())) {
+                volumeAvailable = false;
+                pendingVolume.set(null);
+                nextVolumePoll = 0;
             }
-        }, "GleamClient Media Control");
-        thread.setDaemon(true);
-        thread.start();
-    }
-
-    private void pollLoop() {
-        while (running) {
-            try {
-                if (WINDOWS && configManager.getConfig().isMediaPlayerEnabled()) {
-                    poll();
-                } else {
-                    clear();
+            next.addProperty("_capturedAt", System.nanoTime());
+            String track = source + '\0' + string(next, "title") + '\0' + string(next, "artist") + '\0' + string(next, "album");
+            boolean coverChanged = !track.equals(fetchedTrack);
+            if (coverChanged) {
+                fetchedTrack = track;
+                coverPng = null;
+                coverAccent = "#A7B8F4";
+                coverGeneration++;
+            }
+            state = next;
+            if (coverChanged) {
+                try {
+                    fetchCover(source);
+                } catch (IOException failure) {
+                    LOGGER.debug("Could not read media cover", failure);
                 }
-            } catch (Exception exception) {
+            }
+            pollVolume(source);
+        } catch (Exception failure) {
+            if (running) {
+                LOGGER.debug("Could not read media session", failure);
                 clear();
             }
-
-            sleepQuietly();
         }
     }
 
-    private void poll() throws Exception {
-        ProcessBuilder builder = new ProcessBuilder(
-                "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", NOW_PLAYING_SCRIPT);
-        builder.redirectErrorStream(false);
-
-        Process process = builder.start();
-        if (!process.waitFor(4, TimeUnit.SECONDS)) {
-            process.destroyForcibly();
-            clear();
-            return;
-        }
-
-        String line = readFirstLine(process);
-
-        if (line == null || line.isBlank()) {
-            clear();
-            return;
-        }
-
-        String[] parts = line.split(java.util.regex.Pattern.quote(DELIMITER), -1);
-        String newTitle = parts.length > 0 ? parts[0].trim() : "";
-        String newArtist = parts.length > 1 ? parts[1].trim() : "";
-        boolean newPlaying = parts.length > 2 && "Playing".equalsIgnoreCase(parts[2].trim());
-        long newPositionMs = parts.length > 3 ? parseLong(parts[3]) : 0L;
-        long newDurationMs = parts.length > 4 ? parseLong(parts[4]) : 0L;
-        long newCapturedAtMs = parts.length > 5 ? parseLong(parts[5]) : System.currentTimeMillis();
-
-        // Некоторые плееры не обновляют TimelineProperties: каждый опрос приносит ту же сырую позицию
-        // (обычно 0), и она перетирала уже наэкстраполированное время — счётчик прыгал к 0:00.
-        // Если трек тот же, статус "играет" и сырая позиция не сдвинулась — базу времени не трогаем.
-        boolean staleTimeline = newPlaying && playing
-                && newTitle.equals(lastPolledTitle)
-                && newPositionMs == lastRawPositionMs;
-
-        title = newTitle;
-        artist = newArtist;
-        playing = newPlaying;
-        durationMs = newDurationMs;
-        if (!staleTimeline) {
-            positionMs = newPositionMs;
-            capturedAtMs = newCapturedAtMs;
-        }
-        lastPolledTitle = newTitle;
-        lastRawPositionMs = newPositionMs;
-        active = newPlaying || !newTitle.isEmpty() || !newArtist.isEmpty();
-
-        if (parts.length > 6) {
-            shuffleActive = "True".equalsIgnoreCase(parts[6].trim());
-        }
-        if (parts.length > 7) {
-            String mode = parts[7].trim();
-            repeatMode = "List".equalsIgnoreCase(mode) ? 1 : "Track".equalsIgnoreCase(mode) ? 2 : 0;
-        }
-
-        pollVolume();
-
-        if (active && !newTitle.equals(lastFetchedTitle)) {
-            lastFetchedTitle = newTitle;
-            fetchCover();
-        }
-    }
-
-    /** Получает обложку через готовый помощник и обновляет поколение после успешной записи */
-    private void fetchCover() {
-        if (!WINDOWS) {
-            return;
-        }
-
-        ensureHelper();
-        if (!helperReady || helperExePath == null) {
-            return;
-        }
-
+    private void pollVolume(String source) throws InterruptedException {
+        long now = System.currentTimeMillis();
+        if (now < nextVolumePoll || now - lastVolumeSend < 1500) return;
+        nextVolumePoll = now + 3000;
+        Reply result;
         try {
-            Path temp = Path.of(COVER_PATH + ".tmp");
-            Files.deleteIfExists(temp);
-
-            Process process = new ProcessBuilder(helperExePath, temp.toString())
-                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                    .redirectError(ProcessBuilder.Redirect.DISCARD)
-                    .start();
-            if (!process.waitFor(6, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
-                return;
-            }
-            boolean ok = process.exitValue() == 0
-                    && Files.isRegularFile(temp) && Files.size(temp) > 0;
-
-            if (ok) {
-                Files.move(temp, Path.of(COVER_PATH), StandardCopyOption.REPLACE_EXISTING);
-                coverGeneration++;
-            } else {
-                Files.deleteIfExists(temp);
-            }
-        } catch (Exception exception) {
-            // keep the placeholder note
-        }
-    }
-
-    /** Распаковывает готовый помощник обложек один раз */
-    private synchronized void ensureHelper() {
-        if (helperChecked) {
+            result = run(helper(true), List.of(source));
+        } catch (IOException failure) {
+            volumeAvailable = false;
+            LOGGER.debug("Could not read app volume", failure);
             return;
         }
-        helperChecked = true;
-
+        if (!source.equals(getSource()) || System.currentTimeMillis() - lastVolumeSend < 1500) return;
+        float value;
         try {
-            helperExePath = extractHelper("OrionThumbnail.exe").toString();
-            helperReady = true;
-        } catch (IOException exception) {
-            LOGGER.warn("GleamClient could not extract the bundled cover-art helper; album art unavailable.", exception);
+            value = result.status() == 0 ? Float.parseFloat(result.output().strip()) : -1;
+        } catch (NumberFormatException invalid) {
+            value = -1;
         }
+        volumeAvailable = Float.isFinite(value) && value >= 0 && value <= 1;
+        if (volumeAvailable) volume = value;
     }
 
-    private synchronized Path extractHelper(String name) throws IOException {
-        try (InputStream in = OrionMediaController.class.getResourceAsStream(HELPERS_RESOURCE + name)) {
-            if (in == null) {
-                throw new IOException("Missing bundled media helper: " + name);
-            }
-            // Новый каталог на запуск: старые exe из общего временного каталога не используются
-            if (helperDirectory == null) {
-                helperDirectory = Files.createTempDirectory("orion-media-");
-                helperDirectory.toFile().deleteOnExit();
-            }
-            Path executable = helperDirectory.resolve(name);
-            executable.toFile().deleteOnExit();
-            Files.copy(in, executable);
-            return executable;
-        }
-    }
-
-    public int getCoverGeneration() {
-        return coverGeneration;
-    }
-
-    public String getCoverPath() {
-        return COVER_PATH;
-    }
-
-    private static long parseLong(String value) {
+    private void fetchCover(String source) throws IOException, InterruptedException {
+        Path path = Files.createTempFile(helper(false).getParent(), "cover-", ".png");
         try {
-            return Math.max(0L, Math.round(Double.parseDouble(value.trim())));
-        } catch (NumberFormatException exception) {
-            return 0L;
+            Reply result = run(helper(false), List.of("cover", source, path.toString()));
+            if (result.status() != 0 || !running || !source.equals(getSource()) || Files.size(path) > 2_000_000) return;
+            byte[] data = Files.readAllBytes(path);
+            BufferedImage image = ImageIO.read(path.toFile());
+            if (image == null) return;
+            long red = 0, green = 0, blue = 0;
+            for (int y = 1; y <= 8; y++) for (int x = 1; x <= 8; x++) {
+                int rgb = image.getRGB(x * (image.getWidth() - 1) / 9, y * (image.getHeight() - 1) / 9);
+                red += rgb >> 16 & 255; green += rgb >> 8 & 255; blue += rgb & 255;
+            }
+            coverAccent = String.format(Locale.ROOT, "#%02X%02X%02X", red / 128 + 96, green / 128 + 96, blue / 128 + 96);
+            coverPng = data;
+            coverGeneration++;
+        } finally { Files.deleteIfExists(path); }
+    }
+
+    private synchronized Path helper(boolean volume) throws IOException {
+        Path existing = volume ? volumeHelper : mediaHelper;
+        if (existing != null) return existing;
+        String name = volume ? "OrionVolume.exe" : "OrionThumbnail.exe";
+        try (InputStream stream = OrionMediaController.class.getResourceAsStream(RESOURCE + name)) {
+            if (stream == null) throw new IOException("Missing media helper " + name);
+            if (directory == null) {
+                directory = Files.createTempDirectory("gleam-media-");
+                directory.toFile().deleteOnExit();
+            }
+            Path destination = directory.resolve(name);
+            Files.copy(stream, destination);
+            destination.toFile().deleteOnExit();
+            if (volume) volumeHelper = destination;
+            else mediaHelper = destination;
+            return destination;
         }
     }
 
-    private static String readFirstLine(Process process) throws Exception {
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!line.isBlank()) {
-                    return line;
-                }
+    private static Reply run(Path executable, List<String> args) throws IOException, InterruptedException {
+        List<String> command = new ArrayList<>();
+        command.add(executable.toString());
+        command.addAll(args);
+        Process process = new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+        try {
+            if (!process.waitFor(6, TimeUnit.SECONDS)) throw new IOException("Media helper timed out");
+            try (InputStream stream = process.getInputStream()) {
+                byte[] output = stream.readNBytes(32_769);
+                if (output.length > 32_768) throw new IOException("Media response too large");
+                return new Reply(process.exitValue(), new String(output, StandardCharsets.UTF_8).strip().replace("\uFEFF", ""));
             }
+        } finally {
+            if (process.isAlive()) process.destroyForcibly();
         }
-
-        return null;
     }
 
     private void clear() {
-        title = "";
-        artist = "";
-        playing = false;
-        active = false;
-        positionMs = 0L;
-        durationMs = 0L;
-        capturedAtMs = 0L;
-        lastFetchedTitle = "";
-        lastPolledTitle = "";
-        lastRawPositionMs = -1L;
+        if (!state.isEmpty() || coverPng != null) coverGeneration++;
+        state = new JsonObject();
+        coverPng = null;
+        volumeAvailable = false;
+        fetchedTrack = "";
     }
 
-    private void sleepQuietly() {
-        try {
-            Thread.sleep(POLL_INTERVAL_MS);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            running = false;
-        }
+    private static boolean validNumbers(JsonObject value) {
+        double position = number(value, "position"), duration = number(value, "duration");
+        return Double.isFinite(position) && Double.isFinite(duration) && position >= 0 && duration >= 0;
     }
+    private static String string(JsonObject value, String key) {
+        return value.has(key) && !value.get(key).isJsonNull() ? value.get(key).getAsString() : "";
+    }
+    private static boolean flag(JsonObject value, String key) { return value.has(key) && value.get(key).getAsBoolean(); }
+    private static double number(JsonObject value, String key) { return value.has(key) ? value.get(key).getAsDouble() : 0; }
 }

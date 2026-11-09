@@ -4,12 +4,15 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import ru.orion.client.effect.OrionBadgePresence;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -25,7 +28,11 @@ public final class OrionConfigLibrary {
     private static final int MAX_LOCAL = 100;
     private static final long CATALOG_CACHE_NANOS = java.time.Duration.ofSeconds(30).toNanos();
     private static final JsonObject DEFAULTS = OrionConfigManager.GSON.toJsonTree(OrionConfig.createDefault()).getAsJsonObject();
-    private static final Set<String> CORNERS = Set.of("TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT");
+    private static final Set<String> CORNERS = Set.of("TOP_LEFT", "TOP_CENTER", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT");
+    private static final List<String> WINDOW_SIZES = List.of("mini", "compact", "normal");
+    private static final Set<String> HUD_MAPS = Set.of("hudElementGlass", "hudElementScales");
+    private static final List<String> STRUCTURED_SETTINGS = List.of("hudElementGlass", "hudElementScales",
+            "healthIndicatorOptions", "armorIndicatorOptions", "customGlint");
     private final Path file;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(Thread.ofVirtual().name("orion-config-library").factory());
     private List<Profile> local;
@@ -129,7 +136,7 @@ public final class OrionConfigLibrary {
             JsonObject payload = new JsonObject();
             payload.addProperty("name", validateName(title));
             payload.addProperty("schema", 1);
-            payload.add("settings", settings);
+            payload.add("settings", wireSettings(settings));
             Entry entry = readEntry(OrionBadgePresence.publishConfig(payload, uuid, author, orionCookie), false);
             try {
                 return remember(new Profile(entry, settings));
@@ -184,7 +191,7 @@ public final class OrionConfigLibrary {
             payload.addProperty("name", validateName(title));
             if (settings != null) {
                 payload.addProperty("schema", 1);
-                payload.add("settings", settings);
+                payload.add("settings", wireSettings(settings));
             }
             Profile profile = readProfile(OrionBadgePresence.sharedConfigs("PATCH", "/" + entry.id, payload, uuid, author), false);
             if (local != null && local.stream().anyMatch(saved -> saved.entry.id == entry.id)) {
@@ -287,6 +294,8 @@ public final class OrionConfigLibrary {
                     || key.startsWith("discord") || key.startsWith("fakePrefix") || key.startsWith("protectName")
                     || key.equals("chatFilterEnabled") || key.equals("chatHighlightEnabled")
                     || key.startsWith("chatNotification")
+                    || key.equals("showFakePunishments")
+                    || key.equals("mediaPlayerIslandMigrated")
                     || key.equals("clickGuiCategoriesExpanded")) continue;
             var actual = value.getAsJsonPrimitive();
             var type = expected.getAsJsonPrimitive();
@@ -297,9 +306,95 @@ public final class OrionConfigLibrary {
                 String text = actual.getAsString();
                 if ((type.getAsString().matches("#[0-9a-fA-F]{6}") && text.matches("#[0-9a-fA-F]{6}"))
                         || (key.equals("mediaPlayerCorner") && CORNERS.contains(text))
+                        || (key.equals("clickGuiAccent") && (text.isEmpty() || text.matches("#[0-9a-fA-F]{6}")))
+                        || (key.equals("clickGuiWindowSize") && WINDOW_SIZES.contains(text))
                         || (key.equals("crosshairPixels") && text.matches("[01]{225}"))) result.add(key, actual);
             }
         }
+        if (!result.has("clickGuiAccent") && enabledMarker(input.get("clickGuiAccentDefault"))) {
+            result.addProperty("clickGuiAccent", "");
+        }
+        if (!result.has("mediaPlayerCorner") && enabledMarker(input.get("mediaPlayerTopCenter"))) {
+            result.addProperty("mediaPlayerCorner", "TOP_CENTER");
+        }
+        var windowSizeIndex = input.get("clickGuiWindowSizeIndex");
+        if (!result.has("clickGuiWindowSize") && windowSizeIndex != null && windowSizeIndex.isJsonPrimitive()
+                && windowSizeIndex.getAsJsonPrimitive().isNumber() && windowSizeIndex.getAsString().matches("[0-2]")) {
+            result.addProperty("clickGuiWindowSize", WINDOW_SIZES.get(windowSizeIndex.getAsInt()));
+        }
+        for (String key : STRUCTURED_SETTINGS) copyGroup(input, result, key);
         return result;
+    }
+
+    private static void copyGroup(JsonObject input, JsonObject result, String key) {
+        var value = input.get(key);
+        if (value == null) return;
+        var group = new JsonObject();
+        if (value.isJsonObject()) {
+            for (var entry : value.getAsJsonObject().entrySet()) {
+                if (validMember(key, entry.getKey(), entry.getValue())) group.add(entry.getKey(), entry.getValue());
+            }
+        } else if (enabledMarker(value)) {
+            String prefix = key + "Entry";
+            for (var entry : input.entrySet()) {
+                if (!entry.getKey().startsWith(prefix)) continue;
+                String name = entry.getKey().substring(prefix.length());
+                if (HUD_MAPS.contains(key)) {
+                    if (!name.matches("(?:[0-9a-f]{2}){1,20}")) continue;
+                    name = new String(HexFormat.of().parseHex(name), StandardCharsets.US_ASCII);
+                }
+                if (validMember(key, name, entry.getValue())) group.add(name, entry.getValue());
+            }
+        } else return;
+        if (!group.isEmpty() || HUD_MAPS.contains(key)) result.add(key, group);
+    }
+
+    private static boolean validMember(String key, String name, JsonElement value) {
+        if (!value.isJsonPrimitive()) return false;
+        JsonPrimitive actual = value.getAsJsonPrimitive();
+        if (HUD_MAPS.contains(key)) {
+            return name.matches("[a-z][a-z0-9_]{0,19}") && (key.equals("hudElementGlass") ? actual.isBoolean()
+                    : actual.isNumber() && actual.getAsDouble() >= .35 && actual.getAsDouble() <= 4);
+        }
+        var expected = DEFAULTS.getAsJsonObject(key).get(name);
+        if (expected == null || !expected.isJsonPrimitive()) return false;
+        var type = expected.getAsJsonPrimitive();
+        return type.isBoolean() && actual.isBoolean()
+                || type.isNumber() && actual.isNumber() && Math.abs(actual.getAsDouble()) <= 1e9
+                && (!type.getAsString().matches("-?\\d+") || actual.getAsString().matches("-?\\d+"))
+                || type.isString() && actual.isString() && type.getAsString().matches("#[0-9a-fA-F]{6}")
+                && actual.getAsString().matches("#[0-9a-fA-F]{6}");
+    }
+
+    private static boolean enabledMarker(JsonElement value) {
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() && value.getAsBoolean();
+    }
+
+    // The existing catalog accepts scalar settings only. Keep structured settings readable in local profiles.
+    static JsonObject wireSettings(JsonObject settings) {
+        var wire = shareable(settings);
+        var corner = wire.get("mediaPlayerCorner");
+        if (corner != null && corner.getAsString().equals("TOP_CENTER")) {
+            wire.remove("mediaPlayerCorner");
+            wire.addProperty("mediaPlayerTopCenter", true);
+        }
+        var accent = wire.get("clickGuiAccent");
+        if (accent != null && accent.getAsString().isEmpty()) {
+            wire.remove("clickGuiAccent");
+            wire.addProperty("clickGuiAccentDefault", true);
+        }
+        var windowSize = wire.remove("clickGuiWindowSize");
+        if (windowSize != null) wire.addProperty("clickGuiWindowSizeIndex", WINDOW_SIZES.indexOf(windowSize.getAsString()));
+        for (String key : STRUCTURED_SETTINGS) {
+            var group = wire.remove(key);
+            if (group == null) continue;
+            wire.addProperty(key, true);
+            for (var entry : group.getAsJsonObject().entrySet()) {
+                String name = entry.getKey();
+                if (HUD_MAPS.contains(key)) name = HexFormat.of().formatHex(name.getBytes(StandardCharsets.US_ASCII));
+                wire.add(key + "Entry" + name, entry.getValue());
+            }
+        }
+        return wire;
     }
 }

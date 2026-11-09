@@ -16,8 +16,8 @@ import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
 
 import java.util.ArrayDeque;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
 
 /** След сохраняет точки только во время движения и постепенно затухает. */
 public final class OrionBreadcrumbs {
@@ -27,6 +27,7 @@ public final class OrionBreadcrumbs {
     private ClientLevel level;
     private LocalPlayer player;
     private Vec3 lastPosition;
+    private int segment;
 
     public OrionBreadcrumbs(OrionConfigManager configManager) { this.configManager = configManager; }
 
@@ -38,6 +39,7 @@ public final class OrionBreadcrumbs {
     private void clear() {
         points.clear();
         lastPosition = null;
+        segment = 0;
         level = null;
         player = null;
     }
@@ -63,10 +65,12 @@ public final class OrionBreadcrumbs {
         }
         double distance = position.distanceToSqr(lastPosition);
         if (distance > 64.0D) {
-            points.clear();
-        } else if (distance > 0.0004D) {
-            if (points.isEmpty()) points.addLast(new Point(lastPosition, now));
-            points.addLast(new Point(position, now));
+            segment++;
+        } else if (distance > 1.0E-8D) {
+            if (points.isEmpty() || points.peekLast().segment() != segment) {
+                points.addLast(new Point(lastPosition, now, segment));
+            }
+            points.addLast(new Point(position, now, segment));
             while (points.size() > MAX_POINTS) points.removeFirst();
         }
         lastPosition = position;
@@ -74,17 +78,22 @@ public final class OrionBreadcrumbs {
 
     private void render(LevelRenderContext context) {
         OrionConfig config = configManager.getConfig();
-        if (!config.isBreadcrumbsEnabled() || points.size() < 2) return;
-        Vec3 camera = Minecraft.getInstance().gameRenderer.mainCamera().position();
+        Minecraft client = Minecraft.getInstance();
+        if (!config.isBreadcrumbsEnabled() || points.size() < 2 || client.player != player || client.level != level) return;
+        Vec3 camera = client.gameRenderer.mainCamera().position();
         List<Point> snapshot = new ArrayList<>(points);
-        LocalPlayer currentPlayer = Minecraft.getInstance().player;
         Point last = snapshot.get(snapshot.size() - 1);
-        if (currentPlayer == player && last.position().distanceToSqr(currentPlayer.position().add(0, 0.12D, 0)) < 1.0E-6D) {
-            float partial = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(true);
-            Vec3 interpolated = new Vec3(Mth.lerp(partial, currentPlayer.xOld, currentPlayer.getX()),
-                    Mth.lerp(partial, currentPlayer.yOld, currentPlayer.getY()) + 0.12D,
-                    Mth.lerp(partial, currentPlayer.zOld, currentPlayer.getZ()));
-            snapshot.set(snapshot.size() - 1, new Point(interpolated, last.time()));
+        if (last.segment() == segment && last.position().equals(lastPosition)) {
+            float partial = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
+            Vec3 interpolated = new Vec3(Mth.lerp(partial, player.xOld, player.getX()),
+                    Mth.lerp(partial, player.yOld, player.getY()) + 0.12D,
+                    Mth.lerp(partial, player.zOld, player.getZ()));
+            Point previous = snapshot.get(snapshot.size() - 2);
+            if (previous.segment() == segment && previous.position().distanceToSqr(interpolated) < 1.0E-10D) {
+                snapshot.removeLast();
+            } else {
+                snapshot.set(snapshot.size() - 1, new Point(interpolated, last.time(), segment));
+            }
         }
         long now = System.nanoTime();
         float duration = config.getBreadcrumbsDuration();
@@ -103,13 +112,18 @@ public final class OrionBreadcrumbs {
     private static void drawTrail(PoseStack.Pose pose, VertexConsumer vertices, List<Point> points, Vec3 camera,
                                   long now, float duration, float width, float opacity, boolean glow, int rgb) {
         List<OrionRibbon.Point> path = new ArrayList<>(points.size());
-        for (int i = 0; i < points.size(); i++) {
-            Point point = points.get(i);
-            float tail = Math.min(1.0F, i / 3.0F);
+        int segment = points.getFirst().segment();
+        for (Point point : points) {
+            if (point.segment() != segment) {
+                OrionRibbon.draw(pose, vertices, path, Vec3.ZERO, width, glow);
+                path.clear();
+                segment = point.segment();
+            }
+            float tail = Math.min(1.0F, (path.size() + 1) / 3.0F);
             float alpha = fade(point, now, duration) * opacity * tail;
             path.add(new OrionRibbon.Point(point.position().subtract(camera), color(rgb, alpha)));
         }
-        OrionRibbon.draw(pose, vertices, OrionRibbon.smooth(path, 4), Vec3.ZERO, width, glow);
+        OrionRibbon.draw(pose, vertices, path, Vec3.ZERO, width, glow);
     }
 
     private static float fade(Point point, long now, float duration) {
@@ -122,5 +136,5 @@ public final class OrionBreadcrumbs {
         try { return ARGB.opaque(Integer.parseInt(color.substring(1), 16)); }
         catch (RuntimeException ignored) { return ARGB.opaque(0xFF7C00); }
     }
-    private record Point(Vec3 position, long time) { }
+    private record Point(Vec3 position, long time, int segment) { }
 }
