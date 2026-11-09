@@ -43,10 +43,12 @@ public final class OrionHitParticles {
         Vec3 center = client.hitResult instanceof EntityHitResult hit && hit.getEntity() == target
                 ? hit.getLocation() : target.position().add(0, target.getBbHeight() * 0.6D, 0);
         Vec3 outward = client.player.getEyePosition().subtract(center).normalize();
+        Vec3 origin = center.add(outward.scale(.13));
         for (int i = 0; i < config.getHitParticlesCount(); i++) {
-            Vec3 velocity = new Vec3(random.nextDouble(-1.4, 1.4), random.nextDouble(0.3, 2.0), random.nextDouble(-1.4, 1.4))
-                    .add(outward.scale(0.7));
-            particles.add(new Particle(center.add(outward.scale(0.04)), velocity, now,
+            Vec3 direction = new Vec3(random.nextDouble(-1, 1), random.nextDouble(-.3, 1), random.nextDouble(-1, 1)).normalize();
+            if (direction.dot(outward) < 0) direction = direction.scale(-1);
+            Vec3 velocity = direction.scale(random.nextDouble(2.1, 4.4)).add(0, .7, 0);
+            particles.add(new Particle(origin, velocity, now,
                     random.nextFloat(0.9F, 1.35F), random.nextFloat(0.55F, 1F), random.nextFloat(0F, 6.2832F), random.nextFloat(-2F, 2F)));
         }
         if (particles.size() > LIMIT) particles.subList(0, particles.size() - LIMIT).clear();
@@ -62,13 +64,14 @@ public final class OrionHitParticles {
         particles.removeIf(p -> (now - p.created) / 1_000_000_000F >= p.life);
         for (Particle p : particles) {
             p.previous = p.position;
-            p.velocity = p.velocity.scale(Math.exp(-1.7 * dt)).add(0, -2.6 * dt, 0);
+            p.velocity = p.velocity.scale(Math.exp(-.65 * dt)).add(0, -4.1 * dt, 0);
             Vec3 next = p.position.add(p.velocity.scale(dt));
             var hit = client.level.clip(new ClipContext(p.position, next, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, client.player));
             if (hit.getType() == HitResult.Type.BLOCK) {
                 Vec3 normal = new Vec3(hit.getDirection().getStepX(), hit.getDirection().getStepY(), hit.getDirection().getStepZ());
-                p.position = hit.getLocation().add(normal.scale(.005));
-                p.velocity = p.velocity.subtract(normal.scale(2 * p.velocity.dot(normal))).scale(.42);
+                p.position = hit.getLocation().add(normal.scale(.015));
+                double incoming = p.velocity.dot(normal);
+                if (incoming < 0) p.velocity = p.velocity.subtract(normal.scale(1.52 * incoming)).scale(.86);
             } else p.position = next;
         }
     }
@@ -83,6 +86,7 @@ public final class OrionHitParticles {
         float partial = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
         int rgb = OrionRainbow.orElse(OrionWorldChanger.parseOpaqueColor(config.getHitParticlesColor()));
         int shape = config.getHitParticlesShape();
+        List<RenderedParticle> visible = new ArrayList<>(particles.size());
         for (Particle particle : particles) {
             float age = Math.max(0, (now - particle.created) / 1_000_000_000F);
             float t = age / particle.life;
@@ -95,20 +99,25 @@ public final class OrionHitParticles {
             stack.pushPose();
             stack.translate(position.x, position.y, position.z);
             stack.rotate(camera.orientation);
-            context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.colorQuadsDepthTested(),
-                    (pose, vc) -> draw(pose, vc, size, rgb, fade, shape, angle));
+            visible.add(new RenderedParticle(stack.last().copy(), size, fade, angle));
             stack.popPose();
         }
+        if (!visible.isEmpty()) context.submitNodeCollector().submitCustomGeometry(context.poseStack(),
+                OrionEspRenderTypes.colorQuadsDepthTested(), (ignored, vertices) -> {
+                    for (var particle : visible) draw(particle.pose(), vertices, particle.size(), rgb,
+                            particle.fade(), shape, particle.angle());
+                });
     }
 
+    private record RenderedParticle(PoseStack.Pose pose, float size, float fade, float angle) { }
     private static void draw(PoseStack.Pose pose, VertexConsumer vc, float size, int rgb, float fade, int shape, float angle) {
         int glow = alpha(rgb, Math.round(fade * 36)), clear = alpha(rgb, 0);
-        for (int i = 0; i < 20; i++) {
-            double a = i * Math.PI / 10, b = (i + 1) * Math.PI / 10;
+        for (int i = 0; i < 10; i++) {
+            double a = i * Math.PI / 5, b = (i + 1) * Math.PI / 5;
             triangle(pose, vc, 0, 0, glow, (float) Math.cos(a) * size * 2, (float) Math.sin(a) * size * 2, clear,
                     (float) Math.cos(b) * size * 2, (float) Math.sin(b) * size * 2, clear);
         }
-        int points = shape == 0 ? 8 : shape == 1 ? 4 : 20;
+        int points = shape == 0 ? 8 : shape == 1 ? 4 : 12;
         int core = ARGB.color(Math.round(fade * 235), (ARGB.red(rgb) + 510) / 3, (ARGB.green(rgb) + 510) / 3, (ARGB.blue(rgb) + 510) / 3);
         int edge = alpha(rgb, Math.round(fade * 170));
         for (int i = 0; i < points; i++) {

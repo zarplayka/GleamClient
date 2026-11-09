@@ -5,8 +5,9 @@ import com.mojang.math.Axis;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.player.PlayerSkin;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import java.util.Set;
@@ -19,11 +20,11 @@ public final class OrionCosmeticPreview extends AvatarRenderState {
     private final Set<String> items;
     private final int hatColor;
 
-    private OrionCosmeticPreview(LocalPlayer player, Set<String> items, float yaw, int hatColor) {
+    private OrionCosmeticPreview(PlayerSkin skin, Set<String> items, float yaw, int hatColor) {
         this.items = items;
         this.hatColor = hatColor;
-        entityType = player.getType();
-        skin = player.getSkin();
+        entityType = EntityTypes.PLAYER;
+        this.skin = skin;
         id = -1;
         lightCoords = 0xF000F0;
         pose = Pose.STANDING;
@@ -35,9 +36,9 @@ public final class OrionCosmeticPreview extends AvatarRenderState {
         showHat = showJacket = showLeftSleeve = showRightSleeve = showLeftPants = showRightPants = true;
     }
 
-    static void draw(GuiGraphicsExtractor graphics, LocalPlayer player, Set<String> items, float yaw, int hatColor,
+    static void draw(GuiGraphicsExtractor graphics, PlayerSkin skin, Set<String> items, float yaw, int hatColor,
                      int left, int top, int right, int bottom, float scale, float verticalOffset) {
-        var state = new OrionCosmeticPreview(player, items, yaw, hatColor);
+        var state = new OrionCosmeticPreview(skin, items, yaw, hatColor);
         graphics.entity(state, scale, new Vector3f(0, verticalOffset, 0),
                 new Quaternionf().rotateZ((float) Math.PI).rotateX(-.10F), null, left, top, right, bottom);
     }

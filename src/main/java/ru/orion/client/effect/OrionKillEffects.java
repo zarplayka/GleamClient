@@ -59,10 +59,11 @@ public final class OrionKillEffects {
         for (int i = 0; i < 9; i++) {
             if (i == 7) continue;
             final int type = i;
-            boolean organic = i == 0 || i == 5 || i == 7 || i == 8;
-            registerEffect(i, new Definition(5F, (stack, vertices, age, quality, particles, seed) -> {
-                if (organic) OrionSoulKillModels.render(type, stack, vertices, age, quality, particles, seed);
-                else OrionArcaneKillModels.render(type, stack, vertices, age, quality, particles, seed);
+            boolean volume = i == 2 || i == 4;
+            float duration = volume ? OrionArcaneKillModels.duration(i) : OrionSoulKillModels.duration(i);
+            registerEffect(i, new Definition(duration, (stack, vertices, age, quality, particles, seed) -> {
+                if (volume) OrionArcaneKillModels.render(type, stack, vertices, age, quality, particles, seed);
+                else OrionSoulKillModels.render(type, stack, vertices, age, quality, particles, seed);
             }));
         }
     }
@@ -331,13 +332,14 @@ public final class OrionKillEffects {
             PoseStack stack = context.poseStack();
             stack.pushPose();
             stack.translate(relative.x, relative.y, relative.z);
-            stack.rotate(Axis.YP.rotationDegrees(-effect.yaw()));
+            boolean volume = effect.type() == 2 || effect.type() == 4;
+            if (volume) stack.rotate(Axis.YP.rotationDegrees(-effect.yaw()));
+            else stack.rotate(camera.orientation);
             stack.scale(effect.size(), effect.size(), effect.size());
             // Данные захвачены неизменяемым снимком, callback не читает мир/игроков.
             int quality = Math.min(effect.quality(), effect.position().distanceToSqr(camera.pos) > 2304 ? 0 : effect.quality());
-            boolean translucentModel = effect.type() == 0 || effect.type() == 5 || effect.type() == 8;
             context.submitNodeCollector().submitCustomGeometry(stack,
-                    translucentModel ? OrionEspRenderTypes.killEffects() : OrionEspRenderTypes.killModels(), (pose, vertices) -> {
+                    volume ? OrionEspRenderTypes.killModels() : OrionEspRenderTypes.killEffects(), (pose, vertices) -> {
                 PoseStack model = new PoseStack();
                 model.last().pose().set(pose.pose());
                 effect.definition().renderer().render(model, OrionKillMaterial.textured(vertices, effect.type()),

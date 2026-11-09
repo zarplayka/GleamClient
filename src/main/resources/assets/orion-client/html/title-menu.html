@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#18191c;color:#f0f0f2;font:15px sans-serif}
+html{--accent:#a9b4ff;--accent-ink:#181c33;--surface:#222327;--hover:#30333c;--line:#444650;--ink:#f0f0f2;--muted:#adb1c1;--icon:#b6bccd;--toolbar:#191d27;--toolbar-tint:#191d27d4;--toolbar-line:#c7d3f029;--portrait:#333e57;--portrait-ink:#e5e8f6}
+html[data-light]{--accent:#4257b2;--accent-ink:#fff;--surface:#f6f7fb;--hover:#e5e9f4;--line:#b8c0d3;--ink:#252d43;--muted:#526078;--icon:#465675;--toolbar:#f3f5fb;--toolbar-tint:#f3f5fbe8;--toolbar-line:#46567538;--portrait:#dde4f5;--portrait-ink:#344574}
+[hidden]{display:none!important}
+.layer{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden}
+#scene{z-index:0}
+.panorama{position:absolute;display:block}
+.cover{background:#18191c;pointer-events:none}
+.brand{position:absolute;left:0;top:0;width:270px;height:60px;display:flex;align-items:flex-start;justify-content:center;gap:14px;transform-origin:0 0;pointer-events:none}
+.mark{position:relative;width:42px;height:42px;flex:none}
+.mark img{display:block;width:42px;height:42px}
+.shine{position:absolute;left:2px;top:35px;width:5px;height:5px;border-radius:50%;background:#fff3d6;opacity:0}
+.brand strong{display:block;font-size:38px;font-weight:bold;letter-spacing:-1.7px;line-height:42px;text-shadow:0 1px 4px #0b1118a6}
+.edition{margin-top:3px;color:#e4e9f2;font-size:12px;line-height:16px;text-shadow:0 1px 3px #0b1118c0}
+.menu{position:absolute;top:0;left:0;display:flex;flex-direction:column;gap:6px}
+.item{position:relative;display:flex;align-items:center;gap:11px;width:100%;height:41px;padding:0 12px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink);text-align:left;font:14px sans-serif;cursor:pointer}
+.item:hover,.item:focus{background:var(--hover);border-color:var(--icon)}
+.item:active{transform:scale(.985)}
+.item[disabled]{color:var(--muted);cursor:default}
+.item.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:bold}
+.item.primary:hover,.item.primary:focus{border-color:#f0f0f2}
+.item.primary[disabled]{background:var(--surface);border-color:var(--line);color:var(--muted)}
+.item.primary[disabled] .icon,.item.primary[disabled] .arrow{stroke:var(--muted)}
+.label{min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.icon,.arrow{width:18px;height:18px;flex:none;fill:none;stroke:var(--icon);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.arrow{width:14px;height:14px;margin-left:auto}
+.primary .icon,.primary .arrow{stroke:var(--accent-ink)}
+.toolbar{position:absolute;right:20px;top:20px;z-index:1;display:flex;align-items:center;gap:1px;padding:3px;border:1px solid var(--toolbar-line);border-radius:7px;background:var(--toolbar-tint);color:var(--ink)}
+.account,.tool,.account-option{display:flex;align-items:center;gap:8px;border:0;border-radius:5px;background:transparent;color:var(--ink);font:inherit;cursor:pointer}
+.account:hover,.account:focus,.tool:hover,.tool:focus,.account-option:hover,.account-option:focus{background:var(--hover)}
+.account{max-width:174px;min-width:0;padding:4px 7px 4px 4px;text-align:left}
+.account .arrow{margin-left:2px;width:15px;height:15px;transition:transform .16s}
+.account[aria-expanded="true"] .arrow{transform:rotate(180deg)}
+.portrait{display:flex;align-items:center;justify-content:center;flex:none;width:25px;height:25px;border-radius:50%;background:var(--portrait);color:var(--portrait-ink);font-size:12px;font-weight:bold}
+.account .label{flex:0 1 auto;line-height:14px}
+.account strong,.account small{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.account strong{font-size:13px}
+.account small{color:var(--muted);font-size:11px}
+.tool{justify-content:center;flex:none;width:28px;height:30px;padding:0}
+.tool .icon{width:16px;height:16px}
+.account-list{position:absolute;right:0;top:100%;margin-top:7px;width:246px;padding:5px;border:1px solid var(--line);border-radius:7px;background:var(--toolbar);visibility:hidden;opacity:0;transform:translateY(-5px);pointer-events:none;transition:opacity .15s,transform .18s,visibility .18s}
+.account-list[data-open]{visibility:visible;opacity:1;transform:translateY(0);pointer-events:auto}
+.account-option{width:100%;min-height:34px;padding:5px 8px;text-align:left;font-size:12px}
+.account-option .icon,.account-option img{display:block;flex:none;width:16px;height:16px}
+.account-option img{border-radius:3px}
+.account-option[disabled]{opacity:.48;cursor:default}
+.account-option[disabled]:hover{background:transparent}
+.account-separator{height:1px;margin:4px;background:var(--line)}
+.account-hint{margin:6px 8px;color:var(--muted);font-size:11px;line-height:15px}
+.version{position:absolute;left:24px;bottom:24px;padding:10px 0;color:#d4d6e0;font-size:12px}
+.loading{position:absolute;left:0;top:0;width:288px;color:#b6bac7;font-size:12px}
+.loading-label{display:flex;justify-content:space-between;margin-bottom:11px}
+.track{position:relative;height:2px;background:#373940}
+.fill{position:absolute;left:0;top:0;height:2px;width:0;background:var(--accent)}
+</style>
+</head>
+<body>
+<div id="scene" class="layer" hidden>
+  <div class="layer"><img id="panorama" class="panorama" alt=""></div>
+  <div id="menu" class="menu">
+    <button class="item primary" data-action="multi" id="multi-button">
+      <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="3.5" ry="8.5"/><path d="M4 12h16"/></svg>
+      <span class="label" id="multi"></span><svg class="arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
+    </button>
+    <button class="item" data-action="single">
+      <svg class="icon" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></svg>
+      <span class="label" id="single"></span><svg class="arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
+    </button>
+    <button class="item" data-action="modules">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>
+      <span class="label" id="modules"></span><svg class="arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
+    </button>
+    <button class="item" data-action="settings">
+      <svg class="icon" viewBox="0 0 24 24"><path d="m10 4-.6 2.2-1.6.9-2.2-.6-2 3.5 1.6 1.6v1.8l-1.6 1.5 2 3.5 2.2-.6 1.6.9.6 2.3h4l.6-2.3 1.6-.9 2.2.6 2-3.5-1.6-1.5v-1.8l1.6-1.6-2-3.5-2.2.6-1.6-.9L14 4z"/><circle cx="12" cy="12.5" r="2.5"/></svg>
+      <span class="label" id="settings"></span><svg class="arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
+    </button>
+  </div>
+  <div class="toolbar" id="toolbar">
+    <button class="account" id="account-button" type="button" aria-expanded="false" aria-controls="account-list">
+      <span class="portrait" id="account-initial"></span>
+      <span class="label"><strong id="account"></strong><small id="accountType"></small></span>
+      <svg class="arrow" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <button class="tool" id="theme-button" type="button" data-action="theme">
+      <svg id="moon" class="icon" viewBox="0 0 24 24"><path d="M20 15a8.3 8.3 0 0 1-11-11A8.5 8.5 0 1 0 20 15z"/></svg>
+      <svg id="sun" class="icon" viewBox="0 0 24 24" hidden><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M19 5l-1.5 1.5m-11 11L5 19"/></svg>
+    </button>
+    <button class="tool" id="client-settings-button" type="button" data-action="client-settings">
+      <svg class="icon" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <button class="tool" id="close-button" type="button" data-action="quit">
+      <svg class="icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+    <div class="account-list" id="account-list" aria-hidden="true" inert>
+      <button class="account-option" type="button" data-action="minecraft-accounts">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3"/><path d="M4 19v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1M17 5a3 3 0 0 1 0 6m1 3a4 4 0 0 1 3 4v1"/></svg><span id="minecraftAccounts"></span>
+      </button>
+      <button class="account-option" type="button" data-action="add-microsoft">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 4v16M4 12h16"/></svg><span id="addMicrosoft"></span>
+      </button>
+      <button class="account-option" type="button" data-action="add-offline">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1m3-12v6m-3-3h6"/></svg><span id="addOffline"></span>
+      </button>
+      <p class="account-hint" id="iasMissing" hidden></p>
+      <div class="account-separator"></div>
+      <button class="account-option" type="button" data-action="account">
+        <img id="avatar" alt="" hidden><svg id="account-icon" class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 19v-1a4 4 0 0 1 4-4h5a4 4 0 0 1 4 4v1"/></svg><span id="gleamProfile"></span>
+      </button>
+    </div>
+  </div>
+  <div class="version" id="version"></div>
+</div>
+<div id="cover" class="cover layer"></div>
+<div id="brand" class="brand">
+  <div class="mark"><img src="assets/gleam-title-badge.png" alt=""><span id="shine" class="shine"></span></div>
+  <div><strong>GleamClient</strong><div class="edition">Minecraft: Java Edition</div></div>
+</div>
+<div id="loading" class="loading"><div class="loading-label"><span id="loadingLabel"></span><span id="progress"></span></div><div class="track"><div id="fill" class="fill"></div></div></div>
+<script>
+const $ = id => document.getElementById(id);
+const scene = $('scene'), menu = $('menu'), brand = $('brand'), cover = $('cover'), panorama = $('panorama');
+const labels = ['single','multi','modules','settings','account','accountType','version','minecraftAccounts','addMicrosoft','addOffline','gleamProfile','iasMissing'];
+const rows = Array.from(menu.querySelectorAll('button'));
+const accountButton = $('account-button'), accountList = $('account-list'), toolbar = $('toolbar');
+const accountOptions = Array.from(accountList.querySelectorAll('button'));
+const tools = [$('theme-button'),$('client-settings-button'),$('close-button')];
+let revealed = false;
+let accountsOpen = false;
+const ease = t => 1 - (1 - t) ** 3;
+const mix = (a,b,t) => a + (b-a) * t;
+const translate = (node,x,y,scale=1) => { node.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + scale + ')'; };
+function accent(value) {
+  const style = document.documentElement.style;
+  if (!/^#[0-9a-f]{6}$/i.test(value)) {
+    style.removeProperty('--accent');
+    style.removeProperty('--accent-ink');
+    return;
+  }
+  const channels = [1,3,5].map(index => parseInt(value.slice(index,index+2),16) / 255);
+  const luma = channels.map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
+    .reduce((sum,v,i) => sum + v * [.2126,.7152,.0722][i],0);
+  style.setProperty('--accent',value);
+  style.setProperty('--accent-ink',luma > .179 ? '#101219' : '#ffffff');
+}
+window.paradox = {update(state) {
+  const {width,height} = state;
+  const splashScale = Math.min(1.55, (width - 24) / 270);
+  const centerX = (width - 270 * splashScale) / 2;
+  const centerY = height * .46 - 30 * splashScale;
+  document.documentElement.toggleAttribute('data-light',!!state.light);
+  accent(state.accent);
+  if (state.loading) {
+    const intro = ease(Math.min(1,state.intro * 3));
+    translate(brand,centerX,centerY + (1 - intro) * 6,splashScale);
+    brand.style.opacity = String(intro);
+    translate($('shine'),36 * state.intro,-32 * state.intro);
+    $('shine').style.opacity = String(Math.sin(Math.PI * state.intro));
+    const w = Math.min(width - 36,288);
+    $('loading').style.width = w + 'px';
+    translate($('loading'),(width-w)/2,height - Math.min(140,height*.13) - 25);
+    $('loadingLabel').textContent = state.loadingLabel;
+    $('progress').textContent = state.progress + '%';
+    $('fill').style.width = (w * state.progress / 100) + 'px';
+    return;
+  }
+  const entering = state.reveal;
+  const progress = ease(entering);
+  scene.hidden = false;
+  $('loading').hidden = true;
+  $('shine').style.opacity = '0';
+  cover.style.opacity = String(1 - progress);
+  cover.hidden = entering >= 1;
+  brand.style.opacity = '1';
+  if (!panorama.getAttribute('src')) panorama.src = 'assets/gleam-title-panorama.png';
+  const narrow = width < 760;
+  const zoom = Math.max(width/1920,height/1080) * (narrow ? 1 : mix(1.43,1.38,progress));
+  panorama.style.width = (1920 * zoom) + 'px';
+  panorama.style.height = (1080 * zoom) + 'px';
+  translate(panorama,narrow ? (width - 1920 * zoom)/2 : 0,(height - 1080 * zoom)/2);
+  for (const name of labels) $(name).textContent = state[name];
+  $('multi-button').disabled = !!state.multiReason;
+  $('multi-button').title = state.multiReason;
+  $('account-initial').textContent = (state.account || '?').slice(0,1).toUpperCase();
+  $('iasMissing').hidden = !!state.iasAvailable;
+  accountOptions.slice(0,3).forEach(button => { button.disabled = !state.iasAvailable; });
+  [state.themeAction,state.clientSettings,state.quit].forEach((label,i) => {
+    tools[i].title = label;
+    tools[i].setAttribute('aria-label',label);
+  });
+  $('moon').hidden = !!state.light;
+  $('sun').hidden = !state.light;
+  const avatar = $('avatar');
+  avatar.hidden = !state.avatar;
+  if (state.avatar && avatar.getAttribute('src') !== 'assets/' + state.avatar + '.png') avatar.src = 'assets/' + state.avatar + '.png';
+  $('account-icon').hidden = !!state.avatar;
+  const menuWidth = Math.min(302,width - 44);
+  const menuHeight = rows.length * 41 + (rows.length - 1) * 6;
+  const brandGap = 80;
+  const offset = Math.max(60,height * .43 - (menuHeight + brandGap) / 2);
+  menu.style.width = menuWidth + 'px';
+  translate(menu,(width-menuWidth)/2,offset+brandGap);
+  translate(brand,mix(centerX,(width-270)/2,progress),mix(centerY,offset,progress),mix(splashScale,1,progress));
+  for (let i=0; i<rows.length; i++) {
+    const p = ease(Math.max(0,Math.min(1,entering * 1.6 - .2 - i * .10)));
+    rows[i].style.opacity = String(p);
+    rows[i].style.transform = 'translateY(' + ((1 - p) * 8) + 'px)';
+  }
+  revealed = entering >= .65;
+}};
+function choose(button) {
+  if (!revealed || !button || button.disabled || button.hidden) return;
+  window.webkit.messageHandlers.paradox.postMessage(JSON.stringify({action:button.dataset.action}));
+}
+function showAccounts(open) {
+  accountsOpen = open;
+  accountButton.setAttribute('aria-expanded',String(open));
+  accountList.setAttribute('aria-hidden',String(!open));
+  accountList.toggleAttribute('inert',!open);
+  accountList.toggleAttribute('data-open',open);
+}
+function activate(button) {
+  if (!revealed || !button || button.disabled) return;
+  if (button === accountButton) showAccounts(!accountsOpen);
+  else {
+    if (accountsOpen) showAccounts(false);
+    choose(button);
+  }
+}
+document.addEventListener('click',event => {
+  const button = event.target.closest('button');
+  if (button) activate(button);
+  else if (!toolbar.contains(event.target)) showAccounts(false);
+});
+document.addEventListener('keydown',event => {
+  if (!revealed) return;
+  if (event.key === 'Escape' && accountsOpen) {
+    showAccounts(false);
+    accountButton.focus();
+    event.preventDefault();
+    return;
+  }
+  const buttons = (accountsOpen ? [accountButton,...accountOptions] : [...rows,accountButton,...tools])
+    .filter(button => !button.hidden && !button.disabled);
+  const index = buttons.indexOf(document.activeElement);
+  if (event.key === 'Tab' || event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    event.preventDefault();
+    const step = event.key === 'ArrowUp' || event.shiftKey ? -1 : 1;
+    buttons[index < 0 ? (step > 0 ? 0 : buttons.length-1) : (index+step+buttons.length)%buttons.length]?.focus();
+  } else if ((event.key === 'Enter' || event.key === ' ') && index >= 0) {
+    event.preventDefault();
+    activate(buttons[index]);
+  }
+});
+</script>
+</body>
+</html>

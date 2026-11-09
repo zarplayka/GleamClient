@@ -81,19 +81,40 @@ final class OrionSiteMenu {
     }
 
     void press(double x,double y) {
+        press(x, y, 0);
+    }
+
+    void press(double x, double y, int button) {
+        press(x, y, button, false);
+    }
+
+    void press(double x, double y, int button, boolean shift) {
+        view.pointerModifiers(shift);
         view.move((float)x/sx,(float)y/sy);
-        view.press((float)x/sx,(float)y/sy);
+        view.press((float)x/sx,(float)y/sy,button);
         receive();
     }
 
     void release(double x,double y) {
+        release(x, y, 0);
+    }
+
+    void release(double x, double y, int button) {
         view.move((float)x/sx,(float)y/sy);
-        view.release((float)x/sx,(float)y/sy);
+        view.release((float)x/sx,(float)y/sy,button);
         receive();
     }
 
     void move(double x,double y) {
         view.move((float)x/sx,(float)y/sy);
+        receive();
+    }
+
+    void chatContext(double x, double y) {
+        var point = new JsonObject();
+        point.addProperty("x", x / sx);
+        point.addProperty("y", y / sy);
+        view.chatContext(point);
         receive();
     }
 
@@ -171,7 +192,8 @@ final class OrionSiteMenu {
     private void receive() {
         byte[] messages = view.messages();
         if (messages == null || messages.length == 0 || messages.length > 32_768) return;
-        for (String line : new String(messages,StandardCharsets.UTF_8).lines().toList()) {
+        for (String line : new String(messages, StandardCharsets.UTF_8).replace('\0', '\n').lines().toList()) {
+            if (line.isBlank()) continue;
             try {
                 var event = JsonParser.parseString(line);
                 if (event.isJsonObject()) actions.accept(event.getAsJsonObject());
@@ -254,6 +276,13 @@ final class OrionSiteMenu {
             }
         });
         return avatar == null ? "orion-badge" : avatar.name();
+    }
+
+    static String registerAvatar(BufferedImage image) {
+        Avatar cached = AVATARS.get(image);
+        if (cached == null) return avatar(image);
+        registerPng(cached.name(),cached.png());
+        return cached.name();
     }
 
     private static byte[] png(BufferedImage image) throws IOException {

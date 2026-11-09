@@ -39,7 +39,15 @@ public final class OrionConfigManager {
 
     public void applyProfile(JsonObject profile) throws IOException {
         JsonObject combined = GSON.toJsonTree(config).getAsJsonObject();
-        OrionConfigLibrary.shareable(profile).entrySet().forEach(entry -> combined.add(entry.getKey(), entry.getValue()));
+        OrionConfigLibrary.shareable(profile).entrySet().forEach(entry -> {
+            String key = entry.getKey();
+            var value = entry.getValue();
+            if (key.equals("healthIndicatorOptions") || key.equals("armorIndicatorOptions") || key.equals("customGlint")) {
+                value.getAsJsonObject().entrySet().forEach(member -> combined.getAsJsonObject(key).add(member.getKey(), member.getValue()));
+            } else {
+                combined.add(key, value);
+            }
+        });
         OrionConfig replacement = GSON.fromJson(combined, OrionConfig.class);
         replacement.setAppliedVisualPreset("");
         replacement.setVisualPresetSelection("");

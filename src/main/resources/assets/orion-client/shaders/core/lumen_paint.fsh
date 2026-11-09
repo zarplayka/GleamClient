@@ -26,6 +26,49 @@ float coverage(float distance, float pixel) {
     return clamp(0.5 - distance / pixel, 0.0, 1.0);
 }
 
+#ifdef LUMEN_TEXTURED
+// Lumen command 12 uses block coordinates and a data texture, not normalized image UVs.
+// The first 16 RGBA texels store little-endian floats. The rest form a premultiplied color ramp.
+float gradientParameter(int index) {
+    uvec4 rgba = uvec4(round(texelFetch(Sampler0, ivec2(index, 0), 0) * 255.0));
+    return uintBitsToFloat(rgba.x | rgba.y << 8u | rgba.z << 16u | rgba.w << 24u);
+}
+
+vec4 sampleGradient(vec2 position) {
+    vec2 tileSize = vec2(gradientParameter(9), gradientParameter(10));
+    if (all(greaterThan(tileSize, vec2(0.0)))) {
+        position -= vec2(gradientParameter(11), gradientParameter(12));
+        if (gradientParameter(13) > 0.5) {
+            position = mod(position, tileSize);
+        } else if (any(lessThan(position, vec2(0.0))) || any(greaterThanEqual(position, tileSize))) {
+            return vec4(0.0);
+        }
+    }
+
+    int shape = int(gradientParameter(0));
+    vec2 delta = position - vec2(gradientParameter(2), gradientParameter(3));
+    vec2 axis = vec2(gradientParameter(4), gradientParameter(5));
+    float coordinate = shape == 0 ? dot(delta, axis)
+        : shape == 1 ? length(delta * vec2(1.0, axis.y))
+        : fract((atan(delta.x, -delta.y) - axis.x) / (2.0 * 3.141592653589793));
+    float start = gradientParameter(6);
+    float lengthOfRamp = gradientParameter(7) - start;
+    float fraction = step(start, coordinate);
+    if (lengthOfRamp > 0.000001) {
+        fraction = (coordinate - start) / lengthOfRamp;
+        fraction = gradientParameter(1) > 0.5 ? fract(fraction) : clamp(fraction, 0.0, 1.0);
+    }
+
+    int end = clamp(int(gradientParameter(8)), 2, textureSize(Sampler0, 0).x - 16) - 1;
+    float sampleIndex = fraction * float(end);
+    int left = int(sampleIndex);
+    vec4 premultiplied = mix(texelFetch(Sampler0, ivec2(16 + left, 0), 0),
+        texelFetch(Sampler0, ivec2(16 + min(left + 1, end), 0), 0), fract(sampleIndex));
+    if (premultiplied.a <= 0.0) return vec4(0.0);
+    return vec4(premultiplied.rgb / premultiplied.a, premultiplied.a);
+}
+#endif
+
 void main() {
     float r = clamp(radius, 0.0, min(halfSize.x, halfSize.y));
     float distance = boxDistance(localPosition, r);
@@ -41,7 +84,7 @@ void main() {
     float pixel = max(length(vec2(dFdx(distance), dFdy(distance))), 0.001);
     vec4 color = tint;
 #ifdef LUMEN_TEXTURED
-    color *= texture(Sampler0, texCoord);
+    color *= primitive.x == 12 ? sampleGradient(texCoord) : texture(Sampler0, texCoord);
     if (radius > 0.0) color.a *= coverage(distance, pixel);
 #else
     float parameter = texCoord.x;

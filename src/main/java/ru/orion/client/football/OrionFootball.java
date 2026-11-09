@@ -39,7 +39,7 @@ public final class OrionFootball {
     private boolean loaded,ballExists,placing,charging,spinCharge,suppressRelease,shotActive,shotSaved;
     private ClientLevel level;private String worldKey;
     private int movingIndex=-1,shots,score,saves,misses;
-    private long chargeAt,goalAt,netAt,lastSound,shotAt,kickAt,lastDribble;
+    private long chargeAt,goalAt,netAt,lastSound,shotAt,kickAt;
     private float yawOffset,oldRoll,newRoll;private OrionFootballGoal preview;
     private OrionBasketballVector previous=OrionBasketballVector.ZERO,current=OrionBasketballVector.ZERO;
     private KeyMapping ballKey,goalKey,moveKey,removeKey,keeperKey,rotateLeft,rotateRight,penaltyKey;
@@ -122,22 +122,14 @@ public final class OrionFootball {
         for(var keeper:keepers){keeper.setEnabled(config.isFootballGoalkeeperEnabled());keeper.setDifficulty(OrionGoalkeeperAI.Difficulty.values()[config.getFootballGoalkeeperDifficulty()]);}
         if(ballExists){
             previous=ball.position();oldRoll=newRoll;
-            var result=ball.advance(.05,new OrionFootballWorld(client.level),goals,keepers,(kind,p,speed)->sound(client,kind,p,speed));
+            var bodies = client.player.isSpectator() ? List.<OrionFootballPhysics.PlayerBody>of()
+                    : List.of(OrionFootballWorld.playerBody(client.player, OrionBasketballVector.ZERO));
+            var result=ball.advance(.05,new OrionFootballWorld(client.level),goals,keepers,bodies,(kind,p,speed)->sound(client,kind,p,speed));
             current=ball.position();newRoll=(float)ball.roll();
             if(result.goals()>0){score+=result.goals();goalAt=System.nanoTime();shotActive=false;client.level.playLocalSound(current.x(),current.y(),current.z(),SoundEvents.NOTE_BLOCK_PLING.value(),SoundSource.PLAYERS,.7F,1.4F,false);}
             if(result.saves()>0 && shotActive && !shotSaved){saves++;shotSaved=true;shotActive=false;}
             if(shotActive && System.nanoTime()-shotAt>4_000_000_000L){misses++;shotActive=false;}
-            if(!charging)dribble(client);
         }
-    }
-    private void dribble(Minecraft client){
-        long now=System.nanoTime();if(now-lastDribble<250_000_000L)return;
-        Vec3 point=client.player.position();OrionBasketballVector diff=current.subtract(new OrionBasketballVector(point.x,point.y,point.z));
-        Vec3 velocity=client.player.getDeltaMovement();if(diff.lengthSquared()>1.2||velocity.horizontalDistance()<.015||Math.abs(diff.y())>.9)return;
-        Vec3 motion=new Vec3(velocity.x,0,velocity.z).normalize();
-        if(diff.x()*motion.x+diff.z()*motion.z<-.10)return;
-        double power=Math.min(2.5,.6+velocity.horizontalDistance()*12);
-        ball.kick(new OrionBasketballVector(motion.x*power,.08,motion.z*power),new OrionBasketballVector(-motion.z*8,0,motion.x*8));lastDribble=now;kickAt=now;
     }
     private void resetBall(Minecraft client){
         if(manager.getConfig().isFootballPenaltyMode()&&!goals.isEmpty()){setupPenalty(client);return;}

@@ -25,6 +25,7 @@ public final class OrionBasketballMatch {
     private final OrionBallState simulation = new OrionBallState();
     private final OrionWorldColliders colliders = new OrionWorldColliders();
     private final ArrayDeque<JsonObject> commands = new ArrayDeque<>();
+    private final ArrayDeque<JsonObject> collisions = new ArrayDeque<>();
     private FootballConnection connection;
     private CompletableFuture<JsonObject> pending;
     private ClientLevel level;
@@ -37,6 +38,7 @@ public final class OrionBasketballMatch {
     private int ballRevision = -1, pendingGoal = -1;
     private Vec3 crossing;
     private long lastPickup;
+    private int collisionId, lastSoundId;
     private int walkTicks;
     private long nextPoll, lastPacket, changedAt, chargeAt, scoreAt;
     private Vec3 spawn = Vec3.ZERO;
@@ -61,7 +63,8 @@ public final class OrionBasketballMatch {
         return switch (phase) {
             case "lobby" -> ready ? "Ждём остальных" : "Нажми «Готов»";
             case "kickoff" -> "Займи стартовую точку";
-            case "finished" -> red >= 11 ? "Красные победили" : "Синие победили";
+            case "finished" -> ready ? "Готов к новой игре · ждём остальных"
+                    : (red >= 11 ? "Красные победили" : "Синие победили") + " · " + "Нажми «Готов» для новой игры";
             default -> holding() ? "ПКМ — бросок · ЛКМ — пас" : "Подбери свободный мяч";
         };
     }
@@ -121,7 +124,7 @@ public final class OrionBasketballMatch {
         }
         return true;
     }
-    public void ready() { if(active()&&phase.equals("lobby")) { readyWanted=!(readyWanted==null?ready:readyWanted); nextPoll=0; } }
+    public void ready() { if(active()&&(phase.equals("lobby")||phase.equals("finished"))) { readyWanted=!(readyWanted==null?ready:readyWanted); nextPoll=0; } }
     public void leave() { close("Ты вышел из комнаты",true); }
     private JsonObject request(String action) {
         var request=new JsonObject();
@@ -139,12 +142,37 @@ public final class OrionBasketballMatch {
         hoops=List.of(); commands.clear(); readyWanted=null;
         charging=attackDown=useDown=false;commandId=0;nextPoll=0;red=blue=0;scoreAt=0;status=reason;
         pendingGoal=-1;pendingOut=false;ballRevision=-1;dribble=false;shooter="";
+        collisions.clear();collisionId=lastSoundId=0;lastPickup=0;
     }
-    public void pickup() { if(active()&&phase.equals("play")) command(holding() && !dribble ? "dribble" : "pickup",0); }
+    public void pickup() {
+        var client = Minecraft.getInstance();
+        if (!active() || !phase.equals("play") || client.player == null || client.gui.screen() != null) return;
+        if (holding()) {
+            command(dribble ? "pickup" : "dribble", 0);
+        } else if (owner.isEmpty() && canReachBall(client)) {
+            long now = System.nanoTime();
+            if (now - lastPickup >= 250_000_000L) {
+                lastPickup = now;
+                command("pickup", 0);
+            }
+        }
+    }
+
+    private boolean canReachBall(Minecraft client) {
+        if (liveShot && target.y >= 3.05 - .121 * 2.1
+                && Math.hypot(target.x, Math.abs(target.z) - 12) <= 1.5) return false;
+        Vec3 offset = origin.add(target).subtract(client.player.getEyePosition());
+        double distance = offset.length();
+        return distance <= 2.25 && (distance <= .121 * 2.1 || offset.dot(client.player.getViewVector(1)) >= .5 * distance);
+    }
+
     private void command(String kind,float power) {
         if(commands.size()>=4)return;
+        if ((kind.equals("pickup") || kind.equals("dribble"))
+                && commands.stream().anyMatch(queued -> kind.equals(queued.get("kind").getAsString()))) return;
         var command=new JsonObject();command.addProperty("id",++commandId);command.addProperty("kind",kind);
         command.addProperty("power",power);
+        if (kind.equals("pickup")) command.addProperty("revision",ballRevision);
         if (kind.equals("shoot") || kind.equals("pass")) {
             var client = Minecraft.getInstance();
             var player = client.player;
@@ -189,12 +217,7 @@ public final class OrionBasketballMatch {
                 &&client.player.getDeltaMovement().horizontalDistance()>.085&&client.player.onGround()) {
             if(++walkTicks>8) { command("dribble",0);walkTicks=0; }
         } else walkTicks=0;
-        if (owner.isEmpty() && phase.equals("play") && client.gui.screen()==null
-                && OrionBasketballSettings.get().basketCatch && now-lastPickup>450_000_000L
-                && client.player.position().add(0, 1, 0).distanceToSqr(origin.add(target))<1.8*1.8) {
-            lastPickup=now;
-            command("pickup",0);
-        }
+        if (owner.isEmpty() && OrionBasketballSettings.get().basketCatch) pickup();
         if (host && owner.isEmpty() && phase.equals("play") && pendingGoal<0 && !pendingOut) {
             advance(client);
             target=new Vec3(simulation.x,simulation.y,simulation.z).subtract(origin);
@@ -234,6 +257,11 @@ public final class OrionBasketballMatch {
             frame.add("turn",turn);
             if(pendingGoal>=0)frame.addProperty("goal",pendingGoal);
             if(pendingOut)frame.addProperty("out",true);
+            if (!collisions.isEmpty()) {
+                var sounds = new JsonArray();
+                collisions.forEach(sounds::add);
+                frame.add("sounds", sounds);
+            }
             request.add("frame",frame);
         }
         if(readyWanted!=null)request.addProperty("ready",readyWanted);
@@ -267,6 +295,15 @@ public final class OrionBasketballMatch {
                 new OrionBallPhysics.Listener() {
                     @Override public void hit(OrionBallMaterial material,double speed,double x,double y,double z) {
                         OrionBasketballAudio.helper21(material,speed,x,y,z);
+                        if (speed < .9 || Math.abs(x - origin.x) > 13 || Math.abs(z - origin.z) > 18
+                                || y - origin.y < -2 || y - origin.y > 25) return;
+                        var sound = new JsonObject();
+                        sound.addProperty("id", ++collisionId);
+                        sound.addProperty("kind", Math.clamp(material.sound(), 0, 2));
+                        sound.addProperty("speed", Math.min(speed, 100));
+                        sound.add("point", array(new Vec3(x,y,z).subtract(origin)));
+                        if (collisions.size() >= 12) collisions.removeFirst();
+                        collisions.addLast(sound);
                     }
                     @Override public void segment(double x,double y,double z,double X,double Y,double Z) {
                         if(!liveShot||pendingGoal>=0)return;
@@ -313,6 +350,11 @@ public final class OrionBasketballMatch {
             }
             try {
                 accept(reply);
+                if (request.has("frame") && request.getAsJsonObject("frame").has("sounds")) {
+                    var sentSounds = request.getAsJsonObject("frame").getAsJsonArray("sounds");
+                    int sentId = sentSounds.get(sentSounds.size() - 1).getAsJsonObject().get("id").getAsInt();
+                    while (!collisions.isEmpty() && collisions.peekFirst().get("id").getAsInt() <= sentId) collisions.removeFirst();
+                }
                 if(sentCommand!=null&&commands.peekFirst()==sentCommand)commands.removeFirst();
                 status="";
             } catch(RuntimeException invalid) { close("Некорректный ответ матча",true); }
@@ -345,6 +387,7 @@ public final class OrionBasketballMatch {
         lastPacket=now;
         ball.vx=velocity.x;ball.vy=velocity.y;ball.vz=velocity.z;
         if(physicalReset) {
+            collisions.clear();
             simulation.setPosition(origin.x+point.x,origin.y+point.y,origin.z+point.z);
             simulation.stop();simulation.vx=velocity.x;simulation.vy=velocity.y;simulation.vz=velocity.z;
             var spin=vector(reply.getAsJsonArray("spin"));simulation.setSpin(spin.x,spin.y,spin.z);
@@ -361,6 +404,18 @@ public final class OrionBasketballMatch {
             String dimension=level.dimension().identifier().toString();
             hoops=List.of(new OrionHoop("online-red",dimension,origin.x,origin.y+3.05,origin.z+12,origin.y,180,2.1),
                     new OrionHoop("online-blue",dimension,origin.x,origin.y+3.05,origin.z-12,origin.y,0,2.1));
+        }
+        if (reply.has("sounds")) {
+            for (var entry : reply.getAsJsonArray("sounds")) {
+                var sound = entry.getAsJsonObject();
+                int id = sound.get("id").getAsInt();
+                if (id <= lastSoundId) continue;
+                lastSoundId = id;
+                int kind = sound.get("kind").getAsInt();
+                if (host && kind <= 2) continue;
+                OrionBasketballAudio.playMatchSound(kind, origin.add(vector(sound.getAsJsonArray("point"))),
+                        sound.get("volume").getAsFloat(), sound.get("pitch").getAsFloat());
+            }
         }
     }
     public Vec3 startMarker() { return origin.add(spawn); }

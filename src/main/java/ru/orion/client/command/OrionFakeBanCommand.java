@@ -1,5 +1,6 @@
 package ru.orion.client.command;
 
+import com.google.gson.JsonObject;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -17,10 +18,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FontDescription;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.Identifier;
+import ru.orion.client.config.OrionAccounts;
 
 import java.util.concurrent.CompletableFuture;
 
-/** Локальная имитация сообщений о банах и мутах. */
+/** Клиентские розыгрыши с имитацией бана или мута. */
 public final class OrionFakeBanCommand {
     private static final int ACCENT_COLOR = 0xE1BB4B;
     private static final int TEXT_COLOR = 0xDBD5C3;
@@ -82,6 +84,11 @@ public final class OrionFakeBanCommand {
         if (client == null || client.gui == null || client.getConnection() == null) {
             return 0;
         }
+        OrionAccounts accounts = OrionAccounts.INSTANCE;
+        if (!accounts.plusActive()) {
+            feedback(client, "Для этой команды нужна подписка Plus");
+            return 0;
+        }
 
         String safeModerator = sanitizeName(StringArgumentType.getString(context, "кто"));
         String safeTarget = sanitizeName(StringArgumentType.getString(context, "кого"));
@@ -92,14 +99,63 @@ public final class OrionFakeBanCommand {
             return 0;
         }
 
+        String scope = OrionAccounts.fakePunishmentScope(client);
+        if (scope.isEmpty()) {
+            show(client, punishment, safeModerator, safeTarget, safeDuration, safeReason);
+        } else {
+            JsonObject event = new JsonObject();
+            event.addProperty("scope", scope);
+            event.addProperty("kind", punishment == Punishment.BAN ? "ban" : "mute");
+            event.addProperty("moderator", safeModerator);
+            event.addProperty("target", safeTarget);
+            event.addProperty("duration", safeDuration);
+            event.addProperty("reason", safeReason);
+            var connection = client.getConnection();
+            accounts.publishFakePunishment(event).whenComplete((sent, failure) -> client.execute(() -> {
+                if (client.getConnection() != connection) return;
+                if (failure != null) {
+                    Throwable cause = failure.getCause() == null ? failure : failure.getCause();
+                    feedback(client, cause instanceof IllegalStateException ? cause.getMessage() : "Сервис розыгрышей недоступен");
+                } else if (!sent) {
+                    feedback(client, "Для этой команды нужна подписка Plus");
+                } else {
+                    show(client, punishment, safeModerator, safeTarget, safeDuration, safeReason);
+                }
+            }));
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    public static void showRemote(Minecraft client, JsonObject event) {
+        String author = eventString(event, "author");
+        if (author == null || !author.matches("[A-Za-z0-9_]{2,24}")) return;
+        String verb = eventString(event, "kind");
+        Punishment kind = "ban".equals(verb) ? Punishment.BAN : "mute".equals(verb) ? Punishment.MUTE : null;
+        String moderator = sanitizeName(eventString(event, "moderator"));
+        String target = sanitizeName(eventString(event, "target"));
+        String reason = sanitizeReason(eventString(event, "reason"));
+        String rawDuration = eventString(event, "duration");
+        String duration = rawDuration == null ? null : sanitizeDuration(rawDuration);
+        if (kind == null || moderator.isEmpty() || target.isEmpty() || reason.isEmpty()
+                || (duration == null ? kind == Punishment.MUTE : duration.isEmpty())) return;
+        show(client, kind, moderator, target, duration, reason);
+    }
+
+    private static String eventString(JsonObject event, String field) {
+        var value = event.get(field);
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsString() : null;
+    }
+
+    private static void show(Minecraft client, Punishment punishment, String moderator, String target,
+                             String duration, String reason) {
         MutableComponent punishmentLine = Component.empty()
-                .append(accent(safeModerator))
+                .append(accent(moderator))
                 .append(text(punishment.verb))
-                .append(accent(safeTarget));
-        if (safeDuration == null) {
+                .append(accent(target));
+        if (duration == null) {
             punishmentLine.append(text(" навсегда:"));
         } else {
-            punishmentLine.append(text(" на ")).append(accent(safeDuration)).append(text(":"));
+            punishmentLine.append(text(" на ")).append(accent(duration)).append(text(":"));
         }
 
         MutableComponent message = Component.empty()
@@ -107,11 +163,14 @@ public final class OrionFakeBanCommand {
                 .append("\n")
                 .append(Component.literal(SECOND_LINE_INDENT).append(punishmentLine))
                 .append("\n")
-                .append(Component.literal(SECOND_LINE_INDENT).append(text(safeReason)))
+                .append(Component.literal(SECOND_LINE_INDENT).append(text(reason)))
                 .append("\n");
 
         client.gui.hud.getChat().addClientSystemMessage(message);
-        return Command.SINGLE_SUCCESS;
+    }
+
+    private static void feedback(Minecraft client, String message) {
+        client.gui.hud.getChat().addClientSystemMessage(Component.literal(message));
     }
 
     private static MutableComponent icon() {
@@ -137,7 +196,7 @@ public final class OrionFakeBanCommand {
         if (reason == null) {
             return "";
         }
-        String sanitized = reason.replace('\n', ' ').replace('\r', ' ').trim();
+        String sanitized = reason.replaceAll("[\\p{Cntrl}\\p{Cf}\\p{Zl}\\p{Zp}]", " ").trim();
         return sanitized.length() <= REASON_MAX_LENGTH
                 ? sanitized
                 : sanitized.substring(0, REASON_MAX_LENGTH);
@@ -147,7 +206,7 @@ public final class OrionFakeBanCommand {
         if (duration == null) {
             return "";
         }
-        String sanitized = duration.replace('\n', ' ').replace('\r', ' ').trim();
+        String sanitized = duration.replaceAll("(?U)[\\p{Cntrl}\\p{Cf}\\s]", "");
         return sanitized.length() <= 16 ? sanitized : sanitized.substring(0, 16);
     }
 

@@ -1,30 +1,9 @@
 {
-  "kill.ghost": {
-    "sounds": [{"name": "orion-client:kill/ghost", "preload": true, "attenuation_distance": 64}]
-  },
-  "kill.gravestone": {
-    "sounds": [{"name": "orion-client:kill/gravestone", "preload": true, "attenuation_distance": 64}]
-  },
   "kill.sword_rain": {
     "sounds": [{"name": "orion-client:kill/sword_rain", "preload": true, "attenuation_distance": 64}]
   },
-  "kill.crystal_shatter": {
-    "sounds": [{"name": "orion-client:kill/crystal_shatter", "preload": true, "attenuation_distance": 64}]
-  },
   "kill.black_hole": {
     "sounds": [{"name": "orion-client:kill/black_hole", "preload": true, "attenuation_distance": 64}]
-  },
-  "kill.angel_wings": {
-    "sounds": [{"name": "orion-client:kill/angel_wings", "preload": true, "attenuation_distance": 64}]
-  },
-  "kill.crystal_prison": {
-    "sounds": [{"name": "orion-client:kill/crystal_prison", "preload": true, "attenuation_distance": 64}]
-  },
-  "kill.totem_explosion": {
-    "sounds": [{"name": "orion-client:kill/totem_explosion", "preload": true, "attenuation_distance": 64}]
-  },
-  "kill.dragon_soul": {
-    "sounds": [{"name": "orion-client:kill/dragon_soul", "preload": true, "attenuation_distance": 64}]
   },
   "basket.bounce": {
     "sounds": [

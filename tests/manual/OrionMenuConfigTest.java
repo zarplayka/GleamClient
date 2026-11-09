@@ -18,7 +18,7 @@ public final class OrionMenuConfigTest {
         old.setKillEffectsPlayerLift(.75F);
         OrionConfig roundtrip = gson.fromJson(gson.toJson(old), OrionConfig.class);
         roundtrip.sanitize();
-        check(roundtrip.getKillEffectsStyle() == 8, "dragon keeps stable id");
+        check(roundtrip.getKillEffectsStyle() == 8, "pixel effect keeps stable id");
         check(roundtrip.getKillEffectsTargets() == 1 && roundtrip.getKillEffectsPlayerLift() == .75F, "settings roundtrip");
         OrionConfig legacy = gson.fromJson("{}", OrionConfig.class);
         legacy.sanitize();

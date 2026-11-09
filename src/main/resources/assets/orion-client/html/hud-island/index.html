@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<section id="island" aria-label="GleamClient HUD">
+  <svg class="shoulder left" viewBox="0 0 11 11" aria-hidden="true"><path d="M0 0h11v11Q11 0 0 0Z"/></svg>
+  <svg class="shoulder right" viewBox="0 0 11 11" aria-hidden="true"><path d="M0 0h11Q0 0 0 11Z"/></svg>
+  <div class="surface">
+    <header id="header" data-drag-handle aria-controls="full" aria-expanded="false">
+      <b class="brand"><img src="assets/gleam-hud-badge.png" alt="">GleamClient</b>
+      <span id="version" class="unit"></span>
+      <span id="username"></span>
+      <span id="metrics">
+        <span class="metric"><span id="fps"></span><span class="unit">FPS</span></span>
+        <span class="metric"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M5 18v-3m5 3v-6m5 6V9m5 9V5"/></svg><span id="ping"></span><span class="unit">ms</span></span>
+      </span>
+    </header>
+    <div id="compact" hidden>
+      <span id="compact-service" class="service-icon" aria-hidden="true"></span>
+      <img id="compact-cover" alt="" hidden>
+      <span id="compact-title"></span>
+      <span id="compact-eq" class="equalizer" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span id="status"></span>
+    </div>
+    <div id="full">
+    <div class="track">
+      <div class="art">
+        <img id="cover" alt="" hidden>
+        <svg id="cover-fallback" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 16.2V7.8l8-1.6v9.2c0 1.4-1.1 2.3-2.5 2.3-1 0-1.7-.5-1.7-1.4 0-1.2 1.3-2.1 2.9-2V9.4l-5.4 1.1v6.7c0 1.4-1.1 2.3-2.5 2.3-1 0-1.8-.6-1.8-1.5 0-1.3 1.3-2.1 3-1.8z"/></svg>
+      </div>
+      <div class="track-copy">
+        <div id="song-title"></div>
+        <div id="song-artist"></div>
+      </div>
+      <div class="source">
+        <span id="full-service" class="service-icon" aria-hidden="true"></span>
+        <span id="source-name"></span>
+        <button id="settings" data-action="settings" type="button" aria-label="Настройки">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="timeline">
+      <span id="elapsed">0:00</span>
+      <div id="seek" class="range" data-control="seek" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-label="Перемотка">
+        <div class="track-line"><span id="seek-fill"></span><i id="seek-thumb"></i></div>
+      </div>
+      <span id="remaining">0:00</span>
+    </div>
+    <div id="transport" class="transport">
+      <button id="shuffle" class="sub-control" data-action="shuffle" type="button" aria-label="Перемешать"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h4l10 12h4m-3-3 3 3-3 3M3 18h4L17 6h4m-3-3 3 3-3 3"/></svg></button>
+      <button id="previous" data-action="previous" type="button" aria-label="Предыдущий трек"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 5-10 7 10 7zm10 0-10 7 10 7z"/></svg></button>
+      <button id="play" class="play-control" data-action="play" type="button" aria-label="Воспроизвести"><svg id="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4 13 8L8 20z"/></svg><svg id="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></button>
+      <button id="next" data-action="next" type="button" aria-label="Следующий трек"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 5 10 7-10 7zm10 0 10 7-10 7z"/></svg></button>
+      <button id="repeat" class="sub-control" data-action="repeat" type="button" aria-label="Повтор"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11V6h17m-3-3 3 3-3 3M21 13v5H4m3-3-3 3 3 3"/></svg><span id="repeat-one" hidden>1</span></button>
+    </div>
+    <button id="enable" class="enable" data-action="enable" type="button" hidden></button>
+    <div class="volume-row">
+      <button id="mute" class="speaker" data-action="mute" type="button" aria-label="Громкость приложения"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-5v16l-5-5H3z"/><path id="sound-waves" fill="none" d="M16 8c3 2 3 6 0 8m3-11c5 4 5 10 0 14"/></svg></button>
+      <span id="volume-source" hidden></span>
+      <div id="volume" class="range" data-control="volume" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-label="Громкость приложения"><div class="track-line"><span id="volume-fill"></span><i id="volume-thumb"></i></div></div>
+      <span id="volume-value">—</span>
+    </div>
+    <div id="control-error" role="status" hidden></div>
+    </div>
+  </div>
+</section>
+<script src="island.js"></script>
+</body>
+</html>

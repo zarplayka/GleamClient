@@ -9,7 +9,7 @@ import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import ru.orion.client.config.OrionConfigManager;
 
 /** Десять ванильных значков брони над игроком, по два очка на значок. */
@@ -25,25 +25,36 @@ public final class OrionArmorIndicator {
 
     private void render(LevelRenderContext context) {
         Minecraft client = Minecraft.getInstance();
-        if (!configManager.getConfig().isArmorIndicatorEnabled() || client.player == null || client.level == null) return;
+        var config = configManager.getConfig();
+        if (!config.isArmorIndicatorEnabled() || client.player == null || client.level == null) return;
+        var options = config.getArmorIndicatorOptions();
+        var health = config.getHealthIndicatorOptions();
         var camera = context.levelState().cameraRenderState;
         if (camera == null || !camera.initialized || camera.orientation == null) return;
         float partial = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
         for (Entity entity : client.level.entitiesForRendering()) {
-            if (!(entity instanceof Player player) || player == client.player || !player.isAlive()
-                    || player.isInvisibleTo(client.player)) continue;
-            var position = player.getPosition(partial);
+            if (!(entity instanceof LivingEntity living) || !OrionHealthTags.visible(client, living, options)) continue;
+            var position = living.getPosition(partial);
             double distanceSq = position.distanceToSqr(camera.pos);
-            if (distanceSq > 4096D) continue;
-            int armor = Mth.clamp(player.getArmorValue(), 0, 20);
-            if (armor == 0) continue;
-            double lift = configManager.getConfig().isHealthTagsEnabled()
-                    ? OrionHealthTags.topOffset(player) + 0.28D : player.getBbHeight() + 0.76D;
+            if (distanceSq > options.distance * options.distance) continue;
+            int armor = Mth.clamp(living.getArmorValue(), 0, 20);
+            if (armor == 0 && options.changedOnly) continue;
+            boolean aboveHealth = config.isHealthTagsEnabled() && distanceSq <= health.distance * health.distance
+                    && (!health.changedOnly || living.getHealth() < living.getMaxHealth())
+                    && OrionHealthTags.visible(client, living, health);
+            double lift = (aboveHealth ? OrionHealthTags.topOffset(living, health) + .28 * options.scale
+                    : living.getBbHeight() + .76) + options.offset;
+            if (options.mode != 0) {
+                OrionHealthTags.submitNumber(context, client.font, options.mode == 2 ? (armor * 5) + "%" : Integer.toString(armor),
+                        0xFFB6D9FF, position.x - camera.pos.x, position.y - camera.pos.y + lift,
+                        position.z - camera.pos.z, camera, options.scale);
+                continue;
+            }
             PoseStack stack = context.poseStack();
             stack.pushPose();
             stack.translate(position.x - camera.pos.x, position.y - camera.pos.y + lift, position.z - camera.pos.z);
             stack.rotate(camera.orientation);
-            stack.scale(-SCALE, SCALE, SCALE);
+            stack.scale(-SCALE * options.scale, SCALE * options.scale, SCALE * options.scale);
             float depth = 0.01F * (1F + (float) Math.sqrt(distanceSq));
             for (int i = 0; i < 10; i++) {
                 float x = 40.5F - i * 8;

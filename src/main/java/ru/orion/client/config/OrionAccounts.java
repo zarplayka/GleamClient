@@ -11,9 +11,11 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
 import ru.orion.client.OrionClient;
+import ru.orion.client.command.OrionFakeBanCommand;
 import ru.orion.client.gui.OrionClickGuiScreen;
 import ru.orion.client.gui.OrionChatNotifications;
 import org.slf4j.LoggerFactory;
@@ -25,6 +27,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.net.HttpCookie;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -34,8 +38,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -64,12 +70,14 @@ public final class OrionAccounts {
     private CompletableFuture<OrionChatCrypto.Identity> registeredChatIdentity;
     private long notificationCursor = -1, nextNotificationPoll;
     private boolean notificationLoading;
+    private FakePunishmentFeed fakePunishmentFeed;
     private final LinkedHashMap<String, Integer> unreadChats = new LinkedHashMap<>();
     // Кэш читается только в очереди хранения и сбрасывается при смене пары.
     private String decodedChatPair = "";
     private final LinkedHashMap<String, String> decodedMessages = new LinkedHashMap<>(128, .75f, true);
 
     public record Profile(String id, long createdAt, boolean published, BufferedImage avatar) { }
+    public record ChatReply(long id, boolean own, String body) { }
     private boolean busy;
 
     private OrionAccounts() { }
@@ -77,11 +85,27 @@ public final class OrionAccounts {
     private record Session(String username, String cookie, String csrf, long plusExpiresAt, String role) { }
     private record StoredSessions(List<Session> sessions, String active) { }
 
+    private static final class FakePunishmentFeed {
+        private final Session session;
+        private final ClientPacketListener connection;
+        private final String scope;
+        private String cursor = "";
+        private long nextPoll;
+        private boolean loading;
+
+        private FakePunishmentFeed(Session session, ClientPacketListener connection, String scope) {
+            this.session = session;
+            this.connection = connection;
+            this.scope = scope;
+        }
+    }
+
     public void register() {
         if (!Platform.isWindows()) return;
         sessionFile = FabricLoader.getInstance().getConfigDir().resolve("orion-account-sessions.json");
         ClientLifecycleEvents.CLIENT_STARTED.register(this::restore);
         ClientTickEvents.END_CLIENT_TICK.register(this::pollChatNotifications);
+        ClientTickEvents.END_CLIENT_TICK.register(this::pollFakePunishments);
         OrionChatNotifications.register();
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             try {
@@ -166,6 +190,72 @@ public final class OrionAccounts {
         }
     }
     public boolean plusActive() { return active != null && active.plusExpiresAt() > Instant.now().getEpochSecond(); }
+
+    public static String fakePunishmentScope(Minecraft client) {
+        var server = client.getCurrentServer();
+        if (server == null || server.ip == null || server.ip.isBlank() || client.hasSingleplayerServer()) return "";
+        String address = server.ip.strip().toLowerCase(Locale.ROOT);
+        if (address.endsWith(":25565")) address = address.substring(0, address.length() - 6);
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(address.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
+    public CompletableFuture<Boolean> publishFakePunishment(JsonObject event) {
+        Session session = active;
+        if (session == null || !plusActive()) return CompletableFuture.completedFuture(false);
+        return send("/api/fake-punishments", event, session, true).thenApplyAsync(response -> {
+            if (active != session) return false;
+            return switch (response.statusCode()) {
+                case 200 -> true;
+                case 401, 403 -> false;
+                case 429 -> throw new IllegalStateException("Подожди перед следующей командой");
+                default -> throw new IllegalStateException("Сервис розыгрышей недоступен");
+            };
+        }, Minecraft.getInstance());
+    }
+
+    private void pollFakePunishments(Minecraft client) {
+        var config = OrionClient.getConfigOrNull();
+        var connection = client.getConnection();
+        if (active == null || client.level == null || connection == null || client.getCurrentServer() == null
+                || client.hasSingleplayerServer() || config == null || !config.isShowFakePunishments()) {
+            fakePunishmentFeed = null;
+            return;
+        }
+        if (fakePunishmentFeed == null || fakePunishmentFeed.session != active || fakePunishmentFeed.connection != connection) {
+            fakePunishmentFeed = new FakePunishmentFeed(active, connection, fakePunishmentScope(client));
+        }
+        FakePunishmentFeed feed = fakePunishmentFeed;
+        long now = System.nanoTime();
+        if (feed.scope.isEmpty() || feed.loading || now < feed.nextPoll) return;
+        feed.loading = true;
+        feed.nextPoll = now + TimeUnit.SECONDS.toNanos(6);
+        String path = "/api/fake-punishments?scope=" + feed.scope + (feed.cursor.isEmpty() ? "" : "&after=" + feed.cursor);
+        send(path, null, feed.session, false).thenApply(OrionAccounts::friendResponse).whenComplete((result, failure) ->
+                client.execute(() -> {
+                    var current = OrionClient.getConfigOrNull();
+                    if (fakePunishmentFeed != feed || active != feed.session || client.getConnection() != feed.connection
+                            || current == null || !current.isShowFakePunishments()) return;
+                    feed.loading = false;
+                    if (failure != null) {
+                        feed.nextPoll = System.nanoTime() + TimeUnit.SECONDS.toNanos(25);
+                        return;
+                    }
+                    var cursorValue = result.get("cursor");
+                    if (cursorValue == null || !cursorValue.isJsonPrimitive() || !cursorValue.getAsJsonPrimitive().isString()
+                            || !result.has("items") || !result.get("items").isJsonArray()) return;
+                    String cursor = cursorValue.getAsString();
+                    if (!cursor.matches("[a-f0-9]{16}-[0-9]{1,18}")) return;
+                    feed.cursor = cursor;
+                    for (var item : result.getAsJsonArray("items")) {
+                        if (item.isJsonObject()) OrionFakeBanCommand.showRemote(client, item.getAsJsonObject());
+                    }
+                }));
+    }
     public boolean plusActive(String username) {
         Session session = sessions.get(username);
         return session != null && session.plusExpiresAt() > Instant.now().getEpochSecond();
@@ -292,7 +382,7 @@ public final class OrionAccounts {
         return downloadAvatar(id, null);
     }
 
-    public CompletableFuture<JsonObject> chat(String username, long before, String message) {
+    public CompletableFuture<JsonObject> chat(String username, long before, String message, ChatReply reply) {
         Session session = active;
         if (session == null || !username.matches("[A-Za-z0-9_]{3,24}"))
             return CompletableFuture.failedFuture(new IllegalStateException("Чат недоступен"));
@@ -304,17 +394,58 @@ public final class OrionAccounts {
             return history.thenCompose(result -> identity.thenCompose(ownKey ->
                     peer.thenCompose(peerKey -> decodeChat(result, ownKey, peerKey, session, username))));
         }
+        String plaintext = reply == null ? message : replyMessage(message, reply);
+        if (plaintext.getBytes(StandardCharsets.UTF_8).length > 2000)
+            return CompletableFuture.failedFuture(new IllegalStateException("Сообщение слишком длинное"));
         var peerKey = chatPeerKey(session, username);
         return chatIdentity(session).thenCompose(identity -> peerKey.thenCompose(peer -> {
             if (peer == null) return CompletableFuture.failedFuture(new IllegalStateException("Друг ещё не настроил защищённый чат"));
             return CompletableFuture.supplyAsync(() -> {
                 var body = new JsonObject();
-                body.addProperty("envelope", chatCrypto(() -> OrionChatCrypto.seal(message, identity, peer, session.username(), username)));
+                body.addProperty("envelope", chatCrypto(() -> OrionChatCrypto.seal(plaintext, identity, peer, session.username(), username)));
                 return body;
             }, storage).thenCompose(body -> send(path, body, session, true))
                     .thenApply(OrionAccounts::chatResponse)
                     .thenCompose(result -> decodeChat(result, identity, peer, session, username));
         }));
+    }
+
+    private static String replyMessage(String message, ChatReply reply) {
+        // NUL запрещён во вводе. Тело остаётся первым, а ссылка и цитата шифруются вместе с ним.
+        String header = message + '\0' + reply.id() + '\0' + (reply.own() ? '1' : '0');
+        int remaining = 2000 - header.getBytes(StandardCharsets.UTF_8).length;
+        var excerpt = new StringBuilder();
+        var points = reply.body().codePoints().limit(96).iterator();
+        while (points.hasNext() && remaining > 0) {
+            int point = points.nextInt();
+            int bytes = point < 0x80 ? 1 : point < 0x800 ? 2 : point < 0x10000 ? 3 : 4;
+            if (bytes > remaining) break;
+            excerpt.appendCodePoint(point);
+            remaining -= bytes;
+        }
+        return header + excerpt;
+    }
+
+    private static String messageBody(String plain) {
+        int separator = plain.indexOf(0);
+        return separator < 0 ? plain : plain.substring(0, separator);
+    }
+
+    private static void unpackReply(JsonObject item, String plain, boolean own) {
+        int start = plain.indexOf(0);
+        item.addProperty("body", messageBody(plain));
+        if (start < 0) return;
+        int end = plain.indexOf(0, start + 1);
+        if (end <= start + 1 || end + 1 >= plain.length()) return;
+        char author = plain.charAt(end + 1);
+        if (author != '0' && author != '1') return;
+        try {
+            long id = Long.parseLong(plain, start + 1, end, 10);
+            if (id <= 0) return;
+            item.addProperty("reply_to", id);
+            item.addProperty("reply_own", own == (author == '1'));
+            item.addProperty("reply_preview", plain.substring(end + 2));
+        } catch (NumberFormatException ignored) { }
     }
 
     private CompletableFuture<OrionChatCrypto.Peer> chatPeerKey(Session session, String username) {
@@ -374,7 +505,7 @@ public final class OrionAccounts {
                         decodedMessages.put(key, plain);
                         if (decodedMessages.size() > 128) decodedMessages.pollFirstEntry();
                     }
-                    item.addProperty("body", plain);
+                    unpackReply(item, plain, own);
                 } catch (java.security.GeneralSecurityException | RuntimeException failure) {
                     item.addProperty("unreadable", true);
                     item.addProperty("body", "");
@@ -399,7 +530,19 @@ public final class OrionAccounts {
         if (!item.has("envelope")) return CompletableFuture.completedFuture("");
         String envelope = item.get("envelope").getAsString();
         return chatIdentity(session).thenCombineAsync(chatPeerKey(session, username), (identity, peer) ->
-                peer == null ? "" : chatCrypto(() -> OrionChatCrypto.open(envelope, identity, peer, session.username(), username, false)), storage);
+                peer == null ? "" : chatCrypto(() -> messageBody(OrionChatCrypto.open(envelope, identity, peer, session.username(), username, false))), storage);
+    }
+
+    private CompletableFuture<BufferedImage> notificationAvatar(Session session, String sender) {
+        return loadFriends(session).thenCompose(friends -> {
+            for (var entry : friends) {
+                var friend = entry.getAsJsonObject();
+                var id = friend.get("public_id");
+                if (sender.equalsIgnoreCase(friend.get("username").getAsString()) && id != null && !id.isJsonNull())
+                    return publicAvatar(id.getAsString());
+            }
+            return CompletableFuture.completedFuture(null);
+        }).exceptionally(failure -> null);
     }
 
     private void pollChatNotifications(Minecraft client) {
@@ -442,13 +585,17 @@ public final class OrionAccounts {
                     long id = latest.get("id").getAsLong();
                     lastNotificationMessage = id;
                     String sender = latest.get("username").getAsString();
+                    var avatar = notificationAvatar(session, sender);
                     chatNotificationPreview(session, sender, latest).whenComplete((preview, error) -> client.execute(() -> {
                         if (active != session || notificationSession != session || lastNotificationMessage != id) return;
                         if (client.gui.screen() instanceof OrionClickGuiScreen screen && screen.isViewingChat(sender)) return;
                         var settings = OrionClient.getConfigOrNull();
                         if (settings == null || !settings.isChatNotifications()) return;
                         String fallback = ru.orion.client.gui.OrionGuiLanguage.translate("Новое сообщение");
-                        OrionChatNotifications.show(sender, error == null && !preview.isBlank() ? preview : fallback);
+                        OrionChatNotifications.show(id, sender, error == null && !preview.isBlank() ? preview : fallback);
+                        avatar.thenAccept(image -> client.execute(() -> {
+                            if (active == session && lastNotificationMessage == id) OrionChatNotifications.setAvatar(id, image);
+                        }));
                     }));
                 }
                 if (config.isChatNotificationSound())

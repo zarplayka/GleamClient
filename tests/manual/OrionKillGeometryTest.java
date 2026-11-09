@@ -21,44 +21,44 @@ import javax.imageio.ImageIO;
 public final class OrionKillGeometryTest {
     public static void main(String[] args) throws Exception {
         for (int type = 0; type < 9; type++) {
+            if (type == 7) continue;
             int maximum = 0;
             long animationSignature = 0;
             for (int quality = 0; quality < 3; quality++) {
                 for (int frame = 0; frame <= 50; frame++) {
                     PoseStack stack = new PoseStack();
                     Probe probe = new Probe();
-                    render(type, stack, probe, frame / 10F, quality);
+                    render(type, stack, probe, duration(type) * frame / 50F, quality);
                     check(stack.isEmpty(), "Leaked pose stack, type " + type);
                     check(stack.last().pose().equals(new Matrix4f()), "Changed caller transform, type " + type);
                     check(probe.vertices % 4 == 0, "Incomplete quad, type " + type);
-                    check(probe.vertices < 300_000, "Unbounded geometry, type " + type);
+                    check(probe.vertices < 20_000, "Unbounded geometry, type " + type);
                     maximum = Math.max(maximum, probe.vertices);
                     animationSignature ^= Double.doubleToLongBits(probe.sumX + probe.sumY * 3 + probe.sumZ * 7);
                     if (frame == 18) {
                         check(probe.visible > 64, "Missing visible model, type " + type);
-                        check(probe.maxX - probe.minX > .2F && probe.maxY - probe.minY > .2F
-                                && probe.maxZ - probe.minZ > .15F, "Flat main model, type " + type);
+                        check(probe.maxX - probe.minX > .2F && probe.maxY - probe.minY > .2F, "Missing effect extent, type " + type);
+                        if (type == 2 || type == 4) check(probe.maxZ - probe.minZ > .15F, "Flat main model, type " + type);
+                        else check(probe.maxZ - probe.minZ < .08F, "Pixel effect became a volume, type " + type);
                     }
                 }
             }
             check(animationSignature != 0, "Missing animated geometry, type " + type);
             System.out.println("Effect " + type + ": 153 frames checked, maximum vertices=" + maximum);
         }
-        Probe texture = new Probe();
-        OrionSoulKillModels.renderTotemTexture(new PoseStack(), texture, 1.5F, 2, 1, 123);
-        check(texture.vertices == 8 && texture.uvs == 8, "Missing textured totem faces");
-        BufferedImage totem=ImageIO.read(Path.of("src/main/resources/assets/orion-client/textures/kill/totem.png").toFile());
-        check(totem!=null&&totem.getWidth()==64&&totem.getHeight()==64,"Unreadable totem texture");
         BufferedImage materials=ImageIO.read(Path.of("src/main/resources/assets/orion-client/textures/kill/materials.png").toFile());
         check(materials!=null&&materials.getWidth()==128&&materials.getHeight()==128,"Unreadable material atlas");
         Probe centered=new Probe();
-        VertexConsumer centeredMaterial=OrionKillMaterial.textured(centered,1);
-        centeredMaterial.addVertex(-.5F,-.5F,0).setColor(0xFF888888);
-        centeredMaterial.addVertex(.5F,-.5F,0).setColor(0xFF888888);
-        centeredMaterial.addVertex(.5F,.5F,0).setColor(0xFF888888);
-        centeredMaterial.addVertex(-.5F,.5F,0).setColor(0xFF888888);
+        VertexConsumer centeredMaterial=OrionKillMaterial.textured(centered,4);
+        centeredMaterial.addVertex(-.5F,-.5F,0).setColor(0xFF222222);
+        centeredMaterial.addVertex(.5F,-.5F,0).setColor(0xFF222222);
+        centeredMaterial.addVertex(.5F,.5F,0).setColor(0xFF222222);
+        centeredMaterial.addVertex(-.5F,.5F,0).setColor(0xFF222222);
         check(centered.maxU-centered.minU>.001F&&centered.maxV-centered.minV>.001F,"Centered material quad collapsed to a line");
-        for(int type=0;type<9;type++)for(float age:new float[]{.1F,1.7F,3.5F,4.9F}) {
+        for(int type=0;type<9;type++) {
+            if (type == 7) continue;
+            for(float phase:new float[]{.08F,.3F,.6F,.9F}) {
+            float age = duration(type) * phase;
             PoseStack transformed=new PoseStack();transformed.translate(10,-8,5);transformed.scale(.7F,1.3F,1.1F);
             Probe textured=new Probe(),plain=new Probe(),localTexture=new Probe();
             textured.materialTiles=true;localTexture.materialTiles=true;
@@ -72,13 +72,16 @@ public final class OrionKillGeometryTest {
             check(Math.abs(textured.sumU-localTexture.sumU)<.0001&&Math.abs(textured.sumV-localTexture.sumV)<.0001,
                     "Material UV moved with world transform, type "+type);
         }
-        System.out.println("PASS: finite animated 3D geometry, quality levels, balanced transforms and totem UVs");
+        }
+        System.out.println("PASS: two 3D effects, six planar effects, finite bounded geometry, quality levels and material UVs");
         if(args.length==2 && args[0].equals("--preview")) preview(Path.of(args[1]));
     }
     private static void render(int type, PoseStack s, VertexConsumer v, float seconds, int quality) {
-        if (type == 0 || type == 5 || type == 7 || type == 8)
-            OrionSoulKillModels.render(type, s, v, seconds, quality, 1, 123);
-        else OrionArcaneKillModels.render(type, s, v, seconds, quality, 1, 123);
+        if (type == 2 || type == 4) OrionArcaneKillModels.render(type, s, v, seconds, quality, 1, 123);
+        else OrionSoulKillModels.render(type, s, v, seconds, quality, 1, 123);
+    }
+    private static float duration(int type) {
+        return type == 2 || type == 4 ? OrionArcaneKillModels.duration(type) : OrionSoulKillModels.duration(type);
     }
     private static void check(boolean condition, String message) {
         if (!condition) throw new AssertionError(message);
@@ -89,10 +92,11 @@ public final class OrionKillGeometryTest {
         Graphics2D g=image.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(new Color(0x111924));g.fillRect(0,0,image.getWidth(),image.getHeight());
-        String[] names={"Ghost","Gravestone","Sword Rain","Crystal Shatter","Black Hole","Angel Wings","Crystal Prison","Totem Explosion","Dragon Soul"};
+        String[] names={"Soul Bloom","Critical Burst","Sword Rain","Ender Rift","Black Hole","Sculk Echo","Frost Sigil","","Cherry Storm"};
         for(int type=0;type<9;type++) {
+            if (type == 7) continue;
             Probe probe=new Probe();probe.faces=new ArrayList<>();
-            render(type,new PoseStack(),probe,1.7F,2);
+            render(type,new PoseStack(),probe,duration(type) * .36F,2);
             float left=Float.POSITIVE_INFINITY,right=Float.NEGATIVE_INFINITY,top=Float.POSITIVE_INFINITY,bottom=Float.NEGATIVE_INFINITY;
             for(Face face:probe.faces)if((face.color>>>24)>5)for(int i=0;i<12;i+=3){
                 float u=projectX(face.xyz[i],face.xyz[i+2]),v=projectY(face.xyz[i],face.xyz[i+1],face.xyz[i+2]);

@@ -18,7 +18,8 @@ public final class OrionFootballPhysics {
         List<OrionBasketballBox> obstacles(OrionBasketballVector from,double radius,OrionBasketballVector delta);
         double groundFriction(OrionBasketballVector position);
     }
-    public enum Contact { GROUND,WALL,POST,NET,KEEPER }
+    public enum Contact { GROUND,WALL,POST,NET,KEEPER,PLAYER }
+    public record PlayerBody(OrionBasketballBox bounds, OrionBasketballVector velocity) { }
     @FunctionalInterface public interface Listener { void contact(Contact kind,OrionBasketballVector position,double speed); }
     public record Result(int goals,int saves,int steps) { }
     public void reset(OrionBasketballVector point,OrionBasketballVector initialVelocity){
@@ -32,6 +33,10 @@ public final class OrionFootballPhysics {
         velocity=velocity.add(impulse);spin=angularVelocity;scored=false;keeperContact=false;
     }
     public Result advance(double elapsed,World world,List<OrionFootballGoal> goals,List<OrionGoalkeeperAI> keepers,Listener listener){
+        return advance(elapsed, world, goals, keepers, List.of(), listener);
+    }
+    public Result advance(double elapsed, World world, List<OrionFootballGoal> goals, List<OrionGoalkeeperAI> keepers,
+                          List<PlayerBody> players, Listener listener) {
         if(!Double.isFinite(elapsed)||elapsed<0||world==null||goals==null||keepers==null||goals.size()!=keepers.size()||listener==null)throw new IllegalArgumentException("Некорректный шаг");
         accumulator=Math.min(accumulator+elapsed,STEP*MAX_STEPS);int count=0,goalCount=0,saves=0;
         while(accumulator>=STEP&&count<MAX_STEPS){
@@ -48,6 +53,8 @@ public final class OrionFootballPhysics {
                     for(var box:obstacles)collide(box,world,listener,null);
                     for(int i=0;i<goals.size();i++)collideGoal(goals.get(i),world,listener);
                 }
+                double remaining = Math.clamp(accumulator - STEP + (substeps - sub - 1) * dt, 0, elapsed);
+                for (PlayerBody player : players) collidePlayer(player, remaining, listener);
                 boolean touched=false;
                 for(int i=0;i<goals.size();i++){
                     var goal=goals.get(i);var keeper=keepers.get(i);
@@ -82,6 +89,18 @@ public final class OrionFootballPhysics {
             accumulator-=STEP;count++;
         }
         return new Result(goalCount,saves,count);
+    }
+    private void collidePlayer(PlayerBody player, double remaining, Listener listener) {
+        OrionBasketballVector movement = player.velocity();
+        OrionBasketballVector offset = movement.scale(-remaining);
+        var hit = contact(position.subtract(offset), player.bounds(), RADIUS);
+        if (hit == null) return;
+        var normal = hit.normal();
+        position = position.add(normal.scale(hit.depth() + .00001));
+        double closingSpeed = movement.subtract(velocity).dot(normal);
+        if (closingSpeed <= 0) return;
+        velocity = velocity.add(normal.scale(closingSpeed * 1.28));
+        if (closingSpeed > .8) listener.contact(Contact.PLAYER, position, closingSpeed);
     }
     private void collideGoal(OrionFootballGoal goal,World world,Listener listener){
         position=goal.local(position);velocity=goal.local(goal.base().add(velocity));

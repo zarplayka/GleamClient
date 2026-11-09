@@ -57,7 +57,11 @@ const names = Object.fromEntries([...sections,...categories,['settings','Нас�
 const categoryIds = new Set(categories.map(([id]) => id));
 const moduleGroups = {
   BASKETBALL:[[0,'Сетевой матч'],[9,'Как играть'],[13,'Площадка'],[19,'Текущая игра'],[24,'Бросок'],[30,'Физика'],[34,'Вид и звук']],
-  FOOTBALL:[[0,'Сетевой матч'],[9,'Как играть'],[14,'Поле'],[20,'Правила игры'],[24,'Удар']]
+  FOOTBALL:[[0,'Сетевой матч'],[9,'Как играть'],[14,'Поле'],[20,'Правила игры'],[24,'Удар']],
+  HEALTH_TAGS:[[0,'Внешний вид'],[4,'Кого показывать']],
+  ARMOR_INDICATOR:[[0,'Внешний вид'],[4,'Кого показывать']],
+  ENCHANT_GLINT:[[0,'Редактор переливания'],[6,'Сохранённые переливания']],
+  WORLD_CHANGER:[[0,'Небо'],[6,'Туман'],[11,'Облака'],[14,'Пресеты атмосферы']]
 };
 const catalog = [], ordered = [], byId = new Map();
 const quantity = count => count + ' ' + (uiLanguage !== 'ru' ? t(count === 1 ? 'модуль' : 'модулей') : count%10===1 && count%100!==11 ? 'модуль'
@@ -72,6 +76,8 @@ const points = [];
 let friends = {signedIn:false,busy:false,status:'',items:[]};
 let chat = {peer:'',items:[],busy:false,sent:0};
 const chatDrafts = new Map();
+const chatReplies = new Map();
+let chatContextId = '';
 const chatRecent = new Map();
 let chatUnread = {};
 const toggleStyleKey = 'orion-preview-toggle-style';
@@ -251,12 +257,12 @@ function renderModules() {
 function rangeProgress(min,max,value) {
   return Math.max(0,Math.min(100,100 * (value - min) / (max - min || 1))) + '%';
 }
-function rangeControl(attrs,min,max,step,value) {
-  return '<span class="range-control" style="--range-progress:' + rangeProgress(min,max,value) + '">'
+function rangeControl(attrs,min,max,step,value,suffix='') {
+  return '<span class="range-control" data-suffix="' + text(suffix) + '" style="--range-progress:' + rangeProgress(min,max,value) + '">'
     + '<span class="range-track" aria-hidden="true"><span class="range-fill"></span><span class="range-thumb"></span></span>'
     + '<input type="range"' + attrs + ' min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '"></span>';
 }
-function updateRange(field,suffix='') {
+function updateRange(field,suffix=field.parentElement.dataset.suffix ?? '') {
   field.parentElement.style.setProperty('--range-progress',rangeProgress(
     Number(field.getAttribute('min')),Number(field.getAttribute('max')),Number(field.value)));
   field.closest('.range').querySelector('output').textContent = field.value + suffix;
@@ -309,17 +315,67 @@ function updateChoice(trigger,value) {
   if (trigger === openChoice) for (const option of $('choice-popup').children)
     option.setAttribute('aria-pressed',String(Number(option.dataset.choiceOption) === Number(value)));
 }
-function controlRow(row, module, index) {
+const crosshairGridSize = 15;
+function crosshairPath(pixels) {
+  let path = '';
+  for (let i = 0; i < pixels.length; i++) {
+    if (pixels[i] === '1') path += 'M' + (i % crosshairGridSize) + ' ' + Math.floor(i / crosshairGridSize) + 'h1v1h-1z';
+  }
+  return path;
+}
+function crosshairIcon(pixels) {
+  return '<svg viewBox="0 0 15 15" aria-hidden="true" shape-rendering="crispEdges"><path fill="currentColor" d="'
+    + crosshairPath(pixels) + '"/></svg>';
+}
+function crosshairEditor(row, module, index) {
+  const [,mode,color,size,rotation] = module.settings;
+  const cells = [...row.value].map(pixel => '<span' + (pixel === '1' ? ' class="painted"' : '') + '></span>').join('');
+  const resetIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 7a5 5 0 1 0-1 4M13 3v4H9"/></svg>';
+  const saveIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m-3-3 3 3 3-3M3 13h10"/></svg>';
+  return '<section id="field-' + index + '" class="crosshair-editor" data-crosshair="' + index + '" data-pixels="' + row.value
+    + '" data-mode="' + mode.value + '" style="--crosshair-ink:' + text(color.value) + ';--crosshair-size:' + size.value / 100
+    + ';--crosshair-turn:' + rotation.value + 'deg">'
+    + '<div class="crosshair-mode"><span>' + text(mode.label) + '</span><div id="field-1" role="group" aria-label="' + text(mode.label) + '">'
+    + mode.choices.map((label,i) => '<button type="button" data-crosshair-operation="mode" data-crosshair-index="' + i
+      + '" aria-pressed="' + (i === mode.value) + '">' + text(label) + '</button>').join('')
+    + '</div></div><div class="crosshair-workbench" data-crosshair-custom><div class="crosshair-pane">'
+    + '<div class="crosshair-heading"><h3>' + text(row.label) + '</h3><div class="crosshair-tools">'
+    + '<button type="button" data-crosshair-operation="clear" title="' + text(t('Очистить')) + '">' + resetIcon + '</button>'
+    + '<button type="button" data-crosshair-operation="save-mode" title="' + text(t('Сохранить')) + '" aria-pressed="false">' + saveIcon + '</button>'
+    + '</div></div><div class="crosshair-grid" tabindex="0" aria-label="' + text(row.label) + '">' + cells + '</div></div>'
+    + '<div class="crosshair-custom-side"><div><h3>' + text(t('Управление')) + '</h3>'
+    + '<p><kbd>LMB</kbd> ' + text(t('Нарисовать пиксель')) + '</p><p><kbd>RMB</kbd> ' + text(t('Удалить пиксель'))
+    + '</p><p><kbd>Ctrl + Z</kbd> ' + text(t('Отменить штрих')) + '</p><p><kbd>Shift + LMB</kbd> '
+    + text(t('Соединить две точки')) + '</p></div>'
+    + '<div class="crosshair-shelf"><div class="crosshair-heading"><h3>' + text(t('Сохранённые прицелы'))
+    + ' <span>' + row.slots.filter(slot => slot.pixels).length + ' / ' + row.slots.length + '</span></h3>'
+    + '<small class="crosshair-save-hint">' + text(t('Выбери слот для сохранения')) + '</small></div><div class="crosshair-options">'
+    + row.slots.map(({pixels,color},i) => '<button type="button" class="crosshair-option" data-crosshair-operation="slot" data-crosshair-index="'
+      + i + '" data-filled="' + Boolean(pixels) + '" title="' + text(t(pixels ? 'Загрузить' : 'Сохранить')) + ' ' + (i + 1)
+      + '" style="color:' + text(color ?? '') + '">' + (pixels ? crosshairIcon(pixels) : '<span class="crosshair-empty">+</span>') + '</button>').join('')
+    + '</div></div></div></div><div class="crosshair-shelf" data-crosshair-presets><h3>' + text(t('Готовые формы')) + '</h3><div class="crosshair-options">'
+    + row.presets.map(({label,pixels},i) => '<button type="button" class="crosshair-option" data-crosshair-operation="preset" data-crosshair-index="'
+      + i + '" title="' + text(label) + '" aria-pressed="' + (i === row.selected) + '">' + crosshairIcon(pixels) + '</button>').join('')
+    + '</div></div><div class="crosshair-classic">' + text(t('Используется стандартный прицел Minecraft')) + '</div>'
+    + '<div class="crosshair-details"><div><h3>' + text(t('Цвет прицела')) + '</h3>'
+    + controlRow({...color,label:t('Основной цвет')},module,2,true) + '</div>'
+    + '<div><h3>' + text(t('Размер и поворот')) + '</h3>'
+    + controlRow(size,module,3,true) + controlRow(rotation,module,4,true) + '</div>'
+    + '<div class="crosshair-preview"><span>' + text(t('Предпросмотр')) + '</span><div>' + crosshairIcon(mode.value === 1 ? row.presets[row.selected].pixels : row.value)
+    + '</div></div></div></section>';
+}
+function controlRow(row, module, index, embedded = false) {
+  if (row.kind === 'crosshair') return crosshairEditor(row,module,index);
+  if (!embedded && module.id === 'CROSSHAIR' && module.settings[0]?.kind === 'crosshair') return '';
   const id = 'field-' + index, saved = state.values.get(module.id + ':' + index) ?? row.value;
+  if (row.kind === 'toggle') return settingToggle(id,row.label,saved,'data-setting-toggle="' + index + '"');
   let control;
   const attrs = ' id="' + id + '" data-setting="' + index + '"';
   switch (row.kind) {
-    case 'toggle': control = '<span class="setting-switch"><input type="checkbox"' + attrs + (saved ? ' checked' : '')
-      + '>' + toggleMarkup + '</span>'; break;
-    case 'slider': control = '<span class="range">' + rangeControl(attrs,row.min,row.max,row.step || '.01',saved)
-      + '<output for="' + id + '">' + saved + '</output></span>'; break;
+    case 'slider': control = '<span class="range">' + rangeControl(attrs,row.min,row.max,row.step || '.01',saved,row.suffix)
+      + '<output for="' + id + '">' + saved + text(row.suffix ?? '') + '</output></span>'; break;
     case 'choice': control = choiceControl(row,id,index,saved); break;
-    case 'color': control = '<input type="text" maxlength="7"' + attrs + ' value="' + text(saved) + '">'; break;
+    case 'color': return colorRow(row,id,attrs,saved);
     case 'text': control = '<input type="text"' + attrs + (row.maxLength ? ' maxlength="' + row.maxLength + '"' : '')
       + ' value="' + text(saved) + '" autocomplete="off">'; break;
     case 'keybind': control = '<button type="button" class="button" id="' + id + '" data-keybind="' + index + '">' + text(saved === '—' ? t('Назначить') : saved) + '</button>'; break;
@@ -328,6 +384,42 @@ function controlRow(row, module, index) {
   }
   return '<div class="setting-row' + (row.kind === 'choice' ? ' choice-row' : '')
     + '"><label for="' + id + '">' + text(row.label) + '</label>' + control + '</div>';
+}
+function settingToggle(id,label,checked,attrs) {
+  return '<button type="button" id="' + id + '" class="setting-row setting-toggle-row" role="switch" aria-checked="'
+    + Boolean(checked) + '" ' + attrs + '><span>' + text(label) + '</span>' + toggleMarkup + '</button>';
+}
+function colorRow(row,id,attrs,value) {
+  return '<div class="setting-row setting-color-row" style="--picker-color:' + text(value) + '">'
+    + '<span>' + text(row.label) + '</span><input type="text" hidden' + attrs + ' value="' + text(value) + '">'
+    + '<button type="button" class="color-swatch" data-color-toggle data-color-palette="' + text((row.palette ?? []).join(','))
+    + '" aria-controls="color-popup" aria-expanded="false" aria-label="' + text(t('Палитра') + ' — ' + row.label)
+    + '"><span class="color-code">' + text(value) + '</span><i></i></button></div>';
+}
+function colorPopup(palette,value) {
+  return '<h3 id="color-popup-title">' + text(t('Палитра')) + '</h3><div class="color-presets">'
+    + palette.map(color => '<button type="button" data-color-value="' + text(color)
+      + '" aria-label="' + text(color) + '" title="' + text(color) + '" style="--color:' + text(color) + '"></button>').join('')
+    + '</div><div class="color-saturation" data-color-axis="sv"><i></i></div>'
+    + '<div class="color-hue" data-color-axis="hue"><i></i></div>'
+    + '<label class="color-preview"><i></i><input id="color-popup-hex" aria-label="HEX" type="text" maxlength="7" spellcheck="false"'
+    + ' value="' + text(value) + '"></label>';
+}
+function glintPreview(module) {
+  if (module.settings.length < 6) return '';
+  return '<div class="glint-preview"><div class="glint-preview-title"><strong>' + text(t('Предпросмотр'))
+    + '</strong><span class="glint-preview-colors"><i></i><i></i></span></div>'
+    + '<div id="glint-swatch"><div class="glint-light"><i></i></div><div class="glint-light"><i></i></div></div></div>';
+}
+function worldPreview(module) {
+  if (module.settings.length < 14) return '';
+  return '<div class="world-preview"><div class="world-preview-label"><strong>' + text(t('Предпросмотр атмосферы'))
+    + '</strong><small>' + text(t('Небо, горизонт и туман')) + '</small></div>'
+    + '<div id="world-preview-art"><svg viewBox="0 0 640 126" preserveAspectRatio="none" aria-hidden="true">'
+    + '<path class="world-preview-clouds" fill="currentColor" d="M64 25h98v5h28v5H83v-5H64zm318 13h99v-5h78v5h32v6H382z"/>'
+    + '<path class="world-preview-far" fill="currentColor" d="M0 90 56 78 91 82 160 61 203 74 241 75 279 66 351 83 415 68 470 81 516 64 581 81 640 71V126H0Z"/>'
+    + '<path class="world-preview-near" fill="currentColor" d="M0 105 70 93 126 102 195 91 259 102 328 93 390 103 466 86 533 99 589 89 640 95V126H0Z"/>'
+    + '</svg></div></div>';
 }
 function renderModule() {
   const module = byId.get(state.module);
@@ -346,7 +438,10 @@ function renderModule() {
     + '<span class="module-state">' + (enabled ? t('Включён') : t('Выключен')) + '</span>' + toggleMarkup + '</button></div>'
     + '<div class="module-settings' + (contents ? ' with-toc' : '') + '">' + contents + '<div class="settings-groups">'
     + groups.map(({start,title,rows},i) => '<section class="settings-group" id="settings-group-' + i + '">'
-      + '<div class="settings-group-title"><h2>' + text(t(title)) + '</h2><span>' + rows.length + '</span></div><div class="sheet">'
+      + (module.id === 'CROSSHAIR' ? '' : '<div class="settings-group-title"><h2>' + text(t(title)) + '</h2><span>' + rows.length + '</span></div>')
+      + '<div class="sheet">'
+      + (module.id === 'ENCHANT_GLINT' && start === 0 ? glintPreview(module) : '')
+      + (module.id === 'WORLD_CHANGER' && start === 0 ? worldPreview(module) : '')
       + rows.map((row,j) => controlRow(row,module,start+j)).join('') + '</div></section>').join('')
     + '</div></div>';
 }
@@ -452,6 +547,46 @@ function chatTime(sentAt) {
   const date = new Date(sentAt * 1000);
   return String(date.getHours()).padStart(2,'0') + ':' + String(date.getMinutes()).padStart(2,'0');
 }
+function chatReplyQuote(own, body) {
+  return '<b>' + text(own ? currentAccount().name : chat.peer) + '</b><small>'
+    + text(body || t('Ответ на сообщение')) + '</small>';
+}
+function renderReplyDraft() {
+  const reply = chatReplies.get(chat.peer);
+  return reply ? '<div class="chat-quote">' + chatReplyQuote(reply.own, reply.body) + '</div>'
+    + '<button type="button" class="icon-button" data-action="chat-cancel-reply" aria-label="'
+    + text(t('Отменить ответ')) + '">' + icon('close') + '</button>' : '';
+}
+function syncReplyDraft() {
+  const draft = $('chat-reply-draft');
+  if (!draft) return;
+  draft.innerHTML = renderReplyDraft();
+  draft.hidden = !chatReplies.has(chat.peer);
+}
+function closeChatContext() {
+  chatContextId = '';
+  $('chat-context-menu').hidden = true;
+}
+function openChatContext(x,y) {
+  closeChatContext();
+  if (state.page !== 'chat' || $('dialog').hasAttribute('open')) return;
+  const messages = $('chat-messages');
+  const contains = ({left,top,right,bottom}) => x >= left && x < right && y >= top && y < bottom;
+  if (!messages || !contains(messages.getBoundingClientRect())) return;
+  const bubble = Array.from(messages.querySelectorAll('[data-chat-message]'))
+    .find(node => contains(node.getBoundingClientRect()));
+  const item = chat.items.find(item => String(item.id) === bubble?.dataset.chatMessage);
+  if (!item || item.unreadable) return;
+  chatContextId = String(item.id);
+  const popup = $('chat-context-menu');
+  popup.innerHTML = actionButton('chat-copy-message',t('Копировать текст'),'copy')
+    + actionButton('chat-reply-message',t('Ответить'),'back');
+  popup.hidden = false;
+  const box = popup.getBoundingClientRect();
+  const viewport = $('stage').getBoundingClientRect();
+  popup.style.left = Math.max(4,Math.min(x,viewport.right - box.width - 4)) + 'px';
+  popup.style.top = Math.max(4,Math.min(y,viewport.bottom - box.height - 4)) + 'px';
+}
 function renderChat() {
   if (!friends.signedIn) return pageHead(t('Чат')) + '<div class="empty">' + icon('chat') + '<b>' + text(t('Войди в аккаунт GleamClient'))
     + '</b>' + actionButton('friends-login',t('Войти'),'user','primary') + '</div>';
@@ -484,7 +619,10 @@ function renderChatMessages() {
       + (sameGroup(next) ? '' : friendAvatar(person)) + '</div>' : '';
     return (newDay ? '<div class="chat-date"><span>' + day + '</span></div>' : '')
       + '<div class="chat-line' + (item.own ? ' own' : '') + (sameGroup(previous) ? ' continuation' : '')
-      + '">' + portrait + '<div class="chat-message"><div class="chat-bubble"><span>' + text(body)
+      + '">' + portrait + '<div class="chat-message" data-chat-message="' + item.id + '">'
+      + (item.reply_to ? '<button type="button" class="chat-quote" data-reply-jump="' + item.reply_to + '">'
+        + chatReplyQuote(item.reply_own,item.reply_preview) + '</button>' : '')
+      + '<div class="chat-bubble"><span>' + text(body)
       + (item.legacy ? '<small class="chat-legacy">' + text(t('Без сквозного шифрования')) + '</small>' : '') + '</span>'
       + (sameGroup(next) ? '' : '<time>' + chatTime(item.sent_at) + '</time>') + '</div></div></div>';
   }).join('');
@@ -505,7 +643,9 @@ function renderChatThread() {
     + (person ? '<button id="chat-bottom" class="button" type="button" data-action="chat-bottom" aria-label="'
       + text(t('К новым сообщениям')) + '" hidden>' + icon('chevron-down') + '</button>' : '')
     + '<p id="chat-status" class="chat-status" role="status"'
-    + (!chat.items.length || !chat.status || chat.status === t('Сообщение отправлено') ? ' hidden' : '') + '>' + text(chat.status ?? '') + '</p>' + controls;
+    + (!chat.items.length || !chat.status || chat.status === t('Сообщение отправлено') ? ' hidden' : '') + '>' + text(chat.status ?? '') + '</p>'
+    + (person ? '<div id="chat-reply-draft" class="chat-reply-draft"' + (chatReplies.has(chat.peer) ? '' : ' hidden') + '>'
+      + renderReplyDraft() + '</div>' : '') + controls;
 }
 function renderChatContacts(contacts, query) {
   return contacts.filter(item => item.username.toLowerCase().includes(query)).sort((a,b) =>
@@ -531,6 +671,7 @@ function mountChatThread() {
   if (!box) return;
   box.scrollTop = box.scrollHeight;
   box.addEventListener('scroll',syncChatBottom);
+  box.addEventListener('scroll',closeChatContext);
   syncChatBottom();
 }
 function patchChat(previous, friendsChanged) {
@@ -544,13 +685,14 @@ function patchChat(previous, friendsChanged) {
     contacts.lastMarkup = list;
     contacts.scrollTop = scroll;
   }
-  if (previous.peer !== chat.peer) {
+  const person = chatContacts().find(item => item.username === chat.peer);
+  if (previous.peer !== chat.peer || Boolean($('chat-heading-avatar')) !== Boolean(person)) {
+    closeChatContext();
     thread.innerHTML = renderChatThread();
     mountChatThread();
     return;
   }
   const portrait = $('chat-heading-avatar');
-  const person = chatContacts().find(item => item.username === chat.peer);
   if (friendsChanged && portrait && person) {
     const markup = friendAvatar(person);
     if (portrait.innerHTML !== markup) portrait.innerHTML = markup;
@@ -572,6 +714,7 @@ function patchChat(previous, friendsChanged) {
   if (verification) verification.hidden = !chat.verification;
   status.textContent = chat.status ?? '';
   status.hidden = !chat.items.length || !chat.status || chat.status === t('Сообщение отправлено');
+  syncReplyDraft();
   syncChatBottom();
 }
 const cosmetics = [
@@ -739,8 +882,8 @@ function accentPicker() {
       + '" aria-pressed="' + (state.accent === value) + '" aria-label="' + text(t(name)) + '" title="' + text(t(name)) + '" style="--swatch:'
       + color + '"><svg viewBox="0 0 32 32" aria-hidden="true"><circle class="accent-ring" cx="16" cy="16" r="14"/>'
       + '<circle class="accent-dot" cx="16" cy="16" r="10"/></svg></button>').join('')
-    + '<label class="accent-custom" title="' + text(t('Свой цвет')) + '"><input id="custom-accent" type="text" maxlength="7" value="'
-    + (state.accent || '#3c58e8') + '" aria-label="' + text(t('Свой цвет акцента')) + '">' + icon('plus') + '</label></div></div>';
+    + '</div>' + colorRow({label:t('Свой цвет акцента'),palette:accentColors.map(([value]) => value).filter(Boolean)},
+      'custom-accent',' id="custom-accent"',state.accent || '#3c58e8') + '</div>';
 }
 function renderSettings() {
   const language = languages.find(([id]) => id === state.languageChoice) || languages[0];
@@ -751,6 +894,7 @@ function renderSettings() {
     + '<section><h2>' + text(t('Уведомления чата')) + '</h2><div class="sheet">'
     + chatPreference('chat-notification-toggle','chatNotifications','Всплывающие уведомления')
     + chatPreference('chat-sound-toggle','chatNotificationSound','Звук сообщений')
+    + chatPreference('fake-punishment-toggle','showFakePunishments','Показывать чужие розыгрыши',false)
     + '</div></section><section><h2>' + text(t('Оформление')) + '</h2>'
     + '<div class="sheet look-block"><h3>' + text(t('Тема ClickGUI')) + '</h3><p>' + text(t('Выбери оформление меню')) + '</p><div class="look-options" role="group" aria-label="' + text(t('Тема ClickGUI')) + '">'
     + lookTile('theme','dark',t('Тёмная'),'dark',state.density) + lookTile('theme','light',t('Светлая'),'light',state.density)
@@ -770,10 +914,8 @@ function renderSettings() {
     + toggleTile('label','ON/OFF') + toggleTile('switch',t('Тумблер')) + '</div></div></section></div>';
 }
 
-function chatPreference(id,key,label) {
-  return '<label class="setting-row" for="' + id + '"><span>' + text(t(label)) + '</span>'
-    + '<span class="setting-switch"><input type="checkbox" id="' + id + '" data-chat-preference="' + key + '"'
-    + (state[key] !== false ? ' checked' : '') + '>' + toggleMarkup + '</span></label>';
+function chatPreference(id,key,label,fallback=true) {
+  return settingToggle(id,t(label),state[key] ?? fallback,'data-chat-preference="' + key + '"');
 }
 const renderers = {module:renderModule,profile:renderProfile,configs:renderConfigs,presets:renderPresets,
   waypoints:renderWaypoints,settings:renderSettings,friends:renderFriends,chat:renderChat,cosmetics:renderCosmetics};
@@ -799,6 +941,7 @@ function render(scrollTop=true, animate=true) {
   const page = isModule ? state.module : state.page;
   if (animate && renderedPage !== page) animatePage($('content'));
   renderedPage = page;
+  window.paradox?.refreshSettingsArtwork?.();
   scheduleCosmeticPreview();
 }
 function fitGrid() {
@@ -864,6 +1007,7 @@ function animateWindowSize() {
   },reducedMotion.matches ? 0 : 260);
 }
 function selectPage(page) {
+  closeChatContext();
   if (page !== 'cosmetics') cosmeticHover = '';
   state.friendProfile = null;
   if (page === 'friends' && state.page !== page) state.friendTab = null;
@@ -910,7 +1054,12 @@ function applyAccent() {
   for (const button of document.querySelectorAll('[data-accent]'))
     button.setAttribute('aria-pressed',String(button.dataset.accent === color));
   const picker = $('custom-accent');
-  if (picker && picker.value !== (color || '#3c58e8')) picker.value = color || '#3c58e8';
+  if (picker) {
+    picker.value = color || '#3c58e8';
+    const row = picker.closest('.setting-color-row');
+    row.style.setProperty('--picker-color',picker.value);
+    row.querySelector('.color-code').textContent = picker.value.toUpperCase();
+  }
 }
 function applyLook() {
   document.documentElement.dataset.theme = state.theme;
@@ -1035,6 +1184,24 @@ function showAccounts() {
 function currentConfig() { return configs[state.configTab].find(item => item.key === state.config) || configs[state.configTab][0]; }
 function configTab(tab) { state.configTab = tab; state.config = configs[tab][0]?.key ?? null; }
 const actions = {
+  'chat-copy-message'() {
+    const item = chat.items.find(item => String(item.id) === chatContextId);
+    closeChatContext();
+    if (item && !item.unreadable && typeof sendGame === 'function') sendGame('clipboard-copy',{text:item.body});
+  },
+  'chat-reply-message'() {
+    const item = chat.items.find(item => String(item.id) === chatContextId);
+    closeChatContext();
+    if (!item || item.unreadable) return;
+    chatReplies.set(chat.peer,item);
+    syncReplyDraft();
+    $('chat-compose')?.querySelector('input').focus();
+  },
+  'chat-cancel-reply'() {
+    chatReplies.delete(chat.peer);
+    syncReplyDraft();
+    $('chat-compose')?.querySelector('input').focus();
+  },
   'chat-verify'() {
     if (!chat.verification) return;
     const code = chat.verification.match(/.{1,4}/g).join(' ');
@@ -1108,12 +1275,19 @@ const actions = {
 };
 document.addEventListener('click', event => {
   const button = event.target.closest('button');
+  if (!event.target.closest('#chat-context-menu')) closeChatContext();
   if (!event.composedPath().includes($('account'))) accountOpen(false);
   if (openChoice && event.target.closest('[data-choice-toggle]') !== openChoice
       && !event.target.closest('#choice-popup')) showChoices(openChoice,false);
   if (!button) return;
   const data = button.dataset;
-  if (data.choiceToggle !== undefined) {
+  if (data.replyJump !== undefined) {
+    const target = $('chat-messages')?.querySelector('[data-chat-message="' + data.replyJump + '"]');
+    if (target) {
+      target.scrollIntoView({block:'nearest'});
+      appear(target,0,0,270);
+    }
+  } else if (data.choiceToggle !== undefined) {
     showChoices(button,button.getAttribute('aria-expanded') !== 'true');
   } else if (data.choiceOption !== undefined && openChoice) {
     const trigger = openChoice;
@@ -1293,6 +1467,11 @@ document.addEventListener('submit', event => {
   }
 });
 document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && chatContextId) {
+    closeChatContext();
+    event.preventDefault();
+    return;
+  }
   if ((event.key === 'ArrowDown' || event.key === 'ArrowUp')
       && (event.target.id === 'language-trigger' || openChoice?.id === 'language-trigger' && event.target.closest('#choice-popup'))) {
     const trigger = $('language-trigger');

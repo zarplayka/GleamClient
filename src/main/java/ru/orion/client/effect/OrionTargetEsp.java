@@ -16,6 +16,8 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
+import org.joml.Quaternionfc;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 
@@ -46,12 +48,12 @@ public final class OrionTargetEsp {
     private static final float CHAIN_SCALE = 0.5F;
     private static final float CHAIN_BAND_HEIGHT = 1.5F;
     private static final float CHAIN_BOTTOM_Y = -0.5F;
-    private static final int CHAIN_PARTS = 6;
+    private static final int CHAIN_PARTS = 12;
     private static final int CHAIN_POINTS = 720;
     private static final float CHAIN_U_REPEATS = 8.0F;
     private static final float CHAIN_TOP_COLOR_MULTIPLIER = 1.15F;
     private static final int CHAIN_MAX_ALPHA = 128;
-    private static final int MARKER_SEGMENTS = 128;
+    private static final int MARKER_SEGMENTS = 64;
     private static final float MARKER_STEP_SPEED = 0.06F;
     private static final float MARKER_RADIUS_PULSE = 0.18F;
     private static final float MARKER_OUTER_RADIUS = 1.35F;
@@ -161,6 +163,10 @@ public final class OrionTargetEsp {
         float hitProgress = getHitProgress(target);
         hitAnimSmoothed = Mth.lerp(Math.min(1.0F, 0.35F * deltaTime), hitAnimSmoothed, hitProgress);
         int baseColor = OrionRainbow.orElse(OrionWorldChanger.parseOpaqueColor(configManager.getConfig().getTargetEspChainColor()));
+        if (configManager.getConfig().isTargetEspHealthColor()) {
+            float health = Math.clamp(target.getHealth() / Math.max(1F, target.getMaxHealth()), 0F, 1F);
+            baseColor = lerpColor(0xFFFF535D, 0xFF58D68D, health);
+        }
         int color1 = lerpColor(baseColor, RED_HIT_COLOR, hitProgress);
         int color2 = lerpColor(lighten(baseColor, CHAIN_TOP_COLOR_MULTIPLIER), RED_HIT_COLOR, hitProgress);
 
@@ -195,7 +201,8 @@ public final class OrionTargetEsp {
                     smoothedPosition.y - cameraPosition.y + target.getBbHeight() * 0.5F,
                     smoothedPosition.z - cameraPosition.z
             );
-            submitGhost(context, poseStack, camera.position().subtract(smoothedPosition.add(0.0D, target.getBbHeight() * 0.5D, 0.0D)), anim, hitAnimSmoothed, color1, color2, darken(color1, 0.8F));
+            int detail = detailAtDistance(cameraPosition.distanceToSqr(smoothedPosition));
+            submitGhost(context, poseStack, camera, anim, hitAnimSmoothed, color1, color2, detail);
             poseStack.popPose();
             return;
         }
@@ -207,7 +214,8 @@ public final class OrionTargetEsp {
                     smoothedPosition.y - cameraPosition.y,
                     smoothedPosition.z - cameraPosition.z
             );
-            submitCrystals(context, poseStack, camera, anim, hitAnimSmoothed, color1, deltaTime);
+            submitCrystals(context, poseStack, camera, anim, hitAnimSmoothed, color1, deltaTime,
+                    detailAtDistance(cameraPosition.distanceToSqr(smoothedPosition)));
             poseStack.popPose();
             return;
         }
@@ -323,120 +331,76 @@ public final class OrionTargetEsp {
         );
     }
 
-    private static void submitGhost(LevelRenderContext context, PoseStack poseStack, Vec3 camera,
-                                    float alpha, float hitAnim, int color1, int color2, int color3) {
-        double radius = GHOST_OUTER_RADIUS * (1.0D - 0.25D * hitAnim);
-        double phase = (System.nanoTime() / 1_000_000_000.0D * 2.5D) % (Math.PI * 2.0D);
-        int[] colors = {color1, color2, color3};
-        List<List<OrionRibbon.Point>> ribbons = new ArrayList<>(3);
+    private int detailAtDistance(double distanceSquared) {
+        int detail = configManager.getConfig().getTargetEspDetail();
+        return distanceSquared > 24 * 24 ? 0 : distanceSquared > 12 * 12 ? Math.min(1, detail) : detail;
+    }
+
+    private static void submitGhost(LevelRenderContext context, PoseStack poseStack, Camera camera,
+                                    float alpha, float hitAnim, int color1, int color2, int detail) {
+        float radius = (float) (GHOST_OUTER_RADIUS * (1 - .18 * hitAnim));
+        double phase = System.nanoTime() / 1e9 * 1.8 % Math.TAU;
+        var rotation = new Quaternionf(camera.rotation());
+        int points = 12 + detail * 4;
+        context.submitNodeCollector().submitCustomGeometry(poseStack,
+                OrionEspRenderTypes.texturedDepthTested(texture("ghost-glow")),
+                (pose, vertices) -> buildGhost(pose, vertices, rotation, phase, radius, alpha, color1, color2, points));
+    }
+
+    private static void buildGhost(PoseStack.Pose pose, VertexConsumer vertices, Quaternionfc rotation, double phase,
+                                   float radius, float alpha, int color1, int color2, int points) {
+        PoseStack sprites = new PoseStack();
+        sprites.last().pose().set(pose.pose());
         for (int lane = 0; lane < 3; lane++) {
-            List<OrionRibbon.Point> path = new ArrayList<>(65);
-            for (int i = 0; i <= 64; i++) {
-                float progress = i / 64.0F;
-                double angle = phase - progress * 2.2D;
-                Vec3 point = ghostOffset(lane, Math.sin(angle) * radius, Math.cos(angle) * radius);
-                float fade = (float) Math.sin(Math.PI * progress);
-                int color = withAlpha(lerpColor(colors[lane], colors[(lane + 1) % 3], progress),
-                        Math.round(190.0F * alpha * fade));
-                path.add(new OrionRibbon.Point(point, color));
+            for (int i = points - 1; i >= 0; i--) {
+                float strength = 1 - i / (float) points;
+                double angle = phase + lane * Math.TAU / 3 - i * 1.5 / points;
+                double y = Math.sin(angle * 1.25 + lane * 1.2) * .36;
+                sprites.pushPose();
+                sprites.translate(Math.sin(angle) * radius, y, Math.cos(angle) * radius);
+                sprites.rotate(rotation);
+                int color = withAlpha(lerpColor(color1, color2, strength), Math.round(210 * alpha * strength * strength));
+                buildTexturedQuad(sprites.last(), vertices, .045F + .24F * strength, color);
+                sprites.popPose();
             }
-            ribbons.add(path);
         }
-        context.submitNodeCollector().submitCustomGeometry(poseStack, OrionEspRenderTypes.colorQuadsDepthTested(),
-                (pose, vertices) -> {
-                    for (List<OrionRibbon.Point> path : ribbons) {
-                        OrionRibbon.draw(pose, vertices, path, camera, 0.09F, true);
-                    }
+    }
+
+    private void submitCrystals(LevelRenderContext context, PoseStack poseStack, Camera camera, float alpha, float hitAnim,
+                                int color, float deltaTime, int detail) {
+        crystalRotation = (crystalRotation + 0.5F * deltaTime) % 360.0F;
+        poseStack.rotate(Axis.YP.rotationDegrees(crystalRotation));
+        int crystalColor = withAlpha(color, Math.round(160F * alpha));
+        RenderType crystalRenderType = OrionEspRenderTypes.colorQuadsDepthTested();
+
+        var facets = new ArrayList<PoseStack.Pose>();
+        var blooms = new ArrayList<PoseStack.Pose>();
+        int stride = detail == 0 ? 3 : detail == 1 ? 2 : 1;
+        for (int i = 0; i < CRYSTALS.length; i += stride) {
+            CrystalTemplate crystal = CRYSTALS[i];
+            poseStack.pushPose();
+            crystal.applyTransform(poseStack, hitAnim);
+            facets.add(poseStack.last().copy());
+            poseStack.rotate(camera.rotation());
+            blooms.add(poseStack.last().copy());
+            poseStack.popPose();
+        }
+        context.submitNodeCollector().submitCustomGeometry(poseStack, crystalRenderType, (ignored, vertices) -> {
+            for (var facet : facets) buildCrystal(facet, vertices, crystalColor);
+        });
+        int bloomColor = withAlpha(color, Math.round(48F * alpha));
+        context.submitNodeCollector().submitCustomGeometry(poseStack, OrionEspRenderTypes.texturedDepthTested(texture("crystal-glow")),
+                (ignored, vertices) -> {
+                    for (var bloom : blooms) buildTexturedQuad(bloom, vertices, .4F, bloomColor);
                 });
     }
 
-    private static Vec3 ghostOffset(int lane, double x, double y) {
-        return switch (lane) {
-            case 0 -> new Vec3(x, y, -y);
-            case 1 -> new Vec3(-x, x, -y);
-            default -> new Vec3(-x, -x, y);
-        };
-    }
-
-    private void submitCrystals(LevelRenderContext context, PoseStack poseStack, Camera camera, float alpha, float hitAnim, int color, float deltaTime) {
-        crystalRotation = (crystalRotation + 0.5F * deltaTime) % 360.0F;
-        poseStack.rotate(Axis.YP.rotationDegrees(crystalRotation));
-        int crystalColor = withAlpha(color, Math.round(65.0F * alpha));
-        int glowColor = withAlpha(color, Math.round(19.0F * alpha));
-        int outerGlowColor = withAlpha(color, Math.round(8.0F * alpha));
-        RenderType crystalRenderType = OrionEspRenderTypes.colorQuadsDepthTested();
-
-        for (CrystalTemplate crystal : CRYSTALS) {
-            poseStack.pushPose();
-            crystal.applyTransform(poseStack, hitAnim);
-            context.submitNodeCollector().submitCustomGeometry(
-                    poseStack,
-                    crystalRenderType,
-                    (pose, vertexConsumer) -> buildCrystal(pose, vertexConsumer, crystalColor)
-            );
-            poseStack.pushPose();
-            poseStack.scale(1.15F, 1.15F, 1.15F);
-            context.submitNodeCollector().submitCustomGeometry(
-                    poseStack,
-                    crystalRenderType,
-                    (pose, vertexConsumer) -> buildCrystal(pose, vertexConsumer, glowColor)
-            );
-            poseStack.popPose();
-            poseStack.pushPose();
-            poseStack.scale(1.3F, 1.3F, 1.3F);
-            context.submitNodeCollector().submitCustomGeometry(
-                    poseStack,
-                    crystalRenderType,
-                    (pose, vertexConsumer) -> buildCrystal(pose, vertexConsumer, outerGlowColor)
-            );
-            poseStack.popPose();
-            submitCrystalBloom(context, poseStack, camera, color, alpha);
-            poseStack.popPose();
-        }
-    }
-
-    private static void submitCrystalBloom(LevelRenderContext context, PoseStack poseStack, Camera camera, int color, float alpha) {
-        RenderType renderType = OrionEspRenderTypes.texturedDepthTested(texture("crystal-glow"));
-        int bloomColor = withAlpha(color, Math.round(18.0F * alpha));
-
-        for (int i = 0; i < 6; i++) {
-            poseStack.pushPose();
-            poseStack.rotate(Axis.YP.rotationDegrees(360.0F / 6.0F * i));
-            poseStack.rotate(camera.rotation());
-            context.submitNodeCollector().submitCustomGeometry(
-                    poseStack,
-                    renderType,
-                    (pose, vertexConsumer) -> buildTexturedQuad(pose, vertexConsumer, 0.75F, bloomColor)
-            );
-            poseStack.popPose();
-        }
-
-        for (int i = 0; i < 6; i++) {
-            poseStack.pushPose();
-            poseStack.rotate(Axis.XP.rotationDegrees(90.0F));
-            poseStack.rotate(Axis.YP.rotationDegrees(360.0F / 6.0F * i));
-            poseStack.rotate(camera.rotation());
-            context.submitNodeCollector().submitCustomGeometry(
-                    poseStack,
-                    renderType,
-                    (pose, vertexConsumer) -> buildTexturedQuad(pose, vertexConsumer, 0.75F, bloomColor)
-            );
-            poseStack.popPose();
-        }
-    }
 
     private static void buildGradientQuad(PoseStack.Pose pose, VertexConsumer vc, int bottomColor, int topColor) {
         addVertex(pose, vc, -1.0F, -1.0F, 0.0F, 0.0F, bottomColor);
         addVertex(pose, vc, -1.0F, 1.0F, 0.0F, 1.0F, topColor);
         addVertex(pose, vc, 1.0F, 1.0F, 1.0F, 1.0F, topColor);
         addVertex(pose, vc, 1.0F, -1.0F, 1.0F, 0.0F, bottomColor);
-    }
-
-    private static void buildGhostQuad(PoseStack.Pose pose, VertexConsumer vc, int color) {
-        addVertex(pose, vc, 0.0F, -0.5F, 0.0F, 0.0F, color);
-        addVertex(pose, vc, -0.5F, -0.5F, 0.0F, 1.0F, color);
-        addVertex(pose, vc, -0.5F, 0.0F, 1.0F, 1.0F, color);
-        addVertex(pose, vc, 0.0F, 0.0F, 1.0F, 0.0F, color);
     }
 
     private static void buildTexturedQuad(PoseStack.Pose pose, VertexConsumer vc, float size, int color) {
@@ -448,7 +412,7 @@ public final class OrionTargetEsp {
     }
 
     private static void buildCrystal(PoseStack.Pose pose, VertexConsumer vc, int color) {
-        int sides = 8;
+        int sides = 5;
         float radius = 0.05F;
         float halfHeight = 0.025F;
         float tipOffset = 0.075F;

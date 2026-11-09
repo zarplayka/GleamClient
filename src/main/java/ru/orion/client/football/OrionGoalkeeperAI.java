@@ -57,10 +57,16 @@ public final class OrionGoalkeeperAI {
         }
     }
     public record Contact(OrionBasketballVector normal,double depth) { }
+    record Pose(double x, double vertical, double lean, double height, Action action) { }
+    Pose pose() { return new Pose(x, vertical, lean, targetHeight, action); }
+    void displayPose(Pose pose) {
+        x = pose.x(); vertical = pose.vertical(); lean = pose.lean(); targetHeight = pose.height(); action = pose.action();
+    }
     /** Реальное пересечение сферы с объёмами позы вратаря. */
     public Contact contact(OrionFootballGoal goal,OrionBasketballVector ball,double radius){
         if(!enabled)return null;
         var point=goal.local(ball);double r=radius/goal.scale();
+        if (Math.abs(point.z()) >= .20 + r) return null;
         double dx=point.x()-x,dy=point.y()-vertical,c=Math.cos(lean),s=Math.sin(lean);
         var p=new OrionBasketballVector(dx*c+dy*s,-dx*s+dy*c,point.z());
         boolean high=action==Action.JUMP || targetHeight>1.65;

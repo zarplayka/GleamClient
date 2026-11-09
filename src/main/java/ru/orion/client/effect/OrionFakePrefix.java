@@ -426,7 +426,7 @@ public final class OrionFakePrefix {
         return List.copyOf(names);
     }
 
-    /** Порядок закреплённых игроков в TAB: локальный игрок, затем дополнительные ники. */
+    /** Порядок имён для клиентского списка администрации. */
     public static List<String> prioritizedPlayerNames() {
         OrionConfig config = OrionClient.getConfigOrNull();
         return config == null || !config.isFakePrefixEnabled() ? List.of() : configuredPlayerNames();
