@@ -122,6 +122,7 @@ namespace OrionVolumeHelper
         [MTAThread]
         private static int Main(string[] args)
         {
+            if (args.Length == 2 && args[0] == "--beat") return GleamBeat.Run(args[1]);
             if (args.Length < 1 || args.Length > 2 || string.IsNullOrWhiteSpace(args[0]) || args[0].Length > 512) return 2;
             float requested = -1;
             if (args.Length == 2 && (!float.TryParse(args[1], NumberStyles.Float, CultureInfo.InvariantCulture, out requested)

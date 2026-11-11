@@ -97,6 +97,8 @@ function refresh() {
   if (!playing) for (const bar of $('compact-eq').children) bar.style.height = '4px';
   text('song-title',!state.media ? t('Твоя музыка — рядом') : active() ? state.title || service.name : t('Музыка не играет'));
   text('song-artist',active() ? state.artist || '' : t('Открой музыку в своём плеере'));
+  $('lyrics-status').hidden = !state.lyricsStatus;
+  text('lyrics-status',state.lyricsStatus ? t(state.lyricsStatus) : '');
   text('source-name',active() ? service.name : '');
   $('full-service').hidden = !active();
   if (displayedService !== service.icon) {

@@ -79,3 +79,5 @@ button:focus-visible,[role=slider]:focus-visible{outline:1px solid var(--accent)
 #volume-source{flex:none;max-width:156px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px}
 #volume-value{width:36px;flex:none;text-align:right;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
 #control-error{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:10px;color:var(--text)}
+
+#lyrics-status{margin-top:2px;color:var(--muted);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

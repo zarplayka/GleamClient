@@ -5,7 +5,7 @@ The Windows-only media integration uses two first-party .NET Framework 4.8 execu
 | File inside `assets/orion-client/media/` | Complete source |
 | --- | --- |
 | `OrionThumbnail.exe` | `src/main/resources/assets/orion-client/orion-thumbnail.cs` |
-| `OrionVolume.exe` | `src/main/resources/assets/orion-client/orion-volume.cs` |
+| `OrionVolume.exe` | `src/main/resources/assets/orion-client/orion-volume.cs`, `src/main/resources/assets/orion-client/gleam-beat.cs` |
 
 Both sources are included in every mod JAR. A complete standalone build kit is also
 included under `META-INF/orion-media-source/`: extract that directory and run its
@@ -67,6 +67,12 @@ change in the foreground application cannot redirect a pending command.
 audio sessions through `ISimpleAudioVolume`. It reports unavailable when the
 application cannot be identified. Neither helper accesses master endpoint volume
 or uses the network. Java executes both helpers outside the render thread.
+
+`OrionVolume.exe --beat <java-pid>` analyzes the default Windows render endpoint
+in WASAPI loopback mode for Animated Lyrics. It emits only level, bass energy and
+an onset counter at up to 25 Hz. The analyzer uses the system output mix and never
+opens the microphone or stores PCM. The Java reader stops the helper when beat
+response is disabled, playback pauses or the client shuts down.
 
 ## Modrinth submission
 

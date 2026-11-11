@@ -81,6 +81,39 @@ public final class OrionEspRenderTypes {
                     .sortOnUpload()
                     .createRenderSetup());
 
+    private static final RenderPipeline LYRICS_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
+            .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/world_lyrics"))
+            .withVertexShader("core/rendertype_lightning")
+            .withFragmentShader("core/rendertype_lightning")
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.FOG)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withDepthStencilState(ESP_DEPTH_TESTED)
+            .withCull(false)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            .build());
+    private static final RenderType LYRICS = RenderType.create("gleam_world_lyrics",
+            RenderSetup.builder(LYRICS_PIPELINE)
+                    .setOitPipelines(oit("world_lyrics", LYRICS_PIPELINE, false, false))
+                    .sortOnUpload().createRenderSetup());
+    private static final RenderPipeline LYRICS_SOLID_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
+            .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/world_lyrics_solid"))
+            .withVertexShader("core/rendertype_lightning")
+            .withFragmentShader("core/rendertype_lightning")
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.FOG)
+            .withColorTargetState(ColorTargetState.DEFAULT)
+            .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
+            .withCull(false)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            .build());
+    private static final RenderType LYRICS_SOLID = RenderType.create("gleam_world_lyrics_solid",
+            RenderSetup.builder(LYRICS_SOLID_PIPELINE).withForcedSolidModelPhase().createRenderSetup());
+
     private static final RenderPipeline ESP_COLOR_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/targetesp_color"))
             .withVertexShader("core/rendertype_lightning")
@@ -182,6 +215,9 @@ public final class OrionEspRenderTypes {
     }
 
     public static RenderType cosmeticWings() { return WINGS; }
+
+    public static RenderType worldLyrics() { return LYRICS; }
+    public static RenderType worldLyricsSolid() { return LYRICS_SOLID; }
 
     public static RenderType killEffects() { return KILL_EFFECTS; }
 

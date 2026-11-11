@@ -19,12 +19,17 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
 
 public final class OrionConfigManager {
+    public void updateAnimatedLyrics(java.util.function.Consumer<GleamLyricsSettings> change) {
+        change.accept(config.getAnimatedLyrics());
+        config.getAnimatedLyrics().sanitize();
+        save();
+    }
     private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
     static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String CONFIG_FILE_NAME = "orion-client.json";
 
     private final Path configPath;
-    private OrionConfig config = OrionConfig.createDefault();
+    private volatile OrionConfig config = OrionConfig.createDefault();
     private OrionVisualPresets visualPresets;
     private OrionConfigLibrary configLibrary;
 

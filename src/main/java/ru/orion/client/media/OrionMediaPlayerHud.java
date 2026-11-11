@@ -45,6 +45,8 @@ public final class OrionMediaPlayerHud {
     private long renderedAt;
     private int coverGeneration = -1;
     private String coverAsset = "";
+    private long lyricsRevision = -1;
+    private String lyricsStatus = "";
 
     private record Bounds(float x, float y, float width, float height, float radius) {
         boolean contains(float px, float py) {
@@ -129,6 +131,8 @@ public final class OrionMediaPlayerHud {
         }
 
         JsonObject data = controller.viewState();
+        if (config.isMediaPlayerEnabled() && config.getAnimatedLyrics().isEnabled() && controller.isActive())
+            data.addProperty("lyricsStatus", lyricsStatus());
         boolean chatPointer = chatPointerAvailable(client);
         data.addProperty("cover", coverAsset);
         data.addProperty("hud", config.isHudEnabled());
@@ -176,10 +180,32 @@ public final class OrionMediaPlayerHud {
                 "Твоя музыка — рядом", "Включить MediaPlayer", "Перемешать", "Предыдущий трек", "Следующий трек",
                 "Воспроизвести", "Пауза", "Повтор", "Громкость", "Громкость приложения", "Перемотка", "Настройки", "Громкость недоступна",
                 "Плеер не выполнил команду", "Управление плеером недоступно", "Громкость этого приложения недоступна",
-                "Подожди выполнения предыдущей команды", "Перемести шторку за заголовок"}) {
+                "Подожди выполнения предыдущей команды", "Перемести шторку за заголовок",
+                "Ищем синхронизированный текст…", "Синхронизированный текст не найден", "Доступен текст без таймкодов",
+                "Инструментальная композиция", "Для поиска нужны название и исполнитель", "Источник текста недоступен · повторим позже",
+                "Источник текста занят · ожидаем повтора", "Пословная синхронизация", "Построчная синхронизация"}) {
             labels.addProperty(label, OrionGuiLanguage.translate(label));
         }
         return labels;
+    }
+
+    private String lyricsStatus() {
+        var snapshot = controller.lyricsSnapshot();
+        if (!controller.matchesLyrics(snapshot)) return "Ищем синхронизированный текст…";
+        if (snapshot.revision() == lyricsRevision) return lyricsStatus;
+        lyricsRevision = snapshot.revision();
+        lyricsStatus = switch (snapshot.lyrics().status()) {
+            case "ready" -> snapshot.lyrics().lines().stream().anyMatch(line -> !line.words().isEmpty())
+                    ? "Пословная синхронизация" : "Построчная синхронизация";
+            case "missing" -> "Синхронизированный текст не найден";
+            case "unsynced" -> "Доступен текст без таймкодов";
+            case "instrumental" -> "Инструментальная композиция";
+            case "metadata" -> "Для поиска нужны название и исполнитель";
+            case "offline" -> "Источник текста недоступен · повторим позже";
+            case "rate_limited" -> "Источник текста занят · ожидаем повтора";
+            default -> "Ищем синхронизированный текст…";
+        };
+        return lyricsStatus;
     }
 
     private void renderFallback(GuiGraphicsExtractor graphics, Minecraft client, OrionConfig config) {
@@ -287,6 +313,7 @@ public final class OrionMediaPlayerHud {
         captured = visible = false;
         coverGeneration = -1;
         coverAsset = "";
+        lyricsRevision = -1;
     }
 
     private static byte[] loadDocument() {

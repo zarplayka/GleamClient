@@ -1,6 +1,12 @@
 package ru.orion.client.config;
 
 public final class OrionConfig {
+    private GleamLyricsSettings animatedLyrics = new GleamLyricsSettings();
+
+    public GleamLyricsSettings getAnimatedLyrics() {
+        if (animatedLyrics == null) animatedLyrics = new GleamLyricsSettings();
+        return animatedLyrics;
+    }
     private boolean emotesEnabled = true;
     private boolean skinLayersEnabled;
     private float skinLayersThickness = .5F;
@@ -1390,6 +1396,7 @@ public final class OrionConfig {
     }
 
     public void sanitize() {
+        getAnimatedLyrics().sanitize();
         visualPresetSelection = normalizePreset(visualPresetSelection);
         appliedVisualPreset = normalizePreset(appliedVisualPreset);
         clickGuiLastSection = normalizeSection(clickGuiLastSection);

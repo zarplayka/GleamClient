@@ -514,5 +514,18 @@
   "Перемещённая шторка": "Posición de la isla",
   "Вернуть в центр": "Volver al centro",
   "Открой чат и наведи курсор на шторку": "Abre el chat y pasa el cursor por la isla",
-  "Меняется только у приложения с музыкой": "Solo cambia el volumen de la aplicación de música"
+  "Меняется только у приложения с музыкой": "Solo cambia el volumen de la aplicación de música",
+  "Ищем синхронизированный текст…": "Buscando letras sincronizadas…",
+  "Синхронизированный текст не найден": "No se encontraron letras sincronizadas",
+  "Доступен текст без таймкодов": "Solo hay letras sin marcas de tiempo",
+  "Инструментальная композиция": "Pista instrumental",
+  "Для поиска нужны название и исполнитель": "Se necesitan el título y el artista",
+  "Источник текста недоступен · повторим позже": "Fuente no disponible · reintentando más tarde",
+  "Источник текста занят · ожидаем повтора": "Fuente ocupada · esperando para reintentar",
+  "Пословная синхронизация": "Sincronización por palabra",
+  "Построчная синхронизация": "Sincronización por línea",
+  "Синхронизация": "Sincronización",
+  "LRCLIB · слова или строки по данным источника": "LRCLIB · tiempos de palabra o línea de la fuente",
+  "Аудиореакция": "Reacción al audio",
+  "Бас и акценты системного аудиомикса Windows": "Graves y acentos de la mezcla de audio de Windows"
 }

@@ -3,6 +3,7 @@ package ru.orion.client.media;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
@@ -34,6 +35,8 @@ public final class OrionMediaController {
     private static final boolean WINDOWS = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     private static final String RESOURCE = "/assets/orion-client/media/";
     private final OrionConfigManager manager;
+    private final GleamLyricsService lyrics = new GleamLyricsService(FabricLoader.getInstance().getConfigDir().resolve("gleam-lyrics"));
+    private final GleamAudioBeatMonitor beat = new GleamAudioBeatMonitor(() -> helper(true));
     private final ScheduledExecutorService polling = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon().name("gleam-media-poll").factory());
     private final ThreadPoolExecutor controls = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
@@ -41,6 +44,7 @@ public final class OrionMediaController {
             new ThreadPoolExecutor.AbortPolicy());
     private final AtomicLong revision = new AtomicLong();
     private final AtomicReference<VolumeRequest> pendingVolume = new AtomicReference<>();
+    private final AtomicReference<GleamLyricsTimeline.Seek> pendingLyricsSeek = new AtomicReference<>();
     private final AtomicBoolean volumeQueued = new AtomicBoolean();
     private volatile JsonObject state = new JsonObject();
     private volatile boolean running;
@@ -68,10 +72,26 @@ public final class OrionMediaController {
             pendingVolume.set(null);
             polling.shutdownNow();
             controls.shutdownNow();
+            lyrics.close();
+            beat.close();
         });
     }
 
     public boolean isActive() { return state.has("source"); }
+    public GleamLyricsService.Snapshot lyricsSnapshot() { return lyrics.snapshot(); }
+    boolean matchesLyrics(GleamLyricsService.Snapshot snapshot) {
+        return !snapshot.track().isEmpty() && snapshot.track().equals(string(state, "_lyricsTrack"));
+    }
+    double lyricsMillis(GleamLyricsService.Snapshot snapshot, long now) {
+        JsonObject current = state;
+        if (!snapshot.track().equals(string(current, "_lyricsTrack"))) return -1;
+        var seek = pendingLyricsSeek.get();
+        if (seek != null && seek.blocks(snapshot.track(), now)) return -1;
+        double position = currentSeconds(current, now);
+        double duration = number(current, "duration");
+        return duration > 0 && position >= duration ? -1 : position * 1000;
+    }
+    GleamAudioBeatMonitor.Sample beatSample(long now) { return beat.sample(now); }
     public String getSource() { return string(state, "source"); }
     public String getTitle() { return string(state, "title"); }
     public String getArtist() { return string(state, "artist"); }
@@ -85,10 +105,12 @@ public final class OrionMediaController {
 
     public double getDurationSeconds() { return number(state, "duration"); }
     public double getCurrentSeconds() {
-        JsonObject current = state;
+        return currentSeconds(state, System.nanoTime());
+    }
+    private static double currentSeconds(JsonObject current, long now) {
         double position = number(current, "position");
         if (flag(current, "playing") && current.has("_capturedAt"))
-            position += Math.max(0, (System.nanoTime() - current.get("_capturedAt").getAsLong()) / 1e9);
+            position += Math.max(0, (now - current.get("_capturedAt").getAsLong()) / 1e9);
         double duration = number(current, "duration");
         return duration > 0 ? Math.min(position, duration) : position;
     }
@@ -96,6 +118,7 @@ public final class OrionMediaController {
     public JsonObject viewState() {
         var view = state.deepCopy();
         view.remove("_capturedAt");
+        view.remove("_lyricsTrack");
         view.addProperty("active", isActive());
         view.addProperty("position", Math.floor(getCurrentSeconds() * 5) / 5);
         view.addProperty("volume", volume);
@@ -118,22 +141,33 @@ public final class OrionMediaController {
     private void command(String action, String capability, String argument) {
         String source = getSource();
         if (!running || !flag(state, capability) || source.isEmpty()) return;
+        var seek = "seek".equals(action) ? new GleamLyricsTimeline.Seek(string(state, "_lyricsTrack"),
+                Double.parseDouble(argument), System.nanoTime()) : null;
+        if (seek != null) pendingLyricsSeek.set(seek);
         revision.incrementAndGet();
         lastAction = System.currentTimeMillis();
         error = "";
-        enqueue(() -> {
-            if (!source.equals(getSource())) return;
+        boolean queued = enqueue(() -> {
+            if (!source.equals(getSource())) {
+                if (seek != null) pendingLyricsSeek.compareAndSet(seek, null);
+                return;
+            }
             try {
                 List<String> args = new ArrayList<>(List.of(action, source));
                 if (argument != null) args.add(argument);
                 Reply result = run(helper(false), args);
                 if (!source.equals(getSource())) return;
-                if (result.status() != 0) error = "Плеер не выполнил команду";
+                if (result.status() != 0) {
+                    if (seek != null) pendingLyricsSeek.compareAndSet(seek, null);
+                    error = "Плеер не выполнил команду";
+                }
                 else polling.execute(this::poll);
             } catch (Exception failure) {
+                if (seek != null) pendingLyricsSeek.compareAndSet(seek, null);
                 if (running) error = "Управление плеером недоступно";
             }
         });
+        if (!queued && seek != null) pendingLyricsSeek.compareAndSet(seek, null);
     }
 
     public void setVolume(float requested, boolean force) {
@@ -214,7 +248,19 @@ public final class OrionMediaController {
                 coverAccent = "#A7B8F4";
                 coverGeneration++;
             }
+            var settings = manager.getConfig().getAnimatedLyrics();
+            var trackIdentity = new GleamLyricsService.Track(source, string(next, "title"), string(next, "artist"),
+                    string(next, "album"), number(next, "duration"));
+            next.addProperty("_lyricsTrack", trackIdentity.identity());
             state = next;
+            var seek = pendingLyricsSeek.get();
+            if (seek != null && seek.settled(trackIdentity.identity(), number(next, "position"), flag(next, "playing"),
+                    next.get("_capturedAt").getAsLong())) pendingLyricsSeek.compareAndSet(seek, null);
+            lyrics.select(trackIdentity, settings.isEnabled());
+            var lyricState = lyrics.snapshot();
+            beat.setEnabled(settings.isEnabled() && settings.getIntensity() > 0 && settings.getBeatSensitivity() > 0
+                    && flag(next, "playing") && lyricState.track().equals(trackIdentity.identity())
+                    && "ready".equals(lyricState.lyrics().status()));
             if (coverChanged) {
                 try {
                     fetchCover(source);
@@ -310,6 +356,9 @@ public final class OrionMediaController {
     }
 
     private void clear() {
+        lyrics.select(null, false);
+        pendingLyricsSeek.set(null);
+        beat.setEnabled(false);
         if (!state.isEmpty() || coverPng != null) coverGeneration++;
         state = new JsonObject();
         coverPng = null;
