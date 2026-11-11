@@ -28,5 +28,6 @@
     </Reference>
     <Compile Include="../../src/main/resources/assets/orion-client/orion-thumbnail.cs" Condition="'$(HelperName)' == 'OrionThumbnail'" />
     <Compile Include="../../src/main/resources/assets/orion-client/orion-volume.cs" Condition="'$(HelperName)' == 'OrionVolume'" />
+    <Compile Include="../../src/main/resources/assets/orion-client/gleam-beat.cs" Condition="'$(HelperName)' == 'OrionVolume'" />
   </ItemGroup>
 </Project>

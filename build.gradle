@@ -14,6 +14,8 @@ dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    // Полноценный безопасный YAML-парсер для пословного формата Lyricsfile.
+    implementation include('org.yaml:snakeyaml:2.5')
 }
 
 // Помощники собираются при разработке/в CI и попадают в JAR уже готовыми
@@ -24,7 +26,8 @@ tasks.register('buildMediaHelpers', Exec) {
     onlyIf { !providers.gradleProperty('mediaHelpersDir').isPresent() }
     inputs.files(fileTree('native/media') { exclude 'bin/**', 'obj/**' })
     inputs.files('src/main/resources/assets/orion-client/orion-thumbnail.cs',
-            'src/main/resources/assets/orion-client/orion-volume.cs')
+            'src/main/resources/assets/orion-client/orion-volume.cs',
+            'src/main/resources/assets/orion-client/gleam-beat.cs')
     outputs.dir(mediaHelpersResources)
     commandLine 'powershell.exe', '-NoProfile', '-File', file('native/media/build.ps1').absolutePath
 }
@@ -72,7 +75,7 @@ jar {
         into 'META-INF/orion-media-source'
     }
     from('src/main/resources/assets/orion-client') {
-        include 'orion-thumbnail.cs', 'orion-volume.cs'
+        include 'orion-thumbnail.cs', 'orion-volume.cs', 'gleam-beat.cs'
         into 'META-INF/orion-media-source/src/main/resources/assets/orion-client'
     }
 }

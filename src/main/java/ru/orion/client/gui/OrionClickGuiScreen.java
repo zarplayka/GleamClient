@@ -3679,7 +3679,40 @@ public final class OrionClickGuiScreen extends Screen {
                     new ButtonSetting("Перемещённая шторка", "Вернуть в центр",
                             () -> configManager.setMediaPlayerCorner("TOP_CENTER")),
                     new ValueSetting("Управление", () -> "Открой чат и наведи курсор на шторку"),
-                    new ValueSetting("Громкость", () -> "Меняется только у приложения с музыкой")
+                    new ValueSetting("Громкость", () -> "Меняется только у приложения с музыкой"),
+                    new ToggleSetting("Animated Lyrics", () -> config.getAnimatedLyrics().isEnabled(),
+                            v -> configManager.updateAnimatedLyrics(s -> s.setEnabled(v))),
+                    new ChoiceSetting("Animation Style", new String[]{"Cinematic", "Dynamic", "Minimal", "Edit"},
+                            () -> java.util.List.of("Cinematic", "Dynamic", "Minimal", "Edit").indexOf(config.getAnimatedLyrics().getStyle()),
+                            i -> configManager.updateAnimatedLyrics(s -> s.setStyle(new String[]{"Cinematic", "Dynamic", "Minimal", "Edit"}[i]))),
+                    new SliderSetting("Animation Intensity", 0, 100, () -> (float) config.getAnimatedLyrics().getIntensity(),
+                            v -> configManager.updateAnimatedLyrics(s -> s.setIntensity(Math.round(v))), "%", true),
+                    new SliderSetting("Text Scale", .5F, 2F, () -> config.getAnimatedLyrics().getTextScale(),
+                            v -> configManager.updateAnimatedLyrics(s -> s.setTextScale(v)), "x", false),
+                    new SliderSetting("Beat Sensitivity", 0, 100, () -> (float) config.getAnimatedLyrics().getBeatSensitivity(),
+                            v -> configManager.updateAnimatedLyrics(s -> s.setBeatSensitivity(Math.round(v))), "%", true),
+                    new SliderSetting("Lyrics Offset", -10000, 10000, () -> (float) config.getAnimatedLyrics().getOffset(),
+                            v -> configManager.updateAnimatedLyrics(s -> s.setOffset(Math.round(v))), "ms", true),
+                    new ChoiceSetting("Font Selection", new String[]{"Poppins", "Paradox", "Sans", "Serif", "Mono"},
+                            () -> java.util.List.of("Poppins", "Paradox", "Sans", "Serif", "Mono").indexOf(config.getAnimatedLyrics().getFont()),
+                            i -> configManager.updateAnimatedLyrics(s -> s.setFont(new String[]{"Poppins", "Paradox", "Sans", "Serif", "Mono"}[i]))),
+                    new ColorSetting("Text Color", new String[]{"#F5F3FF", "#A7B8F4", "#F5C86A", "#ED91B8", "#91E8D0"},
+                            () -> config.getAnimatedLyrics().getColor(), v -> configManager.updateAnimatedLyrics(s -> s.setColor(v))),
+                    new ToggleSetting("Glow", () -> config.getAnimatedLyrics().isGlow(), v -> configManager.updateAnimatedLyrics(s -> s.setGlow(v))),
+                    new ToggleSetting("Shadow", () -> config.getAnimatedLyrics().isShadow(), v -> configManager.updateAnimatedLyrics(s -> s.setShadow(v))),
+                    new SliderSetting("Background Dim", 0, 70, () -> (float) config.getAnimatedLyrics().getBackgroundDim(),
+                            v -> configManager.updateAnimatedLyrics(s -> s.setBackgroundDim(Math.round(v))), "%", true),
+                    new ToggleSetting("Word Highlight", () -> config.getAnimatedLyrics().isWordHighlight(),
+                            v -> configManager.updateAnimatedLyrics(s -> s.setWordHighlight(v))),
+                    new ToggleSetting("Randomized Transitions", () -> config.getAnimatedLyrics().isRandomizedTransitions(),
+                            v -> configManager.updateAnimatedLyrics(s -> s.setRandomizedTransitions(v))),
+                    new ValueSetting("Синхронизация", () -> "LRCLIB · слова или строки по данным источника"),
+                    new ValueSetting("Аудиореакция", () -> "Бас и акценты системного аудиомикса Windows"),
+                    new ChoiceSetting("3D Placement", new String[]{"Sky", "Floating"},
+                            () -> "Floating".equals(config.getAnimatedLyrics().getPlacement()) ? 1 : 0,
+                            i -> configManager.updateAnimatedLyrics(s -> s.setPlacement(i == 1 ? "Floating" : "Sky"))),
+                    new ToggleSetting("Follow View", () -> config.getAnimatedLyrics().isFollowView(),
+                            v -> configManager.updateAnimatedLyrics(s -> s.setFollowView(v)))
             };
             default -> new Setting[0];
         };
@@ -5683,12 +5716,14 @@ public final class OrionClickGuiScreen extends Screen {
 
     private int[] paradoxGroupStarts(Setting[] rows) {
         if (rows.length == 0) return new int[0];
+        if (settingsFor != null && settingsFor.action == Action.MEDIA_PLAYER && rows == settingsRows) return new int[]{0, 6};
         if (settingsFor != null && settingsFor.action == Action.BASKETBALL && rows == settingsRows) return new int[]{0, 9, 13, 19, 24, 30, 34};
         if (settingsFor != null && settingsFor.action == Action.FOOTBALL && rows == settingsRows) return new int[]{0, 9, 14, 20, 24};
         return new int[]{0};
     }
 
     private String paradoxGroupName(int group) {
+        if (settingsFor != null && settingsFor.action == Action.MEDIA_PLAYER) return group == 0 ? "Медиаплеер" : "Animated Lyrics";
         if (settingsFor != null && settingsFor.action == Action.BASKETBALL) {
             return new String[]{"Сетевой матч", "Как играть", "Площадка", "Текущая игра", "Бросок", "Физика", "Вид и звук"}[group];
         }

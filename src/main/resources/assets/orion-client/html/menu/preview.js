@@ -56,6 +56,7 @@ const categories = [
 const names = Object.fromEntries([...sections,...categories,['settings','Настройки клиента'],['profile','Профиль']].map(([id,title]) => [id,title]));
 const categoryIds = new Set(categories.map(([id]) => id));
 const moduleGroups = {
+  MEDIA_PLAYER:[[0,'Медиаплеер'],[6,'Animated Lyrics']],
   BASKETBALL:[[0,'Сетевой матч'],[9,'Как играть'],[13,'Площадка'],[19,'Текущая игра'],[24,'Бросок'],[30,'Физика'],[34,'Вид и звук']],
   FOOTBALL:[[0,'Сетевой матч'],[9,'Как играть'],[14,'Поле'],[20,'Правила игры'],[24,'Удар']],
   HEALTH_TAGS:[[0,'Внешний вид'],[4,'Кого показывать']],

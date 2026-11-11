@@ -983,5 +983,18 @@
   "Перемещённая шторка": "Island position",
   "Вернуть в центр": "Reset to center",
   "Открой чат и наведи курсор на шторку": "Open chat and hover over the island",
-  "Меняется только у приложения с музыкой": "Only changes the music app's volume"
+  "Меняется только у приложения с музыкой": "Only changes the music app's volume",
+  "Ищем синхронизированный текст…": "Looking for synced lyrics…",
+  "Синхронизированный текст не найден": "Synced lyrics not found",
+  "Доступен текст без таймкодов": "Only unsynced lyrics available",
+  "Инструментальная композиция": "Instrumental track",
+  "Для поиска нужны название и исполнитель": "Track title and artist are required",
+  "Источник текста недоступен · повторим позже": "Lyrics source unavailable · retrying later",
+  "Источник текста занят · ожидаем повтора": "Lyrics source busy · waiting to retry",
+  "Пословная синхронизация": "Word sync",
+  "Построчная синхронизация": "Line sync",
+  "Синхронизация": "Synchronization",
+  "LRCLIB · слова или строки по данным источника": "LRCLIB · source word or line timings",
+  "Аудиореакция": "Audio response",
+  "Бас и акценты системного аудиомикса Windows": "Bass and transients of the Windows output mix"
 }
