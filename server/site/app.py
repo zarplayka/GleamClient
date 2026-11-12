@@ -32,6 +32,9 @@ MAIL_FROM = os.environ.get('ORION_SITE_MAIL_FROM', '')
 MAIL_PASSWORD_FILE = os.environ.get('ORION_SITE_MAIL_PASSWORD_FILE', '')
 MAIL_ORIGIN = os.environ.get('ORION_SITE_MAIL_ORIGIN', '').rstrip('/')
 MAIL_QUEUE = web.AppKey('mail_queue', asyncio.Queue)
+FAKE_PUNISHMENTS = web.AppKey('fake_punishments', deque)
+FAKE_PUNISHMENT_EPOCH = web.AppKey('fake_punishment_epoch', str)
+LAUNCHER_REQUESTS = web.AppKey('launcher_requests', dict)
 MAIL_TOKEN = re.compile(r'[A-Za-z0-9_-]{43}')
 logger = logging.getLogger(__name__)
 
@@ -62,11 +65,17 @@ def init_db():
             db.execute('ALTER TABLE users ADD COLUMN email_verified_at INTEGER')
         if 'role' not in columns:
             db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('member','admin','owner'))")
+        if 'is_media' not in columns:
+            db.execute('ALTER TABLE users ADD COLUMN is_media INTEGER NOT NULL DEFAULT 0 CHECK (is_media IN (0,1))')
         if 'banned_at' not in columns:
             db.execute('ALTER TABLE users ADD COLUMN banned_at INTEGER')
         db.execute('CREATE TABLE IF NOT EXISTS user_id_sequence (id INTEGER PRIMARY KEY CHECK(id=1), last_id INTEGER NOT NULL)')
         db.execute('INSERT OR IGNORE INTO user_id_sequence SELECT 1, COALESCE(MAX(id),0) FROM users')
         db.execute('CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users(email) WHERE email IS NOT NULL')
+        db.execute('''CREATE TABLE IF NOT EXISTS game_settings (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            revision INTEGER NOT NULL, minecraft TEXT, modules TEXT
+        )''')
         session_columns = {column['name'] for column in db.execute('PRAGMA table_info(sessions)')}
         if 'device' not in session_columns:
             db.execute('ALTER TABLE sessions ADD COLUMN device TEXT')
@@ -187,7 +196,7 @@ def session(request):
     token=request.cookies.get(COOKIE,'')
     if not re.fullmatch(r'[A-Za-z0-9_-]{40,100}',token): return None
     with connect() as db:
-        return db.execute('SELECT u.id,u.username,u.email,u.email_verified_at,u.role,s.csrf FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.banned_at IS NULL',(digest(token),int(time.time()))).fetchone()
+        return db.execute('SELECT u.id,u.username,u.email,u.email_verified_at,u.role,u.is_media,s.csrf FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.banned_at IS NULL',(digest(token),int(time.time()))).fetchone()
 
 def auth_csrf(request):
     user=session(request)
@@ -198,6 +207,7 @@ def auth_csrf(request):
 def session_device(request):
     agent = request.headers.get('User-Agent', '').lower()
     for marker, name in (
+        ('gleam-launcher/', 'Gleam Launcher'),
         ('java-http-client/', 'Orion Client'), ('yabrowser/', 'Яндекс Браузер'),
         ('edg', 'Microsoft Edge'), ('opr/', 'Opera'), ('firefox/', 'Firefox'),
         ('chrome/', 'Chrome'), ('safari/', 'Safari'),
@@ -313,6 +323,9 @@ async def login(request):
     if not created: return error('credentials',401)
     token,csrf=created;response=web.json_response({'user':public_user(user),'csrf':csrf});set_cookie(response,token);return response
 
+def display_role(user):
+    return 'media' if user['role'] == 'member' and user['is_media'] else user['role']
+
 def session_payload(request):
     user=session(request)
     if not user: return {'user':None}
@@ -325,10 +338,103 @@ def session_payload(request):
     if avatar:
         version = hashlib.sha256(avatar['avatar']).hexdigest()[:16]
         avatar_url = f"/api/profile/{avatar['public_id']}/avatar?v={version}"
-    return {'user':public_user(user) | {'role': user['role']},'csrf':user['csrf'],'orders':orders,'plus_active':plus_active,'plus_expires_at':plus_expires_at,'avatar_url':avatar_url}
+    return {'user':public_user(user) | {'role': display_role(user)},'account_id':user['id'],'csrf':user['csrf'],'orders':orders,'plus_active':plus_active,'plus_expires_at':plus_expires_at,'avatar_url':avatar_url}
+
+async def game_settings(request):
+    writing = request.method == 'POST'
+    user = auth_csrf(request) if writing else session(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'game-settings', 120, 60): return error('rate', 429)
+    if writing:
+        if request.content_type != 'application/json': return error('invalid', 415)
+        body = bytearray()
+        async for chunk in request.content.iter_chunked(16384):
+            body.extend(chunk)
+            if len(body) > 512 * 1024: return error('too_large', 413)
+        try:
+            data = json.loads(body)
+            if not isinstance(data, dict) or set(data) != {'revision', 'minecraft', 'modules'}:
+                return error('invalid')
+            revision = data['revision']
+            minecraft, modules = data['minecraft'], data['modules']
+            if type(revision) is not int or not 0 <= revision < 2**63 - 1:
+                return error('invalid')
+            if minecraft is not None and (not isinstance(minecraft, str) or '\0' in minecraft or len(minecraft.encode()) > 128 * 1024):
+                return error('invalid')
+            if modules is not None and (not isinstance(modules, str) or len(modules.encode()) > 256 * 1024
+                                        or not isinstance(json.loads(modules), dict)):
+                return error('invalid')
+        except (ValueError, UnicodeError, RecursionError):
+            return error('invalid')
+    with connect() as db:
+        if writing: db.execute('BEGIN IMMEDIATE')
+        row = db.execute('SELECT revision,minecraft,modules FROM game_settings WHERE user_id=?', (user['id'],)).fetchone()
+        current = dict(row) if row else {'revision': 0, 'minecraft': None, 'modules': None}
+        if writing and (minecraft, modules) != (current['minecraft'], current['modules']):
+            if revision != current['revision']: return error('revision_conflict', 409)
+            current = {'revision': revision + 1, 'minecraft': minecraft, 'modules': modules}
+            db.execute('''INSERT INTO game_settings (user_id,revision,minecraft,modules) VALUES (?,?,?,?)
+                ON CONFLICT(user_id) DO UPDATE SET revision=excluded.revision,minecraft=excluded.minecraft,modules=excluded.modules''',
+                (user['id'], current['revision'], minecraft, modules))
+    return web.json_response({'account_id': user['id'], **current}, dumps=lambda value: json.dumps(value, ensure_ascii=False))
 
 async def me(request):
     return web.json_response(session_payload(request))
+
+async def launcher_start(request):
+    if not limit(request, 'launcher-start', 10, 900): return error('rate', 429)
+    now = time.monotonic()
+    pending = request.app[LAUNCHER_REQUESTS]
+    for key in list(pending):
+        if pending[key]['expires'] <= now: del pending[key]
+    if len(pending) >= 1024: return error('rate', 429)
+    secret = secrets.token_urlsafe(32)
+    code = secrets.token_hex(4).upper()
+    while any(item['code'] == code for item in pending.values()): code = secrets.token_hex(4).upper()
+    pending[digest(secret)] = {'code': code, 'expires': now + 300, 'session': None, 'poll': 0}
+    return web.json_response({'secret': secret, 'code': code, 'expires_in': 300,
+                              'url': ORIGIN + '/auth.html?launcher=' + code})
+
+async def launcher_approve(request):
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    data = await json_body(request)
+    code = data.get('code')
+    if not isinstance(code, str) or not re.fullmatch(r'[A-F0-9]{8}', code): return error('launcher_expired', 410)
+    if not limit(request, 'launcher-approve', 12, 900): return error('rate', 429)
+    item = next((item for item in request.app[LAUNCHER_REQUESTS].values()
+                 if hmac.compare_digest(item['code'], code) and item['expires'] > time.monotonic()), None)
+    if not item: return error('launcher_expired', 410)
+    if item['session'] is not None: return error('launcher_used', 409)
+    item['session'] = digest(request.cookies[COOKIE])
+    return web.json_response({'ok': True})
+
+async def launcher_poll(request):
+    data = await json_body(request)
+    secret = data.get('secret')
+    if not isinstance(secret, str) or not re.fullmatch(r'[A-Za-z0-9_-]{43}', secret): return error('launcher_expired', 410)
+    pending = request.app[LAUNCHER_REQUESTS]
+    key = digest(secret)
+    item = pending.get(key)
+    if not item or item['expires'] <= time.monotonic():
+        pending.pop(key, None)
+        return error('launcher_expired', 410)
+    now = time.monotonic()
+    if now - item['poll'] < 1: return error('rate', 429)
+    item['poll'] = now
+    if not item['session']: return web.json_response({'status': 'pending'})
+    # Consume once and create a distinct launcher session. Revoking the browser
+    # session or changing the password before polling cancels the approval.
+    del pending[key]
+    token = secrets.token_urlsafe(32)
+    csrf = secrets.token_urlsafe(32)
+    with connect() as db:
+        inserted = db.execute('''INSERT INTO sessions (token_hash,user_id,csrf,expires_at,device)
+            SELECT ?,s.user_id,?,?,? FROM sessions s JOIN users u ON u.id=s.user_id
+            WHERE s.token_hash=? AND s.expires_at>? AND u.banned_at IS NULL''',
+            (digest(token), csrf, int(time.time())+TTL, 'Gleam Launcher', item['session'], int(time.time())))
+        if inserted.rowcount != 1: return error('auth', 401)
+    return web.json_response({'status': 'approved', 'token': token, 'csrf': csrf})
 
 async def profile_page(request):
     payload = session_payload(request)
@@ -364,7 +470,7 @@ async def pricing(request):
     return web.json_response(await pricing_for_ip(request.headers.get('X-Real-IP', request.remote or '')))
 
 def profile_payload(row, private=False):
-    payload = {'id': row['public_id'], 'username': row['username'], 'created_at': row['created_at'], 'role': row['role'],
+    payload = {'id': row['public_id'], 'username': row['username'], 'created_at': row['created_at'], 'role': display_role(row),
                'has_avatar': bool(row['avatar']), 'published': bool(row['published']), 'banned_at': row['banned_at']}
     if row['avatar']:
         version = hashlib.sha256(row['avatar']).hexdigest()[:16]
@@ -382,12 +488,12 @@ async def own_profile(request):
     user = session(request)
     if not user: return error('auth', 401)
     with connect() as db:
-        row = db.execute('SELECT p.*,u.username,u.created_at,u.role,u.banned_at FROM profiles p JOIN users u ON u.id=p.user_id WHERE u.id=?',
+        row = db.execute('SELECT p.*,u.username,u.created_at,u.role,u.is_media,u.banned_at FROM profiles p JOIN users u ON u.id=p.user_id WHERE u.id=?',
                          (user['id'],)).fetchone()
         if not row:
             db.execute('INSERT INTO profiles (user_id, public_id) VALUES (?,?) ON CONFLICT(user_id) DO NOTHING',
                        (user['id'], secrets.token_hex(8)))
-            row = db.execute('SELECT p.*,u.username,u.created_at,u.role,u.banned_at FROM profiles p JOIN users u ON u.id=p.user_id WHERE u.id=?',
+            row = db.execute('SELECT p.*,u.username,u.created_at,u.role,u.is_media,u.banned_at FROM profiles p JOIN users u ON u.id=p.user_id WHERE u.id=?',
                              (user['id'],)).fetchone()
     return web.json_response(profile_payload(row, private=True))
 
@@ -528,7 +634,7 @@ def visible_profile(request, public_id=None):
     if not re.fullmatch(r'[a-f0-9]{16}', public_id): return None
     user = session(request)
     with connect() as db:
-        return db.execute('''SELECT p.*,u.username,u.created_at,u.role,u.banned_at FROM profiles p JOIN users u ON u.id=p.user_id
+        return db.execute('''SELECT p.*,u.username,u.created_at,u.role,u.is_media,u.banned_at FROM profiles p JOIN users u ON u.id=p.user_id
             WHERE p.public_id=? AND (p.published=1 OR p.user_id=?)''',
             (public_id, user['id'] if user else None)).fetchone()
 
@@ -566,6 +672,55 @@ async def catalog_access(request):
         active, _ = plus_status(db, user)
     return web.json_response({'account_id': user['id'], 'limit': 10 if active else 3})
 
+async def fake_punishments(request):
+    publish = request.method == 'POST'
+    data = await json_body(request) if publish else request.query
+    user = auth_csrf(request) if publish else session(request)
+    if not user:
+        return error('auth', 401)
+    scope = data.get('scope')
+    if not isinstance(scope, str) or not re.fullmatch(r'[a-f0-9]{64}', scope):
+        return error('invalid')
+    events = request.app[FAKE_PUNISHMENTS]
+    epoch = request.app[FAKE_PUNISHMENT_EPOCH]
+    cursor = events[-1][3]['id'] if events else 0
+    now = time.monotonic()
+    if not publish:
+        if not limit(request, 'fake-punishment-feed', 180, 60):
+            return error('rate', 429)
+        after = data.get('after', '')
+        match = re.fullmatch(r'([a-f0-9]{16})-([0-9]{1,18})', after)
+        items = []
+        if match and match[1] == epoch:
+            sequence = int(match[2])
+            items = [event for created, server, owner, event in events
+                     if event['id'] > sequence and now - created <= 25 and server == scope and owner != user['id']]
+        return web.json_response({'cursor': f'{epoch}-{cursor}', 'items': items[-24:]})
+
+    with connect() as db:
+        active, _ = plus_status(db, user)
+    if not active:
+        return error('plus_required', 403)
+    kind, duration, reason = data.get('kind'), data.get('duration'), data.get('reason')
+    moderator, target = data.get('moderator'), data.get('target')
+    if kind not in ('ban', 'mute') or not all(isinstance(name, str) and re.fullmatch(r'[A-Za-z0-9_]{1,16}', name)
+                                            for name in (moderator, target)):
+        return error('invalid')
+    if not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 256 or not reason.isprintable():
+        return error('invalid')
+    if duration is None:
+        if kind != 'ban':
+            return error('invalid')
+    elif not isinstance(duration, str) or not 1 <= len(duration) <= 16 or not duration.isprintable() or any(c.isspace() for c in duration):
+        return error('invalid')
+    if (not limit(request, 'fake-punishment-publish', 20, 60)
+            or not limit(request, f'fake-punishment-user-{user["id"]}', 3, 15)):
+        return error('rate', 429)
+    event = {'id': cursor + 1, 'author': user['username'], 'kind': kind, 'duration': duration,
+             'moderator': moderator, 'target': target, 'reason': reason.strip()}
+    events.append((now, scope, user['id'], event))
+    return web.json_response({'ok': True})
+
 async def search_profiles(request):
     query = request.query.get('q', '').strip()
     if not re.fullmatch(r'[A-Za-z0-9_]{2,24}', query):
@@ -574,7 +729,9 @@ async def search_profiles(request):
         return error('rate', 429)
     key = query.lower()
     with connect() as db:
-        rows = db.execute('''SELECT p.public_id, u.username, u.role, p.avatar IS NOT NULL AS has_avatar
+        rows = db.execute('''SELECT p.public_id, u.username,
+            CASE WHEN u.role='member' AND u.is_media=1 THEN 'media' ELSE u.role END AS role,
+            p.avatar IS NOT NULL AS has_avatar
             FROM users u JOIN profiles p ON p.user_id=u.id
             WHERE p.published=1 AND u.username_key>=? AND u.username_key<?
             ORDER BY u.username_key LIMIT 12''', (key, key + '~')).fetchall()
@@ -585,7 +742,8 @@ async def friends_list(request):
     if not user: return error('auth', 401)
     uid = user['id']
     with connect() as db:
-        rows = db.execute('''SELECT u.username, u.role,
+        rows = db.execute('''SELECT u.username,
+            CASE WHEN u.role='member' AND u.is_media=1 THEN 'media' ELSE u.role END AS role,
             CASE WHEN p.published=1 THEN p.public_id END AS public_id,
             CASE WHEN f.accepted=1 THEN 'friend' WHEN f.sender_id=:uid THEN 'outgoing' ELSE 'incoming' END AS status
             FROM friendships f JOIN users u ON u.id=CASE WHEN f.low_id=:uid THEN f.high_id ELSE f.low_id END
@@ -802,7 +960,9 @@ async def admin_accounts(request):
     query = request.query.get('q', '').strip().lower()
     if query and not re.fullmatch(r'[a-z0-9_]{1,24}', query): return error('invalid')
     with connect() as db:
-        rows = db.execute('''SELECT u.username, u.role, u.created_at, u.banned_at, COALESCE(p.published,0) AS published
+        rows = db.execute('''SELECT u.username,
+            CASE WHEN u.role='member' AND u.is_media=1 THEN 'media' ELSE u.role END AS role,
+            u.created_at, u.banned_at, COALESCE(p.published,0) AS published
             FROM users u LEFT JOIN profiles p ON p.user_id=u.id
             WHERE u.username_key>=? AND u.username_key<? ORDER BY u.id DESC LIMIT 30''',
             (query, query + '~')).fetchall()
@@ -815,12 +975,16 @@ async def admin_update(request):
     if not limit(request, 'admin-update', 30, 60): return error('rate', 429)
     data = await json_body(request)
     username, action = data.get('username'), data.get('action')
-    if not valid_username(username) or action not in ('hide', 'grant_admin', 'revoke_admin', 'ban', 'unban', 'delete'):
+    role_changes = {
+        'grant_admin': ('member', 'admin'), 'revoke_admin': ('admin', 'member'),
+        'grant_media': ('member', 'media'), 'revoke_media': ('media', 'member'),
+    }
+    if not valid_username(username) or action not in ('hide', 'ban', 'unban', 'delete', *role_changes):
         return error('invalid')
     with connect() as db:
         db.execute('BEGIN IMMEDIATE')
         actor = db.execute('SELECT role FROM users WHERE id=? AND banned_at IS NULL', (user['id'],)).fetchone()
-        target = db.execute('SELECT id,username,role,banned_at FROM users WHERE username_key=?', (username.lower(),)).fetchone()
+        target = db.execute('SELECT id,username,role,is_media,banned_at FROM users WHERE username_key=?', (username.lower(),)).fetchone()
         if not target: return error('profile_missing', 404)
         if not actor or actor['role'] not in ('admin', 'owner') or target['id'] == user['id'] or target['role'] == 'owner':
             return error('forbidden', 403)
@@ -838,10 +1002,11 @@ async def admin_update(request):
             else:
                 db.execute('UPDATE users SET banned_at=NULL WHERE id=?', (target['id'],))
         else:
-            expected, role = ('member', 'admin') if action == 'grant_admin' else ('admin', 'member')
+            expected, role = role_changes[action]
             if actor['role'] != 'owner': return error('forbidden', 403)
-            if target['role'] != expected: return error('role_changed', 409)
-            db.execute('UPDATE users SET role=? WHERE id=?', (role, target['id']))
+            if display_role(target) != expected: return error('role_changed', 409)
+            db.execute('UPDATE users SET role=?,is_media=? WHERE id=?',
+                       ('member' if role == 'media' else role, role == 'media', target['id']))
     logger.info('Account moderation actor=%s target=%s action=%s', user['id'], target['id'], action)
     return web.json_response({'ok': True})
 
@@ -1150,6 +1315,14 @@ async def account_page(request): return web.FileResponse(BASE/'static'/'account.
 async def health(request): return web.json_response({'status':'ok','service':'orion-site'})
 def create_app():
     init_db(); app=web.Application(middlewares=[security],client_max_size=4096)
+    app[FAKE_PUNISHMENTS] = deque(maxlen=256)
+    app[FAKE_PUNISHMENT_EPOCH] = secrets.token_hex(8)
+    app[LAUNCHER_REQUESTS] = {}
+    app.router.add_post('/api/launcher-auth/start', launcher_start)
+    app.router.add_post('/api/launcher-auth/approve', launcher_approve)
+    app.router.add_post('/api/launcher-auth/poll', launcher_poll)
+    app.router.add_get('/api/game-settings', game_settings)
+    app.router.add_post('/api/game-settings', game_settings)
     app.add_routes([web.get('/',index),web.get('/account',account_page),web.get('/health',health),web.get('/api/me',me),web.post('/api/register',register),web.post('/api/login',login),web.post('/api/logout',logout),web.post('/api/orders',order),web.post('/api/password',password_change),web.static('/static/',BASE/'static',show_index=False)])
     app.router.add_post('/api/email', update_email)
     app.router.add_get('/api/profile-page', profile_page)
@@ -1166,6 +1339,8 @@ def create_app():
     app.router.add_get('/api/pricing', pricing)
     app.router.add_get('/api/profile', own_profile)
     app.router.add_get('/api/catalog-access', catalog_access)
+    app.router.add_get('/api/fake-punishments', fake_punishments)
+    app.router.add_post('/api/fake-punishments', fake_punishments)
     app.router.add_get('/api/profile-search', search_profiles)
     app.router.add_post('/api/profile', save_profile)
     app.router.add_post('/api/profile/avatar', save_avatar)

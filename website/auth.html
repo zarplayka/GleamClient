@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#171816">
+  <meta name="theme-color" content="#151519">
   <meta name="robots" content="noindex">
   <title>Авторизация — GleamClient</title>
-  <link rel="icon" type="image/png" href="assets/orion-badge.png">
-  <link rel="stylesheet" href="style.css?v=moderation">
-  <script src="i18n.js?v=plus-duration" defer></script>
+  <link rel="icon" type="image/png" href="assets/orion-badge.png?v=gleam-eye">
+  <link rel="stylesheet" href="style.css?v=gleam-palette-20261112">
+  <script src="i18n.js?v=launcher-auth-20261110" defer></script>
   <script src="app.js?v=community" defer></script>
-  <script src="auth.js?v=plus-duration" defer></script>
+  <script src="auth.js?v=launcher-auth-20261110" defer></script>
 </head>
 <body class="auth-page">
   <a class="skip" href="#main">Перейти к содержимому</a>
@@ -19,9 +19,16 @@
     <div class="auth-art art-wild"><img src="assets/auth-wild.jpg" alt="" width="1920" height="1080"></div>
     <div class="auth-art art-nether"><img src="assets/auth-nether.jpg" alt="" width="1920" height="1080"></div>
   </div>
-  <header class="auth-topbar"><a class="brand" href="/" aria-label="GleamClient — главная"><img src="assets/orion-badge.png" width="38" height="34" alt=""><span>gleam<span class="brand-sub">client</span></span></a><a class="auth-back" href="/">На главную <span aria-hidden="true">↗</span></a></header>
+  <header class="auth-topbar"><a class="brand" href="/" aria-label="GleamClient — главная"><img src="assets/orion-badge.png?v=gleam-eye" width="38" height="34" alt=""><span>gleam<span class="brand-sub">client</span></span></a><a class="auth-back" href="/">На главную <span aria-hidden="true">↗</span></a></header>
   <main id="main" class="auth-main">
-    <div class="auth-lockup" aria-hidden="true"><img src="assets/orion-badge.png" alt="" width="58" height="51"><span>orion</span></div>
+    <div class="auth-lockup" aria-hidden="true"><img src="assets/orion-badge.png?v=gleam-eye" alt="" width="58" height="51"><span>gleam</span></div>
+    <section id="launcher-confirmation" class="auth-card" aria-labelledby="launcher-confirmation-heading" hidden>
+      <h1 id="launcher-confirmation-heading">Вход в Gleam Launcher</h1>
+      <p>Подтверждай только запрос из своего лаунчера. Сверь код в обоих окнах</p>
+      <p><strong id="launcher-confirmation-code"></strong></p>
+      <button type="button" class="auth-submit" id="launcher-confirmation-approve">Подтвердить вход</button>
+      <p id="launcher-confirmation-status" role="status"></p>
+    </section>
     <section class="auth-card" aria-labelledby="auth-heading">
       <h1 id="auth-heading">С возвращением.</h1>
       <div id="auth-loading" class="auth-loading" role="status"><div></div><div></div><p>Подожди…</p></div>

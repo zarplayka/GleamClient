@@ -8,3 +8,14 @@
 - `flag-ru.svg`, `flag-gb.svg` — изображения государственных флагов: https://flagcdn.com/ru.svg и https://flagcdn.com/gb.svg
 
 Иллюстрации Minecraft © Mojang Studios. Orion не является официальным продуктом Minecraft и не связан с Mojang/Microsoft. Авторские права и условия использования изображений сохраняются у их правообладателей.
+
+## Обложки версий в Gleam Launcher
+
+В `tools/launcher-preview.html` используются изображения из официальных публикаций Minecraft. Они встроены в HTML и служат обложками плиток и фоном выбранной версии.
+
+- 1.16.5 — [Nether Update](https://www.minecraft.net/en-us/article/the-nether-update-here)
+- 1.21.4 — [The Garden Awakens](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-4)
+- 1.21.11 — [Mounts of Mayhem](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-11)
+- 26.1.2 — [Tiny Takeover](https://www.minecraft.net/en-us/article/minecraft-java-edition-26-1)
+- 26.2 — [Chaos Cubed](https://www.minecraft.net/en-us/article/minecraft-java-edition-26-2)
+- 26.3 — [Wilderness Bound](https://www.minecraft.net/en-us/article/minecraft-26-3-release-candidate-2)

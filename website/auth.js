@@ -14,7 +14,30 @@
   const loading = document.querySelector('#auth-loading');
   const entry = document.querySelector('#auth-entry');
   const profile = document.querySelector('#auth-profile');
-  const authCard = document.querySelector('.auth-card');
+  const authCard = document.querySelector('.auth-card[aria-labelledby="auth-heading"]');
+  const launcherCode = new URLSearchParams(location.search).get('launcher');
+  const launcherConfirmation = document.querySelector('#launcher-confirmation');
+  const launcherApproval = document.querySelector('#launcher-confirmation-approve');
+  function showLauncherConfirmation() {
+    if (!/^[A-F0-9]{8}$/.test(launcherCode || '') || !user) return;
+    authCard.hidden = true;
+    profile.hidden = true;
+    launcherConfirmation.hidden = false;
+    document.querySelector('#launcher-confirmation-code').textContent = launcherCode.slice(0,4)+' '+launcherCode.slice(4);
+  }
+  launcherApproval.addEventListener('click', async () => {
+    if (launcherApproval.disabled) return;
+    launcherApproval.disabled = true;
+    const status = document.querySelector('#launcher-confirmation-status');
+    try {
+      await request('/api/launcher-auth/approve', {code:launcherCode});
+      status.textContent = t('Вход подтверждён. Можно вернуться в лаунчер');
+    } catch (error) {
+      status.textContent = error.code === 'launcher_expired' || error.code === 'launcher_used'
+        ? t('Запрос устарел. Начни вход заново в лаунчере') : explain(error);
+      launcherApproval.disabled = false;
+    }
+  });
   const emailEdit = document.querySelector('#profile-email-edit');
   const plusStatus = document.querySelector('#profile-plus-status');
   const plusRemaining = document.querySelector('#profile-plus-remaining');
@@ -242,6 +265,7 @@
     profile.hidden = !!recoveryMode || !user;
     document.body.classList.toggle('profile-page', !profile.hidden);
     authCard.hidden = !profile.hidden;
+    showLauncherConfirmation();
     document.querySelector('#forgot-password').parentElement.hidden = registering;
     recovery.querySelectorAll('[data-recovery]').forEach(field => { field.hidden = field.dataset.recovery !== recoveryMode; });
     recoveryForm.hidden = recoveryDone;
@@ -431,6 +455,7 @@
     }
     render();
     selectProfileTab(profileTabs[0]);
+    showLauncherConfirmation();
     if (user && location.hash === '#profile-email') {
       selectProfileTab(document.querySelector('#profile-tab-security'));
       emailEdit.open = true;
@@ -471,7 +496,7 @@
     time.textContent = new Intl.DateTimeFormat(document.documentElement.lang, {dateStyle: 'medium'}).format(date);
     document.querySelector('#' + prefix + '-id').textContent = details.id;
     const role = document.querySelector('#' + prefix + '-role');
-    const label = details.role === 'owner' ? 'Owner' : details.role === 'admin' ? 'Admin' : '';
+    const label = {owner: 'Owner', admin: 'Admin', media: 'Media'}[details.role] || '';
     role.textContent = label;
     role.hidden = !label;
     role.classList.toggle('is-owner', details.role === 'owner');
@@ -808,7 +833,7 @@
       name.textContent = item.username;
       role.className = 'admin-role';
       role.dataset.role = item.role;
-      role.textContent = ({member: t('Игрок'), admin: 'Admin', owner: 'Owner'})[item.role];
+      role.textContent = ({member: t('Игрок'), admin: 'Admin', owner: 'Owner', media: 'Media'})[item.role];
       date.textContent = dateFormat.format(new Date(item.created_at * 1000));
       visibility.className = 'admin-visibility';
       visibility.dataset.published = String(Boolean(item.published));
@@ -820,10 +845,11 @@
       buttons.className = 'community-actions';
       if (item.username !== adminAccounts.username && item.role !== 'owner') {
         const owner = adminAccounts.role === 'owner';
-        if (item.published && (owner || item.role === 'member')) {
+        const canModerate = owner || ['member', 'media'].includes(item.role);
+        if (item.published && canModerate) {
           buttons.append(communityButton('Скрыть профиль', () => changeAdmin(item.username, 'hide'), adminBusy));
         }
-        if (owner || item.role === 'member') {
+        if (canModerate) {
           const banAction = item.banned_at ? 'unban' : 'ban';
           buttons.append(communityButton(item.banned_at ? 'Разблокировать' : 'Заблокировать',
             () => changeAdmin(item.username, banAction), adminBusy));
@@ -831,10 +857,15 @@
           remove.classList.add('community-button-danger');
           buttons.append(remove);
         }
-        if (owner) {
+        if (owner && ['member', 'admin'].includes(item.role)) {
           const grant = item.role === 'member';
           buttons.append(communityButton(grant ? 'Назначить Admin' : 'Снять Admin',
             () => changeAdmin(item.username, grant ? 'grant_admin' : 'revoke_admin'), adminBusy));
+        }
+        if (owner && ['member', 'media'].includes(item.role)) {
+          const grant = item.role === 'member';
+          buttons.append(communityButton(grant ? 'Назначить Media' : 'Снять Media',
+            () => changeAdmin(item.username, grant ? 'grant_media' : 'revoke_media'), adminBusy));
         }
       }
       const details = document.createElement('details');
@@ -894,6 +925,7 @@
 
   async function changeAdmin(username, action, confirmation) {
     const label = {hide: 'Скрыть профиль', grant_admin: 'Назначить Admin', revoke_admin: 'Снять Admin',
+      grant_media: 'Назначить Media', revoke_media: 'Снять Media',
       ban: 'Заблокировать', unban: 'Разблокировать'}[action];
     if (adminBusy || !csrf || (action !== 'delete' && !confirm(t(label) + ' · ' + username + '?'))) return;
     const key = csrf;

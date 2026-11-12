@@ -1,0 +1,41 @@
+{
+  "productName": "Gleam Launcher Setup",
+  "version": "0.1.5",
+  "identifier": "xyz.gleamclient.setup",
+  "build": {
+    "frontendDist": "../../build/gleam-installer/ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Установка Gleam Launcher",
+        "url": "index.html",
+        "width": 680,
+        "height": 490,
+        "center": true,
+        "visible": false,
+        "resizable": false,
+        "decorations": false,
+        "shadow": false,
+        "transparent": true,
+        "noRedirectionBitmap": true,
+        "backgroundColor": "#00000000"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src ipc: http://ipc.localhost",
+      "capabilities": [
+        {
+          "identifier": "installer-window",
+          "windows": ["main"],
+          "permissions": ["core:event:allow-listen", "core:event:allow-unlisten", "core:window:allow-close", "core:window:allow-start-dragging"]
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "icon": ["../icons/icon.ico"]
+  }
+}

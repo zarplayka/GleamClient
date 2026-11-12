@@ -45,6 +45,74 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
                 'Cookie': app.COOKIE + '=' + response.cookies[app.COOKIE].value,
                 'X-CSRF-Token': (await response.json())['csrf']}
 
+    async def test_launcher_browser_approval_is_csrf_protected_and_single_use(self):
+        headers = await self.account_headers('LauncherUser')
+        native = {'Origin': NEW, 'X-Orion-Request': '1', 'User-Agent': 'Gleam-Launcher/0.1.0'}
+        started = await self.client.post('/api/launcher-auth/start', json={}, headers=native)
+        self.assertEqual(started.status, 200)
+        device = await started.json()
+        self.assertNotIn(device['secret'], device['url'])
+        pending = await self.client.post('/api/launcher-auth/poll', json={'secret': device['secret']}, headers=native)
+        self.assertEqual((await pending.json())['status'], 'pending')
+        approve = '/api/launcher-auth/approve'
+        unsafe = {key: value for key, value in headers.items() if key != 'X-CSRF-Token'}
+        self.assertEqual((await self.client.post(approve, json={'code': device['code']}, headers=unsafe)).status, 401)
+        self.assertEqual((await self.client.post(approve, json={'code': device['code']}, headers=headers)).status, 200)
+        self.assertEqual((await self.client.post(approve, json={'code': device['code']}, headers=headers)).status, 409)
+        self.client.server.app[app.LAUNCHER_REQUESTS][app.digest(device['secret'])]['poll'] = 0
+        received = await self.client.post('/api/launcher-auth/poll', json={'secret': device['secret']}, headers=native)
+        self.assertEqual(received.status, 200)
+        data = await received.json()
+        self.assertEqual(data['status'], 'approved')
+        self.assertNotEqual(data['token'], headers['Cookie'].split('=', 1)[1])
+        account = await self.client.get('/api/me', headers={'Cookie': app.COOKIE+'='+data['token']})
+        self.assertEqual((await account.json())['user']['username'], 'LauncherUser')
+        with app.connect() as db:
+            device_name = db.execute('SELECT device FROM sessions WHERE token_hash=?', (app.digest(data['token']),)).fetchone()[0]
+        self.assertEqual(device_name, 'Gleam Launcher')
+        self.assertEqual((await self.client.post('/api/launcher-auth/poll', json={'secret': device['secret']}, headers=native)).status, 410)
+
+    async def test_launcher_expiration_and_revoked_approval(self):
+        headers = await self.account_headers('LauncherRevoked')
+        started = await (await self.client.post('/api/launcher-auth/start', json={}, headers=headers)).json()
+        approved = await self.client.post('/api/launcher-auth/approve', json={'code': started['code']}, headers=headers)
+        self.assertEqual(approved.status, 200)
+        await self.client.post('/api/logout', json={}, headers=headers)
+        self.assertEqual((await self.client.post('/api/launcher-auth/poll', json={'secret': started['secret']}, headers=headers)).status, 401)
+        started = await (await self.client.post('/api/launcher-auth/start', json={}, headers=headers)).json()
+        self.client.server.app[app.LAUNCHER_REQUESTS][app.digest(started['secret'])]['expires'] = 0
+        self.assertEqual((await self.client.post('/api/launcher-auth/poll', json={'secret': started['secret']}, headers=headers)).status, 410)
+        self.assertEqual((await self.client.post('/api/launcher-auth/poll', json={'secret': 'invalid'}, headers=headers)).status, 410)
+
+    async def test_fake_punishments_require_plus_and_share_only_in_scope(self):
+        sender = await self.account_headers('PrankAuthor')
+        viewer = await self.account_headers('PrankViewer')
+        path = '/api/fake-punishments'
+        scope = 'a' * 64
+        event = {'scope': scope, 'kind': 'mute', 'moderator': 'Moderator', 'target': 'Player',
+                 'duration': '5m', 'reason': 'Проверка'}
+        initial = await (await self.client.get(path, params={'scope': scope}, headers=viewer)).json()
+        self.assertEqual(initial['items'], [])
+        self.assertEqual((await self.client.post(path, headers=sender, json=event)).status, 403)
+        with app.connect() as db:
+            db.execute('''INSERT INTO plus_access (user_id, expires_at)
+                        SELECT id, ? FROM users WHERE username=?''', (int(app.time.time()) + 60, 'PrankAuthor'))
+        no_csrf = {key: value for key, value in sender.items() if key != 'X-CSRF-Token'}
+        self.assertEqual((await self.client.post(path, headers=no_csrf, json=event)).status, 401)
+        self.assertEqual((await self.client.post(path, headers=sender, json=event | {'target': 'Bad name'})).status, 400)
+        self.assertEqual((await self.client.post(path, headers=sender, json=event)).status, 200)
+        after = {'scope': scope, 'after': initial['cursor']}
+        received = await (await self.client.get(path, params=after, headers=viewer)).json()
+        self.assertEqual([(item['kind'], item['author'], item['target']) for item in received['items']],
+                         [('mute', 'PrankAuthor', 'Player')])
+        for headers, params in ((sender, after), (viewer, after | {'scope': 'b' * 64}),
+                                (viewer, {'scope': scope}), (viewer, after | {'after': received['cursor']})):
+            result = await (await self.client.get(path, params=params, headers=headers)).json()
+            self.assertEqual(result['items'], [])
+        with app.connect() as db:
+            db.execute('DELETE FROM plus_access')
+        self.assertEqual((await self.client.post(path, headers=sender, json=event)).status, 403)
+
     async def test_friends_require_recipient_consent_and_protect_private_profiles(self):
         alice = await self.account_headers('AlicePlayer')
         bob = await self.account_headers('BobPlayer')
@@ -95,6 +163,35 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status, 200)
         self.assertEqual((await self.client.get(path, headers=alice)).status, 403)
 
+    async def test_game_settings_are_private_and_revisioned(self):
+        first = await self.account_headers('SettingsFirst')
+        second = await self.account_headers('SettingsSecond')
+        path = '/api/game-settings'
+        initial = await (await self.client.get(path, headers=first)).json()
+        self.assertEqual(initial['revision'], 0)
+        settings = {'revision': 0, 'minecraft': 'lang:ru_ru\nkey_key.jump:key.keyboard.space\n',
+                    'modules': app.json.dumps({'zoomEnabled': True, 'chatFilterWords': 'слово ' * 2000})}
+        self.assertGreater(len(settings['modules']), 4096)
+        without_csrf = {key:value for key,value in first.items() if key != 'X-CSRF-Token'}
+        self.assertEqual((await self.client.post(path, headers=without_csrf, json=settings)).status, 401)
+        saved = await (await self.client.post(path, headers=first, json=settings)).json()
+        self.assertEqual(saved['revision'], 1)
+        self.assertEqual(saved['account_id'], initial['account_id'])
+        self.assertEqual(saved['modules'], settings['modules'])
+        other = await (await self.client.get(path, headers=second)).json()
+        self.assertNotEqual(other['account_id'], saved['account_id'])
+        self.assertIsNone(other['modules'])
+        conflict = await self.client.post(path, headers=first, json={**settings, 'minecraft': 'lang:de_de\n'})
+        self.assertEqual(conflict.status, 409)
+        duplicate = await (await self.client.post(path, headers=first, json=settings)).json()
+        self.assertEqual(duplicate['revision'], 1)
+        login = await self.client.post('/api/login', headers={'Origin': NEW, 'X-Orion-Request': '1'},
+                                       json={'username': 'SettingsFirst', 'password': PASSWORD})
+        self.assertEqual(login.status, 200)
+        second_device = {'Cookie': app.COOKIE + '=' + login.cookies[app.COOKIE].value}
+        restored = await (await self.client.get(path, headers=second_device)).json()
+        self.assertEqual(restored, saved)
+
     async def test_admin_permissions_and_role_changes_apply_to_existing_sessions(self):
         owner = await self.account_headers('FirstOwner')
         admin = await self.account_headers('FirstAdmin')
@@ -120,6 +217,16 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await action(admin, 'OtherPlayer', 'hide'), 403)
         self.assertEqual(await action(owner, 'OtherPlayer', 'revoke_admin'), 200)
         self.assertEqual((await self.client.get(route, headers=player)).status, 403)
+        self.assertEqual(await action(admin, 'OtherPlayer', 'grant_media'), 403)
+        self.assertEqual(await action(owner, 'OtherPlayer', 'grant_media'), 200)
+        for path in ('/api/me', '/api/profile', route + '?q=other'):
+            headers = owner if path.startswith(route) else player
+            payload = await (await self.client.get(path, headers=headers)).json()
+            account = payload.get('user') or (payload['items'][0] if 'items' in payload else payload)
+            self.assertEqual(account['role'], 'media')
+        self.assertEqual((await self.client.get(route, headers=player)).status, 403)
+        self.assertEqual(await action(owner, 'OtherPlayer', 'revoke_media'), 200)
+        self.assertEqual((await (await self.client.get('/api/me', headers=player)).json())['user']['role'], 'member')
 
     async def test_moderation_ban_revokes_sessions_and_delete_does_not_reuse_id(self):
         admin = await self.account_headers('ModerationAdmin')

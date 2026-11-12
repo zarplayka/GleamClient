@@ -12,6 +12,10 @@ gleamclient.xyz {
     @assets path /assets/*
     header @assets Cache-Control "public, max-age=3600"
     header /downloads/* Cache-Control "no-cache"
+    handle_path /downloads/launcher/* {
+        root * /var/www/gleam-launcher-updates
+        file_server
+    }
     handle /v1/* {
         request_body {
             max_size 64KB

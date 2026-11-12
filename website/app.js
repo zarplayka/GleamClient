@@ -84,10 +84,11 @@ if (playerSearch) {
           id.textContent = '#' + player.public_id;
           person.append(name, id);
           link.append(avatar, person);
-          if (player.role === 'owner' || player.role === 'admin') {
+          const label = {owner: 'Owner', admin: 'Admin', media: 'Media'}[player.role];
+          if (label) {
             const role = document.createElement('small');
             role.className = 'player-search-role';
-            role.textContent = player.role === 'owner' ? 'Owner' : 'Admin';
+            role.textContent = label;
             link.append(role);
           }
           const arrow = document.createElement('span');

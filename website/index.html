@@ -3,24 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#171816">
+  <meta name="theme-color" content="#151519">
   <title>GleamClient — Minecraft по-своему</title>
   <meta name="description" content="GleamClient для Minecraft Java Edition: настраиваемый интерфейс, визуальные эффекты, косметика и мини-игры. Скачать клиент и узнать, как установить его на Fabric.">
   <meta property="og:title" content="GleamClient — Minecraft по-своему">
   <meta property="og:description" content="Собери свой интерфейс. Измени атмосферу мира. Оставайся собой в Minecraft.">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://gleamclient.xyz/assets/social.png">
-  <link rel="icon" type="image/png" href="assets/orion-badge.png">
+  <link rel="icon" type="image/png" href="assets/orion-badge.png?v=gleam-eye">
   <link rel="preload" href="assets/onest-regular.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="preload" href="assets/onest-bold.ttf" as="font" type="font/ttf" crossorigin>
-  <link rel="stylesheet" href="style.css?v=community">
-  <script src="i18n.js?v=latest-release" defer></script><script src="app.js?v=community" defer></script>
+  <link rel="stylesheet" href="style.css?v=gleam-palette-20261112">
+  <script src="i18n.js?v=launcher-download-20261112" defer></script><script src="app.js?v=community" defer></script>
   <script src="interface-demo.js?v=gleam-icons" defer></script>
 </head>
 <body>
   <a class="skip" href="#main">Перейти к содержимому</a>
   <header class="header header-panel header-with-search wrap">
-    <a class="brand" href="#" aria-label="GleamClient — главная"><img src="assets/orion-badge.png" width="38" height="34" alt=""><span>gleam<span class="brand-sub">client</span></span></a>
+    <a class="brand" href="#" aria-label="GleamClient — главная"><img src="assets/orion-badge.png?v=gleam-eye" width="38" height="34" alt=""><span>gleam<span class="brand-sub">client</span></span></a>
     <nav aria-label="Основная навигация" id="navigation"><a href="#features">Возможности</a><a href="#install">Установка</a><a href="#faq">Вопросы</a></nav>
     <div class="player-search" id="player-search">
       <button class="player-search-trigger" id="player-search-trigger" type="button" aria-label="Поиск игроков" aria-controls="player-search-panel" aria-expanded="false">
@@ -70,7 +70,7 @@
         <h1 id="hero-title">Minecraft<br><span>по-своему.</span></h1>
         <p>Настраиваемый HUD, визуальные эффекты и мини-игры с друзьями.</p>
         <div class="hero-actions">
-          <a class="hero-action hero-action-primary" href="#install"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/></svg><span>Скачать GleamClient</span></a>
+          <a class="hero-action hero-action-primary" href="/downloads/launcher/Gleam.Launcher.Setup.exe" download><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/></svg><span>Скачать Gleam Launcher</span></a>
           <a class="hero-action hero-action-secondary" href="#features"><span>Возможности</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
         </div>
         <div class="hero-meta"><span>Мод для Fabric</span><span aria-hidden="true">·</span><a href="https://github.com/zarplayka/GleamClient/releases/latest"><span>Последний релиз</span><span aria-hidden="true">↗</span></a></div>
@@ -120,13 +120,13 @@
       <div class="plans-grid">
         <article class="plan-card">
           <div class="plan-identity">
-            <span class="plan-icon"><img src="assets/orion-badge.png" width="20" height="18" alt=""></span>
+            <span class="plan-icon"><img src="assets/gleam-eye.png" width="28" height="28" alt=""></span>
             <div><h3>Free</h3><p>GleamClient для Minecraft Java Edition</p></div>
           </div>
           <p class="plan-price" id="free-price">0 ₽</p>
           <div class="download-actions">
-            <a class="hero-action hero-action-secondary" href="https://github.com/zarplayka/GleamClient/releases/latest/download/gleamclient.jar">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/></svg><span>Скачать GleamClient</span>
+            <a class="hero-action hero-action-secondary" href="/downloads/launcher/Gleam.Launcher.Setup.exe" download>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/></svg><span>Скачать Gleam Launcher</span>
             </a>
           </div>
           <div class="plan-features">
@@ -151,11 +151,11 @@
         </article>
       </div>
       <div class="install-guide download-guide">
-        <div class="download-guide-heading"><h3>Установка на Fabric</h3><a href="https://github.com/zarplayka/GleamClient/releases">Все релизы и совместимость <span aria-hidden="true">↗</span></a></div>
+        <div class="download-guide-heading"><h3>Установка Gleam Launcher</h3><span>Для Windows x64</span></div>
         <ol>
-          <li><span aria-hidden="true">01</span><div><h4>Подготовь Minecraft</h4><p>Сверь версии Minecraft, Fabric и Java с описанием релиза. <a href="https://fabricmc.net/use/installer/">Скачать Fabric Loader</a></p></div></li>
-          <li><span aria-hidden="true">02</span><div><h4>Добавь два файла</h4><p>Положи <a href="https://modrinth.com/mod/fabric-api">Fabric API</a> подходящей версии и JAR GleamClient в папку <code>mods</code> своего игрового профиля.</p></div></li>
-          <li><span aria-hidden="true">03</span><div><h4>Запусти и настрой</h4><p>Выбери профиль Fabric в лаунчере. В игре нажми <kbd>Right Shift</kbd> — откроется меню GleamClient.</p></div></li>
+          <li><span aria-hidden="true">01</span><div><h4>Установи лаунчер</h4><p>Открой скачанный установщик и нажми «Установить».</p></div></li>
+          <li><span aria-hidden="true">02</span><div><h4>Войди в аккаунты</h4><p>В лаунчере войди в аккаунт Gleam и добавь аккаунт Microsoft с Minecraft Java Edition.</p></div></li>
+          <li><span aria-hidden="true">03</span><div><h4>Запусти и настрой</h4><p>Нажми «Играть». Лаунчер сам подготовит Minecraft, Fabric и GleamClient.</p></div></li>
         </ol>
       </div>
     </section>
@@ -166,9 +166,9 @@
         <h2 id="faq-title">Частые вопросы</h2>
       </div>
       <div class="faq-list">
-      <details><summary>Это отдельный лаунчер?<span aria-hidden="true">+</span></summary><p>Нет. GleamClient устанавливается как клиентский мод на Fabric. Можно использовать привычный лаунчер с подходящим профилем Minecraft Java Edition.</p></details>
-      <details><summary>Какая версия Minecraft нужна?<span aria-hidden="true">+</span></summary><p>Версии Minecraft, Fabric и Java указаны в описании каждого релиза.</p></details>
-      <details><summary>Подойдёт для Windows, macOS и Linux?<span aria-hidden="true">+</span></summary><p>Основной клиент работает на Java и Fabric. Интеграция медиаплеера использует Windows-компоненты; на других системах часть возможностей может быть недоступна.</p></details>
+      <details><summary>Это отдельный лаунчер?<span aria-hidden="true">+</span></summary><p>Да. Gleam Launcher скачивает Minecraft 26.3, Fabric и GleamClient при первом запуске игры.</p></details>
+      <details><summary>Какая версия Minecraft нужна?<span aria-hidden="true">+</span></summary><p>Gleam Launcher использует Minecraft Java Edition 26.3.</p></details>
+      <details><summary>Подойдёт для Windows, macOS и Linux?<span aria-hidden="true">+</span></summary><p>Установщик Gleam Launcher доступен для Windows x64.</p></details>
       <details><summary>Как открыть чат с другом?<span aria-hidden="true">+</span></summary><p>Войди в аккаунт GleamClient и отправь заявку в разделе «Друзья». После принятия заявки переписка появится во вкладке «Чат».</p></details>
       <details><summary>Будут ли другие игроки видеть косметику?<span aria-hidden="true">+</span></summary><p>Для этого у другого игрока должна быть совместимая версия GleamClient и доступ к онлайн-сервису косметики. Доступность сервиса зависит от подключения.</p></details>
       <details><summary>Можно ли играть на любом сервере?<span aria-hidden="true">+</span></summary><p>Перед подключением проверь правила конкретного сервера. Некоторые серверы ограничивают визуальные модули, отображение информации и другие клиентские функции.</p></details>
@@ -183,13 +183,13 @@
   <footer class="footer wrap">
     <div class="footer-grid">
       <div class="footer-brand">
-        <a class="brand" href="#" aria-label="GleamClient — наверх"><img src="assets/orion-badge.png" width="38" height="34" alt=""><span>gleam<span class="brand-sub">client</span></span></a>
+        <a class="brand" href="#" aria-label="GleamClient — наверх"><img src="assets/orion-badge.png?v=gleam-eye" width="38" height="34" alt=""><span>gleam<span class="brand-sub">client</span></span></a>
         <p>Твой Minecraft. Твой стиль.</p>
         <span class="footer-edition">Minecraft Java Edition</span>
       </div>
       <nav class="footer-column" aria-label="Клиент">
         <h2>Клиент</h2>
-        <a href="#install">Скачать GleamClient</a>
+        <a href="/downloads/launcher/Gleam.Launcher.Setup.exe" download>Скачать Gleam Launcher</a>
         <a href="https://github.com/zarplayka/GleamClient/releases">Все версии</a>
         <a href="https://github.com/zarplayka/GleamClient/releases/latest">Что нового</a>
       </nav>
