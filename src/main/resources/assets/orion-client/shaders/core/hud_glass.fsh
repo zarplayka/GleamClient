@@ -1,20 +1,41 @@
 #version 330
 #extension GL_ARB_separate_shader_objects : require
 
+//? if >=26.3 {
 layout(std140) uniform DynamicTransforms {
     mat4 ModelViewMat;
     mat4 TextureMat;
     vec4 ColorModulator;
     vec3 ModelOffset;
 };
+//?} else {
+/*layout(std140) uniform DynamicTransforms {
+    mat4 ModelViewMat;
+    vec4 ColorModulator;
+    vec3 ModelOffset;
+    mat4 TextureMat;
+};
+*///?}
 
 uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
 uniform sampler2D Sampler2;
 
+//? if >=26.3 {
 layout(location = 0) in vec2 texCoord0;
+//?} else {
+/*in vec2 texCoord0;
+*///?}
+//? if >=26.3 {
 layout(location = 1) in vec4 vertexColor;
+//?} else {
+/*in vec4 vertexColor;
+*///?}
+//? if >=26.3 {
 layout(location = 0) out vec4 fragColor;
+//?} else {
+/*out vec4 fragColor;
+*///?}
 
 const float BLUR_OFFSET = 4.5;
 const float GLASS_OPACITY = 0.22;

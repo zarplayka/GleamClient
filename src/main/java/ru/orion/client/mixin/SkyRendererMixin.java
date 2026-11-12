@@ -25,6 +25,7 @@ public class SkyRendererMixin {
             return;
         }
 
+        //? if >=26.3 {
         if (config.isWorldChangerSkyEnabled() && state.skyColor != null) {
             var color = ARGB.vector3fFromRGB24(OrionRainbow.orElse(
                     OrionWorldChanger.parseOpaqueColor(config.getWorldChangerSkyColor())));
@@ -34,6 +35,16 @@ public class SkyRendererMixin {
             var color = ARGB.vector3fFromRGB24(OrionWorldChanger.parseOpaqueColor(config.getWorldChangerSunsetColor()));
             state.sunriseAndSunsetColor = new Vector4f(color, state.sunriseAndSunsetColor.w());
         }
+        //?} else {
+                /*if (config.isWorldChangerSkyEnabled()) {
+            int color = OrionRainbow.orElse(OrionWorldChanger.parseOpaqueColor(config.getWorldChangerSkyColor()));
+            state.skyColor = ARGB.srgbLerp(config.getWorldChangerSkyStrength() / 100F, state.skyColor, color);
+        }
+        if (config.isWorldChangerSunsetEnabled()) {
+            int color = OrionWorldChanger.parseOpaqueColor(config.getWorldChangerSunsetColor());
+            state.sunriseAndSunsetColor = (state.sunriseAndSunsetColor & 0xFF000000) | (color & 0xFFFFFF);
+        }
+        *///?}
         state.starBrightness = Math.min(1F, state.starBrightness * config.getWorldChangerStars() / 100F);
     }
 }

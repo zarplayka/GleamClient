@@ -11,6 +11,8 @@ import net.minecraft.world.entity.player.PlayerSkin;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import java.util.Set;
+import ru.orion.client.cosmetic.GleamPet;
+import ru.orion.client.cosmetic.GleamPetRenderer;
 import ru.orion.client.effect.OrionChinaHeadRenderer;
 import ru.orion.client.effect.OrionHalo;
 import ru.orion.client.effect.OrionWings;
@@ -19,10 +21,14 @@ import ru.orion.client.effect.OrionWings;
 public final class OrionCosmeticPreview extends AvatarRenderState {
     private final Set<String> items;
     private final int hatColor;
+    private final GleamPet pet;
+    private final long petAge;
 
-    private OrionCosmeticPreview(PlayerSkin skin, Set<String> items, float yaw, int hatColor) {
+    private OrionCosmeticPreview(PlayerSkin skin, Set<String> items, float yaw, int hatColor, GleamPet pet, long petAge) {
         this.items = items;
         this.hatColor = hatColor;
+        this.pet = pet;
+        this.petAge = petAge;
         entityType = EntityTypes.PLAYER;
         this.skin = skin;
         id = -1;
@@ -37,8 +43,8 @@ public final class OrionCosmeticPreview extends AvatarRenderState {
     }
 
     static void draw(GuiGraphicsExtractor graphics, PlayerSkin skin, Set<String> items, float yaw, int hatColor,
-                     int left, int top, int right, int bottom, float scale, float verticalOffset) {
-        var state = new OrionCosmeticPreview(skin, items, yaw, hatColor);
+                     int left, int top, int right, int bottom, float scale, float verticalOffset, GleamPet pet, long petAge) {
+        var state = new OrionCosmeticPreview(skin, items, yaw, hatColor, pet, petAge);
         graphics.entity(state, scale, new Vector3f(0, verticalOffset, 0),
                 new Quaternionf().rotateZ((float) Math.PI).rotateX(-.10F), null, left, top, right, bottom);
     }
@@ -48,7 +54,12 @@ public final class OrionCosmeticPreview extends AvatarRenderState {
     public void submitItem(PoseStack pose, SubmitNodeCollector collector) {
         pose.pushPose();
         try {
-            pose.rotate(Axis.YP.rotationDegrees(180F - bodyRot));
+            ru.orion.client.render.GleamPose.rotate(pose, Axis.YP.rotationDegrees(180F - bodyRot));
+            if (pet != null) {
+                pose.pushPose();
+                GleamPetRenderer.submitPreview(pet, pose, collector, petAge);
+                pose.popPose();
+            }
             for (String item : items) {
                 pose.pushPose();
                 try {

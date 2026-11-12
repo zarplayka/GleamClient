@@ -143,8 +143,8 @@ public final class OrionWorldParticles {
                     particle.position.y - cameraPosition.y,
                     particle.position.z - cameraPosition.z
             );
-            poseStack.rotate(cameraRotation);
-            poseStack.rotate(com.mojang.math.Axis.ZP.rotation(particle.rotation));
+            ru.orion.client.render.GleamPose.rotate(poseStack, cameraRotation);
+            ru.orion.client.render.GleamPose.rotate(poseStack, com.mojang.math.Axis.ZP.rotation(particle.rotation));
             poseStack.scale(size, size, 1.0F);
             context.submitNodeCollector().submitCustomGeometry(
                     poseStack,

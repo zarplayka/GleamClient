@@ -35,21 +35,45 @@ public final class OrionKeybinds {
     public void register() {
         openClickGuiKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 OPEN_CLICK_GUI_TRANSLATION_KEY,
+                //? if >=26.3 {
                 InputConstants.Type.KEYBOARD,
+                //?} else {
+                                /*InputConstants.Type.KEYSYM,
+                *///?}
                 InputConstants.KEY_RSHIFT,
                 CATEGORY
         ));
 
         lockSlotKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                //? if >=26.3 {
                 "key.orion-client.lock_slot", InputConstants.Type.KEYBOARD, InputConstants.KEY_L, CATEGORY));
+                //?} else {
+                                /*"key.orion-client.lock_slot", InputConstants.Type.KEYSYM, InputConstants.KEY_L, CATEGORY));
+                *///?}
         zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                //? if >=26.3 {
                 "key.orion-client.zoom", InputConstants.Type.KEYBOARD, InputConstants.KEY_C, CATEGORY));
+                //?} else {
+                                /*"key.orion-client.zoom", InputConstants.Type.KEYSYM, InputConstants.KEY_C, CATEGORY));
+                *///?}
         secondaryZoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                //? if >=26.3 {
                 "key.orion-client.secondary_zoom", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY));
+                //?} else {
+                                /*"key.orion-client.secondary_zoom", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY));
+                *///?}
         waypointKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                //? if >=26.3 {
                 "key.orion-client.add_waypoint", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY));
+                //?} else {
+                                /*"key.orion-client.add_waypoint", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY));
+                *///?}
         emoteKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                //? if >=26.3 {
                 "key.orion-client.emotes", InputConstants.Type.KEYBOARD, InputConstants.KEY_V, CATEGORY));
+                //?} else {
+                                /*"key.orion-client.emotes", InputConstants.Type.KEYSYM, InputConstants.KEY_V, CATEGORY));
+                *///?}
         ClientTickEvents.END_CLIENT_TICK.register(this::handleClientTick);
     }
 

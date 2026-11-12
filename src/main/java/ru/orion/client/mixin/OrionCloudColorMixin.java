@@ -10,8 +10,13 @@ import ru.orion.client.effect.OrionWorldChanger;
 
 @Mixin(CloudRenderer.class)
 public abstract class OrionCloudColorMixin {
+    //? if >=26.3 {
     @ModifyVariable(method = "prepare(ILnet/minecraft/client/CloudStatus;FILnet/minecraft/world/phys/Vec3;JF)V",
             at = @At("HEAD"), argsOnly = true, ordinal = 0)
+    //?} else {
+        /*@ModifyVariable(method = "render(ILnet/minecraft/client/CloudStatus;FILnet/minecraft/world/phys/Vec3;JF)V",
+            at = @At("HEAD"), argsOnly = true, ordinal = 0)
+    *///?}
     private int orion$applyCloudColor(int vanilla) {
         var config = OrionClient.getConfigOrNull();
         if (config == null || !config.isWorldChangerEnabled() || !config.isWorldChangerCloudsEnabled()) return vanilla;

@@ -10,7 +10,7 @@
 
   [Download](https://github.com/zarplayka/GleamClient/releases) · [Installation](#installation) · [Features](#features) · [Controls](#controls)
 
-  `Minecraft 26.3` &nbsp; `Fabric` &nbsp; `Java 25`
+  `Minecraft 26.2 / 26.3` &nbsp; `Fabric` &nbsp; `Java 25`
 </div>
 
 ---
@@ -54,7 +54,7 @@ Sign in with your GleamClient account to manage friend requests and open private
 
 ## Installation
 
-1. Install **Minecraft 26.3** and [Fabric Loader](https://fabricmc.net/use/installer/).
+1. Install **Minecraft 26.2 or 26.3** and [Fabric Loader](https://fabricmc.net/use/installer/).
 2. Download a compatible version of [Fabric API](https://modrinth.com/mod/fabric-api) and place it in your `mods` folder.
 3. Download the official GleamClient JAR from [Releases](https://github.com/zarplayka/GleamClient/releases) and place it in the same folder.
 4. Launch your Fabric profile and press **Right Shift** to open the GleamClient menu.
@@ -81,7 +81,30 @@ The standard Windows build requires **Java 25** and **.NET SDK 8.0.421**:
 .\gradlew.bat build
 ```
 
-The output is placed in `build/libs/`. For details about the media helpers and reproducible build verification, see [native/media/README.md](native/media/README.md).
+Stonecutter 0.9.8 builds **every supported Minecraft version**, regardless of the active IDE version. Release and source JARs are collected in `build/libs/` with explicit game-version names:
+
+- `gleamclient-0.2.3-mc26.2.jar`
+- `gleamclient-0.2.3-mc26.3.jar`
+- `gleamclient-0.2.3-mc26.2-sources.jar` and `gleamclient-0.2.3-mc26.3-sources.jar`
+
+`gleamclient.jar` is a compatibility alias for the **26.3** release. `build/supported-versions.json` records the verified release artifacts. Each JAR requires its exact Minecraft version and the matching Fabric API.
+
+To build or launch a single target:
+
+```powershell
+.\gradlew.bat :26.2:build
+.\gradlew.bat :26.3:build
+.\gradlew.bat :26.2:runClient
+.\gradlew.bat :26.3:runClient
+```
+
+Individual builds write to `versions/<minecraft>/build/libs/`. The root `runClient` launches 26.3. Stonecutter's `Set active project to 26.2` / `Set active project to 26.3` tasks switch the active IDE sources; 26.3 is the version used for source control. Keep shared changes in `src/` and express API differences with Stonecutter conditions. Shaders are processed with the same conditions.
+
+To add support for another Minecraft version, register it alongside the existing versions in `settings.gradle`, create `versions/<minecraft>/gradle.properties` with `minecraft_version` and `fabric_version`, and adapt any changed APIs. The root build and CI discover the added target automatically. Registering a version alone does not port incompatible code.
+
+Fabric Loader 0.19.3 remains supported. Builds use Loader 0.19.5, while the Java compile classpath pins Fabric Mixin 0.17.3 so injector annotations also work with the MixinExtras 0.5.4 bundled in older launch profiles. The mixin audit rejects incompatible `@Redirect.at` array encoding. Runtime Mixin libraries are supplied by the launcher and are not bundled or replaced by the mod.
+
+Java 25, Gradle 9.6 and Loom 1.17.21 are pinned. Media helpers are built once for all targets, with their sources and checksums included in every release. For helper prerequisites and reproducible build verification, see [native/media/README.md](native/media/README.md).
 
 ## License
 

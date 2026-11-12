@@ -52,7 +52,11 @@ public final class OrionFootball {
         storage.load(map->{stored=map;loaded=true;worldKey=null;});
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);LevelRenderEvents.COLLECT_SUBMITS.register(this::render);
     }
+    //? if >=26.3 {
     private static KeyMapping key(String id,int defaultKey){return KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.football."+id,InputConstants.Type.KEYBOARD,defaultKey,CATEGORY));}
+    //?} else {
+        /*private static KeyMapping key(String id,int defaultKey){return KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.football."+id,InputConstants.Type.KEYSYM,defaultKey,CATEGORY));}
+    *///?}
     public KeyMapping getBallKey() { return ballKey; }
     public KeyMapping getGoalKey() { return goalKey; }
     public KeyMapping getMoveKey() { return moveKey; }

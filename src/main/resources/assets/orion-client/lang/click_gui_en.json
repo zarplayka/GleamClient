@@ -1,4 +1,10 @@
 {
+  "Питомцы": "Pets",
+  "Огненный лисёнок": "Ember Fox",
+  "Лунный мотылёк": "Moon Moth",
+  "Моховая черепашка": "Moss Turtle",
+  "Позвать": "Summon",
+  "Убрать": "Dismiss",
   "Цвет по здоровью цели": "Color by target health",
   "Цвет эффекта": "Effect color",
   "Детализация": "Detail",

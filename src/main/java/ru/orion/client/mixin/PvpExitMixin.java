@@ -14,8 +14,13 @@ import ru.orion.client.gui.OrionPvpExitScreen;
 
 @Mixin(PauseScreen.class)
 public abstract class PvpExitMixin {
+    //? if >=26.3 {
     @Shadow private Button disconnectButton;
     @Inject(method = "lambda$createPauseMenu$11()V", at = @At("HEAD"), cancellable = true)
+    //?} else {
+        /*@Shadow private Button disconnectButton;
+    @Inject(method = "lambda$createPauseMenu$12()V", at = @At("HEAD"), cancellable = true)
+    *///?}
     private void orion$confirmExit(CallbackInfo callback) {
         if (OrionPvpSafe.remainingSeconds() <= 0) return;
         if (disconnectButton != null) disconnectButton.active = true;

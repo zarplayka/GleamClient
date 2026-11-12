@@ -430,8 +430,9 @@ document.addEventListener('click',event => {
   } else if (d.chatPeer) {
     sendGame('chat-select',{username:d.chatPeer});
   } else if (d.equipCosmetic || d.cosmetic) {
-    const [,module,,,style] = cosmeticById(d.equipCosmetic || d.cosmetic);
-    if (style !== undefined && (!state.enabled.has(module) || state.wingsStyle !== style))
+    const [id,module,,,style] = cosmeticById(d.equipCosmetic || d.cosmetic);
+    if (module === 'PET') sendGame('cosmetic-pet',{id});
+    else if (style !== undefined && (!state.enabled.has(module) || state.wingsStyle !== style))
       sendGame('cosmetic-wings',{style});
     else sendGame('toggle',{id:module});
   } else if (d.configTab) {
@@ -845,6 +846,10 @@ window.paradox = {
     }
     if (state.wingsStyle !== data.look.wingsStyle && data.look.wingsStyle !== undefined) {
       state.wingsStyle = data.look.wingsStyle;
+      redraw = redraw || state.page === 'cosmetics';
+    }
+    if (state.cosmeticPet !== (data.look.cosmeticPet ?? '')) {
+      state.cosmeticPet = data.look.cosmeticPet ?? '';
       redraw = redraw || state.page === 'cosmetics';
     }
     if (data.chatRoute > lastChatRoute) {

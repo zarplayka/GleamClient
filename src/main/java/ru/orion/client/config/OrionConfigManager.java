@@ -134,6 +134,11 @@ public final class OrionConfigManager {
     public void setMirageEnabled(boolean value) { config.setMirageEnabled(value); save(); }
 
     public void setZoomEnabled(boolean value) { config.setZoomEnabled(value); save(); }
+    public void setCosmeticPet(String id) {
+        config.setCosmeticPet(id);
+        save();
+    }
+
     public void setHaloEnabled(boolean value) {
         config.setHaloEnabled(value);
         save();

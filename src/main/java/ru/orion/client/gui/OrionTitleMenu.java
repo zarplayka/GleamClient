@@ -3,8 +3,15 @@ package ru.orion.client.gui;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.InputConstants;
+//? if >=26.3 {
 import com.mojang.renderpearl.api.pipeline.ShaderSource;
 import com.mojang.renderpearl.api.pipeline.ShaderType;
+
+//?} else {
+/*import com.mojang.blaze3d.shaders.ShaderSource;
+import com.mojang.blaze3d.shaders.ShaderType;
+
+*///?}
 import com.paradox.lumen.LumenNative;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -60,6 +67,7 @@ public final class OrionTitleMenu {
 
     // На первом кадре ShaderManager ещё использует кэш, в котором есть только ресурсы Minecraft.
     public static ShaderSource startupShaders(ShaderSource vanilla) {
+        //? if >=26.3 {
         return new ShaderSource() {
             @Override
             public String getShader(Identifier id, ShaderType type) {
@@ -76,6 +84,30 @@ public final class OrionTitleMenu {
             @Override public CachedIncludeSource getInclude(Identifier id) { return vanilla.getInclude(id); }
             @Override public void close() { vanilla.close(); }
         };
+        //?} else {
+                /*ShaderSource source = (id, type) -> {
+            if (!OrionClient.MOD_ID.equals(id.getNamespace()) || !"core/lumen_paint".equals(id.getPath()))
+                return vanilla.get(id, type);
+            try {
+                String shader = new String(read(ROOT + type.idConverter().idToFile(id).getPath()), StandardCharsets.UTF_8);
+                var matcher = java.util.regex.Pattern.compile("(?m)^#moj_import <minecraft:([^>]+)>.*$").matcher(shader);
+                StringBuilder expanded = new StringBuilder();
+                while (matcher.find()) {
+                    String include = new String(read("/assets/minecraft/shaders/include/" + matcher.group(1)), StandardCharsets.UTF_8)
+                            .replaceAll("(?m)^#version.*$", "");
+                    matcher.appendReplacement(expanded, java.util.regex.Matcher.quoteReplacement(include));
+                }
+                matcher.appendTail(expanded);
+                return expanded.toString();
+            } catch (IOException failure) {
+                LoggerFactory.getLogger("GleamClient").warn("Не удалось загрузить шейдер заставки", failure);
+                return null;
+            }
+        };
+        OrionLumenView.preloadPipelines(source);
+        return source;
+        *///?}
+
     }
 
     public boolean startupDrawn() { return startupDrawn; }

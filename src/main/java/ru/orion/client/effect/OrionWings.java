@@ -56,15 +56,15 @@ public final class OrionWings {
             PoseStack pose = context.poseStack();
             pose.pushPose();
             pose.translate(relative.x, relative.y + motion.rootHeight, relative.z);
-            pose.rotate(Axis.YP.rotationDegrees(180F - bodyYaw));
-            pose.rotate(Axis.XP.rotationDegrees(motion.bodyPitch));
+            ru.orion.client.render.GleamPose.rotate(pose, Axis.YP.rotationDegrees(180F - bodyYaw));
+            ru.orion.client.render.GleamPose.rotate(pose, Axis.XP.rotationDegrees(motion.bodyPitch));
             pose.translate(0F, 0F, .16F);
             for (int side = -1; side <= 1; side += 2) {
                 pose.pushPose();
                 pose.scale(side, 1F, 1F);
                 // Положительный Z — за спиной. При складывании кончики уходят назад.
-                pose.rotate(Axis.YP.rotationDegrees(-motion.rootFold));
-                pose.rotate(Axis.ZP.rotationDegrees(motion.flap));
+                ru.orion.client.render.GleamPose.rotate(pose, Axis.YP.rotationDegrees(-motion.rootFold));
+                ru.orion.client.render.GleamPose.rotate(pose, Axis.ZP.rotationDegrees(motion.flap));
                 context.submitNodeCollector().submitCustomGeometry(pose, OrionEspRenderTypes.cosmeticWings(),
                         (currentPose, vertices) -> draw(currentPose, vertices, style, detail,cy,sy,cz,sz));
                 pose.popPose();
@@ -88,7 +88,7 @@ public final class OrionWings {
         for (int side : new int[]{-1, 1}) {
             pose.pushPose();
             pose.scale(side, 1F, 1F);
-            pose.rotate(Axis.YP.rotationDegrees(-13F));
+            ru.orion.client.render.GleamPose.rotate(pose, Axis.YP.rotationDegrees(-13F));
             collector.submitCustomGeometry(pose, OrionEspRenderTypes.cosmeticWings(),
                     (current, vertices) -> draw(current, vertices, style, true, 1F, 0F, 1F, 0F));
             pose.popPose();

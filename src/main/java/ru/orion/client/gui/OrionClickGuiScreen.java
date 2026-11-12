@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
+import ru.orion.client.cosmetic.GleamPet;
 import ru.orion.client.config.OrionConfigLibrary;
 import ru.orion.client.config.OrionAccounts;
 import ru.orion.client.config.OrionVisualPresets.Profile;
@@ -267,6 +268,8 @@ public final class OrionClickGuiScreen extends Screen {
     private record CosmeticStage(float x, float y, float w, float h, float clipTop, float clipBottom,
                                  float yaw, float zoom, java.util.Set<String> items) { }
     private CosmeticStage cosmeticPreview;
+    private GleamPet previewPet;
+    private long petPreviewStarted;
     private net.minecraft.client.User previewUser;
     private net.minecraft.world.entity.player.PlayerSkin previewSkin;
     private int chatRoute;
@@ -725,6 +728,7 @@ public final class OrionClickGuiScreen extends Screen {
         look.addProperty("windowX",config.getClickGuiWindowX());
         look.addProperty("windowY",config.getClickGuiWindowY());
         look.addProperty("wingsStyle",config.getWingsStyle());
+        look.addProperty("cosmeticPet",config.getCosmeticPet());
         data.add("look",look);
 
         var users = new JsonArray();
@@ -875,13 +879,15 @@ public final class OrionClickGuiScreen extends Screen {
         if (w < 12 || h < 12 || top >= bottom || x < 0 || x + w > width + 1) return;
         var items = preview.items();
         boolean wings = items.contains("angel") || items.contains("dragon");
-        float size = Math.min(w / (wings ? 5.5F : 2.6F), h / (wings ? 2.95F : 2.8F)) * preview.zoom();
+        float stageWidth = wings ? 5.5F : previewPet != null ? 3.2F : 2.6F;
+        float size = Math.min(w / stageWidth, h / (wings ? 2.95F : 2.8F)) * preview.zoom();
         int color = parseColor(configManager.getConfig().getAccentColor()).getRGB();
         graphics.nextStratum();
         graphics.enableScissor(x, top, x + w, bottom);
         try {
             OrionCosmeticPreview.draw(graphics, cosmeticSkin(), items, preview.yaw(), color, x, y, x + w, y + h,
-                    size, wings || items.contains("hat") ? 1.20F : 1.04F);
+                    size, wings || items.contains("hat") ? 1.20F : 1.04F,
+                    previewPet, (System.nanoTime() - petPreviewStarted) / 1_000_000L);
         } finally {
             graphics.disableScissor();
         }
@@ -1253,11 +1259,19 @@ public final class OrionClickGuiScreen extends Screen {
             }
             case "cosmetic-preview" -> {
                 cosmeticPreview = null;
-                if (!"COSMETICS".equals(siteSection) || !event.has("items")) return;
+                if (!"COSMETICS".equals(siteSection) || !event.has("items")) {
+                    previewPet = null;
+                    return;
+                }
                 var items = new java.util.HashSet<String>();
                 for (var item : event.getAsJsonArray("items")) {
                     String id = item.getAsString();
-                    if (id.matches("angel|dragon|halo|hat|dance")) items.add(id);
+                    if (id.matches("angel|dragon|halo|hat|dance") || GleamPet.byId(id) != null) items.add(id);
+                }
+                GleamPet pet = GleamPet.in(items);
+                if (previewPet != pet) {
+                    previewPet = pet;
+                    petPreviewStarted = System.nanoTime();
                 }
                 cosmeticPreview = new CosmeticStage(event.get("x").getAsFloat(), event.get("y").getAsFloat(),
                         event.get("w").getAsFloat(), event.get("h").getAsFloat(), event.get("clipTop").getAsFloat(),
@@ -1301,6 +1315,15 @@ public final class OrionClickGuiScreen extends Screen {
             }
             case "clipboard-copy" -> {
                 if (event.has("text")) minecraft.keyboardHandler.setClipboard(event.get("text").getAsString());
+            }
+            case "cosmetic-pet" -> {
+                if ("COSMETICS".equals(siteSection) && event.has("id")) {
+                    GleamPet pet = GleamPet.byId(event.get("id").getAsString());
+                    if (pet != null) {
+                        boolean equipped = pet.id().equals(configManager.getConfig().getCosmeticPet());
+                        configManager.setCosmeticPet(equipped ? "" : pet.id());
+                    }
+                }
             }
             case "cosmetic-wings" -> {
                 if ("COSMETICS".equals(siteSection)) {

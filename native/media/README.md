@@ -38,8 +38,8 @@ the build fails if SHA-256 differs. Output:
 
 `build/generated/mediaResources/assets/orion-client/media/`
 
-The directory contains both executables and `SHA256SUMS`; Gradle packages those
-exact files. Compare these hashes with the same directory extracted from the mod
+The directory contains both executables and `SHA256SUMS`; the root Gradle task builds
+them once and every Stonecutter Minecraft target packages those exact files. Compare these hashes with the same directory extracted from the mod
 JAR. `.github/workflows/build.yml` automates the complete build, extracts the
 sources from the release JAR, rebuilds them at another path, compares their hashes
 with the packaged binaries, and uploads the mod, source archive and checksums.
@@ -78,7 +78,7 @@ response is disabled, playback pauses or the client shuts down.
 
 Publish the updated source commit (or give ModrinthModeration access to the private
 repository), run **Verified release build** for that commit/tag, and submit the JAR
-from its `orion-client-verified` artifact. Give moderators the commit URL, workflow
+for the required Minecraft version from its `orion-client-verified` artifact. Give moderators the commit URL, workflow
 run URL, `orion-media-source.zip` and `media-SHA256SUMS`. Do not submit an older JAR
 or claim a local build came from GitHub Actions.
 

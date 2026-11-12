@@ -1,0 +1,120 @@
+plugins {
+    id 'dev.kikugie.stonecutter'
+}
+
+stonecutter.active '26.3'
+
+repositories { mavenCentral() }
+configurations { mixinAuditTools }
+dependencies {
+    mixinAuditTools 'org.ow2.asm:asm-tree:9.10.1'
+    mixinAuditTools 'com.google.code.gson:gson:2.13.2'
+}
+def compileMixinAudit = tasks.register('compileMixinAudit', JavaCompile) {
+    source file('tests/manual/GleamMixinAudit.java')
+    classpath = configurations.mixinAuditTools
+    destinationDirectory = layout.buildDirectory.dir('mixin-audit/classes')
+    sourceCompatibility = '25'
+    targetCompatibility = '25'
+    options.encoding = 'UTF-8'
+    options.release = 25
+}
+
+// GLSL использует тот же синтаксис комментариев, что и Java.
+stonecutter.handlers { inherit('java', 'vsh', 'fsh') }
+
+def mediaResources = providers.gradleProperty('mediaHelpersDir')
+        .map { rootProject.file(it) }
+        .orElse(layout.buildDirectory.dir('generated/mediaResources').map { it.asFile })
+
+tasks.register('buildMediaHelpers', Exec) {
+    onlyIf { !providers.gradleProperty('mediaHelpersDir').isPresent() }
+    inputs.files(fileTree('native/media') { exclude 'bin/**', 'obj/**' })
+    inputs.files('src/main/resources/assets/orion-client/orion-thumbnail.cs',
+            'src/main/resources/assets/orion-client/orion-volume.cs',
+            'src/main/resources/assets/orion-client/gleam-beat.cs')
+    outputs.dir(mediaResources)
+    commandLine 'powershell.exe', '-NoProfile', '-File', file('native/media/build.ps1').absolutePath
+}
+
+def collect = tasks.register('collectArtifacts', Sync) {
+    into layout.buildDirectory.dir('libs')
+    // Стабильное имя для существующих потребителей всегда указывает на 26.3.
+    doLast {
+        copy {
+            from layout.buildDirectory.file("libs/${archives_base_name}-${mod_version}-mc26.3.jar")
+            into layout.buildDirectory.dir('libs')
+            rename { 'gleamclient.jar' }
+        }
+    }
+}
+
+gradle.projectsEvaluated {
+    subprojects.each { target ->
+        collect.configure { from(target.tasks.named('jar')); from(target.tasks.named('sourcesJar')) }
+        def audit = target.tasks.register('auditMixins', JavaExec) {
+            dependsOn compileMixinAudit, target.tasks.named('classes')
+            classpath = rootProject.files(compileMixinAudit.flatMap { it.destinationDirectory }) + rootProject.configurations.mixinAuditTools
+            mainClass = 'GleamMixinAudit'
+            doFirst {
+                def minecraftJar = target.sourceSets.main.compileClasspath.files.find { it.name.startsWith('minecraft-merged-') }
+                if (minecraftJar == null) throw new GradleException('Named Minecraft JAR missing from compile classpath')
+                args = [minecraftJar.absolutePath, target.layout.buildDirectory.dir('classes/java/main').get().asFile.absolutePath,
+                        target.layout.buildDirectory.file('resources/main/orion-client.mixins.json').get().asFile.absolutePath]
+            }
+        }
+        target.tasks.named('check') { dependsOn audit }
+    }
+}
+tasks.register('build') {
+    dependsOn stonecutter.tasks.named('build')
+    dependsOn collect
+}
+tasks.register('clean', Delete) {
+    delete layout.buildDirectory
+    dependsOn stonecutter.tasks.named('clean')
+}
+tasks.register('runClient') { dependsOn ':26.3:runClient' }
+
+// Манифест и проверка используют тот же список целей, что и Stonecutter.
+tasks.register('verifyArtifacts') {
+    dependsOn collect
+    doLast {
+        def targets = stonecutter.versions.collect { it.version }.sort()
+        def entries = []
+        targets.each { mc ->
+            def name = "${archives_base_name}-${mod_version}-mc${mc}"
+            def artifact = layout.buildDirectory.file("libs/${name}.jar").get().asFile
+            def sources = layout.buildDirectory.file("libs/${name}-sources.jar").get().asFile
+            if (!artifact.isFile() || !sources.isFile()) throw new GradleException("Missing artifacts for ${mc}")
+            new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+                def metadata = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry('fabric.mod.json')))
+                if (metadata.depends.minecraft != mc || metadata.version != mod_version)
+                    throw new GradleException("Wrong Minecraft/mod version in ${artifact.name}")
+                def mixins = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry('orion-client.mixins.json')))
+                mixins.client.each { nameInConfig ->
+                    def classPath = mixins.package.replace('.', '/') + '/' + nameInConfig.replace('.', '/') + '.class'
+                    if (zip.getEntry(classPath) == null) throw new GradleException("Missing registered mixin ${classPath}")
+                }
+                ['cosmetics/pets/ember_fox.json', 'cosmetics/pets/moon_moth.json', 'cosmetics/pets/moss_turtle.json',
+                 'html/menu/index.html', 'html/hud-island/island.js', 'fonts/poppins/Poppins-Bold.ttf'].each { asset ->
+                    if (zip.getEntry('assets/orion-client/' + asset) == null) throw new GradleException("Missing ${asset}")
+                }
+                def prefix = 'assets/orion-client/media/'
+                def manifest = zip.getInputStream(zip.getEntry(prefix + 'SHA256SUMS')).getText('UTF-8')
+                manifest.readLines().findAll { !it.isBlank() }.each { line ->
+                    def parts = line.split('  ', 2)
+                    def data = zip.getInputStream(zip.getEntry(prefix + parts[1])).bytes
+                    def actual = java.security.MessageDigest.getInstance('SHA-256').digest(data).encodeHex().toString()
+                    if (actual != parts[0]) throw new GradleException("Packaged helper checksum mismatch: ${parts[1]}")
+                }
+                if (!metadata.jars.any { it.file.contains('snakeyaml') }) throw new GradleException('Missing bundled SnakeYAML')
+            }
+            entries.add([minecraft: mc, jar: artifact.name, sources: sources.name])
+            logger.lifecycle("Verified Minecraft ${mc}: ${artifact.name}")
+        }
+        def manifest = layout.buildDirectory.file('supported-versions.json').get().asFile
+        manifest.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(entries)) + '\n'
+    }
+}
+tasks.named('build') { dependsOn tasks.named('verifyArtifacts') }

@@ -42,6 +42,13 @@ public final class OrionConfig {
     private boolean haloEnabled;
     private boolean wingsEnabled;
     private int wingsStyle;
+    private String cosmeticPet = "";
+    public String getCosmeticPet() { return cosmeticPet; }
+    public void setCosmeticPet(String id) {
+        var pet = ru.orion.client.cosmetic.GleamPet.byId(id);
+        cosmeticPet = pet == null ? "" : pet.id();
+    }
+
     public boolean isHaloEnabled() { return haloEnabled; }
     public void setHaloEnabled(boolean value) { haloEnabled = value; }
     public boolean isWingsEnabled() { return wingsEnabled; }
@@ -1407,6 +1414,7 @@ public final class OrionConfig {
         if (waypointQuickColor == null || !waypointQuickColor.matches("^#[0-9a-fA-F]{6}$")) waypointQuickColor = "#FF9B38";
         waypointVisibleLimit = Math.max(1, Math.min(64, waypointVisibleLimit));
         wingsStyle = Math.max(0, Math.min(1, wingsStyle));
+        setCosmeticPet(cosmeticPet);
         setSkinLayersThickness(skinLayersThickness);
         setSkinLayersDistance(skinLayersDistance);
         setItemScrollerLimit(itemScrollerLimit);

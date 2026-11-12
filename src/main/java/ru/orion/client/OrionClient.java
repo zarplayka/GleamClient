@@ -54,6 +54,7 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionConfigManager configManager = new OrionConfigManager();
     private final ru.orion.client.effect.OrionHalo halo = new ru.orion.client.effect.OrionHalo(configManager);
     private final ru.orion.client.effect.OrionWings wings = new ru.orion.client.effect.OrionWings(configManager);
+    private final ru.orion.client.cosmetic.GleamPetRenderer pets = new ru.orion.client.cosmetic.GleamPetRenderer(configManager);
     private final ru.orion.client.effect.OrionWaypoints waypoints = new ru.orion.client.effect.OrionWaypoints(configManager);
     private final OrionFootball football = new OrionFootball(configManager);
     private final OrionFootballHud footballHud = new OrionFootballHud(football, configManager);
@@ -120,6 +121,7 @@ public final class OrionClient implements ClientModInitializer {
         chinaHeadRenderer.register();
         halo.register();
         wings.register();
+        pets.register();
         healthTags.register();
         worldParticles.register();
         breadcrumbs.register();
@@ -156,6 +158,8 @@ public final class OrionClient implements ClientModInitializer {
         OrionClient current = instance;
         return current == null ? null : current.configManager.getConfig();
     }
+
+    public ru.orion.client.cosmetic.GleamPetRenderer getPets() { return pets; }
 
     public OrionConfigManager getConfigManager() {
         return configManager;

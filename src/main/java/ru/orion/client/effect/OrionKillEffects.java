@@ -333,8 +333,8 @@ public final class OrionKillEffects {
             stack.pushPose();
             stack.translate(relative.x, relative.y, relative.z);
             boolean volume = effect.type() == 2 || effect.type() == 4;
-            if (volume) stack.rotate(Axis.YP.rotationDegrees(-effect.yaw()));
-            else stack.rotate(camera.orientation);
+            if (volume) ru.orion.client.render.GleamPose.rotate(stack, Axis.YP.rotationDegrees(-effect.yaw()));
+            else ru.orion.client.render.GleamPose.rotate(stack, camera.orientation);
             stack.scale(effect.size(), effect.size(), effect.size());
             // Данные захвачены неизменяемым снимком, callback не читает мир/игроков.
             int quality = Math.min(effect.quality(), effect.position().distanceToSqr(camera.pos) > 2304 ? 0 : effect.quality());

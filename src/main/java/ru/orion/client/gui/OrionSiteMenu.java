@@ -150,7 +150,11 @@ final class OrionSiteMenu {
             case InputConstants.KEY_UP -> "ArrowUp";
             case InputConstants.KEY_DOWN -> "ArrowDown";
             case InputConstants.KEY_SPACE -> " ";
+            //? if >=26.3 {
             default -> event.keycode() >= 32 && event.keycode() < 127 ? Character.toString(event.keycode()) : "";
+            //?} else {
+                        /*default -> event.key() >= 32 && event.key() < 127 ? Character.toString(event.key()) : "";
+            *///?}
         };
         if (key.isEmpty()) return false;
         String code = value >= InputConstants.KEY_A && value <= InputConstants.KEY_Z
@@ -238,6 +242,10 @@ final class OrionSiteMenu {
                         loaded.put("cosmetic-"+names[i]+"-item", png(atlas.getSubimage(i * width, 0, width, height)));
                         loaded.put("cosmetic-"+names[i]+"-preview", png(atlas.getSubimage(i * width, height, width, height)));
                     }
+                }
+                for (String pet : new String[]{"ember_fox", "moon_moth", "moss_turtle"}) {
+                    String name = "cosmetic-" + pet + "-item";
+                    loaded.put(name, read(MENU + "assets/" + name + ".png"));
                 }
                 menuImages = loaded;
             }

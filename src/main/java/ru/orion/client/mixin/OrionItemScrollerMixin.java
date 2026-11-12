@@ -40,8 +40,16 @@ public abstract class OrionItemScrollerMixin {
         int steps = (int) orion$scrollRemainder;
         if (steps == 0) { callback.setReturnValue(true); return; }
         orion$scrollRemainder -= steps;
+        //? if >=26.3 {
         boolean shift = InputConstants.isKeyDown(InputConstants.KEY_LSHIFT) || InputConstants.isKeyDown(InputConstants.KEY_RSHIFT);
+        //?} else {
+                /*boolean shift = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_LSHIFT) || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_RSHIFT);
+        *///?}
+        //? if >=26.3 {
         boolean control = InputConstants.isKeyDown(InputConstants.KEY_LCONTROL) || InputConstants.isKeyDown(InputConstants.KEY_RCONTROL);
+        //?} else {
+                /*boolean control = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_LCONTROL) || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_RCONTROL);
+        *///?}
         int mode = control && config.isItemScrollerMatching() ? 2 : shift && config.isItemScrollerStacks() ? 1 : 0;
         boolean pull = (steps > 0) != config.isItemScrollerReverse();
         OrionItemScroller.transfer(menu, hovered, client.player, pull, mode,

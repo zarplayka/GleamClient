@@ -208,7 +208,7 @@ public final class OrionDamageIndicators {
             float width = height * label.width() / label.height();
             stack.pushPose();
             stack.translate(pos.x, pos.y, pos.z);
-            stack.rotate(cameraRotation);
+            ru.orion.client.render.GleamPose.rotate(stack, cameraRotation);
             stack.translate(indicator.spread() * (1F + progress), 0, 0);
             context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.texturedDepthTested(label.id()),
                     (pose, vertices) -> quad(pose, vertices, width, height, color));

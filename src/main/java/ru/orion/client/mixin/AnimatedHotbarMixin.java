@@ -11,8 +11,13 @@ import ru.orion.client.OrionClient;
 public abstract class AnimatedHotbarMixin {
     @Unique private float orion$selectionX = Float.NaN;
     @Unique private long orion$lastNanos;
+    //? if >=26.3 {
     @ModifyArg(method = "extractItemHotbar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V",
             at = @At(value="INVOKE",target="Lnet/minecraft/client/gui/GuiGraphicsExtractor;blitSprite(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIII)V",ordinal=1), index=2)
+    //?} else {
+    /*@ModifyArg(method = "extractItemHotbar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V",
+            at = @At(value="INVOKE",target="Lnet/minecraft/client/gui/GuiGraphicsExtractor;blitSprite(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIII)V",ordinal=1), index=2)
+    *///?}
     private int orion$smoothSelection(int target) {
         var config=OrionClient.getConfigOrNull();
         long now=System.nanoTime();

@@ -243,13 +243,13 @@ public final class GleamWorldLyrics {
         stack.pushPose();
         try {
             stack.translate(relative);
-            stack.rotate(anchor.rotation());
+            ru.orion.client.render.GleamPose.rotate(stack, anchor.rotation());
             stack.translate(sign * anchor.halfWidth() * motion * ((1 - in) * -.24F + sweep * .16F),
                     anchor.halfHeight() * motion * ((1 - in) * -.10F + sweep * .44F),
                     anchor.distance() * motion * (progress * .10F + sweep * .22F));
-            stack.rotateDegrees(Axis.ZP, roll);
-            stack.rotateDegrees(Axis.YP, yaw);
-            stack.rotateDegrees(Axis.XP, -motion * sweep * 9F);
+            ru.orion.client.render.GleamPose.rotateDegrees(stack, Axis.ZP, roll);
+            ru.orion.client.render.GleamPose.rotateDegrees(stack, Axis.YP, yaw);
+            ru.orion.client.render.GleamPose.rotateDegrees(stack, Axis.XP, -motion * sweep * 9F);
             stack.scale(size * zoom, size * zoom, size * zoom);
             float dim = settings.getBackgroundDim() / 100F * alpha;
             if (alpha >= .998F) context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.worldLyricsSolid(),

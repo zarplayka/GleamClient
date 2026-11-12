@@ -276,7 +276,7 @@ public final class OrionRagdoll {
         PoseStack stack = context.poseStack();
         stack.pushPose();
         stack.translate(relative.x, relative.y, relative.z);
-        stack.rotate(rotation);
+        ru.orion.client.render.GleamPose.rotate(stack, rotation);
         stack.translate(-part.x / 16F, -part.y / 16F, -part.z / 16F);
         context.submitNodeCollector().submitModelPart(part, stack, renderType, light, OverlayTexture.NO_OVERLAY, null);
         stack.popPose();

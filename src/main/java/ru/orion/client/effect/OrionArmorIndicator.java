@@ -53,7 +53,7 @@ public final class OrionArmorIndicator {
             PoseStack stack = context.poseStack();
             stack.pushPose();
             stack.translate(position.x - camera.pos.x, position.y - camera.pos.y + lift, position.z - camera.pos.z);
-            stack.rotate(camera.orientation);
+            ru.orion.client.render.GleamPose.rotate(stack, camera.orientation);
             stack.scale(-SCALE * options.scale, SCALE * options.scale, SCALE * options.scale);
             float depth = 0.01F * (1F + (float) Math.sqrt(distanceSq));
             for (int i = 0; i < 10; i++) {

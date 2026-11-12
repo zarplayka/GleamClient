@@ -2,7 +2,13 @@ package net.minecraft.client.renderer.rendertype;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
+//? if >=26.3 {
 import com.mojang.renderpearl.api.textures.FilterMode;
+
+//?} else {
+/*import com.mojang.blaze3d.textures.FilterMode;
+
+*///?}
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -99,6 +105,7 @@ public final class OrionGlintRenderTypes {
     public static RenderType item(Identifier atlas, boolean translucent, boolean special) {
         return ITEMS.computeIfAbsent(new Key(atlas, translucent, special, mode()), OrionGlintRenderTypes::createItem);
     }
+    //? if >=26.3 {
     private static RenderType createItem(Key key) {
         var pipeline = key.translucent ? (key.special ? RenderPipelines.ITEM_TRANSLUCENT_GLINT_SPECIAL : RenderPipelines.ITEM_TRANSLUCENT_GLINT)
                 : (key.special ? RenderPipelines.ITEM_CUTOUT_GLINT_SPECIAL : RenderPipelines.ITEM_CUTOUT_GLINT);
@@ -121,15 +128,44 @@ public final class OrionGlintRenderTypes {
                         .setTextureTransform(transform(key.mode, TextureTransform.ENTITY_GLINT_TEXTURING, CUSTOM_ENTITY))
                         .useLightmap().useOverlay().setOutline(RenderSetup.OutlineProperty.AFFECTS_OUTLINE).createRenderSetup()));
     }
+    //?} else {
+        /*private static RenderType createItem(Key key) {
+        return legacyGlint("item", key.mode, TextureTransform.GLINT_TEXTURING, CUSTOM_ITEM);
+    }
+    public static RenderType armor(Identifier texture) {
+        return ARMOR.computeIfAbsent(new KeyTexture(texture,mode()), key ->
+                legacyGlint("armor", key.mode, TextureTransform.ARMOR_ENTITY_GLINT_TEXTURING, CUSTOM_ARMOR));
+    }
+    public static RenderType entity(Identifier texture) {
+        return ENTITIES.computeIfAbsent(new KeyTexture(texture,mode()), key ->
+                legacyGlint("entity", key.mode, TextureTransform.ENTITY_GLINT_TEXTURING, CUSTOM_ENTITY));
+    }
+    private static RenderType legacyGlint(String name, int mode, TextureTransform vanilla, TextureTransform custom) {
+        return RenderType.create("gleam_" + name + "_glint", glint(RenderSetup.builder(RenderPipelines.GLINT), "Sampler0", mode)
+                .setTextureTransform(transform(mode, vanilla, custom)).createRenderSetup());
+    }
+    *///?}
     private static final Map<Integer, RenderType> TRIMS = new ConcurrentHashMap<>();
     private static final Map<Integer, RenderType> SHIELDS = new ConcurrentHashMap<>();
     public static RenderType trim() { return TRIMS.computeIfAbsent(mode(), preset -> RenderType.create("orion_trim_glint_"+preset,
             glint(RenderSetup.builder(RenderPipelines.GLINT), "Sampler0", preset)
                     .setTextureTransform(transform(preset, TextureTransform.ARMOR_ENTITY_GLINT_TEXTURING, CUSTOM_ARMOR))
-                    .setLayeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING).withForcedSolidModelPhase().createRenderSetup())); }
+                    .setLayeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                    //? if >=26.3 {
+                    .withForcedSolidModelPhase()
+                    //?} else {
+
+                    //?}
+.createRenderSetup())); }
     public static RenderType shield() { return SHIELDS.computeIfAbsent(mode(), preset -> RenderType.create("orion_shield_glint_"+preset,
             glint(RenderSetup.builder(RenderPipelines.GLINT), "Sampler0", preset)
-                    .setTextureTransform(transform(preset, TextureTransform.ENTITY_GLINT_TEXTURING, CUSTOM_ENTITY)).withForcedSolidModelPhase().createRenderSetup())); }
+                    .setTextureTransform(transform(preset, TextureTransform.ENTITY_GLINT_TEXTURING, CUSTOM_ENTITY))
+                    //? if >=26.3 {
+                    .withForcedSolidModelPhase()
+                    //?} else {
+
+                    //?}
+.createRenderSetup())); }
     private record KeyTexture(Identifier texture, int mode) { }
     private record Key(Identifier atlas, boolean translucent, boolean special, int mode) { }
 }

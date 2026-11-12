@@ -190,7 +190,7 @@ public final class OrionSoulKillModels {
         if (opacity <= .005F || pixel <= .0001F) return;
         s.pushPose();
         s.translate(x, y, z);
-        s.rotate(Axis.ZP.rotationDegrees(degrees));
+        ru.orion.client.render.GleamPose.rotate(s, Axis.ZP.rotationDegrees(degrees));
         for (int row = 0; row < pattern.length; row++) {
             String line = pattern[row];
             for (int column = 0; column < line.length();) {

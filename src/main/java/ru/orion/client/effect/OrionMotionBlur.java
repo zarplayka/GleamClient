@@ -1,12 +1,23 @@
 package ru.orion.client.effect;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+//? if >=26.3 {
 import com.mojang.renderpearl.api.pipeline.ColorTargetState;
 import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
+
+//?} else {
+/*import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.PrimitiveTopology;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.blaze3d.textures.GpuTextureView;
+
+*///?}
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.resources.Identifier;
@@ -54,7 +65,12 @@ public final class OrionMotionBlur {
     public void applyBeforeGui() {
         Minecraft client = Minecraft.getInstance();
         boolean active = configManager.getConfig().isMotionBlurEnabled() && client.player != null && client.level != null
+                //? if >=26.3 {
                 && client.gameRenderer.gameRenderState().shouldRenderLevel && client.gui.screen() == null;
+                //?} else {
+                                /*&& client.gui.screen() == null;
+                *///?}
+
         if (!active) {
             lastNanos = 0; smoothX = smoothY = smoothSpeed = 0; lastPosition = null;
             release();
@@ -83,7 +99,7 @@ public final class OrionMotionBlur {
         if (source == null || source.isClosed() || target.getColorTextureView() == null
                 || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0) return;
         try {
-            var compiled = RenderSystem.getCompiledPipelineNullable(pipeline);
+            var compiled = ru.orion.client.render.GleamGpu.pipelineOrNull(pipeline);
             if (compiled == null) {
                 warnShaderUnavailable(null);
                 return;
@@ -104,7 +120,12 @@ public final class OrionMotionBlur {
             try (var pass = encoder.createRenderPass(() -> "GleamClient motion blur", target.getColorTextureView(), Optional.empty())) {
                 pass.setPipeline(compiled);
                 pass.setUniform("DynamicTransforms", transforms);
+                //? if >=26.3 {
                 pass.setUniform("Sampler0", view, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+                //?} else {
+                                /*pass.bindTexture("Sampler0", view, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+                *///?}
+
                 pass.disableScissor();
                 pass.draw(3, 1, 0, 0);
             }

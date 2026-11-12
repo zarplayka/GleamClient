@@ -1,6 +1,12 @@
 package ru.orion.client.mixin;
 
+//? if >=26.3 {
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+
+//?} else {
+/*import com.mojang.blaze3d.pipeline.RenderPipeline;
+
+*///?}
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.Hud;
 import net.minecraft.resources.Identifier;
@@ -29,8 +35,13 @@ public abstract class OrionSaturationMixin {
         if (OrionSaturationOverlay.enabled()) orion$saturation.beginFood(context, player, y, right);
     }
 
+    //? if >=26.3 {
     @Redirect(method = "extractFood", at = @At(value = "INVOKE", ordinal = 0,
             target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;blitSprite(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIII)V"))
+    //?} else {
+    /*@Redirect(method = "extractFood", at = @At(value = "INVOKE", ordinal = 0,
+            target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;blitSprite(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIII)V"))
+    *///?}
     private void orion$foodPosition(GuiGraphicsExtractor context, RenderPipeline pipeline, Identifier sprite,
                                     int x, int y, int width, int height,
                                     GuiGraphicsExtractor originalContext, Player player, int top, int right) {

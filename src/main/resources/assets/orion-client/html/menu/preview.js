@@ -23,6 +23,7 @@ const paths = {
   layers:'<path d="m3 8 9-5 9 5-9 5-9-5Zm0 4 9 5 9-5M3 16l9 5 9-5"/>',
   monitor:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',
   target:'<circle cx="12" cy="12" r="7"/><path d="M12 2v5m0 10v5M2 12h5m10 0h5"/>',
+  paw:'<circle cx="5" cy="10" r="1.6"/><circle cx="9" cy="5.5" r="1.6"/><circle cx="15" cy="5.5" r="1.6"/><circle cx="19" cy="10" r="1.6"/><path d="M12 11c-2 0-3.5 2-5.2 3.6C4.2 17 6 21 9.3 19.5l2.7-1.2 2.7 1.2c3.3 1.5 5.1-2.5 2.5-4.9C15.5 13 14 11 12 11Z"/>',
   movement:'<path d="m7 17 10-10M8 7h9v9M3 13l5-5m3 13 5-5"/>',
   eye:'<path d="M2 12c5-9 15-9 20 0-5 9-15 9-20 0z"/><circle cx="12" cy="12" r="3"/>',
   cube:'<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3zM4 7.5l8 4.5 8-4.5M12 12v9"/>',
@@ -106,7 +107,7 @@ const state = {
   favorites:new Set(), values:new Map(), account:0,categoriesExpanded:true,
   configTab:'catalog',config:null,friendTab:null,friendProfile:null,preset:0,appliedPreset:-1,point:null,
   publication:false,publicationReady:true,chatQuery:'',cosmetic:'angel',cosmeticSlot:'all',
-  cosmeticQuery:'',cosmeticOnlyEquipped:false,cosmeticYaw:-19,cosmeticZoom:1,wingsStyle:0,
+  cosmeticQuery:'',cosmeticOnlyEquipped:false,cosmeticYaw:-19,cosmeticZoom:1,wingsStyle:0,cosmeticPet:'',
   seq:100,theme:'dark',density:'normal',toggleStyle,windowSize,windowScale,accent,languageChoice:'auto',windowX:0,windowY:0
 };
 const currentAccount = () => accounts.find(item => item.key === state.account) || accounts[0];
@@ -723,13 +724,17 @@ const cosmetics = [
   ['dragon','WINGS','Драконьи крылья','Спина',1],
   ['halo','HALO','Золотой нимб','Голова'],
   ['hat','CHINA_HEAD','Соломенная шляпа','Голова'],
-  ['dance','EMOTES','Эмоции','Анимация']
+  ['dance','EMOTES','Эмоции','Анимация'],
+  ['ember_fox','PET','Огненный лисёнок','Питомцы'],
+  ['moon_moth','PET','Лунный мотылёк','Питомцы'],
+  ['moss_turtle','PET','Моховая черепашка','Питомцы']
 ];
 const cosmeticById = id => cosmetics.find(item => item[0] === id);
-const cosmeticSlots = [['all','Все','grid'],['Спина','Спина','layers'],['Голова','Голова','user'],['Анимация','Анимация','movement']];
-const isCosmeticEquipped = ([,module,,,style]) => state.enabled.has(module) && (style === undefined || style === state.wingsStyle);
+const cosmeticSlots = [['all','Все','grid'],['Спина','Спина','layers'],['Голова','Голова','user'],['Анимация','Анимация','movement'],['Питомцы','Питомцы','paw']];
+const isCosmeticEquipped = ([id,module,,,style]) => module === 'PET' ? state.cosmeticPet === id
+  : state.enabled.has(module) && (style === undefined || style === state.wingsStyle);
 function cosmeticDrawing(id, model) {
-  return '<img class="cosmetic-art" src="assets/cosmetic-' + id + (model ? '-preview' : '-item') + '.png" alt="">';
+  return '<img class="cosmetic-art" src="assets/cosmetic-' + id + (model && cosmeticById(id)?.[1] !== 'PET' ? '-preview' : '-item') + '.png" alt="">';
 }
 function renderCosmetics() {
   const selected = cosmeticById(state.cosmetic) ?? cosmetics[0];
@@ -751,7 +756,8 @@ function renderCosmetics() {
     + '<div class="cosmetic-info"><div class="cosmetic-info-title">' + cosmeticDrawing(id,false) + '<div><strong>'
     + text(t(label)) + '</strong><div class="cosmetic-type">' + text(t(type)) + '</div></div></div>'
     + '<div class="cosmetic-actions"><button type="button" class="button ' + (active ? '' : 'primary') + '" data-equip-cosmetic="'
-    + id + '">' + text(t(id === 'dance' ? active ? 'Выключить' : 'Включить' : active ? 'Снять' : 'Надеть')) + '</button>'
+    + id + '">' + text(t(module === 'PET' ? (active ? 'Убрать' : 'Позвать')
+      : id === 'dance' ? (active ? 'Выключить' : 'Включить') : (active ? 'Снять' : 'Надеть'))) + '</button>'
     + (byId.get(module)?.configurable ? '<button type="button" class="button" data-module-settings="' + module + '">'
       + icon('gear') + text(t('Настройки')) + '</button>' : '') + '</div></div></section></div>';
 }
@@ -771,7 +777,8 @@ function patchCosmeticShelf() {
 let cosmeticFrame = 0, cosmeticLayout = '';
 let cosmeticHover = '', cosmeticSuppressed = '', cosmeticSpin = null;
 function cosmeticLoadout() {
-  const peek = cosmeticById(cosmeticHover);
+  const selected = state.cosmeticSlot === 'Питомцы' ? cosmeticById(state.cosmetic) : null;
+  const peek = cosmeticById(cosmeticHover) ?? (selected?.[1] === 'PET' ? selected : null);
   const worn = cosmetics.filter(item => item[0] !== 'dance' && isCosmeticEquipped(item) && (!peek || peek[3] !== item[3]));
   if (peek) worn.push(peek);
   return worn.map(item => item[0]);
@@ -1315,6 +1322,8 @@ document.addEventListener('click', event => {
     render(false,false);
   } else if (data.cosmeticSlot) {
     state.cosmeticSlot = data.cosmeticSlot;
+    if (state.cosmeticSlot === 'Питомцы' && cosmeticById(state.cosmetic)?.[1] !== 'PET')
+      state.cosmetic = state.cosmeticPet || cosmetics.find(item => item[1] === 'PET')[0];
     state.cosmeticQuery = cosmeticHover = '';
     render(false,false);
   }

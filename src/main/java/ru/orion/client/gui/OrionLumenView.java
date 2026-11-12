@@ -4,10 +4,19 @@ import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+//? if >=26.3 {
 import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
+
+//?} else {
+/*import com.mojang.blaze3d.GpuFormat;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.vertex.VertexFormat;
+
+*///?}
 import com.paradox.lumen.LumenNative;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -77,6 +86,13 @@ public final class OrionLumenView {
     }
 
     static void registerPipelines() { Paint.initialize(); }
+    //? if <26.3 {
+    /*static void preloadPipelines(com.mojang.blaze3d.shaders.ShaderSource source) {
+        RenderSystem.getDevice().precompilePipeline(Paint.SHAPE, source);
+        RenderSystem.getDevice().precompilePipeline(Paint.TEXTURED, source);
+    }
+    *///?}
+
 
     private boolean initialize() {
         try (var html = OrionLumenView.class.getResourceAsStream(resource)) {
@@ -232,8 +248,8 @@ public final class OrionLumenView {
         int clips = display.getInt(4);
         long clipBase = 16L + COMMAND_SIZE * (long) count;
         if (count <= 0 || clips < 0 || clipBase + 16L * clips > size) return false;
-        if (RenderSystem.getCompiledPipelineNullable(Paint.SHAPE) == null
-                || RenderSystem.getCompiledPipelineNullable(Paint.TEXTURED) == null) return false;
+        if (ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.SHAPE) == null
+                || ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.TEXTURED) == null) return false;
         while (gradients.size() > GRADIENT_CACHE_LIMIT) {
             Minecraft.getInstance().getTextureManager().release(gradientId(gradients.pollFirstEntry().getKey()));
         }
@@ -518,13 +534,13 @@ public final class OrionLumenView {
             // В Normal передаём тип, вариант и радиус скругления с шагом 1/16.
             int flags = kind + 16 * Math.clamp(variant, 0, 4);
             int corner = Math.clamp(Math.round(radius * 16F), 0, 8191);
-            vertices.addVertexWith2DPose(pose, x, y).setColor(color)
+            var vertex = vertices.addVertexWith2DPose(pose, x, y).setColor(color)
                     .setUv(u0 + (u1 - u0) * dx / width, v0 + (v1 - v0) * dy / height)
                     .setUv1(circle.x(), circle.y())
                     .setUv2(Math.min(32767, Math.round(width * 4F)), Math.min(32767, Math.round(height * 4F)))
-                    .setUv3(dx - width / 2F, dy - height / 2F)
                     .setNormal(normalByte(flags), normalByte(corner / 64), normalByte(corner % 64))
                     .setLineWidth(circle.signedRadius());
+            ru.orion.client.render.GleamLumenVertex.uv3(vertex, dx - width / 2F, dy - height / 2F);
         }
 
         private static float normalByte(int value) {

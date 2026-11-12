@@ -38,7 +38,7 @@ public final class OrionFootballRenderer {
     private OrionFootballRenderer() { }
     public static void ball(LevelRenderContext context,OrionBasketballVector position,float rotation){
         Vec3 camera=Minecraft.getInstance().gameRenderer.mainCamera().position();PoseStack pose=context.poseStack();pose.pushPose();
-        pose.translate(position.x()-camera.x,position.y()-camera.y,position.z()-camera.z);pose.rotate(Axis.XP.rotation(rotation));
+        pose.translate(position.x()-camera.x,position.y()-camera.y,position.z()-camera.z);ru.orion.client.render.GleamPose.rotate(pose, Axis.XP.rotation(rotation));
         var level=Minecraft.getInstance().level;var pos=BlockPos.containing(position.x(),position.y(),position.z());
         int light=level==null?0xF000F0:(level.getBrightness(LightLayer.BLOCK,pos)<<4)|(level.getBrightness(LightLayer.SKY,pos)<<20);
         context.submitNodeCollector().submitCustomGeometry(pose,RenderTypes.entityCutout(BALL),(p,vc)->sphere(p,vc,light));pose.popPose();
@@ -104,7 +104,7 @@ public final class OrionFootballRenderer {
     }
     public static void goal(LevelRenderContext context,OrionFootballGoal goal,OrionGoalkeeperAI keeper,boolean preview,float netMotion,float tick,OrionBasketballVector ballPosition){
         Vec3 camera=Minecraft.getInstance().gameRenderer.mainCamera().position();PoseStack pose=context.poseStack();pose.pushPose();
-        pose.translate(goal.base().x()-camera.x,goal.base().y()-camera.y,goal.base().z()-camera.z);pose.rotate(Axis.YP.rotation((float)goal.yaw()));float scale=(float)goal.scale();pose.scale(scale,scale,scale);
+        pose.translate(goal.base().x()-camera.x,goal.base().y()-camera.y,goal.base().z()-camera.z);ru.orion.client.render.GleamPose.rotate(pose, Axis.YP.rotation((float)goal.yaw()));float scale=(float)goal.scale();pose.scale(scale,scale,scale);
         int a=preview?110:240;
         context.submitNodeCollector().submitCustomGeometry(pose,RenderTypes.debugQuads(),(p,vc)->goalBars(p,vc,a));
         context.submitNodeCollector().submitCustomGeometry(pose,RenderTypes.lines(),(p,vc)->net(p,vc,a,netMotion));
@@ -121,12 +121,17 @@ public final class OrionFootballRenderer {
             state.goalkeeperAction=keeper.action();
             state.keeperGait=keeper.action()==OrionGoalkeeperAI.Action.RUN?(float)Math.sin(tick*9)*.55F:0F;
             state.keeperHandsHigh=keeper.action()==OrionGoalkeeperAI.Action.JUMP || keeper.targetHeight()>1.65;
-            pose.pushPose();pose.translate(keeper.x(),keeper.vertical(),0);pose.rotate(Axis.ZP.rotation((float)keeper.lean()));
+            pose.pushPose();pose.translate(keeper.x(),keeper.vertical(),0);ru.orion.client.render.GleamPose.rotate(pose, Axis.ZP.rotation((float)keeper.lean()));
             pose.scale(-1F,-1F,1F);pose.translate(0,-1.501F,0);
             var point=goal.world(new OrionBasketballVector(keeper.x(),1,0));
             var block=BlockPos.containing(point.x(),point.y(),point.z());var level=Minecraft.getInstance().level;
             int light=level==null?0xF000F0:(level.getBrightness(LightLayer.BLOCK,block)<<4)|(level.getBrightness(LightLayer.SKY,block)<<20);
+            //? if >=26.3 {
             context.submitNodeCollector().submitModel(keeperModel,state,pose,RenderTypes.entityCutout(KEEPER_TEXTURE),light,OverlayTexture.NO_OVERLAY,-1);
+            //?} else {
+                        /*context.submitNodeCollector().submitModel(keeperModel,state,pose,RenderTypes.entityCutout(KEEPER_TEXTURE),light,OverlayTexture.NO_OVERLAY,-1,null);
+            *///?}
+
             pose.popPose();
         }
         pose.popPose();

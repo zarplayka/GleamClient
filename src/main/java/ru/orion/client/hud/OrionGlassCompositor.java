@@ -3,10 +3,19 @@ package ru.orion.client.hud;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+//? if >=26.3 {
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
+
+//?} else {
+/*import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.blaze3d.textures.GpuTextureView;
+
+*///?}
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.ChatScreen;
@@ -118,7 +127,7 @@ public final class OrionGlassCompositor {
         }
         if (!screenGlass && !OrionClient.getInstance().getConfigManager().getConfig().isHudElementGlass(id.getPath())) {
             try {
-                if (RenderSystem.getCompiledPipelineNullable(PIPELINE) == null) return false;
+                if (ru.orion.client.render.GleamGpu.pipelineOrNull(PIPELINE) == null) return false;
             } catch (RuntimeException exception) {
                 warnShaderUnavailable(exception);
                 return false;
@@ -137,7 +146,7 @@ public final class OrionGlassCompositor {
             return false;
         }
         try {
-            if (RenderSystem.getCompiledPipelineNullable(PIPELINE) == null) {
+            if (ru.orion.client.render.GleamGpu.pipelineOrNull(PIPELINE) == null) {
                 warnShaderUnavailable(null);
                 return false;
             }

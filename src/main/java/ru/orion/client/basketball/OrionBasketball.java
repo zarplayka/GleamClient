@@ -33,7 +33,11 @@ public final class OrionBasketball {
     }
     private static KeyMapping key(String name,KeyMapping.Category category) {
         return KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.basketball."+name,
+                //? if >=26.3 {
                 InputConstants.Type.KEYBOARD,InputConstants.UNKNOWN.getValue(),category));
+                //?} else {
+                                /*InputConstants.Type.KEYSYM,InputConstants.UNKNOWN.getValue(),category));
+                *///?}
     }
     private void tick(Minecraft client) {
         if(!manager.getConfig().isBasketballEnabled() || client.player==null || client.level==null) {

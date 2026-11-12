@@ -112,7 +112,7 @@ public final class OrionBasketballScene {
             int var6 = helper134(var1, var5.x, var5.y, var5.z);
             PoseStack var7 = new PoseStack();
             var7.translate(var5.x - var2.x, var5.y - var2.y, var5.z - var2.z);
-            var7.rotate(new Quaternionf(var4.prevTurn).slerp(var4.turn, var3));
+            ru.orion.client.render.GleamPose.rotate(var7, new Quaternionf(var4.prevTurn).slerp(var4.turn, var3));
             var7.scale((float)var4.radius, (float)var4.radius, (float)var4.radius);
             var0.submitNodeCollector()
                .submitCustomGeometry(
@@ -195,7 +195,7 @@ public final class OrionBasketballScene {
    private static PoseStack helper122(OrionHoop var0, Vec3 var1) {
       PoseStack var2 = new PoseStack();
       var2.translate(var0.x - var1.x, var0.y - var1.y, var0.z - var1.z);
-      var2.rotate(Axis.YP.rotationDegrees(-var0.yaw));
+      ru.orion.client.render.GleamPose.rotate(var2, Axis.YP.rotationDegrees(-var0.yaw));
       return var2;
    }
 
@@ -300,7 +300,7 @@ public final class OrionBasketballScene {
    private static void helper126(net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext var0, OrionHoop var1, Vec3 var2, int var3) {
       PoseStack var4 = new PoseStack();
       var4.translate(var1.x - var2.x, var1.base + 0.015 - var2.y, var1.z - var2.z);
-      var4.rotate(Axis.YP.rotationDegrees(-var1.yaw));
+      ru.orion.client.render.GleamPose.rotate(var4, Axis.YP.rotationDegrees(-var1.yaw));
       var0.submitNodeCollector().submitCustomGeometry(var4, RenderTypes.entityCutout(CRWMWDOMTOCVRHWDIMTOCVRHWDIMTO), (var1x, var2x) -> {
          float var3x = 0.05F;
          float var4x = 6.75F;

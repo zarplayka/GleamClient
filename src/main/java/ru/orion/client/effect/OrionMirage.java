@@ -2,6 +2,7 @@ package ru.orion.client.effect;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
+//? if >=26.3 {
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.CommandEncoder;
 import com.mojang.renderpearl.api.pipeline.ColorTargetState;
@@ -11,6 +12,19 @@ import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
+
+//?} else {
+/*import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.CompiledRenderPipeline;
+import com.mojang.blaze3d.PrimitiveTopology;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.blaze3d.textures.GpuTextureView;
+
+*///?}
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.resources.Identifier;
@@ -75,8 +89,8 @@ public final class OrionMirage {
         if (source == null || depth == null || source.isClosed() || depth.isClosed()
                 || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0 || (depth.usage() & GpuTexture.USAGE_TEXTURE_BINDING) == 0) return;
         try {
-            var reflectionPipeline = RenderSystem.getCompiledPipelineNullable(reflections);
-            var compositePipeline = RenderSystem.getCompiledPipelineNullable(composite);
+            var reflectionPipeline = ru.orion.client.render.GleamGpu.pipelineOrNull(reflections);
+            var compositePipeline = ru.orion.client.render.GleamGpu.pipelineOrNull(composite);
             if (reflectionPipeline == null || compositePipeline == null) { warn(null); return; }
             float ratio = config.getMirageQuality() == 0 ? .5F : config.getMirageQuality() == 1 ? .65F : .75F;
             int rw = Math.max(1, Math.round(source.getWidth(0) * ratio)), rh = Math.max(1, Math.round(source.getHeight(0) * ratio));
@@ -109,18 +123,33 @@ public final class OrionMirage {
                 new Vector3f(steps, ySign, zeroToOne ? 1 : 0), new Matrix4f(projection).invert());
     }
 
+    //? if >=26.3 {
     static void drawPasses(CommandEncoder encoder, CompiledRenderPipeline reflection, CompiledRenderPipeline composite,
+    //?} else {
+        /*static void drawPasses(CommandEncoder encoder, RenderPipeline reflection, RenderPipeline composite,
+    *///?}
+
                            GpuTextureView scene, GpuTextureView depth, GpuTextureView reflected, GpuTextureView target, GpuBufferSlice parameters) {
         var linear = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
         var nearest = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST);
         try (var pass = encoder.createRenderPass(() -> "GleamClient Mirage reflections", reflected, Optional.empty())) {
             pass.setPipeline(reflection); pass.setUniform("DynamicTransforms", parameters);
+            //? if >=26.3 {
             pass.setUniform("Sampler0", scene, linear); pass.setUniform("Sampler1", depth, nearest);
+            //?} else {
+                        /*pass.bindTexture("Sampler0", scene, linear); pass.bindTexture("Sampler1", depth, nearest);
+            *///?}
+
             pass.disableScissor(); pass.draw(3, 1, 0, 0);
         }
         try (var pass = encoder.createRenderPass(() -> "GleamClient Mirage composite", target, Optional.empty())) {
             pass.setPipeline(composite); pass.setUniform("DynamicTransforms", parameters);
+            //? if >=26.3 {
             pass.setUniform("Sampler0", scene, linear); pass.setUniform("Sampler1", reflected, linear);
+            //?} else {
+                        /*pass.bindTexture("Sampler0", scene, linear); pass.bindTexture("Sampler1", reflected, linear);
+            *///?}
+
             pass.disableScissor(); pass.draw(3, 1, 0, 0);
         }
     }

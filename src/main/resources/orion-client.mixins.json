@@ -41,6 +41,8 @@
     "FogRendererMixin",
     "OrionCloudColorMixin",
     "MultiPlayerGameModeMixin",
+    "GleamPetBlockPlacementMixin",
+    "GleamPetUseItemMixin",
     "OrionHitSoundPacketMixin",
     "RenderPipelinesAccessor",
     "EntityHitboxDebugRendererMixin",

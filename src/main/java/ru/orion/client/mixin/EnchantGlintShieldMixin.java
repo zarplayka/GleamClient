@@ -1,5 +1,6 @@
 package ru.orion.client.mixin;
 
+//? if >=26.3 {
 import net.minecraft.client.renderer.rendertype.OrionGlintRenderTypes;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
@@ -23,3 +24,5 @@ public abstract class EnchantGlintShieldMixin {
         return config!=null && config.isEnchantGlintEnabled() && config.getEnchantGlintMode()!=1 ? OrionGlintRenderTypes.shield() : RenderTypes.patternedShieldGlint();
     }
 }
+
+//?}
