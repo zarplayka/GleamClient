@@ -449,7 +449,7 @@ function renderModule() {
 function renderProfile() {
   const account = currentAccount();
   if (!account.key) return pageHead(t('Профиль')) + actionButton('login',t('Войти в GleamClient'),'user','primary');
-  const status = account.badge === 'Owner' || account.badge === 'Admin'
+  const status = ['Owner', 'Admin', 'Media'].includes(account.badge)
     ? accountStatus(account) : text(t('Подписка')) + ' ' + text(account.plan);
   return pageHead(t('Профиль')) + '<div class="sheet"><div class="profile-top">' + avatar(account,'hero') + '<div><h2>'
     + text(account.name) + '</h2><p>' + status + '</p></div></div>'
@@ -506,7 +506,7 @@ function renderFriendProfile() {
   const back = actionButton('friend-profile-back',t('Назад к друзьям'),'back');
   const head = pageHead(t('Профиль'),'',back);
   if (!item) return head + empty(t('Профиль недоступен'),'');
-  const badge = (profile?.role ?? item.role) === 'owner' ? 'Owner' : (profile?.role ?? item.role) === 'admin' ? 'Admin' : '';
+  const badge = {owner:'Owner', admin:'Admin', media:'Media'}[profile?.role ?? item.role];
   return head + '<div class="sheet"><div class="profile-top">' + friendAvatar(item,true) + '<div><h2>'
     + text(item.username) + '</h2>' + (badge ? '<p>' + accountStatus({badge}) + '</p>' : '') + '</div></div>'
     + (profile?.id ? '<div class="setting-row"><span>' + text(t('ID аккаунта')) + '</span>'

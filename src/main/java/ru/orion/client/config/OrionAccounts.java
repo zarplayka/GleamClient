@@ -26,6 +26,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -84,6 +85,7 @@ public final class OrionAccounts {
 
     private record Session(String username, String cookie, String csrf, long plusExpiresAt, String role) { }
     private record StoredSessions(List<Session> sessions, String active) { }
+    private record StartupSessions(StoredSessions saved, Session launcher) { }
 
     private static final class FakePunishmentFeed {
         private final Session session;
@@ -122,17 +124,78 @@ public final class OrionAccounts {
 
     private void restore(Minecraft client) {
         busy = true;
-        CompletableFuture.supplyAsync(this::readSessions, storage).whenComplete((stored, failure) ->
+        CompletableFuture.supplyAsync(() -> {
+            Session launcher = readLauncherSession();
+            StoredSessions saved;
+            try {
+                saved = readSessions();
+            } catch (IllegalStateException exception) {
+                LoggerFactory.getLogger("orion-client").warn("Не удалось восстановить сессии GleamClient");
+                saved = new StoredSessions(List.of(), "");
+            }
+            return new StartupSessions(saved, launcher);
+        }, storage).whenComplete((startup, failure) ->
                 client.execute(() -> {
-                    busy = false;
                     if (failure != null) {
+                        busy = false;
                         LoggerFactory.getLogger("orion-client").warn("Не удалось восстановить сессии GleamClient");
                         return;
                     }
+                    StoredSessions stored = startup.saved();
                     for (Session session : stored.sessions()) sessions.put(session.username(), session);
                     active = sessions.get(stored.active());
-                    if (active != null) refresh().thenAccept(update -> client.execute(update));
+                    if (startup.launcher() == null) {
+                        finishRestore(client);
+                        return;
+                    }
+                    verify(startup.launcher(), true).whenComplete((update, error) -> client.execute(() -> {
+                        if (error == null) {
+                            busy = false;
+                            update.run();
+                        } else {
+                            LoggerFactory.getLogger("orion-client").warn("Не удалось подтвердить сессию Gleam из лаунчера");
+                            finishRestore(client);
+                        }
+                    }));
                 }));
+    }
+
+    private void finishRestore(Minecraft client) {
+        busy = false;
+        if (active != null) refresh().thenAccept(update -> client.execute(update));
+    }
+
+    private static Session readLauncherSession() {
+        String handoff = System.getenv("GLEAM_LAUNCH_SESSION");
+        if (handoff == null || handoff.isBlank()) return null;
+        try {
+            Path path = Path.of(handoff).toAbsolutePath().normalize();
+            Path directory = path.getParent();
+            Path gameDir = FabricLoader.getInstance().getGameDir().toAbsolutePath().normalize();
+            if (directory == null || !gameDir.equals(directory.getParent())
+                    || !directory.getFileName().toString().startsWith(".gleam-login-")
+                    || !Path.of("session.bin").equals(path.getFileName())
+                    || !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) return null;
+            try {
+                byte[] encrypted;
+                try (var input = Files.newInputStream(path, LinkOption.NOFOLLOW_LINKS)) {
+                    encrypted = input.readNBytes(4097);
+                }
+                if (encrypted.length == 0 || encrypted.length > 4096) return null;
+                byte[] plain = Crypt32Util.cryptUnprotectData(encrypted, WinCrypt.CRYPTPROTECT_UI_FORBIDDEN);
+                try {
+                    String cookie = new String(plain, StandardCharsets.US_ASCII);
+                    return cookie.matches("[A-Za-z0-9_-]{43}") ? new Session("", cookie, "", 0, null) : null;
+                } finally {
+                    Arrays.fill(plain, (byte) 0);
+                }
+            } finally {
+                Files.deleteIfExists(path);
+            }
+        } catch (Exception exception) {
+            LoggerFactory.getLogger("orion-client").warn("Не удалось прочитать сессию Gleam из лаунчера");
+            return null;
+        }
     }
 
     private StoredSessions readSessions() {
@@ -271,6 +334,7 @@ public final class OrionAccounts {
         if (session == null) return "";
         if ("owner".equals(session.role())) return "Owner";
         if ("admin".equals(session.role())) return "Admin";
+        if ("media".equals(session.role())) return "Media";
         return session.plusExpiresAt() > Instant.now().getEpochSecond() ? "Plus" : "";
     }
     public String sessionCookieHeader() { return active == null ? "" : COOKIE + "=" + active.cookie(); }
