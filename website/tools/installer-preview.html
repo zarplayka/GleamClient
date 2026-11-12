@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Установщик Gleam Launcher · макет</title>
+  <link rel="icon" href="../../launcher/icons/icon.ico">
+  <style>
+    @font-face { font-family: Onest; src: url("../assets/onest-regular.ttf"); font-weight: 400; font-display: swap }
+    @font-face { font-family: Onest; src: url("../assets/onest-bold.ttf"); font-weight: 700; font-display: swap }
+    :root {
+      color-scheme: dark; font: 14px Onest, "Segoe UI", sans-serif;
+      background: #100f12; color: #f8f5ef; --ease-out: cubic-bezier(.22, 1, .36, 1);
+    }
+    * { box-sizing: border-box }
+    [hidden] { display: none !important }
+    body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 24px }
+    button, input { font: inherit }
+    button { color: inherit; cursor: pointer }
+    :focus-visible { outline: 2px solid #fae6b9; outline-offset: 4px }
+    main { width: min(100%, 680px) }
+    .window {
+      position: relative; min-height: 470px; display: grid; place-items: center;
+      padding: 60px 28px 52px; border: 1px solid #353239; border-radius: 13px;
+      background: #18161b; box-shadow: 0 30px 90px #08070980;
+    }
+    .window[data-opening] { animation: open-window 540ms var(--ease-out) both }
+    .close {
+      position: absolute; top: 7px; right: 7px; width: 36px; height: 36px;
+      display: grid; place-items: center; padding: 0;
+      border: 0; border-radius: 6px; color: #aaa6af; background: transparent;
+    }
+    .close::before, .close::after {
+      content: ""; grid-area: 1 / 1; width: 12px; height: 1.5px;
+      border-radius: 1px; background: currentColor;
+    }
+    .close::before { transform: rotate(45deg) }
+    .close::after { transform: rotate(-45deg) }
+    .close:hover { color: #fff; background: #ffffff12 }
+    .content { width: min(100%, 344px); text-align: center }
+    .mark {
+      display: block; width: 84px; height: 84px; margin: 0 auto 22px;
+    }
+    .content[data-intro] .mark { animation: reveal-mark 660ms var(--ease-out) both }
+    h1 {
+      margin: 0; font-size: clamp(32px, 8vw, 46px); letter-spacing: -.06em; line-height: 1.08;
+    }
+    .content[data-intro] h1 { animation: arrive 520ms 110ms var(--ease-out) both }
+    .subtitle {
+      margin: 11px 0 28px; min-height: 21px; color: #b7b2bb; line-height: 1.5;
+    }
+    .content[data-intro] .subtitle { animation: arrive 480ms 175ms var(--ease-out) both }
+    .primary {
+      display: block; min-height: 43px; min-width: 192px; margin: 0 auto; padding: 8px 20px;
+      border: 1px solid transparent; border-radius: 8px; background: #fff2d6;
+      color: #201915; font-weight: 700; transition: background 160ms, transform 160ms;
+    }
+    .primary:hover { background: #fff9ed }
+    .primary:active { transform: scale(.98) }
+    .quiet { padding: 6px 8px; border: 0; border-radius: 4px; background: transparent; color: #b7b2bb }
+    .quiet:hover, summary:hover { color: #fff }
+    .controls { min-height: 84px }
+    .controls:not([hidden]) { animation: arrive 360ms var(--ease-out) both }
+    .content[data-intro] #setup { animation-delay: 220ms }
+    .content[data-screen="completed"] .mark { animation: confirm-mark 420ms var(--ease-out) both }
+    details { margin-top: 10px }
+    summary {
+      display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px;
+      list-style: none; cursor: pointer; color: #b7b2bb;
+    }
+    summary::-webkit-details-marker { display: none }
+    summary::after {
+      content: ""; width: 6px; height: 6px; margin-top: -3px;
+      border: solid currentColor; border-width: 0 1px 1px 0; transform: rotate(45deg);
+      transition: transform 220ms var(--ease-out);
+    }
+    details[open] summary::after { transform: translateY(3px) rotate(225deg) }
+    .options { display: grid; gap: 10px; margin-top: 10px; padding-top: 14px; border-top: 1px solid #353239; text-align: left }
+    details[open] .options { animation: arrive 240ms var(--ease-out) both }
+    .options label { color: #e1dce4 }
+    .options input[type=text] {
+      display: block; width: 100%; margin-top: 7px; padding: 9px 10px;
+      border: 1px solid #4c4651; border-radius: 6px; color: #f8f5ef; background: #211e25;
+    }
+    .check { display: flex; align-items: center; gap: 8px }
+    .check input { margin: 0; accent-color: #fff2d6 }
+    .error { margin: 0; color: #ffb6ae; font-size: 12px }
+    .progress-caption { display: flex; justify-content: space-between; gap: 8px; color: #ddd6df; text-align: left }
+    #percent { font-variant-numeric: tabular-nums }
+    .track { height: 4px; margin: 12px 0 16px; overflow: hidden; border-radius: 4px; background: #3d3742 }
+    .fill {
+      width: 100%; height: 100%; border-radius: inherit; background: #fff2d6; transform-origin: left;
+      transform: scaleX(var(--progress, 0)); transition: transform 180ms linear;
+    }
+    .preview-label { margin: 16px 0 0; color: #a49da9; font-size: 12px; text-align: center }
+    :root:has(body.native) { background: transparent; overflow: clip }
+    body.native { height: 100dvh; padding: 0; overflow: clip }
+    .native main { width: 100% }
+    .native .window {
+      height: 100dvh; min-height: 0; padding-block: 24px;
+      border: 0; border-radius: 12px; box-shadow: none;
+    }
+    .native:not([data-ready]) .window { visibility: hidden }
+    .native:not([data-ready]) .controls { animation: none }
+    .native .preview-label { display: none }
+    @keyframes open-window {
+      from { opacity: 0; transform: scale(.9) }
+      to { opacity: 1; transform: scale(1) }
+    }
+    @keyframes reveal-mark {
+      from { opacity: 0; transform: translateY(10px) scale(.82) }
+      to { opacity: 1; transform: none }
+    }
+    @keyframes arrive {
+      from { opacity: 0; transform: translateY(6px) }
+      to { opacity: 1; transform: none }
+    }
+    @keyframes confirm-mark {
+      0%, 100% { transform: scale(1) }
+      44% { transform: scale(1.06) }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px }
+      .window { padding-inline: 18px; min-height: 430px }
+      .mark { width: 74px; height: 74px }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="window" id="installer-window" data-opening data-tauri-drag-region aria-labelledby="title">
+      <button class="close" id="close" type="button" aria-label="Закрыть установщик"></button>
+      <div class="content" id="content" data-intro>
+        <img class="mark" src="../../src/main/resources/assets/orion-client/textures/cosmetics/orion_badge.png" alt="" width="84" height="84">
+        <h1 id="title">Gleam Launcher</h1>
+        <p class="subtitle" id="subtitle" role="status">Установка для Windows</p>
+
+        <form class="controls" id="setup" novalidate>
+          <button class="primary" type="submit">Установить</button>
+          <details id="details">
+            <summary>Параметры</summary>
+            <div class="options">
+              <label for="location">Папка установки
+                <input id="location" type="text" value="%LOCALAPPDATA%\Programs\Gleam Launcher" spellcheck="false" aria-describedby="location-error" required>
+              </label>
+              <p class="error" id="location-error" hidden>Укажи полный путь к папке Windows</p>
+              <label class="check"><input id="desktop-shortcut" type="checkbox" checked> Создать ярлык на рабочем столе</label>
+            </div>
+          </details>
+        </form>
+
+        <div class="controls" id="installing" hidden>
+          <div class="progress-caption">
+            <span id="stage" role="status">Подготовка</span>
+            <span id="percent" aria-hidden="true">0%</span>
+          </div>
+          <div class="track" id="progress" role="progressbar" aria-label="Ход установки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="fill"></div>
+          </div>
+          <button class="quiet" type="button" id="cancel">Отмена</button>
+        </div>
+
+        <div class="controls" id="completed" hidden>
+          <button class="primary" type="button" id="done">Готово</button>
+        </div>
+
+        <div class="controls" id="closed" hidden>
+          <button class="primary" type="button" id="reopen">Открыть макет снова</button>
+        </div>
+      </div>
+    </section>
+    <p class="preview-label">Демонстрация установщика · Windows x64</p>
+  </main>
+  <script>
+    const get = id => document.getElementById(id);
+    const screens = ['setup', 'installing', 'completed', 'closed'];
+    const locationField = get('location');
+    const stage = get('stage');
+    const progress = get('progress');
+    const content = get('content');
+    const installerWindow = get('installer-window');
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+    const subtitle = get('subtitle');
+    const native = window.__TAURI__;
+    const progressEvents = native?.event.listen('installation-progress', ({payload}) => {
+      if (current === 'installing') updateProgress(payload);
+    }).then(() => true, () => false);
+    if (native) {
+      document.body.classList.add('native');
+      installerWindow.removeAttribute('data-opening');
+      content.removeAttribute('data-intro');
+      showNativeWindow();
+    }
+    let current = 'setup';
+    let animation = 0;
+
+    async function showNativeWindow() {
+      await Promise.allSettled([document.fonts.ready, content.querySelector('.mark').decode()]);
+      await native.core.invoke('show_installer');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        installerWindow.setAttribute('data-opening', '');
+        content.setAttribute('data-intro', '');
+        document.body.setAttribute('data-ready', '');
+      }));
+    }
+
+    function show(screen, message) {
+      cancelAnimationFrame(animation);
+      current = screen;
+      content.removeAttribute('data-intro');
+      content.dataset.screen = screen;
+      for (const id of screens) get(id).hidden = id !== screen;
+      get('close').hidden = screen === 'closed';
+      subtitle.textContent = message;
+      if (!reducedMotion.matches) {
+        for (const previous of subtitle.getAnimations()) previous.cancel();
+        subtitle.animate([{opacity: 0, transform: 'translateY(4px)'}, {opacity: 1, transform: 'none'}],
+          {duration: 260, easing: 'cubic-bezier(.22, 1, .36, 1)'});
+      }
+      get(screen).querySelector('button').focus({preventScroll: true});
+    }
+
+    function updateProgress(value) {
+      const message = value < 18 ? 'Подготовка' : value < 75 ? 'Копирование файлов' : 'Завершение установки';
+      if (stage.textContent !== message) stage.textContent = message;
+      get('percent').textContent = value + '%';
+      progress.setAttribute('aria-valuenow', value);
+      progress.style.setProperty('--progress', value / 100);
+    }
+
+    function beginInstallation() {
+      show('installing', 'Устанавливаем лаунчер');
+      updateProgress(0);
+      const started = performance.now();
+      const duration = 3300;
+      const finishDelay = reducedMotion.matches ? 0 : 180;
+      let previous = 0;
+
+      function tick(now) {
+        const value = Math.max(0, Math.min(100, Math.floor((now - started) / duration * 100)));
+        if (value !== previous) updateProgress(value);
+        previous = value;
+        if (now - started >= duration + finishDelay) {
+          show('completed', 'Установка завершена');
+        } else {
+          animation = requestAnimationFrame(tick);
+        }
+      }
+      animation = requestAnimationFrame(tick);
+    }
+
+    async function installNative(path) {
+      show('installing', 'Устанавливаем лаунчер');
+      updateProgress(0);
+      get('cancel').disabled = true;
+      try {
+        if (!await progressEvents) throw 'install';
+        const pending = native.core.invoke('install_launcher', {
+          path, desktopShortcut: get('desktop-shortcut').checked,
+        });
+        get('cancel').disabled = false;
+        const {shortcutFailed} = await pending;
+        updateProgress(100);
+        if (!reducedMotion.matches) await new Promise(resolve => setTimeout(resolve, 180));
+        show('completed', shortcutFailed ? 'Лаунчер установлен, ярлык создать не удалось' : 'Установка завершена');
+      } catch (error) {
+        const messages = {
+          cancelled: 'Установка отменена',
+          folder: 'Не удалось открыть папку установки',
+          write: 'Не удалось записать файлы',
+          replace: 'Закрой Gleam Launcher и попробуй снова',
+          busy: 'Лаунчер уже обновляется. Попробуй ещё раз',
+        };
+        show('setup', messages[String(error)] || 'Не удалось установить лаунчер');
+      } finally {
+        get('cancel').disabled = false;
+      }
+    }
+
+    function clearLocationError() {
+      locationField.removeAttribute('aria-invalid');
+      get('location-error').hidden = true;
+    }
+
+    get('setup').addEventListener('submit', event => {
+      event.preventDefault();
+      const path = locationField.value.trim();
+      if (!/^(?:[a-z]:\\|%LOCALAPPDATA%\\)[^<>:"/|?*]+$/i.test(path)) {
+        get('details').open = true;
+        locationField.setAttribute('aria-invalid', 'true');
+        get('location-error').hidden = false;
+        locationField.focus();
+        return;
+      }
+      if (native) installNative(path);
+      else beginInstallation();
+    });
+    locationField.addEventListener('input', clearLocationError);
+    async function cancelInstallation() {
+      if (!native) {
+        show('setup', 'Установка отменена');
+        return;
+      }
+      if (get('cancel').disabled) return;
+      get('cancel').disabled = true;
+      try {
+        if (!await native.core.invoke('cancel_install') && current === 'installing') {
+          subtitle.textContent = 'Завершаем установку';
+        }
+      } catch {
+        get('cancel').disabled = false;
+      }
+    }
+    get('cancel').addEventListener('click', cancelInstallation);
+    get('reopen').addEventListener('click', () => {
+      get('setup').reset();
+      get('details').open = false;
+      clearLocationError();
+      show('setup', 'Установка для Windows');
+      if (!reducedMotion.matches) {
+        installerWindow.setAttribute('data-opening', '');
+      }
+    });
+    installerWindow.addEventListener('animationend', event => {
+      if (event.target === installerWindow && event.animationName === 'open-window') {
+        installerWindow.removeAttribute('data-opening');
+      }
+    });
+    function closePreview() {
+      if (native) {
+        if (current === 'installing') cancelInstallation();
+        else native.window.getCurrentWindow().close().catch(() => {});
+        return;
+      }
+      if (current === 'closed') return;
+      installerWindow.removeAttribute('data-opening');
+      show('closed', 'Установщик закрыт');
+    }
+    get('close').addEventListener('click', closePreview);
+    get('done').addEventListener('click', closePreview);
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') closePreview();
+    });
+  </script>
+</body>
+</html>

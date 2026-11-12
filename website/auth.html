@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#151519">
+  <meta name="robots" content="noindex">
+  <title>Авторизация — GleamClient</title>
+  <link rel="icon" type="image/png" href="assets/orion-badge.png?v=gleam-eye">
+  <link rel="stylesheet" href="style.css?v=gleam-palette-20261112">
+  <script src="i18n.js?v=launcher-auth-20261110" defer></script>
+  <script src="app.js?v=community" defer></script>
+  <script src="auth.js?v=launcher-auth-20261110" defer></script>
+</head>
+<body class="auth-page">
+  <a class="skip" href="#main">Перейти к содержимому</a>
+  <div class="auth-backdrop" aria-hidden="true">
+    <div class="auth-art art-portal"><img src="assets/auth-portal.jpg" alt="" width="1200" height="675"></div>
+    <div class="auth-art art-wild"><img src="assets/auth-wild.jpg" alt="" width="1920" height="1080"></div>
+    <div class="auth-art art-nether"><img src="assets/auth-nether.jpg" alt="" width="1920" height="1080"></div>
+  </div>
+  <header class="auth-topbar"><a class="brand" href="/" aria-label="GleamClient — главная"><img src="assets/orion-badge.png?v=gleam-eye" width="38" height="34" alt=""><span>gleam<span class="brand-sub">client</span></span></a><a class="auth-back" href="/">На главную <span aria-hidden="true">↗</span></a></header>
+  <main id="main" class="auth-main">
+    <div class="auth-lockup" aria-hidden="true"><img src="assets/orion-badge.png?v=gleam-eye" alt="" width="58" height="51"><span>gleam</span></div>
+    <section id="launcher-confirmation" class="auth-card" aria-labelledby="launcher-confirmation-heading" hidden>
+      <h1 id="launcher-confirmation-heading">Вход в Gleam Launcher</h1>
+      <p>Подтверждай только запрос из своего лаунчера. Сверь код в обоих окнах</p>
+      <p><strong id="launcher-confirmation-code"></strong></p>
+      <button type="button" class="auth-submit" id="launcher-confirmation-approve">Подтвердить вход</button>
+      <p id="launcher-confirmation-status" role="status"></p>
+    </section>
+    <section class="auth-card" aria-labelledby="auth-heading">
+      <h1 id="auth-heading">С возвращением.</h1>
+      <div id="auth-loading" class="auth-loading" role="status"><div></div><div></div><p>Подожди…</p></div>
+      <div id="auth-entry" hidden>
+        <div class="auth-tabs" role="group" aria-label="Способ авторизации"><button type="button" data-auth-mode="login" aria-pressed="true">Вход</button><button type="button" data-auth-mode="register" aria-pressed="false">Регистрация</button></div>
+        <form id="auth-form" novalidate>
+          <div class="auth-field">
+            <label for="username">Имя пользователя</label>
+            <div class="auth-input-wrap">
+              <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="24" required>
+              <span class="auth-check" data-check="username" role="status"></span>
+            </div>
+            <p id="username-help" data-register-only hidden>От 3 до 24 латинских букв, цифр или _</p>
+          </div>
+          <div class="auth-field" data-register-only hidden>
+            <label for="register-email">Электронная почта</label>
+            <div class="auth-input-wrap">
+              <input id="register-email" name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="254">
+              <span class="auth-check" data-check="register-email" role="status"></span>
+            </div>
+          </div>
+          <div class="auth-field">
+            <label for="password">Пароль</label>
+            <div class="auth-password auth-input-wrap">
+              <input id="password" name="password" type="password" autocomplete="current-password" maxlength="256" required>
+              <span class="auth-check" data-check="password" role="status"></span>
+              <button type="button" id="password-visibility" aria-label="Показать пароль" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg></button>
+            </div>
+            <p id="password-help" data-register-only hidden>От 12 до 128 символов</p>
+          </div>
+          <div class="auth-field" data-register-only hidden>
+            <label for="confirm-password">Повтори пароль</label>
+            <div class="auth-input-wrap">
+              <input id="confirm-password" name="confirm_password" type="password" autocomplete="new-password" maxlength="256">
+              <span class="auth-check" data-check="confirm-password" role="status"></span>
+            </div>
+          </div>
+          <label class="auth-terms" data-register-only hidden><input type="checkbox" id="accept-terms"><span>Я принимаю <a href="/terms.html" target="_blank" rel="noopener">пользовательское соглашение</a> и ознакомился с <a href="/privacy.html" target="_blank" rel="noopener">политикой конфиденциальности</a></span></label>
+          <p class="auth-message" id="auth-message" role="alert" aria-live="polite" hidden></p>
+          <button class="auth-submit" id="auth-submit" type="submit">Войти</button>
+        </form>
+        <p class="auth-help"><a id="forgot-password" href="#forgot">Забыли пароль?</a></p>
+      </div>
+      <div id="auth-recovery" hidden>
+        <form id="recovery-form">
+          <div class="auth-field" data-recovery="forgot" hidden>
+            <label for="recovery-email">Электронная почта</label>
+            <input id="recovery-email" type="email" autocomplete="email" maxlength="254">
+          </div>
+          <div class="auth-field" data-recovery="reset" hidden>
+            <label for="recovery-password">Новый пароль</label>
+            <input id="recovery-password" type="password" autocomplete="new-password" maxlength="256" aria-describedby="recovery-password-help">
+            <p id="recovery-password-help">От 12 до 128 символов</p>
+          </div>
+          <div class="auth-field" data-recovery="reset" hidden>
+            <label for="recovery-confirmation">Повтори пароль</label>
+            <input id="recovery-confirmation" type="password" autocomplete="new-password" maxlength="256">
+          </div>
+          <button class="auth-submit" id="recovery-submit" type="submit">Отправить ссылку</button>
+        </form>
+        <p class="auth-message" id="recovery-message" role="status" hidden></p>
+        <p class="auth-help"><a href="auth.html">Вернуться ко входу</a></p>
+      </div>
+    </section>
+    <section id="auth-profile" aria-labelledby="profile-name" hidden>
+      <div class="profile-heading">
+        <div class="profile-avatar-editor">
+          <label class="profile-avatar profile-upload">
+            <img id="profile-avatar-image" src="/assets/orion-badge.png" width="46" height="41" alt="">
+            <span class="profile-avatar-pencil" aria-hidden="true">✎</span>
+            <input id="profile-avatar-file" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Загрузить аватар">
+          </label>
+          <button type="button" id="profile-avatar-remove" hidden>Убрать аватар</button>
+        </div>
+        <div class="profile-identity">
+          <div class="profile-badges"><p class="profile-tier" id="profile-tier" hidden></p><span class="profile-role" id="profile-role" hidden></span></div><h1 id="profile-name"></h1>
+          <div class="profile-meta" id="profile-meta" hidden><span>ID <code id="profile-id"></code></span><span>Дата регистрации <time id="profile-date"></time></span></div>
+        </div>
+        <button class="auth-logout profile-exit" id="auth-logout" type="button">Выйти из аккаунта</button>
+      </div>
+      <p class="auth-message" id="profile-message" role="alert" hidden></p>
+      <aside class="profile-reminder" id="profile-email-reminder" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
+        <div><strong id="profile-email-reminder-title"></strong><p>Подтверждённая почта нужна для восстановления пароля.</p></div>
+        <button class="hero-action hero-action-secondary" id="profile-open-security" type="button">Настроить почту <span aria-hidden="true">↗</span></button>
+      </aside>
+      <div class="profile-workspace">
+        <div class="profile-tabs" role="tablist" aria-label="Разделы профиля" aria-orientation="vertical">
+          <button type="button" role="tab" id="profile-tab-overview" aria-controls="profile-view-overview" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Обзор</span></button>
+          <button type="button" role="tab" id="profile-tab-security" aria-controls="profile-view-security" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-11V6l-8-3-8 3v5c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></svg><span>Безопасность</span></button>
+          <button type="button" role="tab" id="profile-tab-devices" aria-controls="profile-view-devices" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 15H3V4h17v5M8 15v4m-3 0h7"/><rect x="15" y="11" width="6" height="10" rx="1"/></svg><span>Устройства</span></button>
+          <button type="button" role="tab" id="profile-tab-contacts" aria-controls="profile-view-contacts" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 8H7a4 4 0 0 0 0 8h3m4-8h3a4 4 0 0 1 0 8h-3m-6-4h8"/></svg><span>Контакты</span></button>
+          <button type="button" role="tab" id="profile-tab-friends" aria-controls="profile-view-friends" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m1-15a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 4v2"/></svg><span>Друзья</span><b class="profile-tab-count" id="friends-tab-count" hidden></b></button>
+          <button type="button" role="tab" id="profile-tab-admin" aria-controls="profile-view-admin" aria-selected="false" tabindex="-1" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-11V6l-8-3-8 3v5c0 7 8 11 8 11Z"/><path d="M12 8v7m-3-4h6"/></svg><span>Админ-панель</span></button>
+        </div>
+        <div class="profile-view profile-grid" role="tabpanel" id="profile-view-overview" aria-labelledby="profile-tab-overview" tabindex="0">
+          <section class="profile-panel profile-product" aria-labelledby="profile-plus-title">
+            <div class="profile-panel-heading"><h2 id="profile-plus-title">GleamClient Plus</h2><span id="profile-plus-status"></span></div>
+            <p id="profile-plus-remaining" class="profile-note" hidden><span>Осталось</span> <strong></strong></p>
+            <p class="profile-note">Значок Plus рядом с ником в меню аккаунтов.</p>
+            <a class="hero-action hero-action-secondary" href="/#plus">Посмотреть тарифы <span aria-hidden="true">↗</span></a>
+          </section>
+          <section class="profile-panel profile-product" aria-labelledby="profile-client-title">
+            <h2 id="profile-client-title">GleamClient</h2>
+            <p class="profile-note">Minecraft Java Edition · Fabric</p>
+            <a class="hero-action hero-action-primary" href="/#install">Перейти к скачиванию <span aria-hidden="true">↗</span></a>
+          </section>
+        </div>
+        <div class="profile-view" role="tabpanel" id="profile-view-security" aria-labelledby="profile-tab-security" tabindex="0" hidden>
+          <section class="profile-panel" aria-labelledby="profile-security-title">
+            <h2 id="profile-security-title">Почта и безопасность</h2>
+            <p class="profile-note">Подтверждённая почта нужна для восстановления пароля.</p>
+            <div class="profile-email-summary">
+              <strong id="profile-email-address"></strong>
+              <span id="email-verification-state"></span>
+            </div>
+            <button class="auth-logout" id="email-verify" type="button" hidden>Отправить письмо подтверждения</button>
+            <p class="profile-caption" id="email-verify-status" role="status" hidden></p>
+            <details class="profile-edit" id="profile-email-edit">
+              <summary>Изменить почту</summary>
+              <form id="email-form" novalidate>
+                <div class="auth-field">
+                  <label for="profile-email">Электронная почта</label>
+                  <input id="profile-email" name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="254" required>
+                </div>
+                <div class="auth-field">
+                  <label for="email-password">Текущий пароль</label>
+                  <input id="email-password" name="current_password" type="password" autocomplete="current-password" maxlength="256" required>
+                </div>
+                <button class="auth-logout" id="email-submit" type="submit">Сохранить почту</button>
+                <p class="profile-caption" id="email-status" role="status" hidden></p>
+              </form>
+            </details>
+            <details class="profile-edit">
+              <summary>Сменить пароль</summary>
+              <form id="profile-password-form">
+                <div class="auth-field"><label for="profile-current-password">Текущий пароль</label><input id="profile-current-password" name="current_password" type="password" maxlength="256" autocomplete="current-password" required></div>
+                <div class="auth-field"><label for="profile-new-password">Новый пароль</label><input id="profile-new-password" name="new_password" type="password" maxlength="256" autocomplete="new-password" required></div>
+                <div class="auth-field"><label for="profile-repeat-password">Повтори пароль</label><input id="profile-repeat-password" name="confirmation" type="password" maxlength="256" autocomplete="new-password" required></div>
+                <p class="profile-note">После смены пароля остальные сеансы завершатся.</p>
+                <button class="auth-logout" type="submit">Сохранить пароль</button>
+                <p class="profile-caption" id="profile-password-status" role="status" hidden></p>
+              </form>
+            </details>
+          </section>
+        </div>
+        <div class="profile-view" role="tabpanel" id="profile-view-devices" aria-labelledby="profile-tab-devices" tabindex="0" hidden>
+          <section class="profile-panel profile-devices" aria-labelledby="profile-devices-title">
+            <h2 id="profile-devices-title">Устройства</h2>
+            <p class="profile-note">Активные входы на сайт и в клиент GleamClient.</p>
+            <ul id="profile-sessions" class="profile-sessions"></ul>
+            <button class="hero-action hero-action-secondary" id="revoke-other-sessions" type="button" hidden>Завершить остальные сеансы</button>
+            <p class="profile-caption" id="profile-sessions-status" role="status" hidden></p>
+          </section>
+        </div>
+        <div class="profile-view" role="tabpanel" id="profile-view-contacts" aria-labelledby="profile-tab-contacts" tabindex="0" hidden>
+          <section class="profile-contact-settings" aria-labelledby="profile-contacts-title">
+            <h2 id="profile-contacts-title">Контакты</h2>
+            <p class="profile-note">Укажите, где с вами можно связаться.</p>
+            <form id="profile-contacts-form">
+              <div class="profile-contact-rows">
+                <div class="profile-contact-row" data-provider="discord">
+                  <div class="profile-contact-name"><span class="profile-contact-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.3 4.8a19 19 0 0 0-4.8-1.5l-.6 1.2a17.6 17.6 0 0 0-5.8 0l-.6-1.2a19 19 0 0 0-4.8 1.5C.7 9.2-.1 13.4.3 17.5a19.4 19.4 0 0 0 5.9 3l1.2-2a12 12 0 0 1-1.8-.9l.4-.3a13.7 13.7 0 0 0 12 0l.4.3c-.6.4-1.2.7-1.8.9l1.2 2a19.4 19.4 0 0 0 5.9-3c.5-4.8-.8-9-3.4-12.7ZM8.1 15a2 2 0 0 1 0-4 2 2 0 0 1 0 4Zm7.8 0a2 2 0 0 1 0-4 2 2 0 0 1 0 4Z"/></svg></span><span>Discord</span></div>
+                  <div class="profile-contact-controls"><span class="profile-contact-state"></span><button class="hero-action hero-action-secondary" type="button" disabled>Привязать</button></div>
+                </div>
+                <div class="profile-contact-row" data-provider="github">
+                  <div class="profile-contact-name"><span class="profile-contact-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .75a11.25 11.25 0 0 0-3.56 21.92c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.33-3.79-1.33-.51-1.3-1.25-1.64-1.25-1.64-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 1.72 2.63 1.22 3.27.93.1-.73.39-1.22.71-1.5-2.5-.29-5.12-1.25-5.12-5.57 0-1.23.44-2.24 1.16-3.03-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.09 1.16a10.78 10.78 0 0 1 5.62 0c2.15-1.46 3.09-1.16 3.09-1.16.61 1.55.23 2.7.11 2.98.73.79 1.16 1.8 1.16 3.03 0 4.33-2.63 5.28-5.14 5.56.4.35.77 1.03.77 2.08v3.1c0 .3.2.65.77.54A11.25 11.25 0 0 0 12 .75Z"/></svg></span><span>GitHub</span></div>
+                  <div class="profile-contact-controls"><span class="profile-contact-state"></span><button class="hero-action hero-action-secondary" type="button" disabled>Привязать</button></div>
+                </div>
+              </div>
+              <div class="profile-visibility">
+                <label><span><strong>Публичный профиль</strong><small>По ссылке видны ник, аватар, дата регистрации и контакты.</small></span><input type="checkbox" name="published"></label>
+              </div>
+              <div class="profile-contacts-actions"><button class="hero-action hero-action-primary" type="submit">Сохранить видимость</button>
+                <a class="profile-share" id="profile-share" hidden>Открыть публичный профиль <span aria-hidden="true">↗</span></a></div>
+              <p class="profile-caption" id="profile-contacts-status" role="status" hidden></p>
+            </form>
+          </section>
+        </div>
+        <div class="profile-view profile-community" role="tabpanel" id="profile-view-friends" aria-labelledby="profile-tab-friends" tabindex="0" hidden>
+          <section class="profile-panel">
+            <h2>Друзья</h2>
+            <form id="friend-request-form" class="profile-inline-form">
+              <input name="username" aria-label="Ник игрока" placeholder="Ник игрока" autocomplete="off" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" required>
+              <button class="hero-action hero-action-primary" type="submit">Отправить заявку</button>
+            </form>
+            <p class="profile-caption" id="friends-status" role="status" hidden></p>
+          </section>
+          <section class="profile-panel"><h2>Входящие заявки</h2><ul class="profile-sessions community-list" id="friends-incoming"></ul></section>
+          <section class="profile-panel"><h2>Отправленные заявки</h2><ul class="profile-sessions community-list" id="friends-outgoing"></ul></section>
+          <section class="profile-panel"><h2>Список друзей</h2><ul class="profile-sessions community-list" id="friends-friend"></ul></section>
+        </div>
+        <div class="profile-view profile-community" role="tabpanel" id="profile-view-admin" aria-labelledby="profile-tab-admin" tabindex="0" hidden>
+          <section class="profile-panel admin-panel">
+            <div class="profile-panel-heading"><h2>Аккаунты</h2><span class="admin-result-label" id="admin-result-label"></span></div>
+            <form id="admin-search-form" class="profile-inline-form">
+              <input name="username" type="search" aria-label="Ник игрока" placeholder="Ник игрока" maxlength="24" pattern="[A-Za-z0-9_]*" autocomplete="off">
+              <button class="community-button community-button-primary" type="submit">Найти</button>
+            </form>
+            <p class="profile-caption" id="admin-status" role="status" hidden></p>
+            <ul class="admin-accounts" id="admin-accounts"></ul>
+            <dialog class="account-delete-dialog" id="account-delete-dialog" aria-labelledby="account-delete-title">
+              <form id="account-delete-form">
+                <h2 id="account-delete-title">Удалить аккаунт</h2>
+                <p class="profile-note">Профиль, друзья и данные аккаунта на сайте будут удалены без возможности восстановления.</p>
+                <label for="account-delete-confirmation">Введите ник для подтверждения</label>
+                <strong id="account-delete-name"></strong>
+                <input id="account-delete-confirmation" name="confirmation" maxlength="24" autocomplete="off" required>
+                <div class="community-actions">
+                  <button class="community-button" id="account-delete-cancel" type="button">Отмена</button>
+                  <button class="community-button community-button-danger" type="submit" disabled>Удалить аккаунт</button>
+                </div>
+              </form>
+            </dialog>
+          </section>
+        </div>
+      </div>
+      <p class="profile-caption" id="profile-avatar-status" role="status" hidden></p>
+    </section>
+    <section class="public-profile" id="public-profile" aria-labelledby="public-profile-name" hidden>
+      <div class="profile-heading">
+        <div class="profile-avatar"><img id="public-avatar" src="assets/orion-badge.png" width="46" height="41" alt=""></div>
+        <div class="profile-identity"><div class="profile-badges"><p>Аккаунт GleamClient</p><span class="profile-role" id="public-profile-role" hidden></span></div><h1 id="public-profile-name"></h1><div class="profile-meta"><span>ID <code id="public-profile-id"></code></span><span>Дата регистрации <time id="public-profile-date"></time></span></div></div>
+        <div class="public-profile-actions">
+          <div id="public-friend-action" hidden>
+            <button class="community-button community-button-primary" type="button" id="public-friend-request">Добавить в друзья</button>
+          </div>
+          <div class="profile-reactions" id="profile-reactions" role="group" aria-label="Оценка профиля" hidden>
+          <button type="button" data-profile-vote="1" aria-label="Нравится" aria-pressed="false" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10v10H3V10h4Zm0 0 5-7a2 2 0 0 1 2 2v4h5a2 2 0 0 1 2 2l-1.5 7A2 2 0 0 1 17.5 20H7"/></svg><b>0</b></button>
+          <button type="button" data-profile-vote="-1" aria-label="Не нравится" aria-pressed="false" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10v10H3V10h4Zm0 0 5-7a2 2 0 0 1 2 2v4h5a2 2 0 0 1 2 2l-1.5 7A2 2 0 0 1 17.5 20H7"/></svg><b>0</b></button>
+          </div>
+        </div>
+      </div>
+      <p class="profile-caption" id="public-friend-status" role="status" hidden></p>
+      <aside class="profile-ban" id="public-profile-ban" aria-labelledby="public-profile-ban-title" hidden>
+        <span class="profile-ban-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m6.5 6.5 11 11"/></svg></span>
+        <div><strong id="public-profile-ban-title">Аккаунт заблокирован</strong><p class="profile-note">Вход в GleamClient для этого аккаунта ограничен.</p></div>
+        <time id="public-profile-ban-date"></time>
+      </aside>
+      <dl class="public-contacts">
+        <div id="public-discord" hidden><dt>Discord</dt><dd></dd></div>
+        <div id="public-github" hidden><dt>GitHub</dt><dd><a rel="noopener noreferrer"></a></dd></div>
+      </dl>
+      <section class="profile-feedback" id="profile-feedback" aria-labelledby="profile-comments-title" hidden>
+        <h2 id="profile-comments-title">Комментарии</h2>
+        <p class="profile-note" id="profile-comments-gate" hidden>Комментировать можно с активным Plus.</p>
+        <a class="profile-share" id="profile-feedback-signin" hidden>Войти в GleamClient</a>
+        <form id="profile-comment-form" hidden>
+          <div class="auth-field"><label for="profile-comment-body">Ваш комментарий</label><textarea id="profile-comment-body" name="body" rows="3" maxlength="500" required></textarea></div>
+          <button type="submit" class="hero-action hero-action-primary">Отправить комментарий</button>
+        </form>
+        <p id="profile-feedback-status" class="profile-note" role="status" hidden></p>
+        <p id="profile-comments-empty" class="profile-note" hidden>Комментариев пока нет.</p>
+        <ul id="profile-comments"></ul>
+        <button type="button" class="hero-action hero-action-secondary" id="profile-comments-more" hidden>Показать ещё</button>
+      </section>
+    </section>
+    <div class="auth-language"><select class="language-select" data-language aria-label="Язык сайта"><option value="auto">Системный</option><option value="ru">Русский</option><option value="en">English</option><option value="de">Deutsch</option><option value="es">Español</option></select></div>
+  </main>
+  <footer class="auth-footer"><div><a href="/privacy.html">Конфиденциальность</a><a href="/terms.html">Условия использования</a></div><span>© 2026 GleamClient</span></footer>
+</body>
+</html>
