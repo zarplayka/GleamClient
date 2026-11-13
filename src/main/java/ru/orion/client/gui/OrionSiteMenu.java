@@ -243,8 +243,8 @@ final class OrionSiteMenu {
                         loaded.put("cosmetic-"+names[i]+"-preview", png(atlas.getSubimage(i * width, height, width, height)));
                     }
                 }
-                for (String pet : new String[]{"ember_fox", "moon_moth", "moss_turtle"}) {
-                    String name = "cosmetic-" + pet + "-item";
+                for (var pet : ru.orion.client.cosmetic.GleamPet.values()) {
+                    String name = "cosmetic-" + pet.id() + "-item";
                     loaded.put(name, read(MENU + "assets/" + name + ".png"));
                 }
                 menuImages = loaded;

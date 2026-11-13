@@ -132,6 +132,9 @@ public final class GleamPetRenderer {
     }
 
     private AABB placementBounds(Vec3 at) {
+        if (equipped == GleamPet.TARNKAPPE) {
+            return new AABB(at.x - .28D, at.y, at.z - .28D, at.x + .28D, at.y + .22D, at.z + .28D);
+        }
         if (equipped == GleamPet.MOON_MOTH) {
             return new AABB(at.x - .56D, at.y + .22D, at.z - .56D,
                     at.x + .56D, at.y + .92D, at.z + .56D);

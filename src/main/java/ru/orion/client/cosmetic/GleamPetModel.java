@@ -18,6 +18,8 @@ import net.minecraft.client.model.geom.builders.MeshDefinition;
 import net.minecraft.client.model.geom.builders.PartDefinition;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -30,8 +32,10 @@ final class GleamPetModel {
     private final KeyframeAnimation action;
     private final long actionMillis;
     private final ModelPart[] legs;
+    private final float[] meshVertices;
 
     private GleamPetModel(ModelPart root, AnimationDefinition idle, AnimationDefinition action, boolean grounded) {
+        this.meshVertices = null;
         this.root = root;
         this.parts = root.getAllParts();
         this.idle = idle.bake(root);
@@ -43,7 +47,18 @@ final class GleamPetModel {
         } : new ModelPart[0];
     }
 
+    private GleamPetModel(float[] meshVertices) {
+        this.meshVertices = meshVertices;
+        root = null;
+        parts = List.of();
+        idle = null;
+        action = null;
+        actionMillis = 0;
+        legs = new ModelPart[0];
+    }
+
     static GleamPetModel load(GleamPet pet) throws IOException {
+        if (pet == GleamPet.TARNKAPPE) return loadMesh(pet);
         String path = "/assets/orion-client/cosmetics/pets/" + pet.id() + ".json";
         try (var stream = GleamPetModel.class.getResourceAsStream(path)) {
             if (stream == null) throw new IOException("Модель питомца отсутствует: " + path);
@@ -56,6 +71,26 @@ final class GleamPetModel {
                 ModelPart root = LayerDefinition.create(mesh, data.get("width").getAsInt(), data.get("height").getAsInt()).bakeRoot();
                 return new GleamPetModel(root, clip(data.getAsJsonObject("idle"), true),
                         clip(data.getAsJsonObject("action"), false), pet.grounded());
+            }
+        }
+    }
+
+    private static GleamPetModel loadMesh(GleamPet pet) throws IOException {
+        String path = "/assets/orion-client/cosmetics/pets/" + pet.id() + ".mesh";
+        try (var resource = GleamPetModel.class.getResourceAsStream(path)) {
+            if (resource == null) throw new IOException("Модель питомца отсутствует: " + path);
+            try (var data = new DataInputStream(new BufferedInputStream(resource))) {
+                if (data.readInt() != 0x47504D31) throw new IOException("Неизвестный формат модели: " + path);
+                int triangles = data.readInt();
+                if (triangles < 1 || triangles > 10_000) throw new IOException("Неверный размер модели: " + path);
+                // Each triangle contains a normal followed by three vertices with position and UV.
+                float[] values = new float[triangles * 18];
+                for (int i = 0; i < values.length; i++) {
+                    values[i] = data.readFloat();
+                    if (!Float.isFinite(values[i])) throw new IOException("Некорректная координата: " + path);
+                }
+                if (data.read() != -1) throw new IOException("Некорректный размер модели: " + path);
+                return new GleamPetModel(values);
             }
         }
     }
@@ -109,6 +144,19 @@ final class GleamPetModel {
 
     void render(PoseStack.Pose transform, VertexConsumer vertices, int light, long ageMillis, long actionTime,
                 float stride, float movement) {
+        if (meshVertices != null) {
+            for (int triangle = 0; triangle < meshVertices.length; triangle += 18) {
+                float nx = meshVertices[triangle], ny = meshVertices[triangle + 1], nz = meshVertices[triangle + 2];
+                // Entity cutout batches quads. Repeating the final vertex makes the second triangle degenerate.
+                for (int corner = 0; corner < 4; corner++) {
+                    int i = triangle + 3 + Math.min(corner, 2) * 5;
+                    vertices.addVertex(transform, meshVertices[i], meshVertices[i + 1], meshVertices[i + 2])
+                            .setUv(meshVertices[i + 3], meshVertices[i + 4]).setColor(-1)
+                            .setOverlay(OverlayTexture.NO_OVERLAY).setLight(light).setNormal(transform, nx, ny, nz);
+                }
+            }
+            return;
+        }
         for (ModelPart part : parts) part.resetPose();
         if (actionTime >= 0 && actionTime <= actionMillis) {
             action.apply(actionTime, 1F);
