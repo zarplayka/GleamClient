@@ -1,3 +1,4 @@
+//? if >=26.1 {
 package ru.orion.client.mixin;
 
 import net.minecraft.client.gui.Font;
@@ -81,3 +82,4 @@ public abstract class OrionChatAnimationMixin {
         if (progress < 1F) args.set(2, args.<Float>get(2) * (float) Math.sin(progress * Math.PI / 2D));
     }
 }
+//?}

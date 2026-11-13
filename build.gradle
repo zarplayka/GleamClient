@@ -1,7 +1,12 @@
 plugins {
-    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'net.fabricmc.fabric-loom' version "${loom_version}" apply false
+    id 'net.fabricmc.fabric-loom-remap' version "${loom_version}" apply false
     id 'maven-publish'
 }
+
+def legacyMinecraft = stonecutter.eval(minecraft_version, '<26.1')
+apply plugin: legacyMinecraft ? 'net.fabricmc.fabric-loom-remap' : 'net.fabricmc.fabric-loom'
+def targetJava = legacyMinecraft ? 21 : 25
 
 version = project.mod_version
 group = project.maven_group
@@ -12,8 +17,14 @@ base {
 
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
-    implementation "net.fabricmc:fabric-loader:${loader_version}"
-    implementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    if (legacyMinecraft) {
+        mappings loom.officialMojangMappings()
+        modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+        modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    } else {
+        implementation "net.fabricmc:fabric-loader:${loader_version}"
+        implementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    }
     // Полноценный безопасный YAML-парсер для пословного формата Lyricsfile.
     implementation include('org.yaml:snakeyaml:2.5')
 }
@@ -48,7 +59,7 @@ processResources {
     inputs.property "minecraft_version", minecraft_version
 
     filesMatching("fabric.mod.json") {
-        expand "version": inputs.properties.version, "minecraft_version": minecraft_version
+        expand "version": inputs.properties.version, "minecraft_version": minecraft_version, "java_version": targetJava
     }
 }
 
@@ -59,6 +70,14 @@ processResources.doLast {
         mixins.client.removeAll(['ClientClockInstanceMixin', 'EnchantGlintItemMixin', 'EnchantGlintShieldMixin'])
         mixins.client.addAll(['GleamLumenVertexMixin', 'GleamLegacyGlintMixin', 'GleamLegacySlotDropMixin'])
     }
+    if (legacyMinecraft) {
+        mixins.client.removeAll(['EnchantGlintLayerMixin'])
+        mixins.client.addAll(['GleamLegacyFoilMixin', 'GleamLegacyShieldFoilMixin', 'GleamLegacyGlintBufferMixin'])
+        mixins.client.removeAll(['ClientClockManagerMixin', 'ProjectionMixin', 'OrionZoomCameraMixin', 'OrionZoomBobbingMixin'])
+        mixins.client.removeAll(['ChatHistoryMixin', 'OrionChatAnimationMixin', 'OrionChatRulesMixin', 'FogRendererMixin'])
+        mixins.client.addAll(['GleamLegacyCameraMixin', 'GleamLegacyTimeMixin', 'GleamLegacyFogMixin', 'GleamNativeImageAccessor', 'GleamLegacyGameRendererAccessor', 'GleamLegacyChatHistoryMixin', 'GleamLegacyChatAnimationMixin', 'GleamLegacyChatRulesMixin'])
+    }
+    mixins.client.add('GleamRenderTypeAccess')
     descriptor.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(mixins)) + '\n'
 }
 
@@ -66,14 +85,15 @@ tasks.withType(AbstractArchiveTask).configureEach { archiveVersion = '' }
 
 tasks.withType(JavaCompile).configureEach {
     it.options.encoding = 'UTF-8'
-    it.options.release = 25
+    it.options.compilerArgs += ['-Xmaxerrs', '1000']
+    it.options.release = targetJava
 }
 
 java {
     withSourcesJar()
 
-    sourceCompatibility = JavaVersion.VERSION_25
-    targetCompatibility = JavaVersion.VERSION_25
+    sourceCompatibility = JavaVersion.toVersion(targetJava)
+    targetCompatibility = JavaVersion.toVersion(targetJava)
 }
 
 jar {
@@ -99,4 +119,65 @@ tasks.register('writeRuntimeClasspath') {
     def output = layout.buildDirectory.file('runtime-classpath.txt')
     outputs.file(output)
     doLast { output.get().asFile.text = sourceSets.main.runtimeClasspath.asPath }
+}
+
+// В 1.21.11 GUI-сборщик ещё называется GuiGraphics, с render вместо extractRenderState.
+stonecutter.replacements {
+    string { direction = !legacyMinecraft; replace('net/minecraft/client/renderer/state/CameraRenderState;', 'net/minecraft/client/renderer/state/level/CameraRenderState;') }
+    string { direction = !legacyMinecraft; replace('net/minecraft/client/renderer/state/LevelRenderState;', 'net/minecraft/client/renderer/state/level/LevelRenderState;') }
+    string { direction = !legacyMinecraft; replace('net/minecraft/client/renderer/state/SkyRenderState;', 'net/minecraft/client/renderer/state/level/SkyRenderState;') }
+    string { direction = !legacyMinecraft; replace('net/minecraft/client/renderer/state/CameraEntityRenderState;', 'net/minecraft/client/renderer/state/level/CameraEntityRenderState;') }
+    string { direction = !legacyMinecraft; replace('net/minecraft/client/renderer/state/PlayerRenderState;', 'net/minecraft/client/renderer/state/level/PlayerRenderState;') }
+    string { direction = !legacyMinecraft; replace('renderCrosshair', 'extractCrosshair') }
+    string { direction = !legacyMinecraft; replace('renderFood', 'extractFood') }
+    string { direction = !legacyMinecraft; replace('renderHearts', 'extractHearts') }
+    string { direction = !legacyMinecraft; replace('renderItemHotbar', 'extractItemHotbar') }
+    string { direction = !legacyMinecraft; replace('renderContents', 'extractContents') }
+    string { direction = !legacyMinecraft; replace('renderWithTooltipAndSubtitles', 'extractRenderStateWithTooltipAndSubtitles') }
+    string { direction = !legacyMinecraft; replace('renderTransparentBackground', 'extractTransparentBackground') }
+    string { direction = !legacyMinecraft; replace('renderMenuBackground', 'extractMenuBackground') }
+    string { direction = !legacyMinecraft; replace('renderPanorama', 'extractPanorama') }
+    string { direction = !legacyMinecraft; replace('handleInventoryMouseClick', 'handleContainerInput') }
+    string { direction = !legacyMinecraft; replace('drawString(Lnet/minecraft/client/gui/Font;', 'text(Lnet/minecraft/client/gui/Font;') }
+    regex { id = 'legacy_gui'; direction = !legacyMinecraft; replace('\\brender\\b', 'extractRenderState', '\\bextractRenderState\\b', 'render') }
+    string { direction = !legacyMinecraft; replace('context.renderItem(', 'context.item(') }
+    string { direction = !legacyMinecraft; replace('context.renderItemDecorations(', 'context.itemDecorations(') }
+    string { direction = !legacyMinecraft; replace('renderImage(Font font,', 'extractImage(Font font,') }
+    string { direction = !legacyMinecraft; replace('original.render(context,', 'original.extractRenderState(context,') }
+    string { direction = !legacyMinecraft; replace('net/minecraft/client/GuiMessage', 'net/minecraft/client/multiplayer/chat/GuiMessage') }
+    string { direction = !legacyMinecraft; replace('.matrices()', '.poseStack()') }
+    string { direction = !legacyMinecraft; replace('ScreenEvents.afterRender(', 'ScreenEvents.afterExtract(') }
+    string { direction = !legacyMinecraft; replace('PayloadTypeRegistry.playS2C()', 'PayloadTypeRegistry.clientboundPlay()') }
+    string { direction = !legacyMinecraft; replace('renderBackground(', 'extractBackground(') }
+    string { direction = !legacyMinecraft; replace('net.minecraft.client.GuiMessageTag', 'net.minecraft.client.multiplayer.chat.GuiMessageTag') }
+    string { direction = !legacyMinecraft; replace('net.minecraft.client.GuiMessage', 'net.minecraft.client.multiplayer.chat.GuiMessage') }
+    string { direction = !legacyMinecraft; replace('ClientCommandManager', 'ClientCommands') }
+    string { direction = !legacyMinecraft; replace('submitGuiElement(', 'addGuiElement(') }
+    string { direction = !legacyMinecraft; replace('graphics.submitEntityRenderState(', 'graphics.entity(') }
+    string { direction = !legacyMinecraft; replace('registerKeyBinding(', 'registerKeyMapping(') }
+    string { direction = !legacyMinecraft; replace('net.minecraft.client.gui.render.state.GuiElementRenderState', 'net.minecraft.client.renderer.state.gui.GuiElementRenderState') }
+    string { direction = !legacyMinecraft; replace('net.minecraft.client.gui.render.state.GuiRenderState', 'net.minecraft.client.renderer.state.gui.GuiRenderState') }
+    string { direction = !legacyMinecraft; replace('net.minecraft.client.renderer.state.SkyRenderState', 'net.minecraft.client.renderer.state.level.SkyRenderState') }
+    string { direction = !legacyMinecraft; replace('net.minecraft.world.inventory.ClickType', 'net.minecraft.world.inventory.ContainerInput') }
+    string { direction = !legacyMinecraft; replace('net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper', 'net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper') }
+    string { direction = !legacyMinecraft; replace('KeyBindingHelper', 'KeyMappingHelper') }
+    string { direction = !legacyMinecraft; replace('net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext', 'net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext') }
+    string { direction = !legacyMinecraft; replace('net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents', 'net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents') }
+    string { direction = !legacyMinecraft; replace('WorldRenderContext', 'LevelRenderContext') }
+    string { direction = !legacyMinecraft; replace('WorldRenderEvents', 'LevelRenderEvents') }
+    string { direction = !legacyMinecraft; replace('.BEFORE_ENTITIES', '.COLLECT_SUBMITS') }
+    string { direction = !legacyMinecraft; replace('.commandQueue()', '.submitNodeCollector()') }
+    string { direction = !legacyMinecraft; replace('.worldState()', '.levelState()') }
+    string { direction = !legacyMinecraft; replace('net.minecraft.client.renderer.state.CameraRenderState', 'net.minecraft.client.renderer.state.level.CameraRenderState') }
+    string { direction = !legacyMinecraft; replace('net.minecraft.client.renderer.state.LevelRenderState', 'net.minecraft.client.renderer.state.level.LevelRenderState') }
+    string { direction = !legacyMinecraft; replace('net.minecraft.client.gui.render.state.BlitRenderState', 'net.minecraft.client.renderer.state.gui.BlitRenderState') }
+    regex { direction = !legacyMinecraft; replace('\\bClickType\\b', 'ContainerInput', '\\bContainerInput\\b', 'ClickType') }
+    regex {
+        direction = !legacyMinecraft
+        replace('\\bGuiGraphics\\b', 'GuiGraphicsExtractor', '\\bGuiGraphicsExtractor\\b', 'GuiGraphics')
+    }
+    string {
+        direction = !legacyMinecraft
+        replace('super.render(context,', 'super.extractRenderState(context,')
+    }
 }

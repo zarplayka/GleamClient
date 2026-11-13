@@ -16,6 +16,7 @@ fn embed_client_jars() {
     let output = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let mut manifest: Option<Vec<serde_json::Value>> = None;
     for (version, override_var) in [
+        ("1.21.11", "GLEAM_CLIENT_JAR_1_21_11"),
         ("26.1.2", "GLEAM_CLIENT_JAR_26_1_2"),
         ("26.2", "GLEAM_CLIENT_JAR_26_2"),
         ("26.3", "GLEAM_CLIENT_JAR"),

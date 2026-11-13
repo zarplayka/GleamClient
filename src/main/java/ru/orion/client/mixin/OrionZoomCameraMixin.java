@@ -1,3 +1,4 @@
+//? if >=26.1 {
 package ru.orion.client.mixin;
 
 import net.minecraft.client.Camera;
@@ -28,3 +29,4 @@ public abstract class OrionZoomCameraMixin {
         }
     }
 }
+//?}

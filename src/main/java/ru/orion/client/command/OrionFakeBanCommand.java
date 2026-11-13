@@ -168,11 +168,11 @@ public final class OrionFakeBanCommand {
                 .append(Component.literal(SECOND_LINE_INDENT).append(text(reason)))
                 .append("\n");
 
-        GleamMinecraft.chat(client).addClientSystemMessage(message);
+        GleamMinecraft.addChatMessage(client, message);
     }
 
     private static void feedback(Minecraft client, String message) {
-        GleamMinecraft.chat(client).addClientSystemMessage(Component.literal(message));
+        GleamMinecraft.addChatMessage(client, Component.literal(message));
     }
 
     private static MutableComponent icon() {

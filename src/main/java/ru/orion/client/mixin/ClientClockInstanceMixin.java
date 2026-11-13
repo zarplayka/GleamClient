@@ -1,3 +1,4 @@
+//? if >=26.1 {
 package ru.orion.client.mixin;
 
 //? if >=26.3 {
@@ -31,4 +32,5 @@ public abstract class ClientClockInstanceMixin implements OrionOverworldClock {
     }
 }
 
+//?}
 //?}

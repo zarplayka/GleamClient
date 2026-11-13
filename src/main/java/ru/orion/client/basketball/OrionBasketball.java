@@ -25,6 +25,9 @@ public final class OrionBasketball {
     public OrionBasketball(OrionConfigManager manager) { this.manager=manager; }
     public void register() {
         OrionBasketballSettings.bind(manager);
+        //? if <26.1 {
+        /*GleamBasketballHands.register();
+        *///?}
         OrionBasketballInput.register();
         OrionHoopStore.load();migrateLegacyHoops();
         OrionBasketballController.register();OrionBasketballScene.register();

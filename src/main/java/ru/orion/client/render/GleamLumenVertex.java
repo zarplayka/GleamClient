@@ -8,7 +8,11 @@ public interface GleamLumenVertex {
         for (int id = 0; id < com.mojang.blaze3d.vertex.VertexFormatElement.MAX_COUNT; id++) {
             if (com.mojang.blaze3d.vertex.VertexFormatElement.byId(id) == null) {
                 return com.mojang.blaze3d.vertex.VertexFormatElement.register(
+                                                //? if >=26.1 {
                         id, 3, com.mojang.blaze3d.vertex.VertexFormatElement.Type.FLOAT, false, 2);
+                        //?} else {
+                        /^id, 3, com.mojang.blaze3d.vertex.VertexFormatElement.Type.FLOAT, com.mojang.blaze3d.vertex.VertexFormatElement.Usage.UV, 2);
+                        ^///?}
             }
         }
         throw new IllegalStateException("No free vertex format element for Lumen UV3");

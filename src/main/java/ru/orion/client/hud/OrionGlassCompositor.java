@@ -89,10 +89,10 @@ public final class OrionGlassCompositor {
         DynamicTexture mask = existing == null ? null : existing.texture();
         MaskLayout maskLayout = existing == null ? null : existing.layout();
         if (layout.equals(maskLayout) && mask != null && mask.getPixels() != null
-                && !mask.getPixels().isClosed()) {
+                && !ru.orion.client.render.GleamNativeImages.isClosed(mask.getPixels())) {
             return;
         }
-        boolean recreate = mask == null || mask.getPixels() == null || mask.getPixels().isClosed()
+        boolean recreate = mask == null || mask.getPixels() == null || ru.orion.client.render.GleamNativeImages.isClosed(mask.getPixels())
                 || maskLayout == null || maskLayout.pixelWidth() != layout.pixelWidth()
                 || maskLayout.pixelHeight() != layout.pixelHeight();
         NativeImage pixels = recreate ? new NativeImage(layout.pixelWidth(), layout.pixelHeight(), true) : mask.getPixels();

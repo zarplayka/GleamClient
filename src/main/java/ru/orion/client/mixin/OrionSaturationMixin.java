@@ -59,7 +59,7 @@ public abstract class OrionSaturationMixin {
 
     @Inject(method = "extractFood", at = @At("RETURN"))
     private void orion$drawFood(GuiGraphicsExtractor context, Player player, int y, int right, CallbackInfo callback) {
-        if (OrionSaturationOverlay.enabled()) orion$saturation.renderFood(context, player, right);
+        if (OrionSaturationOverlay.enabled()) orion$saturation.extractFood(context, player, right);
     }
 
     @Inject(method = "extractHearts", at = @At("RETURN"))

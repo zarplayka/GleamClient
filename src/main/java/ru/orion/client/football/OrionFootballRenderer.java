@@ -129,9 +129,9 @@ public final class OrionFootballRenderer {
             var block=BlockPos.containing(point.x(),point.y(),point.z());var level=Minecraft.getInstance().level;
             int light=level==null?0xF000F0:(level.getBrightness(LightLayer.BLOCK,block)<<4)|(level.getBrightness(LightLayer.SKY,block)<<20);
             //? if >=26.3 {
-            context.submitNodeCollector().submitModel(keeperModel,state,pose,RenderTypes.entityCutout(KEEPER_TEXTURE),light,OverlayTexture.NO_OVERLAY,-1);
+            context.submitNodeCollector().submitModel(keeperModel,state,pose,RenderTypes.entityCutout(KEEPER_TEXTURE),light,OverlayTexture.NO_OVERLAY,0);
             //?} else {
-                        /*context.submitNodeCollector().submitModel(keeperModel,state,pose,RenderTypes.entityCutout(KEEPER_TEXTURE),light,OverlayTexture.NO_OVERLAY,-1,null);
+                        /*context.submitNodeCollector().submitModel(keeperModel,state,pose,RenderTypes.entityCutout(KEEPER_TEXTURE),light,OverlayTexture.NO_OVERLAY,0,null);
             *///?}
 
             pose.popPose();

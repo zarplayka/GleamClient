@@ -27,6 +27,7 @@ type ModArtifact = (&'static str, &'static str, u64);
 
 struct GameProfile {
     version: &'static str,
+    java_major: u64,
     client: &'static [u8],
     fabric_api_id: &'static str,
     fabric_api: ModArtifact,
@@ -36,6 +37,7 @@ struct GameProfile {
 // Optimizer artifacts are the fallback when the Modrinth API is unavailable.
 static PROFILE_26_3: GameProfile = GameProfile {
     version: "26.3",
+    java_major: 25,
     client: include_bytes!(concat!(env!("OUT_DIR"), "/gleamclient-mc26.3.jar")),
     fabric_api_id: "998R2rNP",
     fabric_api: (
@@ -69,6 +71,7 @@ static PROFILE_26_3: GameProfile = GameProfile {
 
 static PROFILE_26_2: GameProfile = GameProfile {
     version: "26.2",
+    java_major: 25,
     client: include_bytes!(concat!(env!("OUT_DIR"), "/gleamclient-mc26.2.jar")),
     fabric_api_id: "ewUK83HI",
     fabric_api: (
@@ -102,6 +105,7 @@ static PROFILE_26_2: GameProfile = GameProfile {
 
 static PROFILE_26_1_2: GameProfile = GameProfile {
     version: "26.1.2",
+    java_major: 25,
     client: include_bytes!(concat!(env!("OUT_DIR"), "/gleamclient-mc26.1.2.jar")),
     fabric_api_id: "3dM0X6ou",
     fabric_api: (
@@ -133,7 +137,41 @@ static PROFILE_26_1_2: GameProfile = GameProfile {
     ],
 };
 
-const GAME_PROFILES: [&GameProfile; 3] = [&PROFILE_26_3, &PROFILE_26_2, &PROFILE_26_1_2];
+static PROFILE_1_21_11: GameProfile = GameProfile {
+    version: "1.21.11",
+    java_major: 21,
+    client: include_bytes!(concat!(env!("OUT_DIR"), "/gleamclient-mc1.21.11.jar")),
+    fabric_api_id: "6qAuTtLR",
+    fabric_api: (
+        "P7dR8mSH/versions/6qAuTtLR/fabric-api-0.141.6%2B1.21.11.jar",
+        "c98467cbbaf4d197377266795ae015f4130d65b6",
+        2426039,
+    ),
+    optimizers: [
+        (
+            "AANobbMI/versions/rkdTcxoT/sodium-fabric-0.8.14%2Bmc1.21.11.jar",
+            "4a8733fe544168068d12fa94b2ab03e6c0c7bf91",
+            1909150,
+        ),
+        (
+            "gvQqBUqZ/versions/Ow7wA0kG/lithium-fabric-0.21.4%2Bmc1.21.11.jar",
+            "203bdcb26e97b3217b045e1182651a7d7b6462ec",
+            900462,
+        ),
+        (
+            "NNAgCjsB/versions/hsBqkNc8/entityculling-fabric-1.12.1-mc1.21.11.jar",
+            "75ede5f8df348f49102d16eb76da3dd1491dfb79",
+            1543255,
+        ),
+        (
+            "5ZwdcRci/versions/4EwhsTu7/ImmediatelyFast-Fabric-1.14.3%2B1.21.11.jar",
+            "43e451464f979bdf9ff4ac288b358a2f91b79ed8",
+            302709,
+        ),
+    ],
+};
+
+const GAME_PROFILES: [&GameProfile; 4] = [&PROFILE_26_3, &PROFILE_26_2, &PROFILE_26_1_2, &PROFILE_1_21_11];
 
 pub(crate) fn supported_versions() -> impl Iterator<Item = &'static str> {
     GAME_PROFILES.into_iter().map(|profile| profile.version)
@@ -586,7 +624,7 @@ impl Installer<'_> {
             entry,
             &cache.join("versions").join(format!("{minecraft}.json")),
         )?;
-        if version["id"] != minecraft || version["javaVersion"]["majorVersion"] != 25 {
+        if version["id"] != minecraft || version["javaVersion"]["majorVersion"].as_u64() != Some(self.profile.java_major) {
             return Err("game_metadata".into());
         }
         let component = string(&version["javaVersion"]["component"])?;
@@ -614,7 +652,7 @@ impl Installer<'_> {
     ) -> Result<Installation> {
         let minecraft = self.profile.version;
         let version = &metadata.version;
-        if version["id"] != minecraft || version["javaVersion"]["majorVersion"] != 25 {
+        if version["id"] != minecraft || version["javaVersion"]["majorVersion"].as_u64() != Some(self.profile.java_major) {
             return Err("game_metadata".into());
         }
         let runtime = self.java(&version["javaVersion"], &metadata.java_manifest, cache)?;
@@ -997,6 +1035,7 @@ mod tests {
             let metadata: Value = serde_json::from_reader(jar.by_name("fabric.mod.json").unwrap()).unwrap();
             assert_eq!(metadata["id"], "orion-client");
             assert_eq!(metadata["depends"]["minecraft"], profile.version);
+            assert_eq!(metadata["depends"]["java"], format!(">={}", profile.java_major));
         }
     }
 

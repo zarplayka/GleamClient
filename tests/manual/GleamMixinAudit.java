@@ -42,7 +42,36 @@ public final class GleamMixinAudit {
                     for(var selector:list(selectors)) {
                         String s=selector.toString();int paren=s.indexOf('(');String n=paren<0?s:s.substring(0,paren);String d=paren<0?null:s.substring(paren);
                         var matches=target.methods.stream().filter(m->m.name.equals(n)&&(d==null||m.desc.equals(d))).toList();checks++;
-                        if(matches.isEmpty()){System.out.println(item.getAsString()+" METHOD "+s);failures++;}selected.addAll(matches);
+                        if(matches.isEmpty()){System.out.println(item.getAsString()+" METHOD "+s);failures++;}
+                        if(d==null && matches.size()>1 && injection.desc.endsWith("/Inject;")) {
+                            var parameters=Type.getArgumentTypes(method.desc);
+                            int callback=0;while(callback<parameters.length && !parameters[callback].getClassName().startsWith("org.spongepowered.asm.mixin.injection.callback.CallbackInfo"))callback++;
+                            if(callback>0) for(var match:matches) {
+                                checks++;
+                                if(!Arrays.equals(Arrays.copyOf(parameters,callback),Type.getArgumentTypes(match.desc))) {
+                                    System.out.println(item.getAsString()+" OVERLOAD_SIGNATURE "+s+" requires an explicit descriptor");failures++;
+                                }
+                            }
+                        }
+                        selected.addAll(matches);
+                    }
+                    if(method.name.equals("orion$basketballHands") && selected.stream().anyMatch(targetMethod -> {
+                        for(var insn:targetMethod.instructions) if(insn instanceof MethodInsnNode call && call.name.equals("renderAllFeatures")) return true;
+                        return false;
+                    })) {
+                        int flush=-1,batch=-1,cancel=-1,index=0;
+                        for(var insn:method.instructions) {
+                            if(insn instanceof MethodInsnNode call) {
+                                if(call.name.equals("renderAllFeatures"))flush=index;
+                                if(call.name.equals("endBatch"))batch=index;
+                                if(call.name.equals("cancel"))cancel=index;
+                            }
+                            index++;
+                        }
+                        checks++;
+                        if(flush<0 || batch<flush || cancel<batch) {
+                            System.out.println(item.getAsString()+" HANDS_FLUSH cancellation skips the vanilla render queue flush");failures++;
+                        }
                     }
                     for(var at:ats(injection)) {
                         String ref=(String)value(at,"target");if(ref==null||!"INVOKE".equals(value(at,"value")))continue;
@@ -68,6 +97,22 @@ public final class GleamMixinAudit {
                     }
                 }
             }
+        }
+        // Короткий submitModel принимает outlineColor, а не цвет текстуры: -1 даёт белую маску.
+        var keeperPath=classes.resolve("ru/orion/client/football/OrionFootballRenderer.class");
+        if(Files.isRegularFile(keeperPath)) {
+            var keeper=new ClassNode();new ClassReader(Files.readAllBytes(keeperPath)).accept(keeper,0);
+            for(var method:keeper.methods)if(method.name.equals("goal"))for(var insn:method.instructions)
+                if(insn instanceof MethodInsnNode call && call.name.equals("submitModel")) {
+                    var outline=insn.getPrevious();while(outline!=null && outline.getOpcode()<0)outline=outline.getPrevious();
+                    if(outline!=null && outline.getOpcode()==Opcodes.ACONST_NULL) {
+                        outline=outline.getPrevious();while(outline!=null && outline.getOpcode()<0)outline=outline.getPrevious();
+                    }
+                    checks++;
+                    if(outline==null || outline.getOpcode()!=Opcodes.ICONST_0) {
+                        System.out.println("OrionFootballRenderer KEEPER_OUTLINE must be zero, not a white silhouette");failures++;
+                    }
+                }
         }
         System.out.println("MIXIN_AUDIT "+checks+" checks, "+failures+" unresolved targets");
         if(failures>0)System.exit(1);

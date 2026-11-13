@@ -111,7 +111,7 @@ public final class OrionFootball {
             if(!loaded){message(client,"Дождитесь загрузки ворот");continue;}
             if(!placing){
                 placing=true;movingIndex=-1;yawOffset=0;
-                GleamMinecraft.chat(client).addClientSystemMessage(Component.literal("[Футбол] Наведи на землю и нажми ")
+                GleamMinecraft.addChatMessage(client, Component.literal("[Футбол] Наведи на землю и нажми ")
                         .withStyle(ChatFormatting.WHITE)
                         .append(Component.literal(goalKey.getTranslatedKeyMessage().getString()).withStyle(ChatFormatting.GOLD))
                         .append(" ещё раз"));
@@ -199,7 +199,7 @@ public final class OrionFootball {
     private void sound(Minecraft c,OrionFootballPhysics.Contact kind,OrionBasketballVector p,double speed){long now=System.nanoTime();if(kind==OrionFootballPhysics.Contact.NET)netAt=now;if(now-lastSound<100_000_000)return;lastSound=now;
         var sound=kind==OrionFootballPhysics.Contact.POST?SoundEvents.METAL_HIT:SoundEvents.WOOL_HIT;
         c.level.playLocalSound(p.x(),p.y(),p.z(),sound,SoundSource.PLAYERS,(float)Math.min(1,speed/8),.8F,false);}
-    private static void message(Minecraft c,String text){GleamMinecraft.chat(c).addClientSystemMessage(Component.literal("[Футбол] "+text));}
+    private static void message(Minecraft c,String text){GleamMinecraft.addChatMessage(c, Component.literal("[Футбол] "+text));}
     private void clear(){level=null;worldKey=null;goals.clear();keepers.clear();ballExists=false;placing=false;charging=false;shotActive=false;preview=null;score=shots=saves=misses=0;goalAt=netAt=0;}
     private void drain(){if(ballKey==null)return;for(var key:new KeyMapping[]{ballKey,goalKey,moveKey,removeKey,keeperKey,rotateLeft,rotateRight,penaltyKey})while(key.consumeClick()){} }
 }

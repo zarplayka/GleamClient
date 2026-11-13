@@ -379,7 +379,11 @@ public final class OrionBasketballController {
    }
 
    public static Vec3 helper39(float var0) {
+      //? if <26.1 {
+      /*return GleamBasketballHands.heldOffset(var0);
+      *///?} else {
       return new Vec3(0.31 - 0.22 * var0, -0.27 + 0.36 * var0, 0.52 - 0.09 * var0);
+      //?}
    }
 
    private static void updateDribble(Minecraft var0, OrionBasketballSettings var1, boolean var2) {

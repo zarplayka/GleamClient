@@ -45,7 +45,7 @@ public final class OrionSkinLayers {
     private OrionSkinLayers() {}
 
     public static void capture(Identifier id, NativeImage image) {
-        if (EXTERNAL || image == null || image.isClosed() || image.getWidth() != 64 || image.getHeight() != 64) return;
+        if (EXTERNAL || image == null || ru.orion.client.render.GleamNativeImages.isClosed(image) || image.getWidth() != 64 || image.getHeight() != 64) return;
         int[] pixels = new int[4096];
         for (int y = 0; y < 64; y++) for (int x = 0; x < 64; x++) pixels[y * 64 + x] = image.getPixel(x, y);
         synchronized (SKINS) {

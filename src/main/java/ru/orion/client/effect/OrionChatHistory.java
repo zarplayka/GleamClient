@@ -9,7 +9,11 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.multiplayer.chat.GuiMessage;
+//? if >=26.1 {
 import net.minecraft.client.multiplayer.chat.GuiMessageSource;
+//?} else {
+/*
+*///?}
 import net.minecraft.client.multiplayer.chat.GuiMessageTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
@@ -86,8 +90,12 @@ public final class OrionChatHistory {
         List<GuiMessage> existing = ((OrionChatHistoryAccessor) (Object) chat).orion$getMessages();
         Collections.reverse(messages);
         int oldTick = GleamMinecraft.guiTicks(Minecraft.getInstance()) - 500;
+    //? if >=26.1 {
         for (Component message : messages) existing.add(new GuiMessage(oldTick, message, null,
                 GuiMessageSource.SYSTEM_CLIENT, GuiMessageTag.systemSinglePlayer()));
+    //?} else {
+    /*for (Component message : messages) existing.add(new GuiMessage(oldTick, message, null, GuiMessageTag.systemSinglePlayer()));
+    *///?}
         ((OrionChatHistoryAccessor) (Object) chat).orion$refreshMessages();
     }
     public static void record(Component message) {

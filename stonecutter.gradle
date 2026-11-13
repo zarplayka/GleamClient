@@ -51,7 +51,8 @@ def collect = tasks.register('collectArtifacts', Sync) {
 
 gradle.projectsEvaluated {
     subprojects.each { target ->
-        collect.configure { from(target.tasks.named('jar')); from(target.tasks.named('sourcesJar')) }
+        def remapped = target.name == '1.21.11'
+        collect.configure { from(target.tasks.named(remapped ? 'remapJar' : 'jar')); from(target.tasks.named(remapped ? 'remapSourcesJar' : 'sourcesJar')) }
         def audit = target.tasks.register('auditMixins', JavaExec) {
             dependsOn compileMixinAudit, target.tasks.named('classes')
             classpath = rootProject.files(compileMixinAudit.flatMap { it.destinationDirectory }) + rootProject.configurations.mixinAuditTools

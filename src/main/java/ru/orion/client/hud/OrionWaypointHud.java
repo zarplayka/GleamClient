@@ -45,11 +45,11 @@ public final class OrionWaypointHud {
             releaseAll(); return;
         }
         if (GleamMinecraft.screen(client) != null) return;
-        var camera = GleamMinecraft.renderState(client).levelRenderState.cameraRenderState;
-        if (camera == null || !camera.initialized || camera.pos == null || camera.projectionMatrix == null || camera.viewRotationMatrix == null) return;
+        var camera = GleamMinecraft.levelState(client).cameraRenderState;
+        if (camera == null || !camera.initialized || camera.pos == null || ru.orion.client.render.GleamCameraMatrices.projection(camera) == null || ru.orion.client.render.GleamCameraMatrices.view(camera) == null) return;
         int screenW = context.guiWidth(), screenH = context.guiHeight();
         if (screenW < 72 || screenH < 48) return;
-        Matrix4f matrix = new Matrix4f(camera.projectionMatrix).mul(camera.viewRotationMatrix);
+        Matrix4f matrix = new Matrix4f(ru.orion.client.render.GleamCameraMatrices.projection(camera)).mul(ru.orion.client.render.GleamCameraMatrices.view(camera));
         String world = OrionWaypoints.worldKey(client);
         List<Candidate> candidates = new ArrayList<>();
         if (config.isWaypointsEnabled()) for (var point : config.getWaypoints()) {

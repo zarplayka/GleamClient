@@ -15,7 +15,11 @@ import java.time.format.DateTimeFormatter;
 @Mixin(ChatComponent.class)
 public abstract class ChatTimeMixin {
     @Unique private static final DateTimeFormatter ORION_TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
+    //? if >=26.1 {
     @ModifyVariable(method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/multiplayer/chat/GuiMessageSource;Lnet/minecraft/client/multiplayer/chat/GuiMessageTag;)V", at = @At("HEAD"), argsOnly = true)
+    //?} else {
+    /*@ModifyVariable(method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/multiplayer/chat/GuiMessageTag;)V", at = @At("HEAD"), argsOnly = true)
+    *///?}
     private Component orion$timestamp(Component message) {
         var config = OrionClient.getConfigOrNull();
         if (config == null || !config.isChatTimeEnabled()) return message;

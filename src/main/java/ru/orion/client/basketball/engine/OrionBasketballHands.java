@@ -27,6 +27,9 @@ public final class OrionBasketballHands {
    }
 
    public static boolean renderHands(float var0, PoseStack var1, SubmitNodeCollector var2, LocalPlayer var3, int var4) {
+      //? if <26.1 {
+      /*return GleamBasketballHands.render(var0, var1, var2, var3, var4);
+      *///?} else {
       OrionBasketballSettings var5 = OrionBasketballSettings.get();
       if (var5.basket && var5.basketHands && OrionBasketballController.localHolding() && var3 != null) {
          Minecraft var6 = Minecraft.getInstance();
@@ -47,6 +50,7 @@ public final class OrionBasketballHands {
       } else {
          return false;
       }
+      //?}
    }
 
    private static void helper92(PoseStack var0, SubmitNodeCollector var1, int var2, Identifier var3, boolean var4, float var5) {

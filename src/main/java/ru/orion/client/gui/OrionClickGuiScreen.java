@@ -252,6 +252,7 @@ public final class OrionClickGuiScreen extends Screen {
     private OrionLumenView htmlMenu;
     private OrionSiteMenu siteMenu;
     private JsonArray siteCatalog;
+    private boolean siteItemScrollerAllowed;
     private String siteCatalogLanguage = "";
     private boolean siteActive;
     private String siteSection = "ALL", siteStatus = "";
@@ -573,7 +574,11 @@ public final class OrionClickGuiScreen extends Screen {
     @Override
     public void added() {
         super.added();
+        //? if >=26.1 {
         Minecraft.getInstance().onTextInputFocusChange(this, true);
+        //?} else {
+        /*
+        *///?}
     }
 
     @Override
@@ -586,7 +591,11 @@ public final class OrionClickGuiScreen extends Screen {
         lastHtmlMenuState = null;
         htmlModuleGrid = htmlActive = false;
         closeAccounts();
+        //? if >=26.1 {
         Minecraft.getInstance().onTextInputFocusChange(this, false);
+        //?} else {
+        /*
+        *///?}
         configManager.getConfig().setClickGuiLastSection(wasSite ? siteSection : selectedSection());
         configManager.save();
         Minecraft.getInstance().getTextureManager().release(GUI_TEXTURE);
@@ -618,7 +627,11 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     @Override
+    //? if >=26.1 {
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
+    //?} else {
+    /*public void render(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
+    *///?}
         super.extractRenderState(context, mouseX, mouseY, deltaTicks);
 
         applyPalette();
@@ -675,10 +688,13 @@ public final class OrionClickGuiScreen extends Screen {
     private JsonObject siteState() {
         var data = new JsonObject();
         String language = OrionGuiLanguage.language();
-        if (!language.equals(siteCatalogLanguage)) {
+        boolean itemScrollerAllowed = OrionItemScroller.isServerAllowed();
+        if (!language.equals(siteCatalogLanguage) || itemScrollerAllowed != siteItemScrollerAllowed) {
             siteCatalogLanguage = language;
+            siteItemScrollerAllowed = itemScrollerAllowed;
             siteCatalog = siteCatalog();
         }
+        if (settingsFor != null && !isModuleAvailable(settingsFor.action)) settingsFor = null;
         data.addProperty("language",language);
         data.addProperty("chatRoute", chatRoute);
         if (openTitleAccount) data.addProperty("openTitleAccount", true);
@@ -698,6 +714,7 @@ public final class OrionClickGuiScreen extends Screen {
         var enabled = new JsonArray();
         var favorites = new JsonArray();
         for (Action action : Action.VALUES) {
+            if (!isModuleAvailable(action)) continue;
             if (isActive(action)) enabled.add(action.name());
             if (!isCosmetic(action) && paradoxFavorites.contains(action)) favorites.add(action.name());
         }
@@ -2787,6 +2804,7 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void openSettings(ModuleRow row) {
+        if (!isModuleAvailable(row.action)) return;
         htmlReturnCategory = selectedCategory;
         htmlReturnScroll = moduleScroll;
         if (paradox) {
@@ -3894,7 +3912,7 @@ public final class OrionClickGuiScreen extends Screen {
         int pw = settingsAtlasGuiWidth * scale, ph = settingsAtlasGuiHeight * scale;
         renderSettingsImage(pw, ph);
         var client = Minecraft.getInstance();
-        if (settingsTexture == null || settingsTexture.getPixels() == null || settingsTexture.getPixels().isClosed() || settingsTexture.getPixels().getWidth() != pw || settingsTexture.getPixels().getHeight() != ph) {
+        if (settingsTexture == null || settingsTexture.getPixels() == null || ru.orion.client.render.GleamNativeImages.isClosed(settingsTexture.getPixels()) || settingsTexture.getPixels().getWidth() != pw || settingsTexture.getPixels().getHeight() != ph) {
             client.getTextureManager().release(SETTINGS_TEXTURE);
             NativeImage pixels = new NativeImage(pw, ph, true);
             settingsUploadPixels = copyPixels(settingsCanvas, pixels, settingsUploadPixels);
@@ -4002,7 +4020,7 @@ public final class OrionClickGuiScreen extends Screen {
             textureHeight = imageHeight;
         } else {
             NativeImage pixels = dynamicTexture.getPixels();
-            if (pixels == null || pixels.isClosed()) {
+            if (pixels == null || ru.orion.client.render.GleamNativeImages.isClosed(pixels)) {
                 lastFingerprint = null;
                 return;
             }
@@ -4093,7 +4111,7 @@ public final class OrionClickGuiScreen extends Screen {
         if (!fingerprint.equals(layer.fingerprint)) {
             layer.image = renderAccountLayerImage(layer.image, menu, left, top, width, height, pixelWidth, pixelHeight);
             NativeImage nativeImage = layer.texture == null ? null : layer.texture.getPixels();
-            if (nativeImage == null || nativeImage.isClosed() || nativeImage.getWidth() != pixelWidth || nativeImage.getHeight() != pixelHeight) {
+            if (nativeImage == null || ru.orion.client.render.GleamNativeImages.isClosed(nativeImage) || nativeImage.getWidth() != pixelWidth || nativeImage.getHeight() != pixelHeight) {
                 if (layer.texture != null) minecraft.getTextureManager().release(layer.id);
                 nativeImage = new NativeImage(pixelWidth, pixelHeight, true);
                 layer.pixels = copyPixels(layer.image, nativeImage, layer.pixels);
@@ -6864,6 +6882,7 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void toggle(Action action) {
+        if (!isModuleAvailable(action)) return;
         OrionConfig config = configManager.getConfig();
         switch (action) {
             case WINGS -> configManager.setWingsEnabled(!config.isWingsEnabled());
@@ -6994,7 +7013,7 @@ public final class OrionClickGuiScreen extends Screen {
             case HIT_BOX -> config.isHitBoxEnabled();
             case HIT_COLOR -> config.isHitColorEnabled();
             case SKIN_LAYERS -> config.isSkinLayersEnabled();
-            case ITEM_SCROLLER -> config.isItemScrollerEnabled();
+            case ITEM_SCROLLER -> OrionItemScroller.isServerAllowed() && config.isItemScrollerEnabled();
             case EMOTES -> config.isEmotesEnabled();
             case HIT_SOUND -> config.isHitSoundEnabled();
             case CROSSHAIR -> config.isCrosshairEnabled();
@@ -7007,6 +7026,7 @@ public final class OrionClickGuiScreen extends Screen {
         if (!searchQuery.isBlank()) {
             String query = searchQuery.toLowerCase(Locale.ROOT).trim();
             return Arrays.stream(ModuleRow.ALL)
+                    .filter(row -> isModuleAvailable(row.action))
                     .filter(row -> row.title.toLowerCase(Locale.ROOT).contains(query)
                             || (row.description.toLowerCase(Locale.ROOT).contains(query) || tr(row.description).toLowerCase(Locale.ROOT).contains(query)))
                     .toArray(ModuleRow[]::new);
@@ -7029,8 +7049,13 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private ModuleRow[] sortedThemeRows(ModuleRow[] rows) {
-        if (!paradox) return rows;
-        return Arrays.stream(rows).sorted(java.util.Comparator.comparing(row -> row.title.toLowerCase(Locale.ROOT))).toArray(ModuleRow[]::new);
+        var visible = Arrays.stream(rows).filter(row -> isModuleAvailable(row.action));
+        if (paradox) visible = visible.sorted(java.util.Comparator.comparing(row -> row.title.toLowerCase(Locale.ROOT)));
+        return visible.toArray(ModuleRow[]::new);
+    }
+
+    private static boolean isModuleAvailable(Action action) {
+        return action != Action.ITEM_SCROLLER || OrionItemScroller.isServerAllowed();
     }
 
     private void updateAnimations() {
@@ -7083,6 +7108,7 @@ public final class OrionClickGuiScreen extends Screen {
 
     private List<Integer> fingerprint(int scale, boolean contentOnly) {
         List<Integer> values = new ArrayList<>(32);
+        values.add(OrionItemScroller.isServerAllowed() ? 1 : 0);
         values.add(scale);
         values.add(OrionGuiLanguage.english() ? 1 : 0);
         values.add(guiDisplayWidth());

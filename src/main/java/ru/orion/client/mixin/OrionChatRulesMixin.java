@@ -1,3 +1,4 @@
+//? if >=26.1 {
 package ru.orion.client.mixin;
 
 import net.minecraft.client.gui.components.ChatComponent;
@@ -25,3 +26,4 @@ public abstract class OrionChatRulesMixin {
         return OrionChatRules.highlight(text, OrionClient.getConfigOrNull());
     }
 }
+//?}

@@ -11,7 +11,11 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
+//? if >=26.1 {
 import net.minecraft.util.LightCoordsUtil;
+//?} else {
+
+//?}
 import net.minecraft.world.entity.player.Player;
 //? if <26.2 {
 /*import net.minecraft.client.renderer.LevelRenderer;
@@ -161,7 +165,11 @@ public final class GleamPetRenderer {
         //? if >=26.2 {
         int light = LightCoordsUtil.getLightCoords(level, BlockPos.containing(point.add(0D, .5D, 0D)));
         //?} else {
-        /*int light = LevelRenderer.getLightCoords(level, BlockPos.containing(point.add(0D, .5D, 0D)));
+                /*//? if >=26.1 {
+int light = LevelRenderer.getLightCoords(level, BlockPos.containing(point.add(0D, .5D, 0D)));
+        //?} else {
+        /^int light = net.minecraft.client.renderer.LevelRenderer.getLightColor(level, BlockPos.containing(point.add(0D, .5D, 0D)));
+        ^///?}
         *///?}
         PoseStack pose = context.poseStack();
         pose.pushPose();
@@ -175,7 +183,7 @@ public final class GleamPetRenderer {
     public static void submitPreview(GleamPet pet, PoseStack pose, SubmitNodeCollector collector, long ageMillis) {
         pose.translate(-.88F, pet.grounded() ? .02F : .87F, -.10F);
         long phase = ageMillis % PREVIEW_ACTION_PERIOD;
-        submit(pet, pose, collector, LightCoordsUtil.FULL_BRIGHT, ageMillis, phase - 1_700L, 0F, 0F);
+        submit(pet, pose, collector, 0xF000F0, ageMillis, phase - 1_700L, 0F, 0F);
     }
 
     private static void submit(GleamPet pet, PoseStack pose, SubmitNodeCollector collector, int light,

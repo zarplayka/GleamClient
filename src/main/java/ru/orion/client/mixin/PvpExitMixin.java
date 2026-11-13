@@ -22,8 +22,10 @@ public abstract class PvpExitMixin {
     @Inject(method = "lambda$createPauseMenu$11()V", at = @At("HEAD"), cancellable = true)
     //?} elif >=26.2 {
     /*@Inject(method = "lambda$createPauseMenu$12()V", at = @At("HEAD"), cancellable = true)
-    *///?} else {
+    *///?} elif >=26.1 {
     /*@Inject(method = "lambda$createPauseMenu$7()V", at = @At("HEAD"), cancellable = true)
+    *///?} else {
+    /*@Inject(method = "method_72129()V", at = @At("HEAD"), cancellable = true)
     *///?}
     private void orion$confirmExit(CallbackInfo callback) {
         if (OrionPvpSafe.remainingSeconds() <= 0) return;

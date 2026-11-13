@@ -836,11 +836,21 @@ window.paradox = {
       setCategoriesExpanded(state.categoriesExpanded);
       if (state.page === 'configs') sendGame('configs',{tab:state.configTab});
       look = redraw = true;
-    } else if (data.language !== uiLanguage) {
-      applyGameLanguage(data.language);
+    } else if (data.language !== uiLanguage || catalog.length !== data.catalog.length
+        || data.catalog.some((item,index) => catalog[index]?.id !== item.id)) {
+      if (data.language !== uiLanguage) applyGameLanguage(data.language);
+      for (const item of data.catalog) {
+        const previous = byId.get(item.id);
+        if (previous) item.settings = previous.settings;
+      }
       catalog.splice(0,catalog.length,...data.catalog);
       ordered.splice(0,ordered.length,...data.catalog);
-      for (const item of data.catalog) byId.get(item.id).description = item.description;
+      byId.clear();
+      for (const item of data.catalog) byId.set(item.id,item);
+      if (state.module && !byId.has(state.module)) {
+        state.module = null;
+        if (state.page === 'module') state.page = 'all';
+      }
       presets.splice(0,presets.length,...data.presets);
       redraw = true;
     }

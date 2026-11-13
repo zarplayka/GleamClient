@@ -11,7 +11,11 @@ import ru.orion.client.effect.OrionFakeStaffList;
 @Mixin(ChatComponent.class)
 public abstract class ChatComponentMixin {
     @ModifyVariable(
+            //? if >=26.1 {
             method = {"addServerSystemMessage", "addClientSystemMessage"},
+            //?} else {
+            /*method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/multiplayer/chat/GuiMessageTag;)V",
+            *///?}
             at = @At("HEAD"),
             argsOnly = true
     )

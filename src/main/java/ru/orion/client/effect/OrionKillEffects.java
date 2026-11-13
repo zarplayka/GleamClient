@@ -326,7 +326,7 @@ public final class OrionKillEffects {
         double distance = manager.getConfig().getKillEffectsDistance();
         for (ActiveEffect effect : active) {
             if (effect.position().distanceToSqr(camera.pos) > distance * distance
-                    || camera.cullFrustum != null && !camera.cullFrustum.isVisible(effect.bounds())) continue;
+                    || !ru.orion.client.render.GleamCameraMatrices.visible(camera, effect.bounds())) continue;
             if (!effect.preview() && !manager.getConfig().isKillEffectsEnabled()) continue;
             float age = effect.age(now);
             if (age >= effect.definition().duration()) continue;

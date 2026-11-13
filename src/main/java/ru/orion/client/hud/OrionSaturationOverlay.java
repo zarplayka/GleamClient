@@ -54,7 +54,7 @@ public final class OrionSaturationOverlay {
         if (index >= 0 && index < foodY.length) foodY[index] = y;
     }
 
-    public void renderFood(GuiGraphicsExtractor context, Player player, int right) {
+    public void extractFood(GuiGraphicsExtractor context, Player player, int right) {
         var stats = player.getFoodData();
         float saturation = OrionFoodSync.saturation(player);
         drawSaturation(context, right, 0, saturation, 1F);

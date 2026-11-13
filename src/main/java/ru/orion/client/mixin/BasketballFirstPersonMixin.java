@@ -47,7 +47,14 @@ public abstract class BasketballFirstPersonMixin {
     //?} else {
     /*@Inject(method = LEGACY_HANDS_METHOD, at = @At("HEAD"), cancellable = true)
     private void orion$basketballHands(float partial,PoseStack pose,SubmitNodeCollector collector,net.minecraft.client.player.LocalPlayer player, int light,CallbackInfo callback) {
-        if(OrionBasketballHands.renderHands(partial,pose,collector,Minecraft.getInstance().player,light))callback.cancel();
+        if(OrionBasketballHands.renderHands(partial,pose,collector,Minecraft.getInstance().player,light)) {
+            //? if <26.2 {
+            // В 1.21.11/26.1 этот метод сам исполняет очередь рук. HEAD-cancel пропускает vanilla flush.
+            Minecraft.getInstance().gameRenderer.getFeatureRenderDispatcher().renderAllFeatures();
+            Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+            //?}
+            callback.cancel();
+        }
     }
     *///?}
 }

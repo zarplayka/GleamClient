@@ -1,3 +1,4 @@
+//? if >=26.1 {
 package ru.orion.client.mixin;
 
 import net.minecraft.client.renderer.Projection;
@@ -30,3 +31,4 @@ public class ProjectionMixin {
         }
     }
 }
+//?}

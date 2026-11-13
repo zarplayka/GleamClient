@@ -12,7 +12,11 @@ import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
 
 //?} else {
-/*import com.mojang.blaze3d.pipeline.ColorTargetState;
+/*//? if >=26.1 {
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+//?} else {
+/^
+^///?}
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTexture;
@@ -56,8 +60,16 @@ public final class OrionMotionBlur {
                     /*.withVertexFormat(com.mojang.blaze3d.vertex.DefaultVertexFormat.EMPTY, com.mojang.blaze3d.vertex.VertexFormat.Mode.TRIANGLES)
                     *///?}
                     .withCull(false)
+                    //? if >=26.1 {
                     .withDepthStencilState(Optional.empty())
+                    //?} else {
+                    /*.withDepthTestFunction(com.mojang.blaze3d.platform.DepthTestFunction.NO_DEPTH_TEST).withDepthWrite(false)
+                    *///?}
+                    //? if >=26.1 {
                     .withColorTargetState(ColorTargetState.DEFAULT)
+                    //?} else {
+                    /*.withoutBlend()
+                    *///?}
                     //? if >=26.2 {
                     .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
                     .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
@@ -84,7 +96,7 @@ public final class OrionMotionBlur {
         Minecraft client = Minecraft.getInstance();
         boolean active = configManager.getConfig().isMotionBlurEnabled() && client.player != null && client.level != null
                 //? if >=26.3 {
-                && GleamMinecraft.renderState(client).shouldRenderLevel && GleamMinecraft.screen(client) == null;
+                && GleamMinecraft.shouldRenderLevel(client) && GleamMinecraft.screen(client) == null;
                 //?} else {
                                 /*&& GleamMinecraft.screen(client) == null;
                 *///?}

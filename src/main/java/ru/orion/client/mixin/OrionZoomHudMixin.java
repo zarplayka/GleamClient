@@ -1,3 +1,4 @@
+//~ legacy_gui
 package ru.orion.client.mixin;
 
 import ru.orion.client.GleamMinecraft;

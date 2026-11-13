@@ -1,6 +1,7 @@
 package ru.orion.client.effect;
 
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.*;
@@ -13,6 +14,16 @@ public final class OrionItemScroller {
     public static final boolean EXTERNAL = FabricLoader.getInstance().isModLoaded("itemscroller");
     @FunctionalInterface public interface Click { void click(Slot slot, int button); }
     private OrionItemScroller() {}
+
+    public static boolean isServerAllowed() {
+        GleamItemScrollerServers.warmUp();
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.player == null || client.level == null || client.hasSingleplayerServer()
+                || client.getConnection() == null) return false;
+        var server = client.getCurrentServer();
+        return GleamItemScrollerServers.allowed(server == null ? null : server.ip,
+                client.getConnection().getConnection().getRemoteAddress());
+    }
 
     public static boolean supported(AbstractContainerMenu menu) {
         return menu instanceof ChestMenu || menu instanceof HopperMenu || menu instanceof DispenserMenu
@@ -27,7 +38,7 @@ public final class OrionItemScroller {
 
     public static int transfer(AbstractContainerMenu menu, Slot hovered, Player player, boolean pull, int mode,
                                int limit, IntPredicate locked, Click click) {
-        if (!eligible(menu, hovered, player)) return 0;
+        if (!isServerAllowed() || !eligible(menu, hovered, player)) return 0;
         int destinationSide = side(menu, hovered, player) ^ (pull ? 0 : 1);
         int sourceSide = destinationSide ^ 1;
         ItemStack sample = hovered.getItem().copy();

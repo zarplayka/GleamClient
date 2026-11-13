@@ -55,7 +55,11 @@ public final class OrionEmoteWheelScreen extends Screen {
     }
 
     @Override
+    //? if >=26.1 {
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+    //?} else {
+    /*public void render(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+    *///?}
         super.extractRenderState(context, mouseX, mouseY, delta);
         if (!OrionEmotes.canDance(minecraft.player)) { onClose(); return; }
         selected = at(mouseX, mouseY);

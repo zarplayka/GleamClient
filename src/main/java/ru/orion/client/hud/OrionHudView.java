@@ -231,7 +231,11 @@ public final class OrionHudView {
                         try {
                             pose.translate(left + offset, top + (partHeight - font.lineHeight * scale) / 2);
                             pose.scale(scale, scale);
+                            //? if >=26.1 {
                             context.text(font, label, 0, 0, color);
+                            //?} else {
+                            /*context.drawString(font, label, 0, 0, color);
+                            *///?}
                         } finally {
                             pose.popMatrix();
                         }

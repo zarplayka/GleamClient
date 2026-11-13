@@ -54,7 +54,7 @@ public abstract class OrionItemScrollerMixin {
         if (!orion$quickMoveDrag || event.button() != InputConstants.MOUSE_BUTTON_LEFT || !orion$shiftDown()) return;
         var config = OrionClient.getConfigOrNull();
         var player = Minecraft.getInstance().player;
-        if (config == null || !config.isItemScrollerEnabled() || OrionItemScroller.EXTERNAL || player == null
+        if (config == null || !config.isItemScrollerEnabled() || !OrionItemScroller.isServerAllowed() || OrionItemScroller.EXTERNAL || player == null
                 || player.containerMenu != menu || (Object) this instanceof CreativeModeInventoryScreen) return;
         Slot slot = getHoveredSlot(event.x(), event.y());
         if (!OrionItemScroller.eligible(menu, slot, player) || !slot.hasItem()
@@ -79,7 +79,7 @@ public abstract class OrionItemScrollerMixin {
                                    CallbackInfoReturnable<Boolean> callback) {
         Minecraft client = Minecraft.getInstance();
         var config = OrionClient.getConfigOrNull();
-        if (config == null || !config.isItemScrollerEnabled() || OrionItemScroller.EXTERNAL || client.player == null
+        if (config == null || !config.isItemScrollerEnabled() || !OrionItemScroller.isServerAllowed() || OrionItemScroller.EXTERNAL || client.player == null
                 || client.player.containerMenu != menu || !Double.isFinite(vertical) || vertical == 0
                 || (Object) this instanceof CreativeModeInventoryScreen) return;
         Slot hovered = getHoveredSlot(x, y);

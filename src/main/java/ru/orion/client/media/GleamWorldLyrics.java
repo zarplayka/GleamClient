@@ -190,7 +190,7 @@ public final class GleamWorldLyrics {
     private static Anchor place(Minecraft client, Camera camera, boolean sky, int variant) {
         Vec3 eye = camera.position();
         float distance = sky ? 20F : 8F;
-        float tangent = (float) Math.tan(Math.toRadians(Math.clamp(camera.getFov(), 12F, 140F) / 2));
+        float tangent = (float) Math.tan(Math.toRadians(Math.clamp(ru.orion.client.render.GleamCameraMatrices.fov(camera), 12F, 140F) / 2));
         float aspect = Math.clamp(client.getWindow().getWidth() / (float) Math.max(1, client.getWindow().getHeight()), .45F, 3.5F);
         float fractionX = SKY_X[variant] * (sky ? 1 : .60F);
         float fractionY = sky ? SKY_Y[variant] : .12F;

@@ -18,7 +18,11 @@ import com.mojang.renderpearl.api.textures.GpuTextureView;
 //?} else {
 /*import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.systems.CommandEncoder;
+//? if >=26.1 {
 import com.mojang.blaze3d.pipeline.ColorTargetState;
+//?} else {
+
+//?}
 import com.mojang.blaze3d.pipeline.CompiledRenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.textures.FilterMode;
@@ -73,7 +77,11 @@ public final class OrionMirage {
                 /*.withVertexFormat(com.mojang.blaze3d.vertex.DefaultVertexFormat.EMPTY, com.mojang.blaze3d.vertex.VertexFormat.Mode.TRIANGLES)
                 *///?}
                 .withCull(false)
+                //? if >=26.1 {
                 .withDepthStencilState(Optional.empty()).withColorTargetState(ColorTargetState.DEFAULT)
+                //?} else {
+                /*.withDepthTestFunction(com.mojang.blaze3d.platform.DepthTestFunction.NO_DEPTH_TEST).withDepthWrite(false).withoutBlend()
+                *///?}
                 //? if >=26.2 {
                 .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
                 .withBindGroupLayout(BindGroupLayouts.SAMPLER0_SAMPLER1)
@@ -102,8 +110,8 @@ public final class OrionMirage {
         Minecraft client = Minecraft.getInstance();
         OrionConfig config = manager.getConfig();
         if (!config.isMirageEnabled() || client.level == null || client.player == null || externalShadersActive()) { release(); return; }
-        var camera = GleamMinecraft.renderState(client).levelRenderState.cameraRenderState;
-        if (camera == null || !camera.initialized || camera.projectionMatrix == null) return;
+        var camera = GleamMinecraft.levelState(client).cameraRenderState;
+        if (camera == null || !camera.initialized || ru.orion.client.render.GleamCameraMatrices.projection(camera) == null) return;
         RenderTarget target = GleamMinecraft.mainTarget(client);
         GpuTexture source = target.getColorTexture(), depth = target.getDepthTexture();
         if (source == null || depth == null || source.isClosed() || depth.isClosed()
@@ -131,9 +139,9 @@ public final class OrionMirage {
             encoder.copyTextureToTexture(source, scene, 0, 0, 0, 0, 0, scene.getWidth(0), scene.getHeight(0));
             //? if >=26.2 {
             var info = RenderSystem.getDevice().getDeviceInfo();
-            var parameters = parameters(camera.projectionMatrix, config, info.backendName().toLowerCase(java.util.Locale.ROOT).contains("opengl") ? 1F : -1F, info.isZZeroToOne());
+            var parameters = parameters(ru.orion.client.render.GleamCameraMatrices.projection(camera), config, info.backendName().toLowerCase(java.util.Locale.ROOT).contains("opengl") ? 1F : -1F, info.isZZeroToOne());
             //?} else {
-            /*var parameters = parameters(camera.projectionMatrix, config, 1F, false);
+            /*var parameters = parameters(ru.orion.client.render.GleamCameraMatrices.projection(camera), config, 1F, false);
             *///?}
             drawPasses(encoder, reflectionPipeline, compositePipeline, sceneView, target.getDepthTextureView(), reflectedView, target.getColorTextureView(), parameters);
             warned = false;
