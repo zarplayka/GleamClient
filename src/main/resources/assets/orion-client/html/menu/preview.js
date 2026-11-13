@@ -728,7 +728,10 @@ const cosmetics = [
   ['ember_fox','PET','Огненный лисёнок','Питомцы'],
   ['moon_moth','PET','Лунный мотылёк','Питомцы'],
   ['moss_turtle','PET','Моховая черепашка','Питомцы'],
-  ['rhm_tarnkappe','PET','Rhm.-B. WT Tarnkappe','Питомцы']
+  ['rhm_tarnkappe','PET','Rhm.-B. WT Tarnkappe','Питомцы'],
+  ['snow_ferret','PET','Снежный хорёк','Питомцы'],
+  ['space_slime','PET','Слизень-космонавт','Питомцы'],
+  ['tracked_scout','PET','Гусеничный разведчик','Питомцы']
 ];
 const cosmeticById = id => cosmetics.find(item => item[0] === id);
 const cosmeticSlots = [['all','Все','grid'],['Спина','Спина','layers'],['Голова','Голова','user'],['Анимация','Анимация','movement'],['Питомцы','Питомцы','paw']];

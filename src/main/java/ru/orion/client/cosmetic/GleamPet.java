@@ -10,7 +10,10 @@ public enum GleamPet {
     EMBER_FOX("ember_fox", true, .21D, .38D),
     MOON_MOTH("moon_moth", false, .21D, .38D),
     MOSS_TURTLE("moss_turtle", true, .10D, .23D),
-    TARNKAPPE("rhm_tarnkappe", true, .17D, .31D);
+    TARNKAPPE("rhm_tarnkappe", true, .17D, .31D),
+    SNOW_FERRET("snow_ferret", true, .23D, .40D),
+    SPACE_SLIME("space_slime", true, .17D, .30D),
+    TRACKED_SCOUT("tracked_scout", true, .19D, .34D);
 
     private static final GleamPet[] VALUES = values();
     private final String id;

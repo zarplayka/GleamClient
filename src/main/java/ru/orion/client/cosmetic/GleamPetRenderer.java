@@ -204,6 +204,17 @@ int light = LevelRenderer.getLightCoords(level, BlockPos.containing(point.add(0D
         if (model == null) return;
         pose.scale(-SCALE, -SCALE, SCALE);
         collector.submitCustomGeometry(pose, RenderTypes.entityCutout(pet.texture()),
-                (transform, vertices) -> model.render(transform, vertices, light, ageMillis, actionTime, stride, movement));
+                (transform, vertices) -> model.render(transform, vertices, light, ageMillis, actionTime, stride, movement, false));
+        if (model.hasVisor()) {
+            //? if >=26.3 {
+            var glass = RenderTypes.entityTranslucentCull(pet.texture());
+            //?} else if >=26.1 {
+            /*var glass = RenderTypes.entityTranslucentCullItemTarget(pet.texture());
+            *///?} else {
+            /*var glass = RenderTypes.itemEntityTranslucentCull(pet.texture());
+            *///?}
+            collector.submitCustomGeometry(pose, glass,
+                    (transform, vertices) -> model.render(transform, vertices, light, ageMillis, actionTime, stride, movement, true));
+        }
     }
 }

@@ -193,7 +193,9 @@ class Store:
         halo, wings = payload.get("halo", False), payload.get("wings", 0)
         pet = payload.get("pet", "")
         if (not isinstance(halo, bool) or isinstance(wings, bool) or not isinstance(wings, int)
-                or not 0 <= wings <= 2 or pet not in ("", "ember_fox", "moss_turtle", "moon_moth", "rhm_tarnkappe")):
+                or not 0 <= wings <= 2 or pet not in (
+                    "", "ember_fox", "moss_turtle", "moon_moth", "rhm_tarnkappe",
+                    "snow_ferret", "space_slime", "tracked_scout")):
             raise web.HTTPBadRequest(reason="Invalid cosmetics")
         now = self.clock()
         async with self.lock:

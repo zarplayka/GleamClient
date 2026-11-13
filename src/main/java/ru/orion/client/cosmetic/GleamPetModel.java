@@ -31,18 +31,26 @@ final class GleamPetModel {
     private final KeyframeAnimation idle;
     private final KeyframeAnimation action;
     private final long actionMillis;
+    private final KeyframeAnimation move;
+    private final long moveMillis;
     private final ModelPart[] legs;
+    private final ModelPart visor;
     private final float[] meshVertices;
 
-    private GleamPetModel(ModelPart root, AnimationDefinition idle, AnimationDefinition action, boolean grounded) {
+    private GleamPetModel(ModelPart root, JsonObject data, boolean grounded) {
         this.meshVertices = null;
         this.root = root;
         this.parts = root.getAllParts();
-        this.idle = idle.bake(root);
-        this.action = action.bake(root);
-        this.actionMillis = Math.round(action.lengthInSeconds() * 1000);
+        this.idle = clip(data.getAsJsonObject("idle"), true).bake(root);
+        var actionClip = clip(data.getAsJsonObject("action"), false);
+        this.action = actionClip.bake(root);
+        this.actionMillis = Math.round(actionClip.lengthInSeconds() * 1000);
+        var moveClip = data.has("move") ? clip(data.getAsJsonObject("move"), true) : null;
+        this.move = moveClip == null ? null : moveClip.bake(root);
+        this.moveMillis = moveClip == null ? 0 : Math.round(moveClip.lengthInSeconds() * 1000);
         var part = root.createPartLookup();
-        this.legs = grounded ? new ModelPart[]{
+        this.visor = part.apply("visor");
+        this.legs = grounded && move == null ? new ModelPart[]{
                 part.apply("front_l"), part.apply("back_r"), part.apply("front_r"), part.apply("back_l")
         } : new ModelPart[0];
     }
@@ -54,7 +62,10 @@ final class GleamPetModel {
         idle = null;
         action = null;
         actionMillis = 0;
+        move = null;
+        moveMillis = 0;
         legs = new ModelPart[0];
+        visor = null;
     }
 
     static GleamPetModel load(GleamPet pet) throws IOException {
@@ -69,8 +80,7 @@ final class GleamPetModel {
                     addBone(mesh.getRoot(), bone.getAsJsonObject());
                 }
                 ModelPart root = LayerDefinition.create(mesh, data.get("width").getAsInt(), data.get("height").getAsInt()).bakeRoot();
-                return new GleamPetModel(root, clip(data.getAsJsonObject("idle"), true),
-                        clip(data.getAsJsonObject("action"), false), pet.grounded());
+                return new GleamPetModel(root, data, pet.grounded());
             }
         }
     }
@@ -122,28 +132,37 @@ final class GleamPetModel {
         if (loop) builder.looping();
         for (var entry : data.getAsJsonArray("tracks")) {
             var track = entry.getAsJsonObject();
-            String target = track.get("target").getAsString();
-            boolean rotation = switch (target) {
-                case "rotation" -> true;
-                case "position" -> false;
-                default -> throw new IllegalArgumentException("Неизвестный канал анимации: " + target);
+            String targetName = track.get("target").getAsString();
+            var target = switch (targetName) {
+                case "rotation" -> AnimationChannel.Targets.ROTATION;
+                case "position" -> AnimationChannel.Targets.POSITION;
+                case "scale" -> AnimationChannel.Targets.SCALE;
+                default -> throw new IllegalArgumentException("Неизвестный канал анимации: " + targetName);
             };
             var keys = track.getAsJsonArray("keys");
             var frames = new Keyframe[keys.size()];
             for (int i = 0; i < frames.length; i++) {
                 var key = keys.get(i).getAsJsonArray();
                 float x = key.get(1).getAsFloat(), y = key.get(2).getAsFloat(), z = key.get(3).getAsFloat();
-                var value = rotation ? KeyframeAnimations.degreeVec(x, y, z) : KeyframeAnimations.posVec(x, y, z);
+                var value = switch (targetName) {
+                    case "rotation" -> KeyframeAnimations.degreeVec(x, y, z);
+                    case "scale" -> KeyframeAnimations.scaleVec(x, y, z);
+                    default -> KeyframeAnimations.posVec(x, y, z);
+                };
                 frames[i] = new Keyframe(key.get(0).getAsFloat(), value, AnimationChannel.Interpolations.LINEAR);
             }
-            builder.addAnimation(track.get("bone").getAsString(), new AnimationChannel(
-                    rotation ? AnimationChannel.Targets.ROTATION : AnimationChannel.Targets.POSITION, frames));
+            builder.addAnimation(track.get("bone").getAsString(),
+                    new AnimationChannel(target, frames));
         }
         return builder.build();
     }
 
+    boolean hasVisor() {
+        return visor != null;
+    }
+
     void render(PoseStack.Pose transform, VertexConsumer vertices, int light, long ageMillis, long actionTime,
-                float stride, float movement) {
+                float stride, float movement, boolean visorPass) {
         if (meshVertices != null) {
             for (int triangle = 0; triangle < meshVertices.length; triangle += 18) {
                 float nx = meshVertices[triangle], ny = meshVertices[triangle + 1], nz = meshVertices[triangle + 2];
@@ -157,11 +176,20 @@ final class GleamPetModel {
             }
             return;
         }
-        for (ModelPart part : parts) part.resetPose();
+        for (ModelPart part : parts) {
+            part.resetPose();
+            part.skipDraw = visorPass ? part != visor : part == visor;
+        }
         if (actionTime >= 0 && actionTime <= actionMillis) {
             action.apply(actionTime, 1F);
         } else {
-            idle.apply(ageMillis, 1F);
+            if (move != null) {
+                idle.apply(ageMillis, 1F - movement);
+                long phase = Math.round(stride / (Math.PI * 4D) * moveMillis);
+                move.apply(phase, movement);
+            } else {
+                idle.apply(ageMillis, 1F);
+            }
             if (legs.length > 0 && movement > 0F) {
                 float swing = (float) Math.sin(stride) * movement * .65F;
                 legs[0].xRot += swing;
