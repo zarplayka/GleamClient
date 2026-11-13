@@ -756,6 +756,48 @@ pub async fn imported_profiles(app: tauri::AppHandle) -> Result<Vec<Profile>> {
 }
 
 #[tauri::command]
+pub async fn create_profile(app: tauri::AppHandle, name: String, version: String) -> Result<Profile> {
+    tauri::async_runtime::spawn_blocking(move || {
+        create_local_profile(&instances(&app)?.join("imported"), &name, version)
+    })
+    .await
+    .map_err(|_| "game_storage".to_owned())?
+}
+
+fn create_local_profile(root: &Path, name: &str, version: String) -> Result<Profile> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 100 || name.chars().any(char::is_control) {
+        return Err("profile_name".into());
+    }
+    if !crate::game::supported_versions().any(|supported| supported == version) {
+        return Err("game_version".into());
+    }
+    fs::create_dir_all(root).map_err(|_| "game_storage")?;
+    let staging = tempfile::tempdir_in(root).map_err(|_| "game_storage")?;
+    let profile = Profile {
+        id: format!("{:x}", Sha256::digest(uuid::Uuid::new_v4().as_bytes())),
+        name: name.into(),
+        version,
+        loader: "fabric".into(),
+        launcher: "Gleam Launcher".into(),
+        total_ms: 0,
+        last_played: None,
+        playable: true,
+    };
+    save_profile(staging.path(), &profile)?;
+    fs::rename(staging.path(), root.join(&profile.id)).map_err(|_| "game_storage")?;
+    Ok(profile)
+}
+
+fn save_profile(directory: &Path, profile: &Profile) -> Result<()> {
+    fs::write(
+        directory.join("profile.json"),
+        serde_json::to_vec(profile).map_err(|_| "game_storage")?,
+    )
+    .map_err(|_| "game_storage".into())
+}
+
+#[tauri::command]
 pub async fn discover_profiles(
     app: tauri::AppHandle,
     first_login: bool,
@@ -861,11 +903,7 @@ fn import_one(root: &Path, candidate: &Candidate, copy_mods: bool) -> Result<()>
         }
         copy(&candidate.path.join(file), &staging.path().join(file)).map_err(|_| "game_storage")?;
     }
-    fs::write(
-        staging.path().join("profile.json"),
-        serde_json::to_vec(&candidate.profile).map_err(|_| "game_storage")?,
-    )
-    .map_err(|_| "game_storage")?;
+    save_profile(staging.path(), &candidate.profile)?;
     if !candidate.sessions.is_empty() {
         crate::game::save_activity(staging.path(), &candidate.sessions)?;
     }
@@ -915,6 +953,21 @@ pub async fn import_profiles(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn creates_independent_builds_only_for_supported_versions() {
+        let root = tempfile::tempdir().unwrap();
+        let imports = root.path().join("imported");
+        assert!(create_local_profile(&imports, "Legacy", "1.16.5".into()).is_err());
+        assert!(create_local_profile(&imports, "  ", "26.2".into()).is_err());
+        let first = create_local_profile(&imports, " Sandbox ", "26.2".into()).unwrap();
+        let second = create_local_profile(&imports, "Sandbox", "26.2".into()).unwrap();
+        assert_ne!(first.id, second.id);
+        assert_eq!(first.name, "Sandbox");
+        assert_eq!(first.loader, "fabric");
+        assert!(first.playable());
+        assert_eq!(stored_profiles(root.path()).count(), 2);
+    }
 
     #[test]
     fn imports_aw_profile_history_once_and_leaves_credentials_at_source() {

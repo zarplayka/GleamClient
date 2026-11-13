@@ -151,6 +151,7 @@ fn main() {
             game::minecraft_activity,
             profile_import::discover_profiles,
             profile_import::imported_profiles,
+            profile_import::create_profile,
             profile_import::import_profiles,
             profile_import::dismiss_profile_import,
             game::memory_limits,
