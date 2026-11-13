@@ -12,6 +12,7 @@ import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.LightCoordsUtil;
+import net.minecraft.world.entity.player.Player;
 //? if <26.2 {
 /*import net.minecraft.client.renderer.LevelRenderer;
 *///?}
@@ -21,9 +22,13 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
+import ru.orion.client.effect.OrionBadgePresence;
 
 import java.io.IOException;
 import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 public final class GleamPetRenderer {
     private static final float SCALE = .68F;
@@ -35,6 +40,14 @@ public final class GleamPetRenderer {
     private ClientLevel level;
     private GleamPet equipped;
     private final GleamPetFollow follow = new GleamPetFollow();
+    private final Map<UUID, RemotePet> remotePets = new HashMap<>();
+    private ClientLevel remoteLevel;
+
+    private record RemotePet(Player owner, GleamPet pet, GleamPetFollow follow) {
+        private RemotePet(Player owner, GleamPet pet) {
+            this(owner, pet, new GleamPetFollow());
+        }
+    }
 
     public GleamPetRenderer(OrionConfigManager manager) {
         this.manager = manager;
@@ -46,6 +59,7 @@ public final class GleamPetRenderer {
     }
 
     private void tick(Minecraft client) {
+        tickRemote(client);
         GleamPet pet = GleamPet.byId(manager.getConfig().getCosmeticPet());
         LocalPlayer player = client.player;
         if (pet == null || player == null || client.level == null || !player.isAlive()
@@ -61,6 +75,34 @@ public final class GleamPetRenderer {
         }
 
         follow.tick(level, player.position(), pet);
+    }
+
+    private void tickRemote(Minecraft client) {
+        if (remoteLevel != client.level || client.player == null) {
+            remotePets.clear();
+            remoteLevel = client.level;
+        }
+        if (remoteLevel == null || client.player == null) return;
+        remotePets.entrySet().removeIf(entry -> {
+            RemotePet state = entry.getValue();
+            return state.owner().isRemoved() || !visibleRemote(state.owner(), client.player)
+                    || OrionBadgePresence.pet(entry.getKey()) != state.pet();
+        });
+        for (Player player : remoteLevel.players()) {
+            if (player == client.player || !visibleRemote(player, client.player)) continue;
+            GleamPet pet = OrionBadgePresence.pet(player.getUUID());
+            if (pet == null) continue;
+            RemotePet state = remotePets.get(player.getUUID());
+            if (state == null || state.owner() != player) {
+                state = new RemotePet(player, pet);
+                remotePets.put(player.getUUID(), state);
+            }
+            state.follow().tick(remoteLevel, player.position(), pet);
+        }
+    }
+
+    private static boolean visibleRemote(Player player, LocalPlayer viewer) {
+        return player.isAlive() && !player.isSpectator() && !player.isInvisibleTo(viewer);
     }
 
     private void clear() {
@@ -94,15 +136,28 @@ public final class GleamPetRenderer {
     }
 
     private void render(LevelRenderContext context) {
-        if (equipped == null) return;
         Minecraft client = Minecraft.getInstance();
         var camera = context.levelState().cameraRenderState;
-        if (client.player != owner || client.level != level || camera == null || !camera.initialized || camera.pos == null) return;
+        if (client.player == null || client.level == null || camera == null || !camera.initialized || camera.pos == null) return;
         float partial = client.getDeltaTracker().getGameTimeDeltaPartialTick(false);
-        var frame = follow.frame(partial);
+        if (equipped != null && client.player == owner && client.level == level) {
+            renderPet(context, level, camera.pos, equipped, follow, partial);
+        }
+        if (client.level != remoteLevel) return;
+        for (RemotePet state : remotePets.values()) {
+            if (visibleRemote(state.owner(), client.player)) {
+                renderPet(context, remoteLevel, camera.pos, state.pet(), state.follow(), partial);
+            }
+        }
+    }
+
+    private static void renderPet(LevelRenderContext context, ClientLevel level, Vec3 camera,
+                                  GleamPet pet, GleamPetFollow movement, float partial) {
+        var frame = movement.frame(partial);
         if (frame == null) return;
         Vec3 point = frame.position();
-        Vec3 relative = point.subtract(camera.pos);
+        Vec3 relative = point.subtract(camera);
+        if (relative.lengthSqr() > 16384D) return;
         //? if >=26.2 {
         int light = LightCoordsUtil.getLightCoords(level, BlockPos.containing(point.add(0D, .5D, 0D)));
         //?} else {
@@ -112,7 +167,7 @@ public final class GleamPetRenderer {
         pose.pushPose();
         pose.translate(relative.x, relative.y, relative.z);
         ru.orion.client.render.GleamPose.rotateDegrees(pose, Axis.YP, 180F - frame.yaw());
-        submit(equipped, pose, context.submitNodeCollector(), light, frame.ageMillis(), frame.actionMillis(),
+        submit(pet, pose, context.submitNodeCollector(), light, frame.ageMillis(), frame.actionMillis(),
                 frame.stride(), frame.movement());
         pose.popPose();
     }

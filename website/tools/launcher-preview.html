@@ -804,6 +804,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profile-import-location input { flex: 1; min-width: 0; color: var(--text); background: var(--control-bg); border: 1px solid var(--side-rule); border-radius: 7px; padding: 0 9px }
     .profiles-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px }
     .profiles-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+    .profiles-header .profiles-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: stretch; max-width: 100% }
+    .profiles-header .button { min-height: 40px; padding: 7px 12px; font-size: 13px; line-height: 1.2; justify-content: center; text-align: center }
     .profiles-list { display: grid; gap: 8px; margin-top: 18px }
     .profile-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px }
     .profile-card h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere }
@@ -1335,6 +1337,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+          <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-022">
+            <span class="release-meta"><span class="release-version">0.1.22</span><time datetime="2026-11-13">13.11.2026</time></span>
+            <div>
+              <h3 id="release-launcher-022">Питомцы видны другим игрокам Gleam</h3>
+              <p>Выбранный питомец следует за тобой и виден другим игрокам с обновлённым GleamClient. Кнопки создания и переноса сборок теперь одного размера.</p>
+            </div>
+          </article>
           <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-021">
             <span class="release-meta"><span class="release-version">0.1.21</span><time datetime="2026-11-13">13.11.2026</time></span>
             <div>
@@ -1998,6 +2007,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Перенести профили':['Import profiles','Profile importieren','Importar perfiles'],
       'Игровой профиль':['Game profile','Spielprofil','Perfil de juego'],
       'Профили':['Profiles','Profile','Perfiles'],
+      'Питомцы видны другим игрокам Gleam':['Pets are visible to other Gleam players','Haustiere sind für andere Gleam-Spieler sichtbar','Los demás jugadores de Gleam pueden ver tus mascotas'],
+      'Выбранный питомец следует за тобой и виден другим игрокам с обновлённым GleamClient. Кнопки создания и переноса сборок теперь одного размера.':['Your equipped pet follows you and is visible to other players with the updated GleamClient. The create and import buttons now match in size.','Dein ausgewähltes Haustier folgt dir und ist für andere Spieler mit dem aktualisierten GleamClient sichtbar. Die Schaltflächen zum Erstellen und Importieren sind jetzt gleich groß.','Tu mascota equipada te sigue y es visible para otros jugadores con GleamClient actualizado. Los botones para crear e importar ahora tienen el mismo tamaño.'],
       'Сборки во вкладке «Профили»':['Builds in the Profiles tab','Instanzen im Profilbereich','Instancias en la pestaña Perfiles'],
       'Создавай и запускай отдельные сборки на поддерживаемых версиях GleamClient. Импортированные профили доступны там же, а на главной остаются базовые версии.':['Create and launch separate builds on supported GleamClient versions. Imported profiles are listed there too, and base versions stay on Home.','Erstelle und starte eigene Instanzen für unterstützte GleamClient-Versionen. Importierte Profile stehen dort ebenfalls, die Basisversionen bleiben auf der Startseite.','Crea e inicia instancias separadas en las versiones compatibles con GleamClient. Los perfiles importados aparecen allí y las versiones base siguen en Inicio.'],
       'Создать сборку':['Create build','Instanz erstellen','Crear instancia'],

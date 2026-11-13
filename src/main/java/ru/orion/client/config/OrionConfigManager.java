@@ -137,6 +137,7 @@ public final class OrionConfigManager {
     public void setCosmeticPet(String id) {
         config.setCosmeticPet(id);
         save();
+        ru.orion.client.effect.OrionBadgePresence.requestRefresh();
     }
 
     public void setHaloEnabled(boolean value) {

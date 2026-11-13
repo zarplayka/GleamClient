@@ -93,7 +93,8 @@ class Store:
         async with self.db.execute("PRAGMA table_info(players)") as cursor:
             columns = {row[1] for row in await cursor.fetchall()}
         for column, definition in (("emote", "INTEGER NOT NULL DEFAULT 0"),
-                                   ("emote_started", "REAL NOT NULL DEFAULT 0")):
+                                   ("emote_started", "REAL NOT NULL DEFAULT 0"),
+                                   ("pet", "TEXT NOT NULL DEFAULT ''")):
             if column not in columns:
                 await self.db.execute("ALTER TABLE players ADD COLUMN " + column + " " + definition)
         async with self.db.execute("PRAGMA table_info(shared_configs)") as cursor:
@@ -190,7 +191,9 @@ class Store:
     async def presence(self, player, payload):
         ids = self.players(payload)
         halo, wings = payload.get("halo", False), payload.get("wings", 0)
-        if not isinstance(halo, bool) or isinstance(wings, bool) or not isinstance(wings, int) or not 0 <= wings <= 2:
+        pet = payload.get("pet", "")
+        if (not isinstance(halo, bool) or isinstance(wings, bool) or not isinstance(wings, int)
+                or not 0 <= wings <= 2 or pet not in ("", "ember_fox", "moss_turtle", "moon_moth")):
             raise web.HTTPBadRequest(reason="Invalid cosmetics")
         now = self.clock()
         async with self.lock:
@@ -198,18 +201,21 @@ class Store:
                 old = await cursor.fetchone()
             if old is None:
                 raise web.HTTPUnauthorized(reason="Unknown player")
-            updated = not old["online"] or old["online_until"] <= now or bool(old["halo"]) != halo or old["wings"] != wings
+            updated = (not old["online"] or old["online_until"] <= now or bool(old["halo"]) != halo
+                       or old["wings"] != wings or old["pet"] != pet)
             try:
-                await self.db.execute("UPDATE players SET halo=?, wings=?, online=1, online_until=?, updated_at=? WHERE uuid=?", (int(halo), wings, now + self.presence_ttl, now, player))
+                await self.db.execute("UPDATE players SET halo=?, wings=?, pet=?, online=1, online_until=?, updated_at=? WHERE uuid=?",
+                                      (int(halo), wings, pet, now + self.presence_ttl, now, player))
                 if updated:
                     await self.bump()
                 rows = []
                 if ids:
                     placeholders = ",".join("?" for _ in ids)
-                    async with self.db.execute("SELECT uuid,halo,wings,emote,emote_started FROM players WHERE uuid IN (" + placeholders + ") AND online=1 AND online_until>?", (*ids, now)) as cursor:
+                    async with self.db.execute("SELECT uuid,halo,wings,pet,emote,emote_started FROM players WHERE uuid IN (" + placeholders + ") AND online=1 AND online_until>?", (*ids, now)) as cursor:
                         rows = await cursor.fetchall()
                 response = {"online": [r["uuid"] for r in rows], "halos": [r["uuid"] for r in rows if r["halo"]],
                             "wings": {r["uuid"]: r["wings"] for r in rows if r["wings"]},
+                            "pets": {r["uuid"]: r["pet"] for r in rows if r["pet"]},
                             "emotes": {r["uuid"]: {"id": r["emote"], "started": r["emote_started"],
                                                    "elapsed": max(0, now - r["emote_started"])}
                                        for r in rows if r["emote"] and 0 <= now - r["emote_started"] < 12},

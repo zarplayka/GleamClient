@@ -47,6 +47,7 @@ public final class OrionBadgePresence {
     private static volatile Set<UUID> online = Set.of();
     private static volatile Set<UUID> halos = Set.of();
     private static volatile Map<UUID, Integer> wings = Map.of();
+    private static volatile Map<UUID, ru.orion.client.cosmetic.GleamPet> pets = Map.of();
     public record Emote(int id, double started, long localStart) {}
     private static volatile Map<UUID, Emote> emotes = Map.of();
     private static volatile boolean pending;
@@ -72,6 +73,7 @@ public final class OrionBadgePresence {
 
     public static boolean hasHalo(UUID uuid) { return uuid != null && halos.contains(uuid); }
     public static int wingsStyle(UUID uuid) { return wings.getOrDefault(uuid, 0); }
+    public static ru.orion.client.cosmetic.GleamPet pet(UUID uuid) { return pets.get(uuid); }
     public static Emote emote(UUID uuid) { return emotes.get(uuid); }
 
     public static void sendEmote(int id) {
@@ -106,6 +108,7 @@ public final class OrionBadgePresence {
             online = Set.of();
             halos = Set.of();
             wings = Map.of();
+            pets = Map.of();
             emotes = Map.of();
             trackedPlayers = Set.of();
             token = null;
@@ -124,9 +127,10 @@ public final class OrionBadgePresence {
         List<UUID> ids = List.copyOf(trackedPlayers);
         UUID uuid = client.player.getUUID();
         String name = client.getUser().getName();
-        boolean halo = OrionClient.getConfigOrNull() != null && OrionClient.getConfigOrNull().isHaloEnabled();
-        int wingsValue = OrionClient.getConfigOrNull() != null && OrionClient.getConfigOrNull().isWingsEnabled()
-                ? OrionClient.getConfigOrNull().getWingsStyle() + 1 : 0;
+        var config = OrionClient.getConfigOrNull();
+        boolean halo = config != null && config.isHaloEnabled();
+        int wingsValue = config != null && config.isWingsEnabled() ? config.getWingsStyle() + 1 : 0;
+        String petId = config == null ? "" : config.getCosmeticPet();
         long requestGeneration = generation;
         pending = true;
         WORKER.execute(() -> {
@@ -138,6 +142,7 @@ public final class OrionBadgePresence {
                 if (requestGeneration != generation) return;
                 Set<UUID> found = new HashSet<>(), foundHalos = new HashSet<>();
                 Map<UUID, Integer> foundWings = new HashMap<>();
+                Map<UUID, ru.orion.client.cosmetic.GleamPet> foundPets = new HashMap<>();
                 Map<UUID, Emote> foundEmotes = new HashMap<>();
                 long firstRevision = Long.MAX_VALUE;
                 for (int start = 0; start < Math.max(1, ids.size()); start += 100) {
@@ -148,6 +153,7 @@ public final class OrionBadgePresence {
                     request.add("players", players);
                     request.addProperty("halo", halo);
                     request.addProperty("wings", wingsValue);
+                    request.addProperty("pet", petId);
                     JsonObject response = post("/v1/presence", request, activeToken);
                     if (response.has("revision")) firstRevision = Math.min(firstRevision, response.get("revision").getAsLong());
                     response.getAsJsonArray("online").forEach(value -> found.add(parseUuid(value.getAsString())));
@@ -157,6 +163,11 @@ public final class OrionBadgePresence {
                     if (wingResult != null) wingResult.entrySet().forEach(entry -> {
                         int style = entry.getValue().getAsInt();
                         if (style >= 1 && style <= 2) foundWings.put(parseUuid(entry.getKey()), style);
+                    });
+                    JsonObject petResult = response.getAsJsonObject("pets");
+                    if (petResult != null) petResult.entrySet().forEach(entry -> {
+                        var pet = ru.orion.client.cosmetic.GleamPet.byId(entry.getValue().getAsString());
+                        if (pet != null) foundPets.put(parseUuid(entry.getKey()), pet);
                     });
                     JsonObject emoteResult = response.getAsJsonObject("emotes");
                     if (emoteResult != null) emoteResult.entrySet().forEach(entry -> {
@@ -176,6 +187,7 @@ public final class OrionBadgePresence {
                     online = Set.copyOf(found);
                     halos = Set.copyOf(foundHalos);
                     wings = Map.copyOf(foundWings);
+                    pets = Map.copyOf(foundPets);
                     emotes = Map.copyOf(foundEmotes);
                     if (firstRevision != Long.MAX_VALUE) startWatcher(requestGeneration, activeToken, firstRevision);
                 }
