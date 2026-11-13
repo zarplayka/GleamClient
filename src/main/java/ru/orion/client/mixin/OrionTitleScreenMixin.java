@@ -1,5 +1,7 @@
 package ru.orion.client.mixin;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.NarratorStatus;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -28,7 +30,7 @@ abstract class OrionTitleScreenMixin extends Screen {
 
     @Inject(method = "extractRenderState", at = @At("HEAD"), cancellable = true)
     private void orion$renderMenu(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        if (minecraft.gui.overlay() != null || minecraft.isDemo() || minecraft.options.narrator().get() != NarratorStatus.OFF) return;
+        if (GleamMinecraft.overlay(minecraft) != null || minecraft.isDemo() || minecraft.options.narrator().get() != NarratorStatus.OFF) return;
         Component reason = getMultiplayerDisabledReason();
         if (OrionTitleMenu.INSTANCE.renderTitle(this, graphics, mouseX, mouseY, reason == null ? "" : reason.getString())) ci.cancel();
     }
@@ -67,7 +69,7 @@ abstract class OrionTitleScreenMixin extends Screen {
 
     @Unique
     private void orion$runAction(String action) {
-        if (minecraft.gui.screen() != this || minecraft.gui.overlay() != null) return;
+        if (GleamMinecraft.screen(minecraft) != this || GleamMinecraft.overlay(minecraft) != null) return;
         if ("minecraft-accounts".equals(action) || "add-microsoft".equals(action) || "add-offline".equals(action)) {
             OrionTitleMenu.INSTANCE.openMinecraftAccounts(this, action);
             return;
@@ -87,7 +89,7 @@ abstract class OrionTitleScreenMixin extends Screen {
                 case "client-settings" -> OrionClickGuiScreen.TitlePage.SETTINGS;
                 default -> OrionClickGuiScreen.TitlePage.MODULES;
             };
-            if (client != null) minecraft.gui.setScreen(OrionClickGuiScreen.fromTitle(client.getConfigManager(), this, page));
+            if (client != null) GleamMinecraft.setScreen(minecraft, OrionClickGuiScreen.fromTitle(client.getConfigManager(), this, page));
             return;
         }
         String label = switch (action) {

@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -120,7 +122,7 @@ public final class OrionWorldParticles {
         }
 
         Minecraft client = Minecraft.getInstance();
-        Camera camera = client.gameRenderer.mainCamera();
+        Camera camera = GleamMinecraft.camera(client);
         Vec3 cameraPosition = camera.position();
         Quaternionf cameraRotation = camera.rotation();
         RenderType renderType = RenderTypes.entityTranslucentEmissive(GLOW_TEXTURE);

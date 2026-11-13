@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -147,7 +149,7 @@ public final class OrionTargetEsp {
             return;
         }
 
-        Camera camera = client.gameRenderer.mainCamera();
+        Camera camera = GleamMinecraft.camera(client);
         Vec3 targetPosition = interpolatedPosition(target, client.getDeltaTracker().getGameTimeDeltaPartialTick(true));
         if (lastTarget != target || smoothedPosition == null) {
             smoothedPosition = targetPosition;
@@ -591,7 +593,7 @@ public final class OrionTargetEsp {
             return true;
         }
 
-        Vec3 from = client.gameRenderer.mainCamera().position();
+        Vec3 from = GleamMinecraft.camera(client).position();
         Vec3 eye = target.getEyePosition();
         Vec3 center = target.position().add(0.0D, target.getBbHeight() * 0.5D, 0.0D);
         return isClearPath(client, from, eye, target) || isClearPath(client, from, center, target);

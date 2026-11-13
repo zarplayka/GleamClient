@@ -1,5 +1,7 @@
 package ru.orion.client.keybind;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -91,31 +93,31 @@ public final class OrionKeybinds {
 
     private void handleClientTick(Minecraft client) {
         while (emoteKey.consumeClick()) {
-            if (configManager.getConfig().isEmotesEnabled() && client.gui.screen() == null
-                    && OrionEmotes.canDance(client.player)) client.gui.setScreen(new OrionEmoteWheelScreen());
+            if (configManager.getConfig().isEmotesEnabled() && GleamMinecraft.screen(client) == null
+                    && OrionEmotes.canDance(client.player)) GleamMinecraft.setScreen(client, new OrionEmoteWheelScreen());
         }
         while (lockSlotKey.consumeClick()) {
-            if (client.player != null && client.gui.screen() == null && configManager.getConfig().isLockSlotEnabled()) {
+            if (client.player != null && GleamMinecraft.screen(client) == null && configManager.getConfig().isLockSlotEnabled()) {
                 OrionLockSlot.toggleIndex(client.player.getInventory().getSelectedSlot());
             }
         }
         while (waypointKey.consumeClick()) {
-            if (client.player == null || client.level == null || client.gui.screen() != null) continue;
+            if (client.player == null || client.level == null || GleamMinecraft.screen(client) != null) continue;
             var point = ru.orion.client.effect.OrionWaypoints.addAtPlayer(configManager, client);
             if (point == null) {
-                client.gui.hud.setOverlayMessage(net.minecraft.network.chat.Component.literal("Ƴ Достигнут предел меток")
+                GleamMinecraft.setOverlayMessage(client, net.minecraft.network.chat.Component.literal("Ƴ Достигнут предел меток")
                         .withStyle(net.minecraft.ChatFormatting.WHITE), false);
             } else if (configManager.getConfig().isWaypointEditAfterCreate()) {
-                client.gui.setScreen(OrionClickGuiScreen.withWaypointSettings(configManager, point));
+                GleamMinecraft.setScreen(client, OrionClickGuiScreen.withWaypointSettings(configManager, point));
             } else {
-                client.gui.hud.setOverlayMessage(net.minecraft.network.chat.Component.literal("Ʋ Метка ")
+                GleamMinecraft.setOverlayMessage(client, net.minecraft.network.chat.Component.literal("Ʋ Метка ")
                         .withStyle(net.minecraft.ChatFormatting.WHITE)
                         .append(net.minecraft.network.chat.Component.literal(point.name).withStyle(net.minecraft.ChatFormatting.GOLD))
                         .append(net.minecraft.network.chat.Component.literal(" добавлена").withStyle(net.minecraft.ChatFormatting.WHITE)), false);
             }
         }
         while (openClickGuiKey.consumeClick()) {
-            client.gui.setScreen(new OrionClickGuiScreen(configManager));
+            GleamMinecraft.setScreen(client, new OrionClickGuiScreen(configManager));
         }
     }
 }

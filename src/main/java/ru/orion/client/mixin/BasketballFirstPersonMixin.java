@@ -31,6 +31,12 @@ import ru.orion.client.basketball.engine.OrionBasketballHands;
 *///?}
 
 public abstract class BasketballFirstPersonMixin {
+    //? if <26.2 {
+    /*private static final String LEGACY_HANDS_METHOD = "renderHandsWithItems";
+    *///?} elif <26.3 {
+    /*private static final String LEGACY_HANDS_METHOD = "submitHandsWithItems";
+    *///?}
+
     //? if >=26.3 {
     @Inject(method="submitHandsWithItems(FLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/PlayerRenderState;Lnet/minecraft/client/renderer/state/level/FirstPersonHandsAndItemsRenderState;)V",at=@At("HEAD"),cancellable=true)
     private void orion$basketballHands(float partial,PoseStack pose,SubmitNodeCollector collector,PlayerRenderState player,
@@ -39,7 +45,7 @@ public abstract class BasketballFirstPersonMixin {
         if(OrionBasketballHands.renderHands(partial,pose,collector,Minecraft.getInstance().player,light))callback.cancel();
     }
     //?} else {
-        /*@Inject(method="submitHandsWithItems(FLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/player/LocalPlayer;I)V",at=@At("HEAD"),cancellable=true)
+    /*@Inject(method = LEGACY_HANDS_METHOD, at = @At("HEAD"), cancellable = true)
     private void orion$basketballHands(float partial,PoseStack pose,SubmitNodeCollector collector,net.minecraft.client.player.LocalPlayer player, int light,CallbackInfo callback) {
         if(OrionBasketballHands.renderHands(partial,pose,collector,Minecraft.getInstance().player,light))callback.cancel();
     }

@@ -1,5 +1,7 @@
 package ru.orion.client.media;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -65,7 +67,7 @@ public final class OrionMediaPlayerHud {
     public void register() {
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "media_player"),
                 (graphics, delta) -> {
-                    if (!(Minecraft.getInstance().gui.screen() instanceof ChatScreen)) render(graphics);
+                    if (!(GleamMinecraft.screen(Minecraft.getInstance()) instanceof ChatScreen)) render(graphics);
                 });
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (!(screen instanceof ChatScreen)) return;
@@ -105,7 +107,7 @@ public final class OrionMediaPlayerHud {
     }
 
     private static boolean chatPointerAvailable(Minecraft client) {
-        return client.gui.screen() instanceof ChatScreen && client.gui.overlay() == null
+        return GleamMinecraft.screen(client) instanceof ChatScreen && GleamMinecraft.overlay(client) == null
                 && !client.mouseHandler.isMouseGrabbed();
     }
 
@@ -287,7 +289,7 @@ public final class OrionMediaPlayerHud {
             manager.setMediaPlayerPosition(Math.clamp(Math.round(x / client.getWindow().getGuiScale()),
                     0, client.getWindow().getGuiScaledWidth()), 0);
         } else if ("settings".equals(action)) {
-            client.gui.setScreen(OrionClickGuiScreen.withMediaPlayerSettings(manager));
+            GleamMinecraft.setScreen(client, OrionClickGuiScreen.withMediaPlayerSettings(manager));
         } else if ("enable".equals(action)) {
             manager.setMediaPlayerEnabled(true);
         } else {

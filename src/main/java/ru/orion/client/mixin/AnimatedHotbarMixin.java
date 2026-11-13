@@ -1,13 +1,21 @@
 package ru.orion.client.mixin;
 
+//? if >=26.2 {
 import net.minecraft.client.gui.Hud;
+//?} else {
+/*import net.minecraft.client.gui.Gui;
+*///?}
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import ru.orion.client.OrionClient;
 
+//? if >=26.2 {
 @Mixin(Hud.class)
+//?} else {
+/*@Mixin(Gui.class)
+*///?}
 public abstract class AnimatedHotbarMixin {
     @Unique private float orion$selectionX = Float.NaN;
     @Unique private long orion$lastNanos;

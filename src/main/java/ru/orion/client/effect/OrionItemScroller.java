@@ -20,7 +20,7 @@ public final class OrionItemScroller {
     }
 
     public static boolean eligible(AbstractContainerMenu menu, Slot hovered, Player player) {
-        return supported(menu) && hovered != null && hovered.isActive() && hovered.hasItem()
+        return supported(menu) && hovered != null && hovered.isActive()
                 && !hovered.getItem().has(DataComponents.BUNDLE_CONTENTS) && menu.getCarried().isEmpty()
                 && menu.stillValid(player) && side(menu, hovered, player) >= 0;
     }
@@ -28,21 +28,34 @@ public final class OrionItemScroller {
     public static int transfer(AbstractContainerMenu menu, Slot hovered, Player player, boolean pull, int mode,
                                int limit, IntPredicate locked, Click click) {
         if (!eligible(menu, hovered, player)) return 0;
-        ItemStack sample = hovered.getItem().copy();
         int destinationSide = side(menu, hovered, player) ^ (pull ? 0 : 1);
         int sourceSide = destinationSide ^ 1;
+        ItemStack sample = hovered.getItem().copy();
+        if (sample.isEmpty()) {
+            if (!pull || mode == 2) return 0;
+            for (Slot candidate : menu.slots) {
+                if (side(menu, candidate, player) == sourceSide && usableSource(candidate, player, locked)
+                        && accepts(hovered, candidate.getItem(), locked)) {
+                    sample = candidate.getItem().copy();
+                    break;
+                }
+            }
+            if (sample.isEmpty()) return 0;
+        }
         int moved = 0;
         for (int step = 0; step < Math.clamp(limit, 1, 16) && menu.getCarried().isEmpty(); step++) {
             Slot source = null;
             if (!pull && mode < 2) source = hovered;
             else for (Slot candidate : menu.slots) {
-                if (side(menu, candidate, player) == sourceSide && usableSource(candidate, player, sample, locked)) {
+                if (side(menu, candidate, player) == sourceSide && usableSource(candidate, player, locked)
+                        && ItemStack.isSameItemSameComponents(candidate.getItem(), sample)) {
                     source = candidate;
                     break;
                 }
             }
-            if (source == null || !usableSource(source, player, sample, locked)) break;
-            Slot destination = destination(menu, player, destinationSide, sample, pull ? hovered : null, locked);
+            if (source == null || !usableSource(source, player, locked)
+                    || !ItemStack.isSameItemSameComponents(source.getItem(), sample)) break;
+            Slot destination = destination(menu, player, destinationSide, sample, pull ? hovered : null, mode, locked);
             if (destination == null) break;
             int before = source.getItem().getCount();
             click.click(source, 0);
@@ -61,15 +74,18 @@ public final class OrionItemScroller {
         return moved;
     }
 
-    private static boolean usableSource(Slot slot, Player player, ItemStack sample, IntPredicate locked) {
+    private static boolean usableSource(Slot slot, Player player, IntPredicate locked) {
         return slot.isActive() && !locked.test(slot.index) && slot.hasItem()
-                && ItemStack.isSameItemSameComponents(slot.getItem(), sample)
+                && !slot.getItem().has(DataComponents.BUNDLE_CONTENTS)
                 && slot.mayPickup(player) && slot.mayPlace(slot.getItem());
     }
 
     private static Slot destination(AbstractContainerMenu menu, Player player, int side, ItemStack sample,
-                                    Slot preferred, IntPredicate locked) {
-        if (preferred != null) return accepts(preferred, sample, locked) ? preferred : null;
+                                    Slot preferred, int mode, IntPredicate locked) {
+        if (preferred != null) {
+            if (accepts(preferred, sample, locked)) return preferred;
+            if (mode == 0 || locked.test(preferred.index)) return null;
+        }
         Slot empty = null;
         for (Slot slot : menu.slots) {
             if (side(menu, slot, player) != side || !accepts(slot, sample, locked)) continue;

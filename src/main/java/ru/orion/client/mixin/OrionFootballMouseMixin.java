@@ -1,5 +1,7 @@
 package ru.orion.client.mixin;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
@@ -15,7 +17,7 @@ public abstract class OrionFootballMouseMixin {
     @Inject(method="onButton(JLnet/minecraft/client/input/MouseButtonInfo;I)V",at=@At("HEAD"),cancellable=true)
     private void orion$football(long window,MouseButtonInfo info,int action,CallbackInfo callback){
         Minecraft client=Minecraft.getInstance();
-        if(window!=client.getWindow().handle()||client.gui.screen()!=null||(action!=InputConstants.PRESS&&action!=InputConstants.RELEASE))return;
+        if(window!=client.getWindow().handle()||GleamMinecraft.screen(client)!=null||(action!=InputConstants.PRESS&&action!=InputConstants.RELEASE))return;
         var football=OrionClient.getFootballOrNull();
         if(football!=null&&football.button(info.button(),action==InputConstants.PRESS,info.hasShiftDown()))callback.cancel();
     }

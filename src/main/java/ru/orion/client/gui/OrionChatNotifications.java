@@ -1,5 +1,7 @@
 package ru.orion.client.gui;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
@@ -34,14 +36,14 @@ public final class OrionChatNotifications {
     public static void register() {
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "chat_notification"), (graphics, tick) -> {
             var client = Minecraft.getInstance();
-            if (client.gui.screen() == null) render(graphics);
+            if (GleamMinecraft.screen(client) == null) render(graphics);
         });
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             ScreenEvents.afterExtract(screen).register((current, graphics, x, y, delta) -> {
-                if (client.gui.screen() == current && client.gui.overlay() == null) render(graphics);
+                if (GleamMinecraft.screen(client) == current && GleamMinecraft.overlay(client) == null) render(graphics);
             });
             ScreenMouseEvents.allowMouseClick(screen).register((current, event) -> {
-                if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || client.gui.overlay() != null
+                if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || GleamMinecraft.overlay(client) != null
                         || hitBox == null || hitBox.screen() != current || !hitBox.contains(event.x(), event.y())
                         || System.nanoTime() - shownAt >= HOLD_NANOS + OPEN_NANOS) return true;
                 var config = OrionClient.getConfigOrNull();
@@ -111,7 +113,7 @@ public final class OrionChatNotifications {
         VIEW.frame();
         boolean drawn = VIEW.draw(graphics, x, y, width, height, scale, scale);
         float slide = (1F - phase) * (1F - phase) * (1F - phase) * 18F;
-        hitBox = drawn && phase >= .4F ? new HitBox(Minecraft.getInstance().gui.screen(), x + 4 * scale, y + (4 + slide) * scale,
+        hitBox = drawn && phase >= .4F ? new HitBox(GleamMinecraft.screen(Minecraft.getInstance()), x + 4 * scale, y + (4 + slide) * scale,
                 x + (WIDTH - 4) * scale, Math.min(y + height, y + (64 + slide) * scale)) : null;
     }
 

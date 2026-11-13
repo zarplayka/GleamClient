@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.Items;
 import ru.orion.client.config.OrionConfig;
@@ -93,7 +95,7 @@ public final class OrionZoom {
     }
 
     private static boolean canZoom(Minecraft client, OrionConfig config) {
-        if (client.player == null || client.gui.screen() != null || client.gui.overlay() != null) return false;
+        if (client.player == null || GleamMinecraft.screen(client) != null || GleamMinecraft.overlay(client) != null) return false;
         if (config.getZoomSpyglassMode() == 1) return client.player.isHolding(Items.SPYGLASS);
         return config.getZoomSpyglassMode() != 2 || client.player.isHolding(Items.SPYGLASS)
                 || client.player.getInventory().contains(stack -> stack.is(Items.SPYGLASS));

@@ -1,5 +1,7 @@
 package ru.orion.client.basketball;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -53,7 +55,7 @@ public final class OrionBasketball {
         if(wasCharging&&!charging&&OrionBasketballController.mode()==OrionBasketballController.Mode.LOOSE)shotAt=System.nanoTime();
         if(charging)lastCharge=OrionBasketballController.charge(1F);
         wasCharging=charging;
-        if(client.gui.screen()!=null){drain();return;}
+        if(GleamMinecraft.screen(client)!=null){drain();return;}
         while(reset.consumeClick())resetScore();
         while(pickup.consumeClick())OrionBasketballController.pickup();
         while(remove.consumeClick()){var hoop=nearest(client);if(hoop!=null)OrionHoopStore.remove(hoop);}

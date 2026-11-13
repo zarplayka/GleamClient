@@ -12,6 +12,9 @@ import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.LightCoordsUtil;
+//? if <26.2 {
+/*import net.minecraft.client.renderer.LevelRenderer;
+*///?}
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -100,7 +103,11 @@ public final class GleamPetRenderer {
         if (frame == null) return;
         Vec3 point = frame.position();
         Vec3 relative = point.subtract(camera.pos);
+        //? if >=26.2 {
         int light = LightCoordsUtil.getLightCoords(level, BlockPos.containing(point.add(0D, .5D, 0D)));
+        //?} else {
+        /*int light = LevelRenderer.getLightCoords(level, BlockPos.containing(point.add(0D, .5D, 0D)));
+        *///?}
         PoseStack pose = context.poseStack();
         pose.pushPose();
         pose.translate(relative.x, relative.y, relative.z);

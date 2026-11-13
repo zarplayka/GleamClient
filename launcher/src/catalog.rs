@@ -269,6 +269,12 @@ pub async fn instance_storage(app: tauri::AppHandle) -> Result<StorageUsage, Str
             storage.total_bytes = storage.total_bytes.saturating_add(bytes);
             storage.versions.push(InstanceUsage { version, bytes });
         }
+        let imported = root.join("imported");
+        if imported.is_dir() {
+            storage.total_bytes = storage.total_bytes.saturating_add(
+                directory_size(imported).map_err(|_| "Не удалось проверить размер данных")?
+            );
+        }
         Ok(storage)
     })
     .await
@@ -279,9 +285,15 @@ pub async fn instance_storage(app: tauri::AppHandle) -> Result<StorageUsage, Str
 pub async fn open_instance_folder(
     app: tauri::AppHandle,
     game_version: String,
+    instance_id: Option<String>,
 ) -> Result<(), String> {
-    validate_version(&game_version)?;
-    let folder = instance_dir(&app, &game_version)?;
+    let folder = if let Some(id) = instance_id {
+        crate::profile_import::installed(&app)?.into_iter().find(|(profile, _)| profile.id == id)
+            .map(|(_, path)| path).ok_or("Профиль не найден")?
+    } else {
+        validate_version(&game_version)?;
+        instance_dir(&app, &game_version)?
+    };
     tauri::async_runtime::spawn_blocking(move || {
         fs::create_dir_all(&folder).map_err(|_| "Не удалось создать папку версии")?;
         let opener = match std::env::consts::OS {
@@ -299,8 +311,46 @@ pub async fn open_instance_folder(
     .map_err(|_| "Не удалось открыть папку версии".to_string())?
 }
 
+const COMMON_MODS: [(&str, &str, &str); 5] = [
+    ("sodium", "AANobbMI", "394468"),
+    ("lithium", "gvQqBUqZ", "360438"),
+    ("entityculling", "NNAgCjsB", "448233"),
+    ("immediatelyfast", "5ZwdcRci", "686911"),
+    ("fabric-api", "P7dR8mSH", "306612"),
+];
+
+pub(crate) fn common_mod_id(project: &str) -> Option<&'static str> {
+    COMMON_MODS.iter().find(|entry| entry.1 == project).map(|entry| entry.0)
+}
+
+pub(crate) fn installed_common_mods(instance: &Path) -> Vec<(&'static str, PathBuf)> {
+    let Ok(entries) = fs::read_dir(instance.join("mods")) else {
+        return Vec::new();
+    };
+    entries.flatten().filter_map(|entry| {
+        let path = entry.path();
+        if !path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("jar")) || !path.is_file() {
+            return None;
+        }
+        let mut jar = zip::ZipArchive::new(fs::File::open(&path).ok()?).ok()?;
+        let metadata = jar.by_name("fabric.mod.json").ok()?;
+        if metadata.size() > 256 * 1024 {
+            return None;
+        }
+        let metadata: Value = serde_json::from_reader(metadata.take(256 * 1024 + 1)).ok()?;
+        let id = COMMON_MODS.iter().find(|entry| metadata["id"] == entry.0)?.0;
+        Some((id, path))
+    }).collect()
+}
+
 fn installed_projects(instance: &Path) -> HashSet<String> {
     let mut installed = HashSet::new();
+    for (id, _) in installed_common_mods(instance) {
+        if let Some((_, modrinth, curseforge)) = COMMON_MODS.iter().find(|entry| entry.0 == id) {
+            installed.insert(format!("modrinth:{modrinth}"));
+            installed.insert(format!("curseforge:{curseforge}"));
+        }
+    }
     let Ok(entries) = fs::read_dir(instance.join("catalog")) else {
         return installed;
     };
@@ -322,12 +372,29 @@ fn installed_projects(instance: &Path) -> HashSet<String> {
     installed
 }
 
+#[cfg(test)]
+#[test]
+fn renamed_optimizer_is_installed_in_both_catalogs() {
+    let profile = tempfile::tempdir().unwrap();
+    let mods = profile.path().join("mods");
+    fs::create_dir(&mods).unwrap();
+    let jar = fs::File::create(mods.join("my-renderer.jar")).unwrap();
+    let mut jar = zip::ZipWriter::new(jar);
+    jar.start_file("fabric.mod.json", zip::write::SimpleFileOptions::default()).unwrap();
+    jar.write_all(br#"{"id":"sodium"}"#).unwrap();
+    jar.finish().unwrap();
+    let installed = installed_projects(profile.path());
+    assert!(installed.contains("modrinth:AANobbMI"));
+    assert!(installed.contains("curseforge:394468"));
+}
+
 #[tauri::command]
 pub async fn catalog_search(
     app: tauri::AppHandle,
     state: tauri::State<'_, Catalog>,
     provider: String,
     game_version: String,
+    instance_id: Option<String>,
     query: String,
     sort: String,
     offset: u32,
@@ -356,7 +423,7 @@ pub async fn catalog_search(
     let catalog = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let client = catalog.client.as_ref().as_ref().map_err(Clone::clone)?;
-        let installed = installed_projects(&instance_dir(&app, &game_version)?);
+        let installed = installed_projects(&crate::profile_import::instance(&app, &game_version, instance_id.as_deref())?);
         let mut projects = Vec::new();
         let total;
         if provider == "modrinth" {
@@ -762,6 +829,7 @@ pub async fn catalog_install(
     state: tauri::State<'_, Catalog>,
     provider: String,
     game_version: String,
+    instance_id: Option<String>,
     project: String,
 ) -> Result<Installation, String> {
     validate(&provider, &game_version)?;
@@ -773,7 +841,7 @@ pub async fn catalog_install(
             .try_lock()
             .map_err(|_| "Дождись завершения текущей установки")?;
         let client = catalog.client.as_ref().as_ref().map_err(Clone::clone)?;
-        let instance = instance_dir(&app, &game_version)?;
+        let instance = crate::profile_import::instance(&app, &game_version, instance_id.as_deref())?;
         fs::create_dir_all(&instance).map_err(io_error)?;
         let instance_lock = fs::OpenOptions::new()
             .write(true)
@@ -796,13 +864,22 @@ pub async fn catalog_install(
             0,
             0,
         );
-        if installed_projects(&instance).contains(&format!("{provider}:{project}")) {
+        let installed = installed_projects(&instance);
+        if installed.contains(&format!("{provider}:{project}")) {
             return Ok(Installation {
                 count: 0,
                 directory: mods.to_string_lossy().into(),
             });
         }
         let mut artifacts = resolve(client, &app, &provider, &game_version, &project)?;
+        // A dependency already present in mods must not be installed a second time.
+        let common = installed_common_mods(&instance);
+        artifacts.retain(|file| {
+            file.project == project || !COMMON_MODS.iter().any(|(id, modrinth, curseforge)| {
+                let project_id = if provider == "modrinth" { modrinth } else { curseforge };
+                file.project == *project_id && common.iter().any(|entry| entry.0 == *id)
+            })
+        });
         if artifacts.iter().map(|file| file.size).sum::<u64>() > 512 * 1024 * 1024 {
             return Err("Слишком большой набор зависимостей".into());
         }

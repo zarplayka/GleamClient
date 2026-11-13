@@ -297,7 +297,7 @@ pub async fn gleam_auth(
                     .header("Cookie", format!("{COOKIE}={}", session.token));
                 drop(inner);
                 let data = response(request.send().map_err(|_| "network")?)?;
-                Ok(json!({"id":data["id"]}))
+                Ok(json!({"id":data["id"], "created_at":data["created_at"]}))
             }
             "restore" => {
                 let target = path(&app)?;

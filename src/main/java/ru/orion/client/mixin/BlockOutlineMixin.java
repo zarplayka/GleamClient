@@ -9,7 +9,11 @@ import ru.orion.client.OrionClient;
 
 @Mixin(LevelRenderer.class)
 public abstract class BlockOutlineMixin {
+    //? if >=26.2 {
     @Inject(method = "submitBlockOutline(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/LevelRenderState;)V", at = @At("HEAD"), cancellable = true)
+    //?} else {
+    /*@Inject(method = "renderBlockOutline", at = @At("HEAD"), cancellable = true)
+    *///?}
     private void orion$hideVanillaOutline(CallbackInfo ci) {
         var config = OrionClient.getConfigOrNull();
         if (config != null && config.isBlockHighlightEnabled()) ci.cancel();

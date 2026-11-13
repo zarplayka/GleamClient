@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -98,7 +100,7 @@ public final class OrionHitColorFlash {
             return;
         }
 
-        Vec3 cam = client.gameRenderer.mainCamera().position();
+        Vec3 cam = GleamMinecraft.camera(client).position();
         float partialTick = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
         int rgb = OrionRainbow.orElse(parseColor(configManager.getConfig().getHitColorColor()));
         float opacity = configManager.getConfig().getHitColorOpacity() / 100.0F;

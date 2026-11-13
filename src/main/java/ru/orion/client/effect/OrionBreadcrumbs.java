@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -80,7 +82,7 @@ public final class OrionBreadcrumbs {
         OrionConfig config = configManager.getConfig();
         Minecraft client = Minecraft.getInstance();
         if (!config.isBreadcrumbsEnabled() || points.size() < 2 || client.player != player || client.level != level) return;
-        Vec3 camera = client.gameRenderer.mainCamera().position();
+        Vec3 camera = GleamMinecraft.camera(client).position();
         List<Point> snapshot = new ArrayList<>(points);
         Point last = snapshot.get(snapshot.size() - 1);
         if (last.segment() == segment && last.position().equals(lastPosition)) {

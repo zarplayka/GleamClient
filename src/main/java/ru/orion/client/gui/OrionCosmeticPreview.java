@@ -6,7 +6,11 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.world.entity.Pose;
+//? if >=26.2 {
 import net.minecraft.world.entity.EntityTypes;
+//?} else {
+/*import net.minecraft.world.entity.EntityType;
+*///?}
 import net.minecraft.world.entity.player.PlayerSkin;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -29,7 +33,11 @@ public final class OrionCosmeticPreview extends AvatarRenderState {
         this.hatColor = hatColor;
         this.pet = pet;
         this.petAge = petAge;
+        //? if >=26.2 {
         entityType = EntityTypes.PLAYER;
+        //?} else {
+        /*entityType = EntityType.PLAYER;
+        *///?}
         this.skin = skin;
         id = -1;
         lightCoords = 0xF000F0;

@@ -44,7 +44,11 @@ void main() {
     fragColor = vec4(0.0);
     vec2 uv = texCoord;
     float depth = texture(Sampler1, uv).r;
+    //? if >=26.2 {
     if (depth <= 0.000001 || ColorModulator.x <= 0.0001) return;
+    //?} else {
+    /*if (depth >= 0.999999 || ColorModulator.x <= 0.0001) return;
+    *///?}
     vec2 pixel = 1.0 / vec2(textureSize(Sampler1, 0));
     vec3 p = positionAt(uv, depth);
     if (p.z >= -0.05 || length(p) > 180.0) return;
@@ -74,7 +78,11 @@ void main() {
         vec2 sampleUv = projected(q);
         if (any(lessThan(sampleUv, vec2(0.01))) || any(greaterThan(sampleUv, vec2(0.99)))) break;
         float sceneDepth = texture(Sampler1, sampleUv).r;
+        //? if >=26.2 {
         if (sceneDepth > 0.000001) {
+        //?} else {
+        /*if (sceneDepth < 0.999999) {
+        *///?}
             vec3 scenePosition = positionAt(sampleUv, sceneDepth);
             float delta = scenePosition.z - q.z;
             float thickness = max(0.08, -q.z * 0.025);

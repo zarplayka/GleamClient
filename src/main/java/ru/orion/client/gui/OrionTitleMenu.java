@@ -1,5 +1,7 @@
 package ru.orion.client.gui;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -195,10 +197,10 @@ public final class OrionTitleMenu {
                 case "add-offline" -> new IasAdd(accounts, "ias.add.offline");
                 default -> null;
             };
-            client.gui.setScreen(accounts);
+            GleamMinecraft.setScreen(client, accounts);
         } catch (ReflectiveOperationException | LinkageError failure) {
             LoggerFactory.getLogger("GleamClient").warn("Не удалось открыть экран аккаунтов IAS", failure);
-            client.gui.setScreen(new AlertScreen(() -> client.gui.setScreen(title),
+            GleamMinecraft.setScreen(client, new AlertScreen(() -> GleamMinecraft.setScreen(client, title),
                     Component.literal(OrionGuiLanguage.translate("Аккаунты Minecraft")),
                     Component.literal(OrionGuiLanguage.translate("Не удалось открыть аккаунты Minecraft"))));
         }
@@ -207,13 +209,13 @@ public final class OrionTitleMenu {
     private void openIasChoice(Minecraft client) {
         IasAdd request = pendingIasAdd;
         if (request == null) return;
-        Screen current = client.gui.screen();
+        Screen current = GleamMinecraft.screen(client);
         // IAS может сначала показать свой экран подтверждения, затем вернуть тот же экземпляр списка.
         if (current instanceof AlertScreen) return;
         pendingIasAdd = null;
         if (current != request.accounts()) return;
-        if (pressIasButton(current, "ias.accounts.add") && client.gui.screen() != current)
-            pressIasButton(client.gui.screen(), request.choice());
+        if (pressIasButton(current, "ias.accounts.add") && GleamMinecraft.screen(client) != current)
+            pressIasButton(GleamMinecraft.screen(client), request.choice());
     }
 
     private static boolean pressIasButton(Screen screen, String key) {

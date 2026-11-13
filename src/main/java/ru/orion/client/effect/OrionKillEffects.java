@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -302,7 +304,7 @@ public final class OrionKillEffects {
         var ground = client.level.clip(new ClipContext(position.add(0, .5, 0), position.add(0, -6, 0), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, client.player));
         if (!playerVictim && ground.getType() != HitResult.Type.MISS) position = ground.getLocation().add(0, .025, 0);
         if (playerVictim) position = position.add(0, config.getKillEffectsPlayerLift(), 0);
-        Vec3 viewer = client.gameRenderer.mainCamera().position();
+        Vec3 viewer = GleamMinecraft.camera(client).position();
         yaw = (float) Math.toDegrees(Math.atan2(viewer.x - position.x, position.z - viewer.z));
         while (active.size() >= config.getKillEffectsLimit()) OrionKillAudio.stop(active.removeFirst().sound());
         float size = config.getKillEffectsSize();

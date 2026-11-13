@@ -1,5 +1,7 @@
 package ru.orion.client.football;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -37,7 +39,7 @@ public final class OrionFootballRenderer {
     }
     private OrionFootballRenderer() { }
     public static void ball(LevelRenderContext context,OrionBasketballVector position,float rotation){
-        Vec3 camera=Minecraft.getInstance().gameRenderer.mainCamera().position();PoseStack pose=context.poseStack();pose.pushPose();
+        Vec3 camera=GleamMinecraft.camera(Minecraft.getInstance()).position();PoseStack pose=context.poseStack();pose.pushPose();
         pose.translate(position.x()-camera.x,position.y()-camera.y,position.z()-camera.z);ru.orion.client.render.GleamPose.rotate(pose, Axis.XP.rotation(rotation));
         var level=Minecraft.getInstance().level;var pos=BlockPos.containing(position.x(),position.y(),position.z());
         int light=level==null?0xF000F0:(level.getBrightness(LightLayer.BLOCK,pos)<<4)|(level.getBrightness(LightLayer.SKY,pos)<<20);
@@ -77,7 +79,7 @@ public final class OrionFootballRenderer {
     }
     static void pitch(LevelRenderContext context, OrionBasketballVector origin, OrionBasketballVector spawn,
                       int team, boolean showSpawn) {
-        Vec3 camera = Minecraft.getInstance().gameRenderer.mainCamera().position();
+        Vec3 camera = GleamMinecraft.camera(Minecraft.getInstance()).position();
         PoseStack stack = context.poseStack();
         stack.pushPose();
         stack.translate(origin.x() - camera.x, origin.y() - camera.y + .025, origin.z() - camera.z);
@@ -103,7 +105,7 @@ public final class OrionFootballRenderer {
         }
     }
     public static void goal(LevelRenderContext context,OrionFootballGoal goal,OrionGoalkeeperAI keeper,boolean preview,float netMotion,float tick,OrionBasketballVector ballPosition){
-        Vec3 camera=Minecraft.getInstance().gameRenderer.mainCamera().position();PoseStack pose=context.poseStack();pose.pushPose();
+        Vec3 camera=GleamMinecraft.camera(Minecraft.getInstance()).position();PoseStack pose=context.poseStack();pose.pushPose();
         pose.translate(goal.base().x()-camera.x,goal.base().y()-camera.y,goal.base().z()-camera.z);ru.orion.client.render.GleamPose.rotate(pose, Axis.YP.rotation((float)goal.yaw()));float scale=(float)goal.scale();pose.scale(scale,scale,scale);
         int a=preview?110:240;
         context.submitNodeCollector().submitCustomGeometry(pose,RenderTypes.debugQuads(),(p,vc)->goalBars(p,vc,a));

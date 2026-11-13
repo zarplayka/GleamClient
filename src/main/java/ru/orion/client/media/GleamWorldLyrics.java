@@ -1,5 +1,7 @@
 package ru.orion.client.media;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -112,12 +114,12 @@ public final class GleamWorldLyrics {
             nextAnchorAttempt = 0;
         }
         prefetch(timeline.next(index));
-        if (client.gui.screen() != null || client.gui.overlay() != null || !current.future().isDone()) return;
+        if (GleamMinecraft.screen(client) != null || GleamMinecraft.overlay(client) != null || !current.future().isDone()) return;
         GleamLyricsMesh.Phrase phrase;
         try { phrase = current.future().get(); }
         catch (Exception invalid) { return; }
         if (phrase.pieces().isEmpty()) return;
-        Camera camera = client.gameRenderer.mainCamera();
+        Camera camera = GleamMinecraft.camera(client);
         boolean sky = !settings.getPlacement().equals("Floating");
         boolean minimal = settings.getStyle().equals("Minimal");
         int variant = settings.isRandomizedTransitions() && !minimal

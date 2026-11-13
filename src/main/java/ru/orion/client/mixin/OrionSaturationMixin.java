@@ -8,7 +8,11 @@ import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 
 *///?}
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+//? if >=26.2 {
 import net.minecraft.client.gui.Hud;
+//?} else {
+/*import net.minecraft.client.gui.Gui;
+*///?}
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,7 +24,11 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.orion.client.hud.OrionSaturationOverlay;
 
+//? if >=26.2 {
 @Mixin(Hud.class)
+//?} else {
+/*@Mixin(Gui.class)
+*///?}
 public abstract class OrionSaturationMixin {
     @Unique private final OrionSaturationOverlay orion$saturation = new OrionSaturationOverlay();
     @Shadow public abstract int getGuiTicks();

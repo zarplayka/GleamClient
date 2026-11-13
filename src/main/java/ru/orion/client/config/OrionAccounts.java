@@ -1,5 +1,7 @@
 package ru.orion.client.config;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -640,7 +642,7 @@ public final class OrionAccounts {
                 for (var entry : result.getAsJsonArray("items")) {
                     var item = entry.getAsJsonObject();
                     String username = item.get("username").getAsString();
-                    if (client.gui.screen() instanceof OrionClickGuiScreen screen && screen.isViewingChat(username)) continue;
+                    if (GleamMinecraft.screen(client) instanceof OrionClickGuiScreen screen && screen.isViewingChat(username)) continue;
                     latest = item;
                     unreadChats.merge(username, 1, Integer::sum);
                 }
@@ -652,7 +654,7 @@ public final class OrionAccounts {
                     var avatar = notificationAvatar(session, sender);
                     chatNotificationPreview(session, sender, latest).whenComplete((preview, error) -> client.execute(() -> {
                         if (active != session || notificationSession != session || lastNotificationMessage != id) return;
-                        if (client.gui.screen() instanceof OrionClickGuiScreen screen && screen.isViewingChat(sender)) return;
+                        if (GleamMinecraft.screen(client) instanceof OrionClickGuiScreen screen && screen.isViewingChat(sender)) return;
                         var settings = OrionClient.getConfigOrNull();
                         if (settings == null || !settings.isChatNotifications()) return;
                         String fallback = ru.orion.client.gui.OrionGuiLanguage.translate("Новое сообщение");

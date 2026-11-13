@@ -33,7 +33,11 @@ public abstract class FontMixin {
         return OrionNameProtect.replace(OrionFakePrefix.replace(text));
     }
 
+    //? if >=26.2 {
     @ModifyVariable(method = "prepare8xTextOutline", at = @At("HEAD"), argsOnly = true)
+    //?} else {
+    /*@ModifyVariable(method = "drawInBatch8xOutline", at = @At("HEAD"), argsOnly = true)
+    *///?}
     private FormattedCharSequence orion$protectOutlineText(FormattedCharSequence text) {
         return OrionNameProtect.replace(OrionFakePrefix.replace(text));
     }

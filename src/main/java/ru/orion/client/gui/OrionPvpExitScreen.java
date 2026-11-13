@@ -1,5 +1,7 @@
 package ru.orion.client.gui;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
@@ -125,12 +127,12 @@ public final class OrionPvpExitScreen extends Screen {
     @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || guiW == 0 || guiH == 0) return super.mouseClicked(event,doubleClick);
         int action = actionAt(event.x(), event.y());
-        if (action == 1) minecraft.gui.setScreen(previous);
+        if (action == 1) GleamMinecraft.setScreen(minecraft, previous);
         if (action == 2) minecraft.disconnectFromWorld(ClientLevel.DEFAULT_QUIT_MESSAGE);
         return true;
     }
     @Override public boolean keyPressed(KeyEvent event) {
-        if(event.key()==InputConstants.KEY_ESCAPE) { minecraft.gui.setScreen(previous); return true; }
+        if(event.key()==InputConstants.KEY_ESCAPE) { GleamMinecraft.setScreen(minecraft, previous); return true; }
         return super.keyPressed(event);
     }
     @Override public void removed() {

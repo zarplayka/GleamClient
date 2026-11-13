@@ -14,13 +14,19 @@ import com.mojang.renderpearl.api.pipeline.ShaderType;
 import com.mojang.blaze3d.pipeline.ColorTargetState;
 import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.shaders.ShaderType;
 
 *///?}
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+//? if >=26.2 <26.3 {
+/*import com.mojang.blaze3d.PrimitiveTopology;
+*///?}
+//? if >=26.2 {
 import net.minecraft.client.renderer.BindGroupLayouts;
+//?} else {
+/*import com.mojang.blaze3d.shaders.UniformType;
+*///?}
 import net.minecraft.client.renderer.RenderPipelines;
 //? if >=26.3 {
 import net.minecraft.client.renderer.oit.OitPipelineSet;
@@ -37,21 +43,37 @@ public final class OrionEspRenderTypes {
     // ESP_DEPTH — без теста глубины (rhomb рисуется поверх модели цели).
     // ESP_DEPTH_TESTED — с тестом глубины: ghost/chain/crystals/marker прячутся
     // за моделькой и блоками; глубину не пишем, чтобы не резать чужую прозрачность.
+    //? if >=26.2 {
+    private static final CompareOp WORLD_DEPTH_COMPARISON = CompareOp.GREATER_THAN_OR_EQUAL;
+    //?} else {
+    /*private static final CompareOp WORLD_DEPTH_COMPARISON = CompareOp.LESS_THAN_OR_EQUAL;
+    *///?}
     private static final DepthStencilState ESP_DEPTH = new DepthStencilState(CompareOp.ALWAYS_PASS, false);
-    private static final DepthStencilState ESP_DEPTH_TESTED = new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false);
+    private static final DepthStencilState ESP_DEPTH_TESTED = new DepthStencilState(WORLD_DEPTH_COMPARISON, false);
     private static final RenderPipeline KILL_EFFECTS_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/kill_effects"))
             .withVertexShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/kill_models"))
             .withFragmentShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/kill_models"))
+            //? if >=26.2 {
             .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withBindGroupLayout(BindGroupLayouts.PROJECTION)
             .withBindGroupLayout(BindGroupLayouts.FOG)
             .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            //?} else {
+            /*.withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+            .withUniform("Fog", UniformType.UNIFORM_BUFFER)
+            .withSampler("Sampler0")
+            *///?}
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
             .withDepthStencilState(ESP_DEPTH_TESTED)
             .withCull(false)
+            //? if >=26.2 {
             .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
             .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            //?} else {
+            /*.withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS)
+            *///?}
             .build());
     private static final RenderType KILL_EFFECTS = RenderType.create("orion_kill_effects",
             RenderSetup.builder(KILL_EFFECTS_PIPELINE)
@@ -65,15 +87,26 @@ public final class OrionEspRenderTypes {
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/kill_models"))
             .withVertexShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/kill_models"))
             .withFragmentShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/kill_models"))
+            //? if >=26.2 {
             .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withBindGroupLayout(BindGroupLayouts.PROJECTION)
             .withBindGroupLayout(BindGroupLayouts.FOG)
             .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            //?} else {
+            /*.withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+            .withUniform("Fog", UniformType.UNIFORM_BUFFER)
+            .withSampler("Sampler0")
+            *///?}
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
-            .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
+            .withDepthStencilState(new DepthStencilState(WORLD_DEPTH_COMPARISON, true))
             .withCull(false)
+            //? if >=26.2 {
             .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
             .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            //?} else {
+            /*.withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS)
+            *///?}
             .build());
     private static final RenderType KILL_MODELS = RenderType.create("orion_kill_models",
             RenderSetup.builder(KILL_MODELS_PIPELINE)
@@ -87,14 +120,24 @@ public final class OrionEspRenderTypes {
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/cosmetic_wings"))
             .withVertexShader("core/rendertype_lightning")
             .withFragmentShader("core/rendertype_lightning")
+            //? if >=26.2 {
             .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withBindGroupLayout(BindGroupLayouts.PROJECTION)
             .withBindGroupLayout(BindGroupLayouts.FOG)
+            //?} else {
+            /*.withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+            .withUniform("Fog", UniformType.UNIFORM_BUFFER)
+            *///?}
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
-            .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
+            .withDepthStencilState(new DepthStencilState(WORLD_DEPTH_COMPARISON, true))
             .withCull(false)
+            //? if >=26.2 {
             .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
             .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            //?} else {
+            /*.withVertexFormat(DefaultVertexFormat.POSITION_COLOR, com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS)
+            *///?}
             .build());
     private static final RenderType WINGS = RenderType.create("orion_cosmetic_wings",
             RenderSetup.builder(WINGS_PIPELINE)
@@ -109,14 +152,24 @@ public final class OrionEspRenderTypes {
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/world_lyrics"))
             .withVertexShader("core/rendertype_lightning")
             .withFragmentShader("core/rendertype_lightning")
+            //? if >=26.2 {
             .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withBindGroupLayout(BindGroupLayouts.PROJECTION)
             .withBindGroupLayout(BindGroupLayouts.FOG)
+            //?} else {
+            /*.withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+            .withUniform("Fog", UniformType.UNIFORM_BUFFER)
+            *///?}
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
             .withDepthStencilState(ESP_DEPTH_TESTED)
             .withCull(false)
+            //? if >=26.2 {
             .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
             .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            //?} else {
+            /*.withVertexFormat(DefaultVertexFormat.POSITION_COLOR, com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS)
+            *///?}
             .build());
     private static final RenderType LYRICS = RenderType.create("gleam_world_lyrics",
             RenderSetup.builder(LYRICS_PIPELINE)
@@ -129,14 +182,24 @@ public final class OrionEspRenderTypes {
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/world_lyrics_solid"))
             .withVertexShader("core/rendertype_lightning")
             .withFragmentShader("core/rendertype_lightning")
+            //? if >=26.2 {
             .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withBindGroupLayout(BindGroupLayouts.PROJECTION)
             .withBindGroupLayout(BindGroupLayouts.FOG)
+            //?} else {
+            /*.withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+            .withUniform("Fog", UniformType.UNIFORM_BUFFER)
+            *///?}
             .withColorTargetState(ColorTargetState.DEFAULT)
-            .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
+            .withDepthStencilState(new DepthStencilState(WORLD_DEPTH_COMPARISON, true))
             .withCull(false)
+            //? if >=26.2 {
             .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
             .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            //?} else {
+            /*.withVertexFormat(DefaultVertexFormat.POSITION_COLOR, com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS)
+            *///?}
             .build());
     private static final RenderType LYRICS_SOLID = RenderType.create("gleam_world_lyrics_solid",
             RenderSetup.builder(LYRICS_SOLID_PIPELINE)
@@ -149,56 +212,96 @@ public final class OrionEspRenderTypes {
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/targetesp_color"))
             .withVertexShader("core/rendertype_lightning")
             .withFragmentShader("core/rendertype_lightning")
+            //? if >=26.2 {
             .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withBindGroupLayout(BindGroupLayouts.PROJECTION)
             .withBindGroupLayout(BindGroupLayouts.FOG)
+            //?} else {
+            /*.withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+            .withUniform("Fog", UniformType.UNIFORM_BUFFER)
+            *///?}
             .withColorTargetState(new ColorTargetState(BlendFunction.LIGHTNING))
             .withDepthStencilState(ESP_DEPTH)
             .withCull(false)
+            //? if >=26.2 {
             .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
             .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            //?} else {
+            /*.withVertexFormat(DefaultVertexFormat.POSITION_COLOR, com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS)
+            *///?}
             .build());
 
     private static final RenderPipeline ESP_COLOR_DEPTH_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/targetesp_color_depth"))
             .withVertexShader("core/rendertype_lightning")
             .withFragmentShader("core/rendertype_lightning")
+            //? if >=26.2 {
             .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withBindGroupLayout(BindGroupLayouts.PROJECTION)
             .withBindGroupLayout(BindGroupLayouts.FOG)
+            //?} else {
+            /*.withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+            .withUniform("Fog", UniformType.UNIFORM_BUFFER)
+            *///?}
             .withColorTargetState(new ColorTargetState(BlendFunction.LIGHTNING))
             .withDepthStencilState(ESP_DEPTH_TESTED)
             .withCull(false)
+            //? if >=26.2 {
             .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
             .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            //?} else {
+            /*.withVertexFormat(DefaultVertexFormat.POSITION_COLOR, com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS)
+            *///?}
             .build());
 
     private static final RenderPipeline ESP_TEXTURE_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/targetesp_texture"))
             .withVertexShader("core/position_tex_color")
             .withFragmentShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/esp_texture"))
+            //? if >=26.2 {
             .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withBindGroupLayout(BindGroupLayouts.PROJECTION)
             .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            //?} else {
+            /*.withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+            .withSampler("Sampler0")
+            *///?}
             .withColorTargetState(new ColorTargetState(BlendFunction.LIGHTNING))
             .withDepthStencilState(ESP_DEPTH)
             .withCull(false)
+            //? if >=26.2 {
             .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
             .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            //?} else {
+            /*.withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS)
+            *///?}
             .build());
 
     private static final RenderPipeline ESP_TEXTURE_DEPTH_PIPELINE = RenderPipelinesAccessor.orion$register(RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/targetesp_texture_depth"))
             .withVertexShader("core/position_tex_color")
             .withFragmentShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/esp_texture"))
+            //? if >=26.2 {
             .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withBindGroupLayout(BindGroupLayouts.PROJECTION)
             .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            //?} else {
+            /*.withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+            .withSampler("Sampler0")
+            *///?}
             .withColorTargetState(new ColorTargetState(BlendFunction.LIGHTNING))
             .withDepthStencilState(ESP_DEPTH_TESTED)
             .withCull(false)
+            //? if >=26.2 {
             .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
             .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            //?} else {
+            /*.withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS)
+            *///?}
             .build());
 
     private static final RenderType COLOR_QUADS = RenderType.create(

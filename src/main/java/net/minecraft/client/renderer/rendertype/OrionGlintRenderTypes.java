@@ -1,5 +1,7 @@
 package net.minecraft.client.renderer.rendertype;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 //? if >=26.3 {
@@ -71,7 +73,7 @@ public final class OrionGlintRenderTypes {
         return new TextureTransform(name, () -> {
             var config = OrionClient.getConfigOrNull();
             int speed = config == null ? 100 : config.getCustomGlint().speed();
-            double vanillaSpeed = Minecraft.getInstance().gameRenderer.gameRenderState().optionsRenderState.glintSpeed;
+            double vanillaSpeed = GleamMinecraft.renderState(Minecraft.getInstance()).optionsRenderState.glintSpeed;
             double phase = Util.getMillis() * 8D * vanillaSpeed * speed / 100D;
             return new Matrix4f().translation(-(float) (phase % 110000 / 110000),
                     (float) (phase % 30000 / 30000), 0).rotateZ(.17453292F).scale(scale);

@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -43,7 +45,7 @@ public final class OrionChinaHeadRenderer {
             return;
         }
 
-        Camera camera = client.gameRenderer.mainCamera();
+        Camera camera = GleamMinecraft.camera(client);
         float tickDelta = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
         Vec3 playerPosition = interpolatedPosition(player, tickDelta);
         Vec3 cameraPosition = camera.position();

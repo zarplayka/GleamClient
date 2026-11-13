@@ -1,5 +1,7 @@
 package ru.orion.client.gui;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
@@ -606,13 +608,13 @@ public final class OrionClickGuiScreen extends Screen {
     public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
         if (titleParent instanceof net.minecraft.client.gui.screens.TitleScreen) OrionTitleMenu.drawBackdrop(context, width, height);
         context.fill(0, 0, width, height, 0x66000000);
-        minecraft.gui.hud.extractDeferredSubtitles();
+        GleamMinecraft.extractDeferredSubtitles(minecraft);
     }
 
     @Override
     public void onClose() {
         if (titleParent == null) super.onClose();
-        else minecraft.gui.setScreen(titleParent);
+        else GleamMinecraft.setScreen(minecraft, titleParent);
     }
 
     @Override
@@ -1026,7 +1028,7 @@ public final class OrionClickGuiScreen extends Screen {
     static void openChatNotification(Minecraft client, String peer) {
         var instance = OrionClient.getInstance();
         if (instance == null) return;
-        Screen current = client.gui.screen();
+        Screen current = GleamMinecraft.screen(client);
         var screen = current instanceof OrionClickGuiScreen gui ? gui
                 : new OrionClickGuiScreen(instance.getConfigManager(), current, TitlePage.MODULES);
         screen.syncFriendsAccount();
@@ -1034,7 +1036,7 @@ public final class OrionClickGuiScreen extends Screen {
         screen.selectChat(peer);
         screen.chatRoute++;
         screen.nextChatFriends = 0;
-        if (screen != current) client.gui.setScreen(screen);
+        if (screen != current) GleamMinecraft.setScreen(client, screen);
     }
 
     private void updateChat(String message, boolean older) {
@@ -1098,10 +1100,10 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void loadNextFriendAvatar(Iterator<String> ids, int requestId, String session) {
-        if (minecraft.gui.screen() != this || requestId != friendsRequest || !session.equals(accounts.sessionCookieHeader()) || !ids.hasNext()) return;
+        if (GleamMinecraft.screen(minecraft) != this || requestId != friendsRequest || !session.equals(accounts.sessionCookieHeader()) || !ids.hasNext()) return;
         String id = ids.next();
         accounts.publicAvatar(id).whenComplete((image, failure) -> minecraft.execute(() -> {
-            if (minecraft.gui.screen() != this || requestId != friendsRequest || !session.equals(accounts.sessionCookieHeader())) return;
+            if (GleamMinecraft.screen(minecraft) != this || requestId != friendsRequest || !session.equals(accounts.sessionCookieHeader())) return;
             if (image != null) {
                 friendAvatarImages.put(id, image);
                 JsonObject avatars = friendAvatars.deepCopy();
@@ -4028,7 +4030,13 @@ public final class OrionClickGuiScreen extends Screen {
             int color = argb[i];
             buffer[i] = (color & 0xFF00FF00) | ((color & 0x00FF0000) >>> 16) | ((color & 0x000000FF) << 16);
         }
+        //? if >=26.2 {
         target.getPixelBytes().order(ByteOrder.nativeOrder()).asIntBuffer().put(buffer);
+        //?} else {
+        /*for (int i = 0, width = target.getWidth(); i < buffer.length; i++) {
+            target.setPixelABGR(i % width, i / width, buffer[i]);
+        }
+        *///?}
         return buffer;
     }
 

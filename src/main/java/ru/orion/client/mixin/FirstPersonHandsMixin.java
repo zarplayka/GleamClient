@@ -37,6 +37,12 @@ import ru.orion.client.OrionClient;
 *///?}
 
 public abstract class FirstPersonHandsMixin {
+    //? if <26.2 {
+    /*private static final String LEGACY_ARM_METHOD = "renderArmWithItem";
+    *///?} elif <26.3 {
+    /*private static final String LEGACY_ARM_METHOD = "submitArmWithItem";
+    *///?}
+
     //? if >=26.3 {
     @Inject(method = "submitArmWithItem(Lnet/minecraft/client/renderer/state/level/PlayerRenderState;Lnet/minecraft/client/renderer/state/level/FirstPersonHandsAndItemsRenderState;FFLnet/minecraft/world/InteractionHand;FLnet/minecraft/world/item/ItemStack;FLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;I)V",
             at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;pushPose()V", shift = At.Shift.AFTER))
@@ -65,7 +71,7 @@ public abstract class FirstPersonHandsMixin {
         pose.popPose();
     }
     //?} else {
-        /*@Inject(method = "submitArmWithItem(Lnet/minecraft/client/player/AbstractClientPlayer;FFLnet/minecraft/world/InteractionHand;FLnet/minecraft/world/item/ItemStack;FLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;I)V",
+    /*@Inject(method = LEGACY_ARM_METHOD,
             at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;pushPose()V", shift = At.Shift.AFTER))
     private void orion$viewModel(net.minecraft.client.player.AbstractClientPlayer player, float partial,
                                   float pitch, InteractionHand hand, float swing, ItemStack item, float equipped,

@@ -4,7 +4,11 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+//? if >=26.2 {
 import net.minecraft.world.entity.EntityTypes;
+//?} else {
+/*import net.minecraft.world.entity.EntityType;
+*///?}
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ambient.Bat;
 import net.minecraft.world.entity.animal.feline.Cat;
@@ -130,7 +134,7 @@ final class GleamPetFollow {
             Vec3 point = position.lerp(target, (double) i / samples);
             AABB body = box(point, grounded);
             if (!level.hasChunkAt(BlockPos.containing(point))
-                    || level.getBlockCollisionsFromContext(COLLISION, body).iterator().hasNext()) return false;
+                    || hasBlockCollision(level, body)) return false;
             if (grounded && collide(level, body, new Vec3(0D, -.4D, 0D)).y <= -.4D + EPSILON) return false;
         }
         return true;
@@ -140,7 +144,11 @@ final class GleamPetFollow {
         if (!level.hasChunkAt(BlockPos.containing(target))) return null;
         if (pathingMob == null) {
             // Моб нужен только для оценки габаритов и проходимости. В мир его не добавляем.
+            //? if >=26.2 {
             pathingMob = grounded ? new Cat(EntityTypes.CAT, level) : new Bat(EntityTypes.BAT, level);
+            //?} else {
+            /*pathingMob = grounded ? new Cat(EntityType.CAT, level) : new Bat(EntityType.BAT, level);
+            *///?}
             var evaluator = grounded ? new WalkNodeEvaluator() : new FlyNodeEvaluator();
             evaluator.setCanPassDoors(true);
             pathFinder = new PathFinder(evaluator, 320);
@@ -189,7 +197,7 @@ final class GleamPetFollow {
             Vec3 point = owner.add(offset).add(0D, pet.grounded() ? .55D : FLIGHT_HEIGHT, 0D);
             if (!level.hasChunkAt(BlockPos.containing(point))) continue;
             AABB box = box(point, pet.grounded());
-            if (level.getBlockCollisionsFromContext(COLLISION, box).iterator().hasNext()) continue;
+            if (hasBlockCollision(level, box)) continue;
             if (!pet.grounded()) return point;
             double fall = collide(level, box, new Vec3(0D, -1.75D, 0D)).y;
             if (fall > -1.75D + EPSILON) return point.add(0D, fall, 0D);
@@ -203,8 +211,20 @@ final class GleamPetFollow {
         return new AABB(at.x - radius, base, at.z - radius, at.x + radius, base + .54D, at.z + radius);
     }
 
+    private static boolean hasBlockCollision(ClientLevel level, AABB box) {
+        //? if >=26.2 {
+        return level.getBlockCollisionsFromContext(COLLISION, box).iterator().hasNext();
+        //?} else {
+        /*return level.getBlockCollisions(null, box).iterator().hasNext();
+        *///?}
+    }
+
     private static Vec3 collide(ClientLevel level, AABB box, Vec3 motion) {
+        //? if >=26.2 {
         return Entity.collideBoundingBox(COLLISION, motion, box, level, List.of());
+        //?} else {
+        /*return Entity.collideBoundingBox(null, motion, box, level, List.of());
+        *///?}
     }
 
     void reset() {

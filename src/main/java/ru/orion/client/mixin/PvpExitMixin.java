@@ -1,5 +1,7 @@
 package ru.orion.client.mixin;
 
+import ru.orion.client.GleamMinecraft;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.PauseScreen;
@@ -14,17 +16,19 @@ import ru.orion.client.gui.OrionPvpExitScreen;
 
 @Mixin(PauseScreen.class)
 public abstract class PvpExitMixin {
-    //? if >=26.3 {
     @Shadow private Button disconnectButton;
+
+    //? if >=26.3 {
     @Inject(method = "lambda$createPauseMenu$11()V", at = @At("HEAD"), cancellable = true)
-    //?} else {
-        /*@Shadow private Button disconnectButton;
-    @Inject(method = "lambda$createPauseMenu$12()V", at = @At("HEAD"), cancellable = true)
+    //?} elif >=26.2 {
+    /*@Inject(method = "lambda$createPauseMenu$12()V", at = @At("HEAD"), cancellable = true)
+    *///?} else {
+    /*@Inject(method = "lambda$createPauseMenu$7()V", at = @At("HEAD"), cancellable = true)
     *///?}
     private void orion$confirmExit(CallbackInfo callback) {
         if (OrionPvpSafe.remainingSeconds() <= 0) return;
         if (disconnectButton != null) disconnectButton.active = true;
-        Minecraft.getInstance().gui.setScreen(new OrionPvpExitScreen((Screen) (Object) this));
+        GleamMinecraft.setScreen(Minecraft.getInstance(), new OrionPvpExitScreen((Screen) (Object) this));
         callback.cancel();
     }
 }

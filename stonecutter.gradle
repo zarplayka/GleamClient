@@ -97,6 +97,7 @@ tasks.register('verifyArtifacts') {
                     if (zip.getEntry(classPath) == null) throw new GradleException("Missing registered mixin ${classPath}")
                 }
                 ['cosmetics/pets/ember_fox.json', 'cosmetics/pets/moon_moth.json', 'cosmetics/pets/moss_turtle.json',
+                 'html/hud-widgets.html',
                  'html/menu/index.html', 'html/hud-island/island.js', 'fonts/poppins/Poppins-Bold.ttf'].each { asset ->
                     if (zip.getEntry('assets/orion-client/' + asset) == null) throw new GradleException("Missing ${asset}")
                 }

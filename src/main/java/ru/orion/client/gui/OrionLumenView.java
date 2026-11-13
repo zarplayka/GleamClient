@@ -10,19 +10,27 @@ import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
 
-//?} else {
+//?} elif >=26.2 {
 /*import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.vertex.VertexFormat;
 
+*///?} else {
+/*import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormatElement;
+import ru.orion.client.render.GleamLumenVertex;
 *///?}
 import com.paradox.lumen.LumenNative;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.render.TextureSetup;
+//? if >=26.2 {
 import net.minecraft.client.renderer.BindGroupLayouts;
+//?}
 import net.minecraft.client.renderer.state.gui.GuiElementRenderState;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
@@ -496,6 +504,7 @@ public final class OrionLumenView {
                          float left, float top, float width, float height, float u0, float v0, float u1, float v1,
                          int color, float radius, int kind, int variant, CircleClip circle) implements GuiElementRenderState {
         private static final Identifier SHADER = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/lumen_paint");
+        //? if >=26.2 {
         private static final VertexFormat FORMAT = VertexFormat.builder(0)
                 .addAttribute("Position", GpuFormat.RGB32_FLOAT)
                 .addAttribute("Color", GpuFormat.RGBA8_UNORM)
@@ -506,6 +515,19 @@ public final class OrionLumenView {
                 .addAttribute("Normal", GpuFormat.RGBA8_SNORM)
                 .addAttribute("LineWidth", GpuFormat.R32_FLOAT)
                 .build();
+        //?} else {
+        /*private static final VertexFormat FORMAT = VertexFormat.builder()
+                .add("Position", VertexFormatElement.POSITION)
+                .add("Color", VertexFormatElement.COLOR)
+                .add("UV0", VertexFormatElement.UV0)
+                .add("UV1", VertexFormatElement.UV1)
+                .add("UV2", VertexFormatElement.UV2)
+                .add("UV3", GleamLumenVertex.UV3)
+                .add("Normal", VertexFormatElement.NORMAL)
+                .padding(1)
+                .add("LineWidth", VertexFormatElement.LINE_WIDTH)
+                .build();
+        *///?}
         private static final RenderPipeline SHAPE = pipeline("lumen_shape", false);
         private static final RenderPipeline TEXTURED = pipeline("lumen_texture", true);
 
@@ -516,8 +538,13 @@ public final class OrionLumenView {
             var builder = RenderPipeline.builder(RenderPipelinesAccessor.orion$getGuiSnippet())
                     .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/" + name))
                     .withVertexShader(SHADER).withFragmentShader(SHADER)
+                    //? if >=26.2 {
                     .withVertexBinding(0, FORMAT);
             if (textured) builder.withShaderDefine("LUMEN_TEXTURED").withBindGroupLayout(BindGroupLayouts.SAMPLER0);
+            //?} else {
+            /*.withVertexFormat(FORMAT, VertexFormat.Mode.QUADS);
+            if (textured) builder.withShaderDefine("LUMEN_TEXTURED").withSampler("Sampler0");
+            *///?}
             return RenderPipelinesAccessor.orion$registerOptional(builder.build());
         }
 

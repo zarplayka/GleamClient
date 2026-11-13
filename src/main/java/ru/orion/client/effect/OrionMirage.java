@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 //? if >=26.3 {
@@ -18,7 +20,6 @@ import com.mojang.renderpearl.api.textures.GpuTextureView;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.pipeline.ColorTargetState;
 import com.mojang.blaze3d.pipeline.CompiledRenderPipeline;
-import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTexture;
@@ -26,7 +27,14 @@ import com.mojang.blaze3d.textures.GpuTextureView;
 
 *///?}
 import net.minecraft.client.Minecraft;
+//? if >=26.2 <26.3 {
+/*import com.mojang.blaze3d.PrimitiveTopology;
+*///?}
+//? if >=26.2 {
 import net.minecraft.client.renderer.BindGroupLayouts;
+//?} else {
+/*import com.mojang.blaze3d.shaders.UniformType;
+*///?}
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -59,10 +67,22 @@ public final class OrionMirage {
         return RenderPipeline.builder().withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/" + name))
                 .withVertexShader("core/screenquad")
                 .withFragmentShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/" + name))
-                .withPrimitiveTopology(PrimitiveTopology.TRIANGLES).withCull(false)
+                //? if >=26.2 {
+                .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+                //?} else {
+                /*.withVertexFormat(com.mojang.blaze3d.vertex.DefaultVertexFormat.EMPTY, com.mojang.blaze3d.vertex.VertexFormat.Mode.TRIANGLES)
+                *///?}
+                .withCull(false)
                 .withDepthStencilState(Optional.empty()).withColorTargetState(ColorTargetState.DEFAULT)
+                //? if >=26.2 {
                 .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
-                .withBindGroupLayout(BindGroupLayouts.SAMPLER0_SAMPLER1).build();
+                .withBindGroupLayout(BindGroupLayouts.SAMPLER0_SAMPLER1)
+                //?} else {
+                /*.withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+                .withSampler("Sampler0")
+                .withSampler("Sampler1")
+                *///?}
+                .build();
     }
 
     public static boolean externalShadersActive() {
@@ -82,9 +102,9 @@ public final class OrionMirage {
         Minecraft client = Minecraft.getInstance();
         OrionConfig config = manager.getConfig();
         if (!config.isMirageEnabled() || client.level == null || client.player == null || externalShadersActive()) { release(); return; }
-        var camera = client.gameRenderer.gameRenderState().levelRenderState.cameraRenderState;
+        var camera = GleamMinecraft.renderState(client).levelRenderState.cameraRenderState;
         if (camera == null || !camera.initialized || camera.projectionMatrix == null) return;
-        RenderTarget target = client.gameRenderer.mainRenderTarget();
+        RenderTarget target = GleamMinecraft.mainTarget(client);
         GpuTexture source = target.getColorTexture(), depth = target.getDepthTexture();
         if (source == null || depth == null || source.isClosed() || depth.isClosed()
                 || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0 || (depth.usage() & GpuTexture.USAGE_TEXTURE_BINDING) == 0) return;
@@ -109,8 +129,12 @@ public final class OrionMirage {
             }
             var encoder = RenderSystem.getDevice().createCommandEncoder();
             encoder.copyTextureToTexture(source, scene, 0, 0, 0, 0, 0, scene.getWidth(0), scene.getHeight(0));
+            //? if >=26.2 {
             var info = RenderSystem.getDevice().getDeviceInfo();
             var parameters = parameters(camera.projectionMatrix, config, info.backendName().toLowerCase(java.util.Locale.ROOT).contains("opengl") ? 1F : -1F, info.isZZeroToOne());
+            //?} else {
+            /*var parameters = parameters(camera.projectionMatrix, config, 1F, false);
+            *///?}
             drawPasses(encoder, reflectionPipeline, compositePipeline, sceneView, target.getDepthTextureView(), reflectedView, target.getColorTextureView(), parameters);
             warned = false;
         } catch (RuntimeException exception) { warn(exception); }
@@ -132,7 +156,11 @@ public final class OrionMirage {
                            GpuTextureView scene, GpuTextureView depth, GpuTextureView reflected, GpuTextureView target, GpuBufferSlice parameters) {
         var linear = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
         var nearest = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST);
+        //? if >=26.2 {
         try (var pass = encoder.createRenderPass(() -> "GleamClient Mirage reflections", reflected, Optional.empty())) {
+        //?} else {
+        /*try (var pass = encoder.createRenderPass(() -> "GleamClient Mirage reflections", reflected, java.util.OptionalInt.empty())) {
+        *///?}
             pass.setPipeline(reflection); pass.setUniform("DynamicTransforms", parameters);
             //? if >=26.3 {
             pass.setUniform("Sampler0", scene, linear); pass.setUniform("Sampler1", depth, nearest);
@@ -140,9 +168,17 @@ public final class OrionMirage {
                         /*pass.bindTexture("Sampler0", scene, linear); pass.bindTexture("Sampler1", depth, nearest);
             *///?}
 
+            //? if >=26.2 {
             pass.disableScissor(); pass.draw(3, 1, 0, 0);
+            //?} else {
+            /*pass.disableScissor(); pass.draw(0, 3);
+            *///?}
         }
+        //? if >=26.2 {
         try (var pass = encoder.createRenderPass(() -> "GleamClient Mirage composite", target, Optional.empty())) {
+        //?} else {
+        /*try (var pass = encoder.createRenderPass(() -> "GleamClient Mirage composite", target, java.util.OptionalInt.empty())) {
+        *///?}
             pass.setPipeline(composite); pass.setUniform("DynamicTransforms", parameters);
             //? if >=26.3 {
             pass.setUniform("Sampler0", scene, linear); pass.setUniform("Sampler1", reflected, linear);
@@ -150,7 +186,11 @@ public final class OrionMirage {
                         /*pass.bindTexture("Sampler0", scene, linear); pass.bindTexture("Sampler1", reflected, linear);
             *///?}
 
+            //? if >=26.2 {
             pass.disableScissor(); pass.draw(3, 1, 0, 0);
+            //?} else {
+            /*pass.disableScissor(); pass.draw(0, 3);
+            *///?}
         }
     }
 

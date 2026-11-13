@@ -1,5 +1,7 @@
 package ru.orion.client.hud;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -21,7 +23,11 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.render.TextureSetup;
+//? if >=26.2 {
 import net.minecraft.client.renderer.BindGroupLayouts;
+//?} else {
+/*import com.mojang.blaze3d.vertex.VertexFormat;
+*///?}
 import net.minecraft.client.renderer.state.gui.BlitRenderState;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
@@ -33,11 +39,6 @@ import ru.orion.client.OrionClient;
 import ru.orion.client.mixin.GuiGraphicsExtractorAccessor;
 import ru.orion.client.mixin.RenderPipelinesAccessor;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.geom.RoundRectangle2D;
-import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,8 +54,18 @@ public final class OrionGlassCompositor {
                     .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/hud_glass"))
                     .withVertexShader("core/position_tex_color")
                     .withFragmentShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/hud_glass"))
+                    //? if >=26.2 {
                     .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+                    //?} else {
+                    /*.withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS)
+                    *///?}
+                    //? if >=26.2 {
                     .withBindGroupLayout(BindGroupLayouts.SAMPLER0_SAMPLER1_SAMPLER2)
+                    //?} else {
+                    /*.withSampler("Sampler0")
+                    .withSampler("Sampler1")
+                    .withSampler("Sampler2")
+                    *///?}
                     .build());
 
     private GpuTexture scene;
@@ -68,6 +79,7 @@ public final class OrionGlassCompositor {
     private boolean bottomOrigin;
     private final Map<Identifier, MaskTexture> masks = new HashMap<>();
     private boolean shaderWarningLogged;
+    private DynamicTexture transparent;
 
     private OrionGlassCompositor() {
     }
@@ -80,35 +92,45 @@ public final class OrionGlassCompositor {
                 && !mask.getPixels().isClosed()) {
             return;
         }
-        BufferedImage image = new BufferedImage(layout.pixelWidth(), layout.pixelHeight(),
-                BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = image.createGraphics();
-        try {
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            g.scale(layout.pixelWidth() / layout.designWidth(), layout.pixelHeight() / layout.designHeight());
-            g.setColor(Color.WHITE);
-            for (Panel panel : layout.panels()) {
-                g.fill(new RoundRectangle2D.Float(panel.x(), panel.y(), panel.width(), panel.height(),
-                        panel.arc(), panel.arc()));
-            }
-        } finally {
-            g.dispose();
-        }
-        if (mask == null || mask.getPixels() == null || mask.getPixels().isClosed()
+        boolean recreate = mask == null || mask.getPixels() == null || mask.getPixels().isClosed()
                 || maskLayout == null || maskLayout.pixelWidth() != layout.pixelWidth()
-                || maskLayout.pixelHeight() != layout.pixelHeight()) {
-            if (mask != null) {
-                mask.close();
+                || maskLayout.pixelHeight() != layout.pixelHeight();
+        NativeImage pixels = recreate ? new NativeImage(layout.pixelWidth(), layout.pixelHeight(), true) : mask.getPixels();
+        if (!recreate) pixels.fillRect(0, 0, layout.pixelWidth(), layout.pixelHeight(), 0);
+        float sx = layout.pixelWidth() / layout.designWidth(), sy = layout.pixelHeight() / layout.designHeight();
+        for (Panel panel : layout.panels()) {
+            float radius = Math.min(panel.arc(), Math.min(panel.width(), panel.height())) / 2;
+            int left = Math.max(0, (int) Math.floor(panel.x() * sx));
+            int top = Math.max(0, (int) Math.floor(panel.y() * sy));
+            int right = Math.min(layout.pixelWidth(), (int) Math.ceil((panel.x() + panel.width()) * sx));
+            int bottom = Math.min(layout.pixelHeight(), (int) Math.ceil((panel.y() + panel.height()) * sy));
+            for (int y = top; y < bottom; y++) for (int x = left; x < right; x++) {
+                float dx = Math.abs((x + .5F) / sx - panel.x() - panel.width() / 2) - panel.width() / 2 + radius;
+                float dy = Math.abs((y + .5F) / sy - panel.y() - panel.height() / 2) - panel.height() / 2 + radius;
+                float distance = (float) Math.hypot(Math.max(0, dx), Math.max(0, dy)) + Math.min(0, Math.max(dx, dy)) - radius;
+                int alpha = Math.round(255 * Math.clamp(.5F - distance * Math.min(sx, sy), 0, 1));
+                if (alpha > 0) pixels.setPixel(x, y, alpha << 24 | 0xffffff);
             }
-            NativeImage pixels = new NativeImage(layout.pixelWidth(), layout.pixelHeight(), true);
-            OrionHudRenderer.copyPixels(image, pixels);
+        }
+        if (recreate) {
+            if (mask != null) mask.close();
             mask = new DynamicTexture(() -> id + "_glass_mask", pixels);
         } else {
-            OrionHudRenderer.copyPixels(image, mask.getPixels());
             mask.upload();
         }
         masks.put(id, new MaskTexture(layout, mask));
+    }
+
+    void submitBackground(Identifier id, GuiGraphicsExtractor context, int x, int y, int width, int height,
+                          int designWidth, int designHeight, List<Panel> panels) {
+        int scale = Math.clamp(Minecraft.getInstance().getWindow().getGuiScale(), 1, 6);
+        updateMask(id, new MaskLayout(width * scale, height * scale, designWidth, designHeight, panels));
+        if (transparent == null) {
+            NativeImage pixels = new NativeImage(1, 1, true);
+            pixels.setPixel(0, 0, 0);
+            transparent = new DynamicTexture(() -> "orion_glass_transparent", pixels);
+        }
+        submit(id, context, transparent, x, y, width, height);
     }
 
     public boolean submit(Identifier id, GuiGraphicsExtractor context, DynamicTexture foreground,
@@ -121,8 +143,12 @@ public final class OrionGlassCompositor {
         Minecraft client = Minecraft.getInstance();
         MaskTexture entry = masks.get(id);
         // Экран меню может размывать весь GUI отдельным проходом: оставляем ему управление фоном.
-        if (entry == null || (!screenGlass && client.gui.screen() != null && !(client.gui.screen() instanceof ChatScreen))
+        if (entry == null || (!screenGlass && GleamMinecraft.screen(client) != null && !(GleamMinecraft.screen(client) instanceof ChatScreen))
+                //? if >=26.2 {
                 || (!screenGlass && ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState().isHudHidden)) {
+                //?} else {
+                /*|| (!screenGlass && client.options.hideGui)) {
+                *///?}
             return false;
         }
         if (!screenGlass && !OrionClient.getInstance().getConfigManager().getConfig().isHudElementGlass(id.getPath())) {
@@ -140,7 +166,7 @@ public final class OrionGlassCompositor {
                             0F, 1F, 0F, 1F, 0x00FFFFFF, new ScreenRectangle(0, 0, context.guiWidth(), context.guiHeight())));
             return true;
         }
-        GpuTexture source = client.gameRenderer.mainRenderTarget().getColorTexture();
+        GpuTexture source = GleamMinecraft.mainTarget(client).getColorTexture();
         if (source == null || source.isClosed() || source.getWidth(0) <= 0 || source.getHeight(0) <= 0
                 || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0) {
             return false;
@@ -166,8 +192,12 @@ public final class OrionGlassCompositor {
                     GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_TEXTURE_BINDING,
                     source.getFormat(), source.getWidth(0), source.getHeight(0), 1, 1);
             sceneView = RenderSystem.getDevice().createTextureView(scene);
+            //? if >=26.2 {
             bottomOrigin = RenderSystem.getDevice().getDeviceInfo().backendName()
                     .toLowerCase(java.util.Locale.ROOT).contains("opengl");
+            //?} else {
+            /*bottomOrigin = true;
+            *///?}
         }
         CaptureArea area = CaptureArea.from(context.pose(), x, y, width, height,
                 context.guiWidth(), context.guiHeight(), source.getWidth(0), source.getHeight(0), bottomOrigin);
@@ -205,7 +235,7 @@ public final class OrionGlassCompositor {
             }
             return;
         }
-        if(source != Minecraft.getInstance().gameRenderer.mainRenderTarget().getColorTexture())return;
+        if(source != GleamMinecraft.mainTarget(Minecraft.getInstance()).getColorTexture())return;
         captureRequested = false;
         // Между extraction и render framebuffer может быть пересоздан при resize или смене мира.
         // В этом кадре сохраняем прежний фон, не закрывая текстуры уже собранных GUI-состояний.
@@ -238,7 +268,9 @@ public final class OrionGlassCompositor {
             encoder.copyTextureToTexture(source, scene, 0, area.x(), area.y(), area.x(), area.y(),
                     area.width(), area.height());
         }
+        //? if >=26.2 {
         encoder.submit();
+        //?}
         lastCaptureAreas.clear();
         lastCaptureAreas.addAll(captureAreas);
         captureAreas.clear();
@@ -247,6 +279,8 @@ public final class OrionGlassCompositor {
     }
 
     public void close() {
+        if (transparent != null) transparent.close();
+        transparent = null;
         captureRequested = false;
         captureAreas.clear();
         captureWholeScene = false;
