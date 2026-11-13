@@ -1,9 +1,11 @@
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs, io,
+    io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
 };
 use tauri::Manager;
@@ -24,6 +26,8 @@ const GAME_FILES: &[&str] = &[
     "optionsof.txt",
     "servers.dat",
 ];
+
+pub(crate) const MODRINTH_ACTIVITY: &str = "modrinth-activity.json";
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -430,6 +434,85 @@ fn modrinth(root: &Path, candidates: &mut Vec<Candidate>) {
     }
 }
 
+fn log_interval(file: &Path) -> Option<(u64, u64)> {
+    let name = file.file_name()?.to_str()?;
+    let input = fs::File::open(file).ok()?;
+    let modified: DateTime<Local> = input.metadata().ok()?.modified().ok()?.into();
+    let (date, input): (_, Box<dyn Read>) = if name == "latest.log" {
+        (modified.date_naive(), Box::new(input))
+    } else {
+        let (date, index) = name.strip_suffix(".log.gz")?.rsplit_once('-')?;
+        index.parse::<u32>().ok()?;
+        (NaiveDate::parse_from_str(date, "%Y-%m-%d").ok()?,
+            Box::new(flate2::read::MultiGzDecoder::new(input)))
+    };
+    let mut stamps = BufReader::new(input.take(64 * 1024 * 1024))
+        .split(b'\n')
+        .filter_map(|line| {
+            let line = line.ok()?;
+            let prefix = line.strip_prefix(b"[")?;
+            let prefix = std::str::from_utf8(prefix.get(..prefix.iter().position(|&b| b == b']')?)?).ok()?;
+            NaiveTime::parse_from_str(prefix, "%H:%M:%S").ok()
+                .map(|time| (date.and_time(time), false))
+                .or_else(|| NaiveDateTime::parse_from_str(prefix, "%d%b%Y %H:%M:%S").ok().map(|time| (time, true)))
+        });
+    let (mut start, dated) = stamps.next()?;
+    let (mut end, _) = stamps.last()?;
+    if !dated && end < start {
+        if name == "latest.log" {
+            start = start.checked_sub_days(chrono::Days::new(1))?;
+        } else {
+            end = end.checked_add_days(chrono::Days::new(1))?;
+        }
+    }
+    let start = Local.from_local_datetime(&start).earliest()?.timestamp_millis();
+    let end = Local.from_local_datetime(&end).latest()?.timestamp_millis();
+    (start > 0 && end - start >= 60_000).then_some((start as u64, end as u64))
+}
+
+fn import_modrinth_activity(candidate: &Candidate, target: &Path) -> Result<()> {
+    let file = target.join(MODRINTH_ACTIVITY);
+    if file.is_file() {
+        return Ok(());
+    }
+    let mut intervals = BTreeMap::<u64, u64>::new();
+    let logs = candidate.path.join("logs");
+    if let Ok(entries) = fs::read_dir(logs) {
+        for entry in entries.flatten() {
+            if entry.file_type().is_ok_and(|kind| kind.is_file()) {
+                if let Some((start, end)) = log_interval(&entry.path()) {
+                    intervals.entry(start).and_modify(|known| *known = (*known).max(end)).or_insert(end);
+                }
+            }
+        }
+    }
+    let profile = &candidate.profile;
+    let sessions: Vec<_> = intervals.into_iter()
+        .filter_map(|(start, end)| PlaySession::imported(&profile.name, &profile.version, start, end))
+        .map(|session| session.with_imported_profile(&profile.id))
+        .collect();
+    crate::game::save_activity_file(&file, &sessions)
+}
+
+pub(crate) fn restore_modrinth_activity(profiles: &[(Profile, PathBuf)]) {
+    let pending: BTreeMap<_, _> = profiles.iter()
+        .filter(|(profile, path)| profile.launcher == "Modrinth" && !path.join(MODRINTH_ACTIVITY).exists())
+        .map(|(profile, path)| (profile.id.as_str(), path))
+        .collect();
+    if pending.is_empty() {
+        return;
+    }
+    if let Some(roaming) = std::env::var_os("APPDATA") {
+        let mut candidates = Vec::new();
+        modrinth(&PathBuf::from(roaming).join("ModrinthApp"), &mut candidates);
+        for candidate in candidates {
+            if let Some(target) = pending.get(candidate.profile.id.as_str()) {
+                let _ = import_modrinth_activity(&candidate, target);
+            }
+        }
+    }
+}
+
 fn aw(root: &Path, candidates: &mut Vec<Candidate>) {
     let history = json(&root.join("activity.json"));
     let builds = json(&root.join("local-builds.json"));
@@ -689,11 +772,18 @@ pub async fn discover_profiles(
         }
         let profiles = scan(folder.as_deref())
             .into_iter()
-            .map(|candidate| Offer {
-                path: candidate.path.to_string_lossy().into_owned(),
-                imported: root.join("imported").join(&candidate.profile.id).exists(),
-                sessions: candidate.sessions.len(),
-                profile: candidate.profile,
+            .map(|candidate| {
+                let target = root.join("imported").join(&candidate.profile.id);
+                let imported = target.join("profile.json").is_file();
+                if imported && candidate.profile.launcher == "Modrinth" {
+                    let _ = import_modrinth_activity(&candidate, &target);
+                }
+                Offer {
+                    path: candidate.path.to_string_lossy().into_owned(),
+                    imported,
+                    sessions: candidate.sessions.len(),
+                    profile: candidate.profile,
+                }
             })
             .collect();
         Ok(Discovery {
@@ -778,6 +868,9 @@ fn import_one(root: &Path, candidate: &Candidate, copy_mods: bool) -> Result<()>
     .map_err(|_| "game_storage")?;
     if !candidate.sessions.is_empty() {
         crate::game::save_activity(staging.path(), &candidate.sessions)?;
+    }
+    if candidate.profile.launcher == "Modrinth" {
+        import_modrinth_activity(candidate, staging.path())?;
     }
     match fs::rename(staging.path(), &target) {
         Ok(()) => Ok(()),
@@ -876,5 +969,24 @@ mod tests {
         assert_eq!(profiles[0].profile.total_ms, 150_000);
         assert_eq!(profiles[0].profile.last_played, Some(1_700_000_000_000));
         assert!(profiles[0].sessions.is_empty());
+        let logs = profiles[0].path.join("logs");
+        fs::create_dir(&logs).unwrap();
+        let mut archived = flate2::write::GzEncoder::new(
+            fs::File::create(logs.join("2023-11-13-1.log.gz")).unwrap(),
+            flate2::Compression::default(),
+        );
+        use io::Write;
+        archived.write_all(b"[23:55:00] start\n[00:05:00] end\n").unwrap();
+        archived.finish().unwrap();
+        let imports = tempfile::tempdir().unwrap();
+        import_one(imports.path(), &profiles[0], false).unwrap();
+        let target = imports.path().join(&profiles[0].profile.id);
+        let history = json(&target.join(MODRINTH_ACTIVITY));
+        let session = &history.as_array().unwrap()[0];
+        assert_eq!(session["importedProfileId"], profiles[0].profile.id);
+        assert_eq!(num(session, "endedAt") - num(session, "startedAt"), 600_000);
+        assert!(!target.join("activity.json").exists());
+        import_modrinth_activity(&profiles[0], &target).unwrap();
+        assert_eq!(json(&target.join(MODRINTH_ACTIVITY)), history);
     }
 }

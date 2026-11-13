@@ -1,6 +1,6 @@
 [package]
 name = "gleam-launcher"
-version = "0.1.19"
+version = "0.1.20"
 edition = "2021"
 default-run = "gleam-launcher"
 
@@ -26,6 +26,8 @@ p256 = { version = "0.13", features = ["ecdsa"] }
 uuid = { version = "1", features = ["v4"] }
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
+chrono = "0.4"
+flate2 = "1"
 
 [build-dependencies]
 serde_json = "1"

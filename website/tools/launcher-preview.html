@@ -559,6 +559,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .settings-folder { border-radius: 8px; color: var(--text); text-decoration: none }
     .storage-summary { background: var(--hover-tint); border-radius: 15px 15px 0 0 }
     .storage-versions { border-top: 1px solid var(--border) }
+    .storage-profiles { margin-top: 16px }
+    .storage-profiles-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 16px }
+    .storage-profiles-header .button { white-space: nowrap }
+    .storage-version .setting-label { min-width: 0; overflow-wrap: anywhere }
     .storage-version { min-height: 50px; padding-block: 8px }
     .storage-actions { display: flex; align-items: center; gap: 12px }
     .storage-open { width: 34px; min-height: 34px; padding: 0; color: var(--side-muted) }
@@ -798,12 +802,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profile-import-mods { display: flex; gap: 8px; align-items: center; margin-bottom: 16px }
     .profile-import-location { display: flex; gap: 6px; margin-bottom: 10px }
     .profile-import-location input { flex: 1; min-width: 0; color: var(--text); background: var(--control-bg); border: 1px solid var(--side-rule); border-radius: 7px; padding: 0 9px }
-    .profile-import-control { display: flex; justify-content: center; align-items: center; gap: 5px; margin-top: 8px }
-    .profile-import-control select { max-width: 155px }
-    .profile-import-control .setting-dropdown { max-width: 170px }
-    .profile-import-control select, .profile-import-control button {
-      color: var(--text); background: var(--control-bg); border: 1px solid var(--side-rule); border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 12px;
-    }
+    .profile-import-control { display: flex; align-items: center; gap: 6px; margin-top: 8px }
+    .profile-import-control .setting-dropdown { flex: 1; min-width: 0 }
+    .profile-import-control .dropdown-trigger { gap: 8px }
+    .profile-import-control .settings-folder { flex: none; width: 35px; height: 35px; padding: 0 }
+    #imported-profile-options .dropdown-option { text-align: left }
+    #imported-profile-options .dropdown-option span { min-width: 0; overflow-wrap: anywhere }
     .minecraft-dialog[open] { animation: page-in .2s var(--ease) both }
     .minecraft-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px }
     .minecraft-dialog h2 { margin: 0; font-size: 19px; letter-spacing: -.025em }
@@ -1168,7 +1172,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             </div>
             <div class="profile-import-control" id="profile-import-control" hidden>
               <select id="imported-profile" aria-label="Игровой профиль"></select>
-              <button id="open-imported-folder" type="button" hidden>Открыть папку</button>
+              <button class="button settings-folder" id="open-imported-folder" type="button" aria-label="Открыть папку" title="Открыть папку" hidden><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg></button>
             </div>
           </div>
           <div class="version-shelf version-modern" role="group" aria-label="Версии Minecraft 26.x">
@@ -1301,6 +1305,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+          <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-020">
+            <span class="release-meta"><span class="release-version">0.1.20</span><time datetime="2026-11-13">13.11.2026</time></span>
+            <div>
+              <h3 id="release-launcher-020">Активность Modrinth по дням</h3>
+              <p>Gleam восстанавливает сессии по сохранённым журналам игры, в том числе для уже перенесённых профилей. Обновили выбор профиля на главной и список в хранилище.</p>
+            </div>
+          </article>
           <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-019">
             <span class="release-meta"><span class="release-version">0.1.19</span><time datetime="2026-11-13">13.11.2026</time></span>
             <div>
@@ -1466,8 +1477,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
               <strong class="setting-value" id="settings-storage-size">—</strong>
             </div>
             <div class="storage-versions" id="settings-storage-versions"></div>
+          </div>
+          <div class="settings-panel storage-profiles">
+            <div class="storage-profiles-header">
+              <strong class="setting-label">Импортированные профили</strong>
+              <button class="button" id="settings-import-profiles" type="button">Перенести профили</button>
+            </div>
             <div class="storage-versions" id="settings-imported-profiles" hidden></div>
-            <button class="button" id="settings-import-profiles" type="button">Перенести профили</button>
             <template id="settings-storage-row">
               <div class="setting storage-version">
                 <span class="setting-label"></span>
@@ -1938,6 +1954,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Последний релиз на GitHub':['Latest release on GitHub','Neuste Version auf GitHub','Última versión en GitHub'],
       'Minecraft 26.2 доступен в лаунчере':['Minecraft 26.2 is available in the launcher','Minecraft 26.2 ist im Launcher verfügbar','Minecraft 26.2 ya está disponible en el launcher'],
       'Обновлённый HUD в GleamClient':['Updated HUD in GleamClient','Überarbeitetes HUD in GleamClient','HUD actualizado en GleamClient'],
+      'Активность Modrinth по дням':['Modrinth activity by day','Modrinth-Aktivität nach Tagen','Actividad de Modrinth por día'],
+      'Gleam восстанавливает сессии по сохранённым журналам игры, в том числе для уже перенесённых профилей. Обновили выбор профиля на главной и список в хранилище.':['Gleam restores sessions from saved game logs, including for profiles you already imported. The Home profile picker and Storage list have also been updated.','Gleam stellt Sitzungen aus gespeicherten Spielprotokollen wieder her, auch für bereits importierte Profile. Die Profilauswahl auf der Startseite und die Liste im Speicher wurden überarbeitet.','Gleam recupera sesiones de los registros guardados, incluso para perfiles ya importados. También se actualizaron el selector de inicio y la lista de almacenamiento.'],
       'Inventory, Keystrokes и BetterNear теперь поддерживают светлую и тёмную темы Gleam. Обновление доступно для Minecraft 26.1.2, 26.2 и 26.3.':['Inventory, Keystrokes, and BetterNear now support light and dark Gleam themes. Available for Minecraft 26.1.2, 26.2, and 26.3.','Inventory, Keystrokes und BetterNear unterstützen jetzt das helle und dunkle Gleam-Design. Verfügbar für Minecraft 26.1.2, 26.2 und 26.3.','Inventory, Keystrokes y BetterNear ahora admiten los temas claro y oscuro de Gleam. Disponible para Minecraft 26.1.2, 26.2 y 26.3.'],
       'Быстрый перенос стаков в GleamClient':['Quick stack transfer in GleamClient','Stapel schnell verschieben in GleamClient','Transferencia rápida de pilas en GleamClient'],
       'Включи Item Scroller, зажми Shift и левую кнопку мыши и проведи по слотам. Стаки перемещаются как при обычном Shift-клике. Доступно в Minecraft 26.1.2, 26.2 и 26.3.':['Enable Item Scroller, hold Shift and the left mouse button, and drag across slots. Stacks move just like with a Shift-click. Available in Minecraft 26.1.2, 26.2, and 26.3.','Aktiviere Item Scroller, halte Umschalt und die linke Maustaste und ziehe über die Slots. Stapel werden wie beim Umschalt-Klick verschoben. Verfügbar in Minecraft 26.1.2, 26.2 und 26.3.','Activa Item Scroller, mantén Mayús y el botón izquierdo y arrastra por las ranuras. Las pilas se mueven como con Mayús + clic. Disponible en Minecraft 26.1.2, 26.2 y 26.3.'],
@@ -1954,6 +1972,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Не удалось перенести: {0}':['Could not import: {0}','Import fehlgeschlagen: {0}','No se pudo importar: {0}'],
       'Не удалось прочитать профили':['Could not read profiles','Profile konnten nicht gelesen werden','No se pudieron leer los perfiles'],
       'Уже перенесён':['Already imported','Bereits importiert','Ya importado'],
+      'Импортированные профили':['Imported profiles','Importierte Profile','Perfiles importados'],
       'Данные и история · запуск недоступен':['Data and activity · launch unavailable','Daten und Aktivität · Start nicht verfügbar','Datos y actividad · inicio no disponible'],
       'Сессий: {0}':['Sessions: {0}','Sitzungen: {0}','Sesiones: {0}'],
       'Последняя игра: {0}':['Last played: {0}','Zuletzt gespielt: {0}','Última partida: {0}'],
@@ -2474,12 +2493,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       $('activity-live').hidden = !playSessions.some(session => session.endedAt === null);
       const since = activityDay(today,1 - activityRange);
       const byDay = new Map();
-      let total = importedProfiles.reduce((sum,profile) => sum + (profile.totalMs || 0),0);
+      let total = 0;
+      const importedDurations = new Map();
       let longest = 0;
       let periodTotal = 0;
       for (const session of playSessions) {
         const end = session.endedAt ?? now;
         const duration = Math.max(0,end - session.startedAt);
+        if (session.importedProfileId) {
+          importedDurations.set(session.importedProfileId,(importedDurations.get(session.importedProfileId) || 0) + duration);
+        }
         total += duration;
         longest = Math.max(longest,duration);
         periodTotal += Math.max(0,Math.min(end,now) - Math.max(since,session.startedAt));
@@ -2488,6 +2511,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           if (elapsed > 0) byDay.set(day,(byDay.get(day) || 0) + elapsed);
         }
       }
+      for (const profile of importedProfiles) total += Math.max(0,(profile.totalMs || 0) - (importedDurations.get(profile.id) || 0));
       let streak = 0;
       for (let day = byDay.has(today) ? today : activityDay(today,-1); byDay.has(day); day = activityDay(day,-1)) streak++;
       $('activity-total').textContent = activityDuration(total);
@@ -2854,6 +2878,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       const options = () => [...menu.children].filter(option => option.getAttribute('aria-disabled') !== 'true');
       function sync() {
         caption.textContent = select.selectedOptions[0]?.textContent || '';
+        if (!label && select.hasAttribute('aria-label')) {
+          const name = translated(select.getAttribute('aria-label'));
+          trigger.setAttribute('aria-label',[name,caption.textContent].filter(Boolean).join(' · '));
+          menu.setAttribute('aria-label',name);
+        }
+        if (select.id === 'imported-profile') trigger.title = caption.textContent;
         trigger.disabled = select.disabled;
         menu.replaceChildren(...[...select.options].map((option,index) => {
           const row = document.createElement('div');
@@ -2883,7 +2913,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         const above = rect.top-12;
         const upward = below < 170 && above > below;
         const height = Math.max(45,Math.min(260,upward ? above : below));
-        menu.style.width = rect.width+'px';
+        menu.style.width = (select.id === 'imported-profile' ? Math.min(innerWidth-24,Math.max(244,rect.width)) : rect.width)+'px';
         menu.style.maxHeight = height+'px';
         menu.style.left = Math.max(12,Math.min(rect.right-parseFloat(menu.style.width),innerWidth-parseFloat(menu.style.width)-12))+'px';
         menu.style.top = upward ? 'auto' : rect.bottom+6+'px';
@@ -4083,6 +4113,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       const id = chosenProfiles.get(selectedVersion);
       importedProfile.value = profiles.some(profile => profile.id === id) ? id : '';
       $('open-imported-folder').hidden = !importedProfile.value;
+      writeLabel($('open-imported-folder'),'Открыть папку');
       settingDropdowns.get(importedProfile)?.sync();
     }
     function renderImportedStorage() {
@@ -4094,6 +4125,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         row.querySelector('.setting-value').textContent = profile.version || translated('Версия не определена');
         const button = row.querySelector('.storage-open');
         writeLabel(button,'Открыть папку');
+        button.disabled = false;
         button.addEventListener('click',() => openImportedFolder(profile));
         return row;
       }));

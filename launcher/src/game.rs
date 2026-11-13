@@ -1479,13 +1479,21 @@ pub struct PlaySession {
     version: String,
     started_at: u64,
     ended_at: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    imported_profile_id: Option<String>,
 }
 
 impl PlaySession {
     pub(crate) fn imported(player: &str, version: &str, start: u64, end: u64) -> Option<Self> {
         (start > 0 && end > start && end <= timestamp(SystemTime::now())).then(|| Self {
             player: player.into(), version: version.into(), started_at: start, ended_at: Some(end),
+            imported_profile_id: None,
         })
+    }
+
+    pub(crate) fn with_imported_profile(mut self, id: &str) -> Self {
+        self.imported_profile_id = Some(id.into());
+        self
     }
 }
 
@@ -1494,7 +1502,11 @@ fn timestamp(time: SystemTime) -> u64 {
 }
 
 fn read_activity(game_dir: &Path) -> Result<Vec<PlaySession>> {
-    match File::open(game_dir.join("activity.json")) {
+    read_activity_file(&game_dir.join("activity.json"))
+}
+
+fn read_activity_file(path: &Path) -> Result<Vec<PlaySession>> {
+    match File::open(path) {
         Ok(file) => serde_json::from_reader(file).map_err(|_| "game_storage".into()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
         Err(error) => Err(io_error(error)),
@@ -1502,9 +1514,13 @@ fn read_activity(game_dir: &Path) -> Result<Vec<PlaySession>> {
 }
 
 pub(crate) fn save_activity(game_dir: &Path, sessions: &[PlaySession]) -> Result<()> {
-    let mut temporary = tempfile::NamedTempFile::new_in(game_dir).map_err(io_error)?;
+    save_activity_file(&game_dir.join("activity.json"), sessions)
+}
+
+pub(crate) fn save_activity_file(path: &Path, sessions: &[PlaySession]) -> Result<()> {
+    let mut temporary = tempfile::NamedTempFile::new_in(path.parent().ok_or("game_storage")?).map_err(io_error)?;
     serde_json::to_writer(&mut temporary, sessions).map_err(|_| "game_storage")?;
-    temporary.persist(game_dir.join("activity.json")).map_err(|error| io_error(error.error))?;
+    temporary.persist(path).map_err(|error| io_error(error.error))?;
     Ok(())
 }
 
@@ -1534,6 +1550,7 @@ fn activity_recovers_exit_without_counting_launcher_downtime() {
         version: PROFILE_26_3.version.into(),
         started_at: timestamp(start),
         ended_at: None,
+        imported_profile_id: None,
     }]).unwrap();
     let mut history = read_activity(game_dir).unwrap();
     recover_activity(game_dir, &mut history);
@@ -1546,7 +1563,9 @@ pub async fn minecraft_activity(app: tauri::AppHandle) -> Result<Vec<PlaySession
         let mut history = Vec::new();
         let mut directories = supported_versions().map(|version| crate::catalog::instance_dir(&app, version))
             .collect::<Result<Vec<_>>>()?;
-        directories.extend(crate::profile_import::installed(&app)?.into_iter().map(|(_, path)| path));
+        let imported = crate::profile_import::installed(&app)?;
+        crate::profile_import::restore_modrinth_activity(&imported);
+        directories.extend(imported.into_iter().map(|(_, path)| path));
         for game_dir in directories {
             let mut sessions = read_activity(&game_dir)?;
             #[cfg(windows)]
@@ -1557,6 +1576,7 @@ pub async fn minecraft_activity(app: tauri::AppHandle) -> Result<Vec<PlaySession
                 recover_activity(&game_dir, &mut sessions);
             }
             history.extend(sessions);
+            history.extend(read_activity_file(&game_dir.join(crate::profile_import::MODRINTH_ACTIVITY))?);
         }
         history.sort_by_key(|session| session.started_at);
         Ok(history)
@@ -1835,6 +1855,7 @@ pub async fn launch_minecraft(
                 version: version.into(),
                 started_at,
                 ended_at: None,
+                imported_profile_id: None,
             });
             let _ = save_activity(&game_dir, sessions);
         }
