@@ -145,6 +145,7 @@ fn main() {
             catalog::open_instance_folder,
             open_project_link,
             auth::gleam_auth,
+            auth::cosmetic_loadout,
             minecraft::minecraft_account,
             game::launch_minecraft,
             game::minecraft_running,

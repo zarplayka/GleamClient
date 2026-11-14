@@ -429,8 +429,8 @@ document.addEventListener('click',event => {
     sendGame('friend-profile',{username:d.friendProfile});
   } else if (d.chatPeer) {
     sendGame('chat-select',{username:d.chatPeer});
-  } else if (d.equipCosmetic || d.cosmetic) {
-    const [id,module,,,style] = cosmeticById(d.equipCosmetic || d.cosmetic);
+  } else if (d.equipCosmetic) {
+    const [id,module,,,style] = cosmeticById(d.equipCosmetic);
     if (module === 'PET') sendGame('cosmetic-pet',{id});
     else if (style !== undefined && (!state.enabled.has(module) || state.wingsStyle !== style))
       sendGame('cosmetic-wings',{style});

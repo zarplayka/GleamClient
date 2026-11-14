@@ -781,9 +781,8 @@ function patchCosmeticShelf() {
 let cosmeticFrame = 0, cosmeticLayout = '';
 let cosmeticHover = '', cosmeticSuppressed = '', cosmeticSpin = null;
 function cosmeticLoadout() {
-  const selected = state.cosmeticSlot === 'Питомцы' ? cosmeticById(state.cosmetic) : null;
-  const peek = cosmeticById(cosmeticHover) ?? (selected?.[1] === 'PET' ? selected : null);
-  const worn = cosmetics.filter(item => item[0] !== 'dance' && isCosmeticEquipped(item) && (!peek || peek[3] !== item[3]));
+  const peek = cosmeticById(cosmeticHover || state.cosmetic);
+  const worn = cosmetics.filter(item => item[0] !== 'dance' && isCosmeticEquipped(item) && item[1] !== peek?.[1]);
   if (peek) worn.push(peek);
   return worn.map(item => item[0]);
 }

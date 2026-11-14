@@ -18,6 +18,7 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
 import ru.orion.client.OrionClient;
 import ru.orion.client.command.OrionFakeBanCommand;
+import ru.orion.client.effect.OrionBadgePresence;
 import ru.orion.client.gui.OrionClickGuiScreen;
 import ru.orion.client.gui.OrionChatNotifications;
 import org.slf4j.LoggerFactory;
@@ -65,6 +66,10 @@ public final class OrionAccounts {
     private CompletableFuture<Void> lastWrite = CompletableFuture.completedFuture(null);
     private Path sessionFile;
     private Session active;
+    private String cosmeticOwner = "", cosmeticCookie = "";
+    private JsonObject cosmeticBaseline, cosmeticSeed;
+    private long nextCosmeticPoll, nextCosmeticSample, cosmeticRetry;
+    private boolean cosmeticLoading;
     private final LinkedHashMap<String, Profile> profiles = new LinkedHashMap<>();
     private final LinkedHashMap<String, Session> pendingProfiles = new LinkedHashMap<>();
     private long profileRevision;
@@ -110,6 +115,7 @@ public final class OrionAccounts {
         ClientLifecycleEvents.CLIENT_STARTED.register(this::restore);
         ClientTickEvents.END_CLIENT_TICK.register(this::pollChatNotifications);
         ClientTickEvents.END_CLIENT_TICK.register(this::pollFakePunishments);
+        ClientTickEvents.END_CLIENT_TICK.register(this::syncCosmetics);
         OrionChatNotifications.register();
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             try {
@@ -340,6 +346,88 @@ public final class OrionAccounts {
         return session.plusExpiresAt() > Instant.now().getEpochSecond() ? "Plus" : "";
     }
     public String sessionCookieHeader() { return active == null ? "" : COOKIE + "=" + active.cookie(); }
+
+    private static JsonObject cosmeticSlots(OrionConfig config) {
+        var slots = new JsonObject();
+        slots.addProperty("wings", !config.isWingsEnabled() ? "" : config.getWingsStyle() == 0 ? "angel" : "dragon");
+        slots.addProperty("halo", config.isHaloEnabled());
+        slots.addProperty("hat", config.isChinaHeadEnabled());
+        slots.addProperty("dance", config.isEmotesEnabled());
+        slots.addProperty("pet", config.getCosmeticPet());
+        return slots;
+    }
+
+    private static void applyCosmeticSlots(OrionConfigManager manager, JsonObject slots) {
+        OrionConfig config = manager.getConfig();
+        if (cosmeticSlots(config).equals(slots)) return;
+        String wings = slots.get("wings").getAsString();
+        config.setWingsEnabled(!wings.isEmpty());
+        if (!wings.isEmpty()) config.setWingsStyle("dragon".equals(wings) ? 1 : 0);
+        config.setHaloEnabled(slots.get("halo").getAsBoolean());
+        config.setChinaHeadEnabled(slots.get("hat").getAsBoolean());
+        config.setEmotesEnabled(slots.get("dance").getAsBoolean());
+        config.setCosmeticPet(slots.get("pet").getAsString());
+        manager.save();
+        OrionBadgePresence.requestRefresh();
+    }
+
+    private void syncCosmetics(Minecraft client) {
+        if (busy || active == null || OrionClient.getConfigOrNull() == null) return;
+        Session session = active;
+        OrionConfigManager manager = OrionClient.getInstance().getConfigManager();
+        if (!cosmeticCookie.equals(session.cookie())) {
+            if (!cosmeticOwner.isEmpty() && !cosmeticOwner.equals(session.username())) {
+                applyCosmeticSlots(manager, cosmeticSlots(OrionConfig.createDefault()));
+            }
+            cosmeticOwner = session.username();
+            cosmeticCookie = session.cookie();
+            cosmeticBaseline = cosmeticSeed = cosmeticSlots(manager.getConfig());
+            cosmeticLoading = false;
+            nextCosmeticPoll = nextCosmeticSample = cosmeticRetry = 0;
+        }
+        if (cosmeticLoading) return;
+        long now = System.nanoTime();
+        if (now < cosmeticRetry || now < nextCosmeticSample) return;
+        nextCosmeticSample = now + Duration.ofMillis(250).toNanos();
+        JsonObject snapshot = cosmeticSlots(manager.getConfig());
+        JsonObject changes = new JsonObject();
+        for (var entry : snapshot.entrySet()) {
+            if (!entry.getValue().equals(cosmeticBaseline.get(entry.getKey()))) changes.add(entry.getKey(), entry.getValue());
+        }
+        if (now < nextCosmeticPoll && changes.isEmpty()) return;
+        JsonObject body = changes.isEmpty() && cosmeticSeed == null ? null : new JsonObject();
+        if (body != null) {
+            body.add("changes", changes);
+            if (cosmeticSeed != null) body.add("defaults", cosmeticSeed);
+        }
+        cosmeticLoading = true;
+        send("/api/cosmetic-loadout", body, session, body != null).thenApply(response -> {
+            requireSuccess(response.statusCode());
+            return JsonParser.parseString(response.body()).getAsJsonObject().getAsJsonObject("slots");
+        }).whenComplete((slots, failure) -> client.execute(() -> {
+            if (!cosmeticCookie.equals(session.cookie())) return;
+            cosmeticLoading = false;
+            if (active == null || !active.cookie().equals(session.cookie())) return;
+            long finished = System.nanoTime();
+            if (failure != null || slots == null) {
+                cosmeticRetry = finished + Duration.ofSeconds(15).toNanos();
+                return;
+            }
+            nextCosmeticPoll = finished + Duration.ofSeconds(5).toNanos();
+            JsonObject current = cosmeticSlots(manager.getConfig());
+            JsonObject merged = current.deepCopy();
+            for (var entry : snapshot.entrySet()) {
+                String key = entry.getKey();
+                if (slots.has(key) && current.get(key).equals(entry.getValue())) merged.add(key, slots.get(key));
+            }
+            // Keep edits made while the request was in flight queued for the next write.
+            cosmeticSeed = null;
+            cosmeticBaseline = snapshot.deepCopy();
+            for (String key : snapshot.keySet()) if (slots.has(key)) cosmeticBaseline.add(key, slots.get(key));
+            applyCosmeticSlots(manager, merged);
+        }));
+    }
+
     public List<String> usernames() { return List.copyOf(sessions.keySet()); }
     public boolean busy() { return busy; }
     public void setBusy(boolean busy) { this.busy = busy; }

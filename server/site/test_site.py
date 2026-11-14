@@ -192,6 +192,34 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
         restored = await (await self.client.get(path, headers=second_device)).json()
         self.assertEqual(restored, saved)
 
+    async def test_cosmetic_loadout_preserves_separate_slots_and_legacy_defaults(self):
+        launcher = await self.account_headers('CosmeticPlayer')
+        other = await self.account_headers('OtherCosmetic')
+        login = await self.client.post('/api/login', headers={'Origin': NEW, 'X-Orion-Request': '1'},
+                                       json={'username': 'CosmeticPlayer', 'password': PASSWORD})
+        self.assertEqual(login.status, 200)
+        client = launcher | {'Cookie': app.COOKIE + '=' + login.cookies[app.COOKIE].value,
+                             'X-CSRF-Token': (await login.json())['csrf']}
+        path = '/api/cosmetic-loadout'
+        self.assertEqual((await self.client.get(path)).status, 401)
+        self.assertEqual(await (await self.client.get(path, headers=launcher)).json(), {'slots': {}})
+        first = await self.client.post(path, headers=launcher, json={'changes': {'wings': 'dragon', 'pet': ''}})
+        self.assertEqual(first.status, 200)
+        migrated = await self.client.post(path, headers=client,
+            json={'defaults': {'wings': 'angel', 'pet': 'ember_fox', 'halo': True, 'hat': False, 'dance': False}})
+        self.assertEqual((await migrated.json())['slots'],
+                         {'wings': 'dragon', 'pet': '', 'halo': True, 'hat': False, 'dance': False})
+        self.assertEqual((await self.client.post(path, headers=client, json={'changes': {'pet': 'space_slime'}})).status, 200)
+        self.assertEqual((await self.client.post(path, headers=launcher, json={'changes': {'wings': '', 'dance': True}})).status, 200)
+        expected = {'slots': {'wings': '', 'pet': 'space_slime', 'halo': True, 'hat': False, 'dance': True}}
+        self.assertEqual(await (await self.client.get(path, headers=client)).json(), expected)
+        self.assertEqual(await (await self.client.get(path, headers=other)).json(), {'slots': {}})
+        for invalid in ({'pet': 'alien'}, {'pet': []}, {'halo': 1}, {'wings': 'halo'}, {'name': 'hat'}):
+            self.assertEqual((await self.client.post(path, headers=client, json={'changes': invalid})).status, 400)
+        unsafe = {key: value for key, value in client.items() if key != 'X-CSRF-Token'}
+        self.assertEqual((await self.client.post(path, headers=unsafe, json={'changes': {'hat': True}})).status, 401)
+        self.assertEqual(await (await self.client.get(path, headers=launcher)).json(), expected)
+
     async def test_admin_permissions_and_role_changes_apply_to_existing_sessions(self):
         owner = await self.account_headers('FirstOwner')
         admin = await self.account_headers('FirstAdmin')

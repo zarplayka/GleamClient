@@ -74,13 +74,17 @@ impl Auth {
 }
 
 impl GameAuth {
-    pub(crate) fn settings_request(&self, method: Method) -> RequestBuilder {
-        self.client.request(method, format!("{ORIGIN}/api/game-settings"))
+    fn account_request(&self, method: Method, path: &str) -> RequestBuilder {
+        self.client.request(method, format!("{ORIGIN}{path}"))
             .header("Origin", ORIGIN)
             .header("X-Orion-Request", "1")
             .header("X-CSRF-Token", &self.csrf)
             .header("Cookie", format!("{COOKIE}={}", self.token))
             .timeout(Duration::from_secs(3))
+    }
+
+    pub(crate) fn settings_request(&self, method: Method) -> RequestBuilder {
+        self.account_request(method, "/api/game-settings")
     }
 
     pub(crate) fn stage_game_session(&self, game_dir: &Path) -> Result<tempfile::TempDir, String> {
@@ -92,6 +96,29 @@ impl GameAuth {
             .map_err(|_| "game_storage")?;
         Ok(directory)
     }
+}
+
+#[tauri::command]
+pub async fn cosmetic_loadout(
+    auth: tauri::State<'_, Auth>,
+    slot: Option<String>,
+    value: Option<Value>,
+) -> Result<Value, String> {
+    let state = auth.inner().clone();
+    let generation = state.1.load(Ordering::SeqCst);
+    tauri::async_runtime::spawn_blocking(move || {
+        let session = state.game_auth()?.ok_or("auth")?;
+        let path = "/api/cosmetic-loadout";
+        let request = match (slot, value) {
+            (None, None) => session.account_request(Method::GET, path),
+            (Some(slot), Some(value)) => session.account_request(Method::POST, path)
+                .json(&json!({"changes": { (slot): value }})),
+            _ => return Err("server".into()),
+        };
+        let result = response(request.send().map_err(|_| "network")?)?;
+        if generation != state.1.load(Ordering::SeqCst) { return Err("auth".into()); }
+        Ok(result)
+    }).await.map_err(|_| "server")?
 }
 
 fn valid_secret(value: &str) -> bool {

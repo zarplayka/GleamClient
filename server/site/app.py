@@ -76,6 +76,10 @@ def init_db():
             user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
             revision INTEGER NOT NULL, minecraft TEXT, modules TEXT
         )''')
+        db.execute('''CREATE TABLE IF NOT EXISTS cosmetic_loadouts (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            slots TEXT NOT NULL
+        )''')
         session_columns = {column['name'] for column in db.execute('PRAGMA table_info(sessions)')}
         if 'device' not in session_columns:
             db.execute('ALTER TABLE sessions ADD COLUMN device TEXT')
@@ -377,6 +381,41 @@ async def game_settings(request):
                 ON CONFLICT(user_id) DO UPDATE SET revision=excluded.revision,minecraft=excluded.minecraft,modules=excluded.modules''',
                 (user['id'], current['revision'], minecraft, modules))
     return web.json_response({'account_id': user['id'], **current}, dumps=lambda value: json.dumps(value, ensure_ascii=False))
+
+COSMETIC_PETS = {'', 'ember_fox', 'moon_moth', 'moss_turtle', 'rhm_tarnkappe',
+                 'snow_ferret', 'space_slime', 'tracked_scout'}
+
+def valid_cosmetic_slots(slots):
+    if not isinstance(slots, dict): return False
+    for key, value in slots.items():
+        if key in ('halo', 'hat', 'dance') and type(value) is bool: continue
+        if key == 'wings' and value in ('', 'angel', 'dragon'): continue
+        if key == 'pet' and isinstance(value, str) and value in COSMETIC_PETS: continue
+        return False
+    return True
+
+async def cosmetic_loadout(request):
+    writing = request.method == 'POST'
+    user = auth_csrf(request) if writing else session(request)
+    if not user: return error('auth', 401)
+    if not limit(request, ('cosmetic-loadout', user['id']), 120, 60): return error('rate', 429)
+    if writing:
+        data = await json_body(request)
+        changes, defaults = data.get('changes', {}), data.get('defaults', {})
+        if (set(data) - {'changes', 'defaults'} or not (changes or defaults)
+                or not valid_cosmetic_slots(changes) or not valid_cosmetic_slots(defaults)):
+            return error('invalid')
+    with connect() as db:
+        if writing: db.execute('BEGIN IMMEDIATE')
+        row = db.execute('SELECT slots FROM cosmetic_loadouts WHERE user_id=?', (user['id'],)).fetchone()
+        slots = json.loads(row['slots']) if row else {}
+        if writing:
+            updated = defaults | slots | changes
+            if updated != slots:
+                db.execute('''INSERT INTO cosmetic_loadouts (user_id,slots) VALUES (?,?)
+                    ON CONFLICT(user_id) DO UPDATE SET slots=excluded.slots''', (user['id'], json.dumps(updated)))
+            slots = updated
+    return web.json_response({'slots': slots})
 
 async def me(request):
     return web.json_response(session_payload(request))
@@ -1323,6 +1362,8 @@ def create_app():
     app.router.add_post('/api/launcher-auth/poll', launcher_poll)
     app.router.add_get('/api/game-settings', game_settings)
     app.router.add_post('/api/game-settings', game_settings)
+    app.router.add_get('/api/cosmetic-loadout', cosmetic_loadout)
+    app.router.add_post('/api/cosmetic-loadout', cosmetic_loadout)
     app.add_routes([web.get('/',index),web.get('/account',account_page),web.get('/health',health),web.get('/api/me',me),web.post('/api/register',register),web.post('/api/login',login),web.post('/api/logout',logout),web.post('/api/orders',order),web.post('/api/password',password_change),web.static('/static/',BASE/'static',show_index=False)])
     app.router.add_post('/api/email', update_email)
     app.router.add_get('/api/profile-page', profile_page)
