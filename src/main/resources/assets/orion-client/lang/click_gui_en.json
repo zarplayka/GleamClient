@@ -1005,5 +1005,10 @@
   "Синхронизация": "Synchronization",
   "LRCLIB · слова или строки по данным источника": "LRCLIB · source word or line timings",
   "Аудиореакция": "Audio response",
-  "Бас и акценты системного аудиомикса Windows": "Bass and transients of the Windows output mix"
+  "Бас и акценты системного аудиомикса Windows": "Bass and transients of the Windows output mix",
+  "Изменить круг": "Edit wheel",
+  "Готово": "Done",
+  "Выбери слот": "Choose a slot",
+  "Выбери эмоцию": "Choose an emote",
+  "Отпусти клавишу или нажми 1–6": "Release the key or press 1–6"
 }

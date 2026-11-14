@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; }
+html {
+    --text: #f3f3f5; --muted: #b4b5c0; --surface: #1c1d24; --raised: #23252f;
+    --edge: #383b48; --ring: #1b1d24d9; --accent: #a1acef; --active: #333955;
+}
+html[data-light] {
+    --text: #22243a; --muted: #535b73; --surface: #f6f7fc; --raised: #eceefa;
+    --edge: #c4c9dc; --ring: #e0e4f1e8; --accent: #4657aa; --active: #dce2fc;
+}
+body { width: 392px; height: 420px; margin: 0; overflow: hidden; color: var(--text); font: 14px sans-serif; }
+[hidden] { display: none !important; }
+#stage { position: absolute; width: 392px; height: 420px; transform-origin: 196px 196px; }
+#ring {
+    position: absolute; left: 50px; top: 50px; width: 292px; height: 292px;
+    border: 1px solid var(--edge); border-radius: 50%; background: var(--ring);
+}
+#slots { position: absolute; inset: 0; }
+.slot {
+    position: absolute; width: 92px; height: 48px; margin: -24px 0 0 -46px;
+    padding: 6px 4px 5px; border: 1px solid var(--edge); border-radius: 10px;
+    background: var(--surface); text-align: center; color: var(--text);
+    transition: background-color .10s ease, border-color .10s ease;
+}
+.slot.active { border-color: var(--accent); background: var(--active); }
+.slot.active .digit { color: var(--accent); }
+.slot.empty .name { color: var(--muted); }
+.digit { display: block; color: var(--muted); font-size: 10px; line-height: 13px; }
+.name { display: block; font-size: 12px; line-height: 17px; font-weight: bold; white-space: nowrap; }
+#hub {
+    position: absolute; top: 142px; left: 142px; width: 108px; height: 108px;
+    border: 1px solid var(--edge); border-radius: 50%; background: var(--surface);
+    text-align: center; padding: 22px 4px 0;
+}
+#hub-symbol { width: 12px; height: 12px; border: 2px solid var(--accent); border-radius: 3px; margin: 4px auto 7px; transform: rotate(45deg); }
+#title { font-size: 14px; font-weight: bold; margin: 4px 0; }
+#subtitle { color: var(--muted); font-size: 10px; line-height: 12px; }
+.control, .option {
+    position: absolute; height: 28px; text-align: center; line-height: 26px;
+    background: var(--raised); color: var(--text); border: 1px solid var(--edge); border-radius: 7px;
+    padding: 0 4px; font-size: 12px; white-space: nowrap;
+}
+.control.active, .option.active { border-color: var(--accent); background: var(--active); }
+#edit { left: 117px; top: 354px; width: 158px; }
+#done { left: 216px; top: 354px; width: 132px; }
+#reset { left: 44px; top: 354px; width: 132px; color: var(--muted); }
+#hint { position: absolute; top: 393px; width: 392px; text-align: center; color: #f1f1fa; font-size: 11px; }
+#picker {
+    position: absolute; left: 50px; top: 100px; width: 292px; height: 216px;
+    border: 1px solid var(--edge); border-radius: 13px; background: var(--surface);
+    box-shadow: 0 7px 22px #0004; text-align: center;
+}
+#picker-title { margin: 14px 0 0; font-size: 15px; line-height: 20px; font-weight: bold; }
+#options { position: absolute; left: 0; top: 0; width: 290px; height: 170px; }
+#options .option { width: 126px; height: 30px; line-height: 28px; }
+#clear { left: 15px; top: 171px; width: 126px; }
+#back { left: 149px; top: 171px; width: 126px; }
+</style>
+</head>
+<body>
+<div id="stage">
+    <div id="wheel">
+        <div id="ring"></div>
+        <div id="slots"></div>
+        <div id="hub"><div id="hub-symbol"></div><div id="title"></div><div id="subtitle"></div></div>
+        <div id="edit" class="control"></div>
+        <div id="reset" class="control" hidden></div>
+        <div id="done" class="control" hidden></div>
+        <div id="hint"></div>
+    </div>
+    <div id="picker" hidden>
+        <div id="picker-title"></div>
+        <div id="options"></div>
+        <div id="clear" class="control"></div>
+        <div id="back" class="control"></div>
+    </div>
+</div>
+<script>
+const byId = id => document.getElementById(id);
+const stage = byId('stage');
+const slots = [];
+const options = [];
+for (let i = 0; i < 6; i++) {
+    const slot = document.createElement('div');
+    const digit = document.createElement('span');
+    const name = document.createElement('span');
+    digit.className = 'digit';
+    digit.textContent = String(i + 1);
+    name.className = 'name';
+    slot.appendChild(digit);
+    slot.appendChild(name);
+    byId('slots').appendChild(slot);
+    slots.push({slot, name});
+
+    const option = document.createElement('div');
+    option.className = 'option';
+    option.style.left = 15 + (i % 2) * 134 + 'px';
+    option.style.top = 50 + Math.floor(i / 2) * 36 + 'px';
+    byId('options').appendChild(option);
+    options.push(option);
+}
+window.paradox = {
+    update(state) {
+        const root = document.documentElement;
+        root.toggleAttribute('data-light', state.light);
+        if (/^#[0-9a-f]{6}$/i.test(state.accent)) root.style.setProperty('--accent', state.accent);
+        else root.style.removeProperty('--accent');
+        const labels = state.labels;
+        const picking = state.slotToEdit >= 0;
+        byId('wheel').hidden = picking;
+        byId('picker').hidden = !picking;
+        byId('edit').hidden = state.editing;
+        byId('reset').hidden = byId('done').hidden = !state.editing;
+        byId('hint').hidden = state.editing;
+        byId('title').textContent = labels[0];
+        byId('subtitle').textContent = labels[state.editing ? 5 : 1];
+        byId('edit').textContent = labels[2];
+        byId('done').textContent = labels[3];
+        byId('reset').textContent = labels[4];
+        byId('hint').textContent = labels[9];
+        byId('picker-title').textContent = labels[6] + (picking ? ' · ' + (state.slotToEdit + 1) : '');
+        byId('clear').textContent = labels[7];
+        byId('back').textContent = labels[8];
+        for (let i = 0; i < slots.length; i++) {
+            const {x, y, id} = state.slots[i];
+            const {slot, name} = slots[i];
+            slot.className = 'slot' + (i === state.active ? ' active' : '') + (!id ? ' empty' : '');
+            slot.style.left = x + 'px';
+            slot.style.top = y + 'px';
+            name.textContent = state.names[id];
+            options[i].textContent = (i + 1) + '  ' + state.names[i + 1];
+            options[i].className = 'option' + (picking && state.slots[state.slotToEdit].id === i + 1 ? ' active' : '');
+        }
+        for (const control of ['edit', 'done', 'reset', 'clear', 'back']) {
+            byId(control).className = 'control' + (state.control === control ? ' active' : '');
+        }
+        if (picking && state.option > 0) options[state.option - 1].className = 'option active';
+    },
+    opening(progress) {
+        const eased = 1 - (1 - progress) ** 3;
+        stage.style.setProperty('opacity', String(eased));
+        stage.style.setProperty('transform', 'scale(' + (.92 + .08 * eased) + ')');
+    }
+};
+</script>
+</body>
+</html>

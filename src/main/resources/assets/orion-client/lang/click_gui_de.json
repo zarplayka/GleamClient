@@ -536,5 +536,10 @@
   "Синхронизация": "Synchronisation",
   "LRCLIB · слова или строки по данным источника": "LRCLIB · Wort- oder Zeilenzeiten der Quelle",
   "Аудиореакция": "Audioreaktion",
-  "Бас и акценты системного аудиомикса Windows": "Bass und Akzente des Windows-Audiomixes"
+  "Бас и акценты системного аудиомикса Windows": "Bass und Akzente des Windows-Audiomixes",
+  "Изменить круг": "Rad bearbeiten",
+  "Готово": "Fertig",
+  "Выбери слот": "Platz wählen",
+  "Выбери эмоцию": "Emote wählen",
+  "Отпусти клавишу или нажми 1–6": "Taste loslassen oder 1–6 drücken"
 }

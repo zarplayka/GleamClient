@@ -7,7 +7,9 @@ public final class OrionConfig {
         if (animatedLyrics == null) animatedLyrics = new GleamLyricsSettings();
         return animatedLyrics;
     }
+    private static final int[] DEFAULT_EMOTE_SLOTS = {1, 2, 3, 4, 5, 6};
     private boolean emotesEnabled = true;
+    private int[] emoteSlots = DEFAULT_EMOTE_SLOTS.clone();
     private boolean skinLayersEnabled;
     private float skinLayersThickness = .5F;
     private float skinLayersDistance = 12F;
@@ -38,6 +40,33 @@ public final class OrionConfig {
     public void setItemScrollerLimit(float value) { itemScrollerLimit = finiteClamp(value, 1F, 16F, 8F); }
     public boolean isEmotesEnabled() { return emotesEnabled; }
     public void setEmotesEnabled(boolean value) { emotesEnabled = value; }
+
+    public int[] getEmoteSlots() { return emoteSlots.clone(); }
+
+    public void setEmoteSlot(int slot, int id) {
+        if (slot < 0 || slot >= emoteSlots.length || id < 0 || id > DEFAULT_EMOTE_SLOTS.length) return;
+        for (int i = 0; id != 0 && i < emoteSlots.length; i++) {
+            if (emoteSlots[i] == id) emoteSlots[i] = emoteSlots[slot];
+        }
+        emoteSlots[slot] = id;
+    }
+
+    public void resetEmoteSlots() { emoteSlots = DEFAULT_EMOTE_SLOTS.clone(); }
+
+    private void sanitizeEmoteSlots() {
+        if (emoteSlots == null || emoteSlots.length != DEFAULT_EMOTE_SLOTS.length) {
+            resetEmoteSlots();
+            return;
+        }
+        boolean[] used = new boolean[emoteSlots.length + 1];
+        for (int id : emoteSlots) {
+            if (id < 0 || id >= used.length || id != 0 && used[id]) {
+                resetEmoteSlots();
+                return;
+            }
+            used[id] = true;
+        }
+    }
     private boolean zoomEnabled;
     private boolean haloEnabled;
     private boolean wingsEnabled;
@@ -1404,6 +1433,7 @@ public final class OrionConfig {
 
     public void sanitize() {
         getAnimatedLyrics().sanitize();
+        sanitizeEmoteSlots();
         visualPresetSelection = normalizePreset(visualPresetSelection);
         appliedVisualPreset = normalizePreset(appliedVisualPreset);
         clickGuiLastSection = normalizeSection(clickGuiLastSection);

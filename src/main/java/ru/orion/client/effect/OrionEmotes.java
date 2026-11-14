@@ -3,17 +3,24 @@ package ru.orion.client.effect;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
+import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import ru.orion.client.OrionClient;
+
+import static ru.orion.client.effect.OrionEmoteClips.*;
 
 import java.util.HashMap;
 import java.util.Map;
 
-/** Процедурные танцы и состояние синхронизированных моделей игроков. */
+import static ru.orion.client.effect.OrionEmoteClips.*;
+
+/** Ключевые позы танцев и состояние синхронизированных моделей игроков. */
 public final class OrionEmotes {
     public static final String[] NAMES = {"Шаффл", "Робот", "Диско", "Флосс", "Волна", "Праздник"};
     public static final double DURATION = 12D;
@@ -86,7 +93,7 @@ public final class OrionEmotes {
 
     public static void apply(HumanoidModel<?> model, AvatarRenderState state) {
         if (state instanceof ru.orion.client.gui.OrionCosmeticPreview preview) {
-            if (preview.dances()) applyPose(model, 3, (System.nanoTime() % 10_000_000_000L) / 1e9, 1F);
+            if (preview.dances()) applyPose(model, 3, System.nanoTime() / 1e9, 1F);
             return;
         }
         var config = OrionClient.getConfigOrNull();
@@ -98,64 +105,57 @@ public final class OrionEmotes {
         double age = (System.nanoTime() - dance.start) / 1e9;
         if (age < 0 || age >= DURATION) return;
         float blend = (float) Math.min(1D, Math.min(age / .20D, (DURATION - age) / .25D));
-        applyPose(model, dance.id, age, blend);
+        applyPose(model, dance.id, age, blend * blend * (3F - 2F * blend));
     }
 
     private static void applyPose(HumanoidModel<?> model, int danceId, double age, float blend) {
-        float t = (float) (age * Math.PI * 2D);
-        float beat = (float) Math.sin(t * 1.8F);
-        float alternate = (float) Math.cos(t * 1.8F);
-        float bodyX = 0, bodyY = 0, bodyZ = 0;
-        float rightX = 0, leftX = 0, rightZ = 0, leftZ = 0, rightLeg = 0, leftLeg = 0;
-        switch (danceId) {
-            case 1 -> {
-                rightLeg = beat * .8F; leftLeg = -rightLeg;
-                rightX = alternate * .65F; leftX = -rightX;
-                rightZ = .18F; leftZ = -.18F; bodyZ = beat * .08F;
-            }
-            case 2 -> {
-                float step = Math.round(beat * 3F) / 3F;
-                rightX = -1.1F + step * .7F; leftX = -1.1F - step * .7F;
-                rightZ = -.4F; leftZ = .4F; bodyY = Math.round(alternate * 3F) / 3F * .25F;
-            }
-            case 3 -> {
-                rightX = -2.4F - beat * .4F; rightZ = -.65F;
-                leftX = .3F; leftZ = -.3F;
-                bodyZ = beat * .18F; bodyY = alternate * .2F;
-                rightLeg = beat * .25F; leftLeg = -rightLeg;
-            }
-            case 4 -> {
-                rightX = beat * 1.15F; leftX = rightX;
-                rightZ = alternate * .65F; leftZ = alternate * .65F;
-                bodyZ = -alternate * .18F; bodyY = beat * .22F;
-            }
-            case 5 -> {
-                rightZ = -1.35F + beat * .65F;
-                leftZ = 1.35F + (float) Math.sin(t * 1.8F - 1.4F) * .65F;
-                rightX = alternate * .25F; leftX = -alternate * .25F;
-                bodyZ = beat * .12F;
-            }
-            case 6 -> {
-                rightX = leftX = -2.5F + beat * .55F;
-                rightZ = -.4F; leftZ = .4F;
-                bodyX = Math.abs(beat) * .14F;
-                rightLeg = beat * .35F; leftLeg = -rightLeg;
-            }
-            default -> { return; }
-        }
-        model.body.xRot = lerp(model.body.xRot, bodyX, blend);
-        model.body.yRot = lerp(model.body.yRot, bodyY, blend);
-        model.body.zRot = lerp(model.body.zRot, bodyZ, blend);
-        model.head.xRot = lerp(model.head.xRot, -bodyX + beat * .08F, blend);
-        model.head.zRot = lerp(model.head.zRot, bodyZ * .5F, blend);
-        model.rightArm.xRot = lerp(model.rightArm.xRot, rightX, blend);
-        model.leftArm.xRot = lerp(model.leftArm.xRot, leftX, blend);
-        model.rightArm.zRot = lerp(model.rightArm.zRot, rightZ, blend);
-        model.leftArm.zRot = lerp(model.leftArm.zRot, leftZ, blend);
-        model.rightLeg.xRot = lerp(model.rightLeg.xRot, rightLeg, blend);
-        model.leftLeg.xRot = lerp(model.leftLeg.xRot, leftLeg, blend);
-        // В 26.3 верхние слои скина — дочерние части и наследуют позу.
+        float[] pose = OrionEmoteClips.sample(danceId, age);
+        float swing = pose[SHIFT] * blend, rise = pose[RISE] * blend;
+        float bodyX = radians(pose[BODY]), bodyY = radians(pose[BODY + 1]), bodyZ = radians(pose[BODY + 2]);
+        Quaternionf torso = new Quaternionf().rotationZYX(bodyZ, bodyY, bodyX);
+        translateTorsoPart(model.body, torso, swing, rise, blend);
+        translateTorsoPart(model.head, torso, swing, rise, blend);
+        translateTorsoPart(model.rightArm, torso, swing, rise, blend);
+        translateTorsoPart(model.leftArm, torso, swing, rise, blend);
+        rotate(model.body, bodyX, bodyY, bodyZ, blend);
+        rotate(model.head, radians(pose[HEAD]), model.head.yRot * .35F + radians(pose[HEAD + 1]),
+                radians(pose[HEAD + 2]), blend);
+        poseArm(model.rightArm, pose, RIGHT_ARM, torso, blend);
+        poseArm(model.leftArm, pose, LEFT_ARM, torso, blend);
+        poseLeg(model.rightLeg, pose[RIGHT_LEG], pose[RIGHT_LEG + 1], swing, blend);
+        poseLeg(model.leftLeg, pose[LEFT_LEG], pose[LEFT_LEG + 1], swing, blend);
     }
 
-    private static float lerp(float from, float to, float blend) { return from + (to - from) * blend; }
+    private static void translateTorsoPart(ModelPart part, Quaternionf torso, float sway, float rise, float blend) {
+        // Rotate the shoulders and neck around the hips so adjacent parts travel together.
+        Vector3f moved = torso.transform(new Vector3f(part.x, part.y - 12F, part.z));
+        part.x += sway + (moved.x - part.x) * blend;
+        part.y += -rise + (moved.y + 12F - part.y) * blend;
+        part.z += (moved.z - part.z) * blend;
+    }
+
+    private static void poseArm(ModelPart arm, float[] pose, int channel, Quaternionf torso, float blend) {
+        // Roll opens the arm away from the shoulder even when the pitch raises it overhead.
+        Quaternionf target = new Quaternionf(torso).rotateXYZ(radians(pose[channel]),
+                radians(pose[channel + 1]), radians(pose[channel + 2]));
+        Quaternionf rotation = new Quaternionf().rotationZYX(arm.zRot, arm.yRot, arm.xRot).slerp(target, blend);
+        Vector3f angles = rotation.getEulerAnglesZYX(new Vector3f());
+        arm.setRotation(angles.x, angles.y, angles.z);
+    }
+
+    private static void poseLeg(ModelPart leg, float pitch, float lift, float sway, float blend) {
+        float angle = radians(pitch);
+        leg.x += sway;
+        // Account for the rotation shortening the vertical reach of a 12-pixel leg.
+        leg.y += (12F * (1F - (float) Math.cos(angle)) - lift) * blend;
+        rotate(leg, angle, 0F, 0F, blend);
+    }
+
+    private static void rotate(ModelPart part, float x, float y, float z, float blend) {
+        part.xRot += (x - part.xRot) * blend;
+        part.yRot += (y - part.yRot) * blend;
+        part.zRot += (z - part.zRot) * blend;
+    }
+
+    private static float radians(float degrees) { return degrees * ((float) Math.PI / 180F); }
 }
