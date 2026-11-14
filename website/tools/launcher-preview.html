@@ -194,6 +194,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       border: 1px solid var(--border); border-radius: 15px; background: var(--home-surface);
       box-shadow: 0 16px 32px #0b0b1230;
     }
+    .home-board:has(.skin-stage[data-geared]) { grid-template-columns: minmax(0,1fr) minmax(186px,.95fr) minmax(0,1fr) minmax(182px,.83fr) }
     .launch-column { grid-area: 1 / 2; min-width: 0; text-align: center }
     .version-shelf {
       display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px;
@@ -270,7 +271,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .wardrobe-preview { position: relative; height: clamp(238px,45dvh,365px); border-radius: 10px 10px 0 0; background: radial-gradient(ellipse at 50% 60%,color-mix(in srgb,var(--accent) 14%,var(--home-surface)),var(--home-surface) 78%); overflow: hidden }
     .wardrobe-preview canvas,.skin-stage canvas { position: relative; display: block; width: 100%; height: 100%; cursor: grab; touch-action: none }
     canvas[data-dragging] { cursor: grabbing }
-    .wardrobe-preview-tools { position: absolute; z-index: 1; top: 10px; right: 10px }
+    .wardrobe-preview-tools { position: absolute; z-index: 1; top: 10px; right: 10px; display: flex; gap: 4px }
+    .wardrobe-preview-tools .preview-zoom { width: 32px; padding-inline: 0; justify-content: center; font-size: 16px }
     .wardrobe-error { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; color: var(--muted); text-align: center; pointer-events: none }
     .wardrobe-info { display: grid; gap: 8px; padding: 14px; border-top: 1px solid var(--border) }
     .wardrobe-info h3 { margin: 0; font-size: 16px }
@@ -300,7 +302,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       touch-action: pan-y; cursor: grab; user-select: none;
     }
     .skin-stage[data-dragging] { cursor: grabbing }
-    .skin-stage[data-geared] { width: min(100%,190px) }
+    .skin-stage[data-geared] { width: min(100%,224px) }
     .skin-shadow { position: absolute; width: 72%; height: 7%; left: 15%; bottom: 4%; border-radius: 50%; background: #100d1399; filter: blur(10px) }
     .model {
       position: absolute; left: 50%; bottom: 2%; width: calc(16 * var(--unit)); height: calc(32 * var(--unit));
@@ -954,7 +956,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .secondary-page h2:focus { outline: none }
     .settings-group h3 { color: var(--side-muted); font-weight: 600 }
     @container (max-width: 980px) {
-      .home-board { grid-template-columns: minmax(0,1fr) minmax(186px,.95fr) minmax(0,1fr); gap: 8px 14px; padding-inline: 14px }
+      .home-board,.home-board:has(.skin-stage[data-geared]) { grid-template-columns: minmax(0,1fr) minmax(186px,.95fr) minmax(0,1fr); gap: 8px 14px; padding-inline: 14px }
       .version-shelf { gap: 6px }
       .version-tile { padding: 5px; border-radius: 8px }
       .news { grid-area: 2 / 1 / 3 / 3 }
@@ -963,16 +965,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     @container (max-width: 640px) {
       .home { justify-content: flex-start }
-      .home-board { grid-template-columns: repeat(2,minmax(0,1fr)) }
+      .home-board,.home-board:has(.skin-stage[data-geared]) { grid-template-columns: repeat(2,minmax(0,1fr)) }
       .version-legacy { grid-area: 1 / 1 }
       .version-modern { grid-area: 1 / 2 }
       .launch-column { grid-area: 2 / 1 / 3 / 3; width: min(100%,340px); justify-self: center }
       .news { grid-area: 3 / 1 / 4 / 3 }
       .cosmetics { grid-area: 4 / 1 / 5 / 3; flex-direction: row; justify-content: flex-start; gap: 14px; text-align: left }
       .skin-stage { --unit: 5.5px }
+      .skin-stage[data-geared] { width: min(58%,224px) }
     }
     @container (max-width: 400px) {
-      .home-board { grid-template-columns: minmax(0,1fr) }
+      .home-board,.home-board:has(.skin-stage[data-geared]) { grid-template-columns: minmax(0,1fr) }
       .version-legacy,.version-modern { justify-self: center }
       .version-modern { grid-area: 2 / 1 }
       .launch-column { grid-area: 3 / 1 }
@@ -1253,8 +1256,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <section class="wardrobe-items" id="wardrobe-items" aria-label="Косметика"></section>
           <section class="wardrobe-detail" aria-labelledby="wardrobe-item-name">
             <div class="wardrobe-preview">
-              <div class="wardrobe-preview-tools"><button id="wardrobe-turn" class="button" type="button">Со спины</button></div>
-              <canvas id="wardrobe-preview" tabindex="0" aria-label="Персонаж Minecraft. Для поворота потяни мышью или используй стрелки"></canvas>
+              <div class="wardrobe-preview-tools">
+                <button id="wardrobe-zoom-out" class="button preview-zoom" type="button" aria-label="Отдалить" title="Отдалить">−</button>
+                <button id="wardrobe-zoom-in" class="button preview-zoom" type="button" aria-label="Приблизить" title="Приблизить">+</button>
+                <button id="wardrobe-turn" class="button" type="button">Со спины</button>
+              </div>
+              <canvas id="wardrobe-preview" tabindex="0" aria-label="Поверни персонажа мышью или стрелками. Приближай колёсиком или кнопками"></canvas>
               <span id="wardrobe-preview-error" class="wardrobe-error" role="status" hidden>Предпросмотр недоступен</span>
             </div>
             <div class="wardrobe-info">
@@ -1398,6 +1405,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+          <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-033">
+            <span class="release-meta"><span class="release-version">0.1.33</span><time datetime="2026-11-14">14.11.2026</time></span>
+            <div>
+              <h3 id="release-launcher-033">Крупнее предпросмотр на главной</h3>
+              <p>Персонаж и питомец на главной стали крупнее. В примерочной можно приблизить модель колёсиком или кнопками.</p>
+            </div>
+          </article>
           <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-032">
             <span class="release-meta"><span class="release-version">0.1.32</span><time datetime="2026-11-14">14.11.2026</time></span>
             <div>
@@ -2102,6 +2116,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Со спины':['Back view','Rückansicht','Vista trasera'],
       'Спереди':['Front view','Vorderansicht','Vista frontal'],
       'Обновлённая примерочная':['Updated fitting room','Überarbeitete Anprobe','Probador actualizado'],
+      'Крупнее предпросмотр на главной':['Larger preview on Home','Größere Vorschau auf der Startseite','Vista previa más grande en Inicio'],
+      'Персонаж и питомец на главной стали крупнее. В примерочной можно приблизить модель колёсиком или кнопками.':['Your character and pet appear larger on Home. Use the mouse wheel or the buttons to zoom in the fitting room.','Dein Charakter und dein Haustier werden auf der Startseite größer angezeigt. Zoome in der Anprobe mit dem Mausrad oder den Schaltflächen.','Tu personaje y tu mascota se ven más grandes en Inicio. Usa la rueda del ratón o los botones para acercar el modelo en el probador.'],
+      'Приблизить':['Zoom in','Vergrößern','Acercar'],
+      'Отдалить':['Zoom out','Verkleinern','Alejar'],
+      'Поверни персонажа мышью или стрелками. Приближай колёсиком или кнопками':['Drag or use the arrow keys to rotate. Use the mouse wheel or the buttons to zoom','Drehe die Figur mit der Maus oder den Pfeiltasten. Zoome mit dem Mausrad oder den Schaltflächen','Gira el personaje con el ratón o las flechas. Usa la rueda o los botones para acercar y alejar'],
       'Экипировка видна на твоём скине. Можно повернуть персонажа и рассмотреть вещи и питомцев с разных сторон. Обновлены три питомца.':['Your gear appears on your skin. Rotate your character to see accessories and pets from different angles. Three pets have updated models.','Die Ausrüstung wird auf deinem Skin angezeigt. Drehe deinen Charakter, um Gegenstände und Haustiere aus verschiedenen Perspektiven zu sehen. Drei Haustiere wurden überarbeitet.','El equipamiento aparece en tu aspecto. Gira el personaje para ver accesorios y mascotas desde distintos ángulos. Se han actualizado tres mascotas.'],
       'Надеть':['Equip','Anlegen','Equipar'],
       'Снять':['Unequip','Ablegen','Quitar'],
@@ -2927,7 +2946,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     const wardrobeCanvas = $('wardrobe-preview'), homeCanvas = $('home-cosmetic-preview');
     const cosmeticIcons = new Map();
     let wardrobeView, homeView, iconPreview, iconRequest, skinRequest, defaultCosmeticSkin;
-    let cosmeticFrame = 0, wardrobeYaw = -.55, wardrobePitch = .16, wardrobeDrag;
+    let cosmeticFrame = 0, wardrobeYaw = -.55, wardrobePitch = .16, wardrobeZoom = 1, wardrobeDrag;
     let wardrobeScene, homeScene;
 
     function previewSkin() {
@@ -3000,7 +3019,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     function drawCosmeticPreviews(now) {
       cosmeticFrame = 0;
       if (document.hidden) return;
-      const draw = (scene,angle,pitch) => {
+      const draw = (scene,angle,pitch,zoom = 1) => {
         const {view,slots,pet} = scene, canvas = view.canvas;
         if (!canvas.clientWidth || !canvas.clientHeight) return false;
         const density = Math.min(2,window.devicePixelRatio);
@@ -3009,11 +3028,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           canvas.width=width; canvas.height=height;
         }
         const time = reducedMotion.matches ? 0 : now/1000;
-        view.draw({yaw:angle,pitch,slots,pet,time});
+        view.draw({yaw:angle,pitch,slots,pet,time,zoom,home:canvas===homeCanvas});
         return !reducedMotion.matches && Boolean(pet?.idle || slots.dance);
       };
       const animateWardrobe = wardrobeScene?.view && !$('page-cosmetics').hidden &&
-        draw(wardrobeScene,wardrobeYaw,wardrobePitch);
+        draw(wardrobeScene,wardrobeYaw,wardrobePitch,wardrobeZoom);
       const animateHome = homeScene?.view && !$('page-play').hidden && !homeCanvas.hidden &&
         draw(homeScene,yaw*Math.PI/180,.16);
       if (animateWardrobe || animateHome) queueCosmeticFrame();
@@ -3088,6 +3107,21 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       queueCosmeticFrame();
     }
     $('wardrobe-turn').addEventListener('click',() => setWardrobeAngle(Math.cos(wardrobeYaw)<0 ? -.55 : 2.59,.22));
+    const zoomOut = $('wardrobe-zoom-out'), zoomIn = $('wardrobe-zoom-in');
+    function zoomWardrobe(factor) {
+      wardrobeZoom = Math.max(.75,Math.min(2.6,wardrobeZoom*factor));
+      zoomOut.disabled = wardrobeZoom===.75;
+      zoomIn.disabled = wardrobeZoom===2.6;
+      queueCosmeticFrame();
+    }
+    zoomOut.addEventListener('click',() => zoomWardrobe(1/1.18));
+    zoomIn.addEventListener('click',() => zoomWardrobe(1.18));
+    wardrobeCanvas.addEventListener('wheel',event => {
+      if (event.ctrlKey || event.deltaY===0) return;
+      event.preventDefault();
+      const pixels = event.deltaY * (event.deltaMode===1 ? 16 : event.deltaMode===2 ? 120 : 1);
+      zoomWardrobe(Math.exp(Math.max(-120,Math.min(120,-pixels))*.0018));
+    },{passive:false});
     wardrobeCanvas.addEventListener('pointerdown',event => {
       if (event.button!==0 || wardrobeDrag) return;
       wardrobeDrag = {id:event.pointerId,x:event.clientX,y:event.clientY,yaw:wardrobeYaw,pitch:wardrobePitch};
@@ -3104,6 +3138,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       wardrobeCanvas.removeAttribute('data-dragging');
     });
     wardrobeCanvas.addEventListener('keydown',event => {
+      if (['+','=','-'].includes(event.key)) {
+        event.preventDefault();
+        zoomWardrobe(event.key==='-' ? 1/1.18 : 1.18);
+        return;
+      }
       if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return;
       event.preventDefault();
       const step = .22;
