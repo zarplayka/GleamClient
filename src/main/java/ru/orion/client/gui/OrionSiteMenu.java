@@ -237,7 +237,8 @@ final class OrionSiteMenu {
 
     private void dispatch(JsonObject event) {
         var type = event.get("action");
-        if (type != null && type.isJsonPrimitive() && !"cosmetic-preview".equals(type.getAsString())) invalidateState();
+        if (type != null && type.isJsonPrimitive()
+                && !"cosmetic-preview".equals(type.getAsString()) && !"ui-sound".equals(type.getAsString())) invalidateState();
         actions.accept(event);
     }
 

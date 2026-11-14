@@ -338,6 +338,46 @@ button.module-toggle[data-toggle-style="label"][aria-checked="true"]:hover{backg
 .tabs{display:flex;align-items:center;gap:12px;min-height:35px;border-bottom:1px solid var(--rule);margin:0 0 12px}
 .tabs button{font-size:12px;align-self:stretch;padding:0 2px;color:var(--muted);border-bottom:2px solid transparent}
 .tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
+.native-config-actions,.config-tabs,.config-pagination,.config-entry-actions{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.native-config-actions{justify-content:flex-end}
+.config-tabs{margin-bottom:13px;padding:4px;background:var(--field);border:1px solid var(--rule);border-radius:7px}
+.config-tabs button{display:flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:5px 11px;border:1px solid transparent;border-radius:5px;color:var(--muted);font-size:12px;transition:background-color .16s,border-color .16s,color .16s}
+.config-tabs button:hover,.config-tabs button[aria-selected="true"]{background:var(--card);color:var(--text)}
+.config-tabs button[aria-selected="true"]{border-color:var(--rule)}
+.config-tabs button[aria-selected="true"] svg,.config-row[aria-pressed="true"] .config-art{color:var(--accent)}
+.config-tabs svg,.config-stat svg{width:14px;height:14px;flex:none}
+.config-library{display:flex;align-items:flex-start;gap:12px}
+.config-list,.config-details{min-width:0;background:var(--card);border:1px solid var(--rule);border-radius:8px}
+.config-list{flex:1.2;display:flex;flex-direction:column;padding:4px}
+.config-row{display:flex;align-items:center;gap:9px;width:100%;min-height:53px;padding:6px 8px;border:1px solid transparent;border-radius:5px;text-align:left;transition:background-color .16s,border-color .16s}
+.config-row+.config-row{margin-top:2px}
+.config-row:hover{background:var(--hover)}
+.config-row[aria-pressed="true"]{background:var(--accent-surface);border-color:color-mix(in srgb,var(--rule),var(--accent) 37%)}
+.config-row:disabled,.config-tabs button:disabled{opacity:.55;cursor:default}
+.config-art{width:32px;height:32px;display:grid;place-items:center;flex:none;border:1px solid var(--rule);border-radius:6px;background:var(--field);color:var(--muted)}
+.config-art svg{width:17px;height:17px}
+.config-identity{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px;font-size:13px}
+.config-identity b,.config-identity small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.config-identity small,.config-detail-head p,.config-stat{font-size:11px;color:var(--muted)}
+.config-stat{display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums}
+.config-details{flex:1;display:flex;flex-direction:column;gap:12px;padding:13px}
+.config-detail-head{display:flex;align-items:center;gap:9px}
+.config-detail-head>div{min-width:0}
+.config-detail-head h2{margin:0;font-size:16px;line-height:1.2;overflow-wrap:anywhere}
+.config-detail-head p{margin:4px 0 0;overflow-wrap:anywhere}
+.config-detail-head .config-art{width:39px;height:39px;color:var(--accent)}
+.config-detail-meta{display:flex;flex-wrap:wrap;gap:6px 12px;padding:0 0 10px;border-bottom:1px solid var(--line)}
+.config-details>.button{width:100%}
+.config-entry-actions{align-items:stretch}
+.config-entry-actions .button{flex:1 1 auto;white-space:normal;text-align:center}
+.config-danger{color:#e787a2}
+:root[data-theme="light"] .config-danger{color:#a52549}
+.config-pagination{justify-content:space-between;padding:5px 4px 3px}
+.config-empty svg{color:var(--accent)}
+.native-config-actions button:disabled,.config-entry-actions button:disabled,.config-pagination button:disabled{opacity:.5;cursor:default}
+.content[data-stacked] .config-library{flex-direction:column}
+.content[data-stacked] .config-library>*{flex:none;width:100%}
+.content[data-stacked] .native-config-actions{justify-content:flex-start}
 .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(245px,.9fr);gap:12px;align-items:start}
 .list-panel{display:grid;gap:5px}
 .list-row{display:flex;align-items:center;gap:10px;min-height:48px;width:100%;padding:7px 10px;background:var(--card);border:1px solid var(--rule);border-radius:4px;font-size:13px;text-align:left}
@@ -405,6 +445,7 @@ dialog::backdrop{background:#080b12a3}
 .chat-contacts{flex:1;display:flex;flex-direction:column;gap:3px}
 .chat-contact,.chat-heading{display:flex;align-items:center;gap:8px;min-width:0;text-align:left}
 .chat-contact{width:100%;padding:6px 8px;border-radius:6px;min-height:41px;flex:none}
+.chat-contact{transition:background-color .16s,color .16s}
 .chat-contact:hover,.chat-contact[aria-pressed="true"]{background:var(--hover)}
 .chat-contact[aria-pressed="true"]{color:var(--text);background:var(--accent-surface)}
 .chat-contact-body{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px}
@@ -417,6 +458,12 @@ dialog::backdrop{background:#080b12a3}
 .chat-thread{position:relative;flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;background:var(--card);overflow:hidden}
 .chat-heading{padding:10px 13px;border-bottom:1px solid var(--line);font-size:14px}
 .chat-heading strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-heading #chat-key{margin-left:auto}
+.chat-heading #chat-verify:not([hidden])+#chat-key{margin-left:0}
+.chat-unlock{gap:10px;padding:8px}
+.chat-unlock>svg{color:var(--accent)}
+.chat-unlock small{max-width:260px;line-height:1.4}
+.interface-sounds{margin-top:6px}
 #chat-heading-avatar{display:flex;flex:none}
 #chat-verify{margin-left:auto;min-height:25px;padding:3px 6px;font-size:10px}
 .chat-verification{display:block;margin-bottom:10px;padding:10px;background:var(--field);color:var(--text);line-height:1.5;white-space:normal;user-select:text}

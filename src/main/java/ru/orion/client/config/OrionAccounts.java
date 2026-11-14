@@ -76,7 +76,7 @@ public final class OrionAccounts {
     private Session registeredChatSession, notificationSession;
     private long lastNotificationMessage;
     private CompletableFuture<OrionChatCrypto.Identity> registeredChatIdentity;
-    private long notificationCursor = -1, nextNotificationPoll;
+    private long notificationCursor = -1, nextNotificationPoll, nextChatRegistration;
     private boolean notificationLoading;
     private FakePunishmentFeed fakePunishmentFeed;
     private final LinkedHashMap<String, Integer> unreadChats = new LinkedHashMap<>();
@@ -86,6 +86,16 @@ public final class OrionAccounts {
 
     public record Profile(String id, long createdAt, boolean published, BufferedImage avatar) { }
     public record ChatReply(long id, boolean own, String body) { }
+    public static final class ChatRecoveryRequired extends IllegalStateException {
+        private final boolean backupAvailable;
+
+        private ChatRecoveryRequired(boolean backupAvailable) {
+            super(backupAvailable ? "Восстанови ключ чата" : "Сохрани ключ чата там, где открывается переписка");
+            this.backupAvailable = backupAvailable;
+        }
+
+        public boolean backupAvailable() { return backupAvailable; }
+    }
     private boolean busy;
 
     private OrionAccounts() { }
@@ -622,13 +632,88 @@ public final class OrionAccounts {
         if (registeredChatSession == session && registeredChatIdentity != null && !registeredChatIdentity.isCompletedExceptionally())
             return registeredChatIdentity;
         registeredChatSession = session;
-        registeredChatIdentity = CompletableFuture.supplyAsync(
-                () -> chatCrypto(() -> OrionChatCrypto.identity(session.username())), storage)
-                .thenCompose(identity -> send("/api/chat/keys", identity.publicKeys(), session, true).thenApply(response -> {
-                    friendResponse(response);
-                    return identity;
-                }));
+        registeredChatIdentity = chatRecoveryState(session).thenCompose(keys ->
+                CompletableFuture.supplyAsync(() -> chatCrypto(() -> {
+                    var local = OrionChatCrypto.localIdentity(session.username(), keys);
+                    if (local != null) return local;
+                    if (keys.has("encryption")) throw new ChatRecoveryRequired(hasChatBackup(keys));
+                    return OrionChatCrypto.newIdentity();
+                }), storage).thenCompose(identity -> CompletableFuture.runAsync(
+                        () -> chatCrypto(() -> { OrionChatCrypto.saveIdentity(session.username(), identity); return null; }), storage)
+                        .thenCompose(ignored -> keys.has("encryption") ? CompletableFuture.completedFuture(identity)
+                                : send("/api/chat/keys", identity.publicKeys(), session, true).thenApply(response -> {
+                                    friendResponse(response);
+                                    return identity;
+                                }))));
         return registeredChatIdentity;
+    }
+
+    public CompletableFuture<String> copyChatRecoveryCode() {
+        var session = active;
+        if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
+        return chatIdentity(session).thenCompose(identity -> chatRecoveryState(session).thenCompose(keys ->
+                CompletableFuture.supplyAsync(() -> chatCrypto(() -> {
+                    if (hasChatBackup(keys)) {
+                        var recovery = OrionChatCrypto.localRecovery(session.username(), keys.get("backup").getAsString());
+                        if (recovery != null) return recovery;
+                        throw new IllegalStateException("Код уже был создан. Используй сохранённый код восстановления");
+                    }
+                    var recovery = OrionChatCrypto.pendingRecovery(session.username());
+                    if (recovery != null) {
+                        try {
+                            OrionChatCrypto.recover(session.username(), recovery, keys);
+                            return recovery;
+                        } catch (java.security.GeneralSecurityException | IllegalArgumentException invalid) {
+                            // The staged copy may be from a prior, unpublished key pair.
+                        }
+                    }
+                    recovery = OrionChatCrypto.createRecovery(session.username(), identity);
+                    OrionChatCrypto.stageRecovery(session.username(), recovery);
+                    return recovery;
+                }), storage).thenCompose(recovery -> {
+                    if (hasChatBackup(keys)) return CompletableFuture.completedFuture(recovery.code());
+                    var body = new JsonObject();
+                    body.addProperty("backup", recovery.backup());
+                    return send("/api/chat/recovery", body, session, true).thenApply(response -> {
+                        friendResponse(response);
+                        return recovery.code();
+                    });
+                })));
+    }
+
+    public CompletableFuture<Runnable> restoreChatKey(String code) {
+        var session = active;
+        if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
+        if (!code.matches("[A-Za-z0-9_-]{43}"))
+            return CompletableFuture.failedFuture(new IllegalStateException("Неверный код восстановления"));
+        return chatRecoveryState(session).thenApplyAsync(keys -> {
+            if (!hasChatBackup(keys)) throw new ChatRecoveryRequired(false);
+            var recovery = new OrionChatCrypto.Recovery(code, keys.get("backup").getAsString());
+            OrionChatCrypto.Identity identity;
+            try {
+                identity = OrionChatCrypto.recover(session.username(), recovery, keys);
+            } catch (java.security.GeneralSecurityException | IllegalArgumentException failure) {
+                throw new IllegalStateException("Неверный код восстановления");
+            }
+            chatCrypto(() -> {
+                OrionChatCrypto.saveIdentity(session.username(), identity);
+                OrionChatCrypto.saveRecovery(session.username(), recovery);
+                return null;
+            });
+            return () -> {
+                if (active != session) return;
+                registeredChatSession = session;
+                registeredChatIdentity = CompletableFuture.completedFuture(identity);
+            };
+        }, storage);
+    }
+
+    private static CompletableFuture<JsonObject> chatRecoveryState(Session session) {
+        return send("/api/chat/recovery", null, session, false).thenApply(OrionAccounts::friendResponse);
+    }
+
+    private static boolean hasChatBackup(JsonObject keys) {
+        return keys.has("backup") && !keys.get("backup").isJsonNull();
     }
 
     private CompletableFuture<JsonObject> decodeChat(JsonObject result, OrionChatCrypto.Identity identity,
@@ -708,9 +793,14 @@ public final class OrionAccounts {
             unreadChats.clear();
             notificationLoading = false;
             nextNotificationPoll = 0;
+            nextChatRegistration = 0;
         }
         if (active == null || busy || config == null) return;
         long now = System.nanoTime();
+        if (now >= nextChatRegistration) {
+            nextChatRegistration = now + TimeUnit.MINUTES.toNanos(2);
+            chatIdentity(active);
+        }
         if (notificationLoading || now < nextNotificationPoll) return;
         notificationLoading = true;
         nextNotificationPoll = now + TimeUnit.SECONDS.toNanos(6);
@@ -797,7 +887,8 @@ public final class OrionAccounts {
             case "friend_state" -> "Статус заявки уже изменился";
             case "friend_limit" -> "Достигнут лимит друзей или заявок";
             case "friend_unavailable" -> "Этот аккаунт заблокирован";
-            case "chat_device" -> "Защищённый чат привязан к другому устройству";
+            case "chat_device" -> "Синхронизируй ключ чата и попробуй снова";
+            case "chat_recovery_exists" -> "Код уже был создан. Используй сохранённый код восстановления";
             case "chat_key_missing" -> "Друг ещё не настроил защищённый чат";
             case "chat_encryption_required" -> "Чат требует обновления клиента";
             default -> "Не удалось выполнить действие";

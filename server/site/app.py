@@ -127,6 +127,8 @@ def init_db():
             user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
             encryption TEXT NOT NULL, signing TEXT NOT NULL
         )''')
+        if 'recovery' not in {column['name'] for column in db.execute('PRAGMA table_info(chat_keys)')}:
+            db.execute('ALTER TABLE chat_keys ADD COLUMN recovery TEXT')
         db.execute('''CREATE TABLE IF NOT EXISTS friend_message_reactions (
             message_id INTEGER NOT NULL REFERENCES friend_messages(id) ON DELETE CASCADE,
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -846,7 +848,7 @@ async def chat_keys(request):
         except (ValueError, binascii.Error):
             return error('invalid')
         with connect() as db:
-            db.execute('INSERT OR IGNORE INTO chat_keys VALUES (?,?,?)', (uid, *keys))
+            db.execute('INSERT OR IGNORE INTO chat_keys(user_id,encryption,signing) VALUES (?,?,?)', (uid, *keys))
             row = db.execute('SELECT encryption,signing FROM chat_keys WHERE user_id=?', (uid,)).fetchone()
             if tuple(row) != keys: return error('chat_device', 409)
         return web.json_response({'ok': True})
@@ -859,6 +861,31 @@ async def chat_keys(request):
                          (uid, uid, peer.lower())).fetchone()
     if not row: return error('chat_key_missing', 404)
     return web.json_response(dict(row), headers={'Cache-Control': 'no-store'})
+
+async def chat_recovery(request):
+    writing = request.method == 'POST'
+    user = auth_csrf(request) if writing else session(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'chat-recovery', 30, 60): return error('rate', 429)
+    uid = user['id']
+    if writing:
+        data = await json_body(request)
+        backup = data.get('backup')
+        if not isinstance(backup, str) or len(backup) > 3800: return error('invalid')
+        try:
+            packet = base64.b64decode(backup, validate=True)
+            if not 1700 <= len(packet) <= 2850 or packet[0] != 1: return error('invalid')
+        except (ValueError, binascii.Error):
+            return error('invalid')
+        with connect() as db:
+            db.execute('UPDATE chat_keys SET recovery=? WHERE user_id=? AND recovery IS NULL', (backup, uid))
+            stored = db.execute('SELECT recovery FROM chat_keys WHERE user_id=?', (uid,)).fetchone()
+            if not stored: return error('chat_key_missing', 409)
+            if stored['recovery'] != backup: return error('chat_recovery_exists', 409)
+        return web.json_response({'ok': True})
+    with connect() as db:
+        row = db.execute('SELECT encryption,signing,recovery AS backup FROM chat_keys WHERE user_id=?', (uid,)).fetchone()
+    return web.json_response(dict(row) if row else {})
 
 async def chat_updates(request):
     user = session(request)
@@ -1374,6 +1401,8 @@ def create_app():
     app.router.add_post('/api/friends/{username}/chat', friend_chat)
     app.router.add_post('/api/chat/keys', chat_keys)
     app.router.add_get('/api/chat/keys/{username}', chat_keys)
+    app.router.add_route('GET', '/api/chat/recovery', chat_recovery)
+    app.router.add_route('POST', '/api/chat/recovery', chat_recovery)
     app.router.add_get('/api/chat/updates', chat_updates)
     app.router.add_get('/api/admin/accounts', admin_accounts)
     app.router.add_post('/api/admin/accounts', admin_update)

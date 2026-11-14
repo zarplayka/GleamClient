@@ -291,7 +291,9 @@ public final class OrionTitleMenu {
                 if (value.isJsonPrimitive()) value = JsonParser.parseString(value.getAsString());
             }
             if (value.isJsonObject() && value.getAsJsonObject().has("action")) {
-                action.accept(value.getAsJsonObject().get("action").getAsString());
+                String name = value.getAsJsonObject().get("action").getAsString();
+                OrionClickGuiScreen.playInterfaceSound(Minecraft.getInstance(), "click");
+                if (!"account-dropdown".equals(name)) action.accept(name);
                 return;
             }
         }

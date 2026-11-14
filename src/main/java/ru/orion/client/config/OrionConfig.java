@@ -431,12 +431,15 @@ public final class OrionConfig {
     private String clickGuiLanguage = "auto";
     private boolean chatNotifications = true;
     private boolean chatNotificationSound = true;
+    private boolean interfaceSounds = true;
     private boolean showFakePunishments;
 
     public boolean isChatNotifications() { return chatNotifications; }
     public void setChatNotifications(boolean enabled) { chatNotifications = enabled; }
     public boolean isChatNotificationSound() { return chatNotificationSound; }
     public void setChatNotificationSound(boolean enabled) { chatNotificationSound = enabled; }
+    public boolean isInterfaceSounds() { return interfaceSounds; }
+    public void setInterfaceSounds(boolean enabled) { interfaceSounds = enabled; }
     private int clickGuiWindowX, clickGuiWindowY;
     private int clickGuiScale = 100;
     private boolean clickGuiCompactCards;

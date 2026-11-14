@@ -291,7 +291,7 @@ let gameStatus = '';
 let lastProfile = '';
 let gameReady = false;
 let pendingChatDraft;
-const gameForms = new Set(['game-login','game-publish','game-config-command','add-account','add-config','add-point','add-friend','chat-compose']);
+const gameForms = new Set(['game-login','game-publish','game-config-command','add-account','add-config','add-point','add-friend','chat-compose','chat-recovery-form']);
 let lastChatRoute = 0;
 function applyGameLanguage(language) {
   uiLanguage = ['en','de','es'].includes(language) ? language : 'ru';
@@ -328,6 +328,17 @@ Object.assign(actions,{
   'friends-refresh'() { sendGame('friends-refresh'); },
   'chat-friends'() { selectPage('friends'); sendGame('section',{page:'friends'}); },
   'chat-retry'() { sendGame('chat-retry'); },
+  'chat-key-copy'() {
+    showDialog(t('Сохранить ключ чата'),'<p>' + text(t('Сохрани код в надёжном месте. Он откроет твою зашифрованную переписку на другом устройстве.'))
+      + '</p>' + actionButton('chat-key-confirm',t('Скопировать код'),'copy','primary'));
+  },
+  'chat-key-confirm'() { closeDialog(); sendGame('chat-key-copy'); },
+  'chat-key-restore'() {
+    const label = text(t('Код восстановления'));
+    showDialog(t('Восстанови ключ чата'),'<form id="chat-recovery-form" autocomplete="off">'
+      + '<input name="code" type="password" required maxlength="43" autocomplete="off" placeholder="' + label + '" aria-label="' + label + '">'
+      + '<button class="button primary" type="submit">' + text(t('Восстановить')) + '</button></form>');
+  },
   'chat-older'() { sendGame('chat-older'); },
   'chat-wave'() { if (chat.peer && !chat.busy) sendGame('chat-send',{body:'👋'}); },
   'friend-profile-back'() {
@@ -357,6 +368,11 @@ Object.assign(actions,{
   },
   logout() { sendGame('logout'); }
 });
+document.addEventListener('click',event => {
+  const control = event.target.closest('button,a[href],input[type="checkbox"],input[type="radio"],summary');
+  if (gameReady && state.interfaceSounds !== false && control && !control.disabled
+      && control.dataset.chatPreference !== 'interfaceSounds') sendGame('ui-sound',{kind:'click'});
+},true);
 document.addEventListener('click',event => {
   const button = event.target.closest('button');
   if (!button) return;
@@ -391,6 +407,7 @@ document.addEventListener('click',event => {
     } else {
       state[d.chatPreference] = checked;
       sendGame('look',{key:d.chatPreference,value:checked});
+      if (checked && d.chatPreference === 'interfaceSounds') sendGame('ui-sound',{kind:'click'});
     }
   } else if (d.colorToggle !== undefined) {
     if (colorPicker?.trigger === button) closeColorPicker();
@@ -678,11 +695,23 @@ function submitGameForm(form) {
   if (form.id === 'chat-compose') {
     const draft = form.querySelector('input').value;
     const body = draft.trim();
-    if (!chat.busy && body && Array.from(body).length <= 500) {
+    if (!chat.busy && !chat.keyBusy && !chat.keyState && body && Array.from(body).length <= 500) {
       const reply = chatReplies.get(chat.peer);
       pendingChatDraft = {peer:chat.peer,draft,reply};
       sendGame('chat-send',reply ? {body,replyTo:String(reply.id)} : {body});
     }
+    return;
+  }
+  if (form.id === 'chat-recovery-form') {
+    const field = form.querySelector('input');
+    const code = field.value.trim();
+    if (!/^[A-Za-z0-9_-]{43}$/.test(code)) {
+      toast(t('Неверный код восстановления'),'error');
+      return;
+    }
+    field.value = '';
+    closeDialog();
+    sendGame('chat-key-restore',{code});
     return;
   }
   if (form.id === 'game-login') {
