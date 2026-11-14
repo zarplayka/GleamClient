@@ -2,22 +2,15 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
+<link rel="stylesheet" data-hud-theme href="hud-theme.css">
 <style>
 * { box-sizing: border-box; }
-html {
-    --text: #f3f3f5; --muted: #b4b5c0; --surface: #1c1d24; --raised: #23252f;
-    --edge: #424654; --ring: #1b1d25ee; --accent: #a1acef; --active: #353c59; --deep: #14161eea;
-}
-html[data-light] {
-    --text: #22243a; --muted: #535b73; --surface: #f6f7fc; --raised: #eceefa;
-    --edge: #b9c2d9; --ring: #eef1f9f5; --accent: #4657aa; --active: #dce2fc; --deep: #f8f9fef5;
-}
-body { width: 392px; height: 420px; margin: 0; overflow: hidden; color: var(--text); font: 14px sans-serif; }
+body { width: 392px; height: 420px; margin: 0; overflow: hidden; color: var(--text); font-size: 14px; }
 [hidden] { display: none !important; }
 #stage { position: absolute; width: 392px; height: 420px; transform-origin: 196px 196px; }
 #ring { position: absolute; inset: 0; width: 392px; height: 392px; }
-.sector { fill: var(--ring); stroke: var(--edge); stroke-width: .85; transition: fill .14s, stroke .14s; }
-.sector.active { fill: var(--active); stroke: var(--accent); stroke-width: 1.35; }
+.sector { fill: var(--surface); stroke: var(--line); stroke-width: .85; transition: fill .14s, stroke .14s; }
+.sector.active { fill: var(--hud-selected); stroke: var(--accent); stroke-width: 1; }
 #slots { position: absolute; inset: 0; }
 .slot {
     position: absolute; width: 84px; height: 63px; margin: -31px 0 0 -42px;
@@ -27,11 +20,11 @@ body { width: 392px; height: 420px; margin: 0; overflow: hidden; color: var(--te
 .slot.active .emote-mark { color: var(--accent); transform: translateY(-2px); }
 .slot.empty .name { color: var(--muted); }
 .emote-mark { display: block; width: 21px; height: 21px; margin: 3px auto; transition: transform .16s, color .16s; }
-.digit { display: inline-block; min-width: 14px; height: 14px; padding: 0 2px; color: var(--muted); border: 1px solid var(--edge); border-radius: 3px; font-size: 8px; line-height: 12px; }
+.digit { display: inline-block; min-width: 14px; height: 14px; padding: 0 2px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; font-size: 8px; line-height: 12px; }
 .name { display: flex; height: 21px; align-items: center; justify-content: center; font-size: 9.5px; line-height: 10px; font-weight: bold; padding: 0 6px; }
 #hub {
     position: absolute; top: 148px; left: 148px; width: 96px; height: 96px;
-    border: 1px solid var(--edge); border-radius: 50%; background: var(--deep);
+    border: 1px solid var(--line); border-radius: 50%; background: var(--hud-panel);
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
     text-align: center; padding: 5px;
 }
@@ -40,18 +33,18 @@ body { width: 392px; height: 420px; margin: 0; overflow: hidden; color: var(--te
 #subtitle { color: var(--muted); font-size: 8px; line-height: 9px; }
 .control, .option {
     position: absolute; height: 28px; text-align: center; line-height: 26px;
-    background: var(--raised); color: var(--text); border: 1px solid var(--edge); border-radius: 7px;
+    background: var(--top); color: var(--text); border: 1px solid var(--line); border-radius: var(--hud-radius);
     padding: 0 4px; font-size: 12px; white-space: nowrap;
 }
-.control.active, .option.active { border-color: var(--accent); background: var(--active); }
+.control.active, .option.active { border-color: var(--accent); background: var(--hud-selected); }
 #edit { left: 117px; top: 354px; width: 158px; }
 #done { left: 216px; top: 354px; width: 132px; }
 #reset { left: 44px; top: 354px; width: 132px; color: var(--muted); }
-#hint { position: absolute; top: 393px; width: 392px; text-align: center; color: #f1f1fa; font-size: 11px; }
+#hint { position: absolute; top: 393px; width: 392px; text-align: center; color: #f5f5f8; font-size: 11px; }
 #picker {
     position: absolute; left: 50px; top: 66px; width: 292px; height: 288px;
-    border: 1px solid var(--edge); border-radius: 13px; background: var(--surface);
-    box-shadow: 0 7px 22px #0004; text-align: center;
+    border: 1px solid var(--line); border-radius: var(--hud-radius); background: var(--hud-panel);
+    text-align: center;
 }
 #picker-title { margin: 18px 0 0; font-size: 15px; line-height: 20px; font-weight: bold; }
 #options { position: absolute; left: 0; top: 0; width: 290px; height: 232px; }
@@ -61,7 +54,7 @@ body { width: 392px; height: 420px; margin: 0; overflow: hidden; color: var(--te
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
-<body>
+<body class="gleam-hud">
 <div id="stage">
     <div id="wheel">
         <svg id="ring" viewBox="0 0 392 392" aria-hidden="true"></svg>

@@ -64,6 +64,10 @@ public final class OrionLumenView {
     private static final long THEME_REVEAL_NANOS = 410_000_000L;
     private static final byte[] UPDATE = bytes("update");
     private static final byte[] OPENING = bytes("opening");
+    private static final String HUD_THEME_IN_PAGE = "<link rel=\"stylesheet\" data-hud-theme";
+    private static final String RESOURCE_ROOT = "/assets/orion-client/";
+    private static String hudTheme;
+    private static byte[] hudRegular, hudBold;
 
     private final String resource, texturePrefix, fontResource;
     private final Supplier<byte[]> pageSource;
@@ -128,7 +132,7 @@ public final class OrionLumenView {
             if (!LumenNative.setFontData(engine, font)) return false;
             LumenNative.setViewport(engine, viewportWidth, viewportHeight);
             byte[] source = pageSource == null ? html.readAllBytes() : pageSource.get();
-            page = LumenNative.pageOpen(engine, source, bytes(""));
+            page = LumenNative.pageOpen(engine, applyHudTheme(source), bytes(""));
             if (page == 0) return false;
             // Первый тик инициализирует скрипт до вызова window.paradox.update.
             LumenNative.pageTick(page, engine, 0F);
@@ -140,6 +144,29 @@ public final class OrionLumenView {
                 unavailable = true;
                 dispose();
             }
+        }
+    }
+
+    private static byte[] applyHudTheme(byte[] source) throws IOException {
+        String html = new String(source, StandardCharsets.UTF_8);
+        int start = html.indexOf(HUD_THEME_IN_PAGE);
+        if (start < 0) return source;
+        int end = html.indexOf('>', start) + 1;
+        if (hudTheme == null) {
+            hudRegular = hudResource("fonts/paradox/ParadoxSans-Regular.ttf");
+            hudBold = hudResource("fonts/paradox/ParadoxSans-Bold.ttf");
+            hudTheme = new String(hudResource("html/hud-theme.css"), StandardCharsets.UTF_8)
+                    .replace("../fonts/paradox/ParadoxSans-", "assets/gleam-hud-");
+        }
+        LumenNative.registerFont(bytes("assets/gleam-hud-Regular.ttf"), hudRegular);
+        LumenNative.registerFont(bytes("assets/gleam-hud-Bold.ttf"), hudBold);
+        return bytes(html.substring(0, start) + "<style>" + hudTheme + "</style>" + html.substring(end));
+    }
+
+    private static byte[] hudResource(String path) throws IOException {
+        try (var stream = OrionLumenView.class.getResourceAsStream(RESOURCE_ROOT + path)) {
+            if (stream == null) throw new IOException("Missing HUD resource " + path);
+            return stream.readAllBytes();
         }
     }
 

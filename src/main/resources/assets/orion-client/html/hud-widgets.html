@@ -1,52 +1,53 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><style>
-html,body{margin:0;padding:0;background:transparent;font-family:sans-serif}
-:root{--text:#f5f5f8;--muted:#a9aab8;--line:#ffffff1c;--top:#20222c;--surface:#17181f;--well:#101119;--accent:#c2d2f7;color:var(--text)}
-html[data-light]{--text:#242735;--muted:#586174;--line:#414b6926;--top:#f3f6fc;--surface:#e7ecf7;--well:#dce3f1}
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" data-hud-theme href="hud-theme.css"><style>
+html,body{margin:0;padding:0;background:transparent;color:var(--text)}
 #hud{position:absolute;left:0;top:0}
 .part{position:absolute;box-sizing:border-box}
 .label{display:flex;align-items:center;overflow:hidden;white-space:nowrap}
-.panel,.key{border:1px solid var(--line);background:var(--surface)}
-html[data-glass] .panel,html[data-glass] .key{background:#20222ca0}
-html[data-light][data-glass] .panel,html[data-light][data-glass] .key{background:#f3f6fcb8}
-.well{background:var(--well);border:1px solid var(--line);opacity:.65}
+.panel{background:var(--hud-panel)}
+html[data-glass] .panel{background:var(--hud-glass)}
+.well,.key{background:var(--well);border:1px solid var(--line)}
+.divider{background:var(--line)}
 .key{display:flex;align-items:center;justify-content:center;gap:4px;padding:0 2px;font-size:8px;line-height:1;transition:background-color .13s,border-color .13s}
 .key>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8px;font-weight:bold}
-.key[data-pressed]{border-color:var(--accent);background:color-mix(in srgb,var(--surface),var(--accent) 24%)!important}
+.key[data-pressed]{border-color:var(--accent);background:var(--hud-selected)}
 .key[data-pressed]>strong{color:var(--accent)}
 .key .mouse{min-width:8px;color:var(--muted);font-size:6px}
 .key .key-unit{color:var(--muted);font-size:5px}
-html[data-light]{--accent:#4257b2}
 @media(prefers-reduced-motion:reduce){.key{transition:none}}
 svg{display:block;width:100%;height:100%}
-</style></head><body><div id="hud"></div><script>
+</style></head><body class="gleam-hud"><div id="hud"></div><script>
 const root = document.getElementById('hud');
 const escapeHtml = value => String(value).replace(/[&<>"']/g, char =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]);
+function geometry(part) {
+  return 'left:'+part.x+'px;top:'+part.y+'px;width:'+part.w+'px;height:'+part.h+'px;'
+    +(part.radius ? 'border-radius:'+part.radius+'px;' : '');
+}
 window.paradox = {update(state) {
   const theme = document.documentElement;
   theme.toggleAttribute('data-light',!!state.light);
   theme.toggleAttribute('data-glass',!!state.glass);
   if (/^#[0-9a-f]{6}$/i.test(state.accent)) theme.style.setProperty('--accent',state.accent);
   else theme.style.removeProperty('--accent');
-  if (state.parts.length && state.parts[0].kind === 'key') {
-    if (root.children.length !== state.parts.length || root.firstElementChild?.className !== 'part key') {
-      root.innerHTML = state.parts.map(part => '<div class="part key" style="left:'+part.x+'px;top:'+part.y
-        +'px;width:'+part.w+'px;height:'+part.h+'px;border-radius:'+part.radius+'px">'
-        +(part.mouse ? '<span class="mouse">'+escapeHtml(part.mouse)+'</span>' : '')
-        +'<strong></strong>'+(part.mouse ? '<span class="key-unit">CPS</span>' : '')+'</div>').join('');
+  if (state.parts.some(part => part.kind === 'key')) {
+    if (root.children.length !== state.parts.length || !root.querySelector('.key')) {
+      root.innerHTML = state.parts.map(part => '<div class="part '+part.kind+'" style="'+geometry(part)+'">'
+        +(part.kind === 'key' ? (part.mouse ? '<span class="mouse">'+escapeHtml(part.mouse)+'</span>' : '')
+          +'<strong></strong>'+(part.mouse ? '<span class="key-unit">CPS</span>' : '') : '')+'</div>').join('');
     }
     for (let i = 0; i < state.parts.length; ++i) {
       const part = state.parts[i], key = root.children[i], label = key.querySelector('strong');
+      if (!label) continue;
       key.toggleAttribute('data-pressed',part.pressed);
       if (label.textContent !== part.text) label.textContent = part.text;
     }
     return;
   }
   root.innerHTML = state.parts.map(part => {
-    let style = 'left:'+part.x+'px;top:'+part.y+'px;width:'+part.w+'px;height:'+part.h+'px;';
+    let style = geometry(part);
     let content = '';
-    if (part.radius) style += 'border-radius:'+part.radius+'px;';
     if (part.kind === 'label') {
       const align = part.align === 'center' ? 'center' : part.align === 'right' ? 'flex-end' : 'flex-start';
       style += 'color:'+part.color+';font-size:'+part.size+'px;font-weight:'+(part.bold?700:400)+';justify-content:'+align+';';

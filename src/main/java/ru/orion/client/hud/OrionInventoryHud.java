@@ -48,9 +48,7 @@ public final class OrionInventoryHud {
     private static OrionHudView.Scene scene() {
         var scene = new OrionHudView.Scene(DESIGN_W, DESIGN_H);
         scene.panel(0, 0, DESIGN_W, DESIGN_H, 7);
-        for (int i = 0; i < COLS * ROWS; i++) {
-            scene.well(PAD + i % COLS * CELL - .5F, PAD + i / COLS * CELL - .5F, 17, 17, 3);
-        }
+        for (int row = 1; row < ROWS; row++) scene.divider(PAD, PAD + row * CELL - 2, DESIGN_W - PAD * 2);
         return scene;
     }
 

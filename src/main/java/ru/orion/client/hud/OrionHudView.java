@@ -174,13 +174,16 @@ public final class OrionHudView {
             part("well", x, y, w, h).addProperty("radius", radius);
         }
 
+        void divider(float x, float y, float width) {
+            part("divider", x, y, width, 1);
+        }
+
         void key(float x, float y, float w, float h, String text, String mouse, boolean pressed) {
             var part = part("key", x, y, w, h);
             part.addProperty("radius", 4);
             part.addProperty("text", text);
             part.addProperty("mouse", mouse);
             part.addProperty("pressed", pressed);
-            panels.add(new OrionGlassCompositor.Panel(x, y, w, h, 8));
             animated = true;
         }
 
@@ -229,10 +232,11 @@ public final class OrionHudView {
                         //?} else {
                         /*context.drawString(font, label, labelX, labelY, 0xfff5f5f8);
                         *///?}
-                    } else if (kind.equals("panel") || kind.equals("box") || kind.equals("well")) {
+                    } else if (kind.equals("panel") || kind.equals("box") || kind.equals("well") || kind.equals("divider")) {
                         int color = switch (kind) {
-                            case "panel" -> 0xcf181a22;
-                            case "well" -> 0xff101119;
+                            case "panel" -> 0xf517181f;
+                            case "well" -> 0x0dffffff;
+                            case "divider" -> 0x1cffffff;
                             default -> argb(part.get("color").getAsString());
                         };
                         context.fill(left, top, left + partWidth, top + partHeight, color);

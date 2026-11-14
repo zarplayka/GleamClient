@@ -11,7 +11,7 @@ import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.effect.OrionClickCounter;
 
 public final class OrionStatusHud {
-    private static final int WIDTH = 75, HEIGHT = 77;
+    private static final int WIDTH = 83, HEIGHT = 86;
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView("hud_status_panels");
     private final OrionHudDrag drag = new OrionHudDrag("keystrokes");
@@ -40,11 +40,13 @@ public final class OrionStatusHud {
         State state = new State(pressed, OrionClickCounter.count(false), OrionClickCounter.count(true));
         if (!state.equals(previous)) {
             scene = new OrionHudView.Scene(WIDTH, HEIGHT);
-            key(state, 0, keyLabel(keys[0]), "", 26, 0, 23, 21);
-            for (int i = 1; i <= 3; i++) key(state, i, keyLabel(keys[i]), "", (i - 1) * 26, 24, 23, 21);
-            key(state, 4, keyLabel(keys[4]), "", 0, 48, WIDTH, 10);
-            key(state, 5, Integer.toString(state.leftCps), "L", 0, 61, 36, 16);
-            key(state, 6, Integer.toString(state.rightCps), "R", 39, 61, 36, 16);
+            scene.panel(0, 0, WIDTH, HEIGHT, 7);
+            key(state, 0, keyLabel(keys[0]), "", 30, 4, 23, 21);
+            for (int i = 1; i <= 3; i++) key(state, i, keyLabel(keys[i]), "", 4 + (i - 1) * 26, 28, 23, 21);
+            key(state, 4, keyLabel(keys[4]), "", 4, 52, WIDTH - 8, 10);
+            scene.divider(4, 65, WIDTH - 8);
+            key(state, 5, Integer.toString(state.leftCps), "L", 4, 69, 36, 13);
+            key(state, 6, Integer.toString(state.rightCps), "R", 43, 69, 36, 13);
             previous = state;
         }
         float scale = config.getHudScale() * config.getHudElementScale("keystrokes");

@@ -27,7 +27,6 @@ import ru.orion.client.gui.OrionLumenView;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 
 /** Мост острова HUD: HTML/CSS/JS через Lumen, данные и команды остаются в менеджерах Java. */
 public final class OrionMediaPlayerHud {
@@ -328,10 +327,6 @@ public final class OrionMediaPlayerHud {
 
     private static byte[] loadDocument() {
         try {
-            for (String face : new String[]{"Regular", "Bold"}) {
-                LumenNative.registerFont(bytes("assets/orion-" + face.toLowerCase(Locale.ROOT) + ".ttf"),
-                        read(ROOT + "fonts/paradox/ParadoxSans-" + face + ".ttf"));
-            }
             LumenNative.registerImage(bytes("assets/gleam-hud-badge.png"), read(ROOT + "textures/cosmetics/orion_badge.png"));
             if (document == null) {
                 String html = new String(read(ROOT + "html/hud-island/index.html"), StandardCharsets.UTF_8);

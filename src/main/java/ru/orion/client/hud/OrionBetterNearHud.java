@@ -151,9 +151,9 @@ public final class OrionBetterNearHud {
         String tint = OrionHudView.color(accent);
         result.icon("M2 10h16M10 2v16M10 5a5 5 0 1 0 .01 0Z", PAD_X, 5, 11, tint, false);
         result.label(OrionGuiLanguage.translate("Рядом"), PAD_X + 14, 2, 78, 17, 8.5F, "var(--text)", "left", true);
+        result.divider(PAD_X, HEADER_HEIGHT - 2, PANEL_WIDTH - PAD_X * 2);
         if (!players.isEmpty()) {
-            result.well(PANEL_WIDTH - PAD_X - 15, 4, 15, 12, 3);
-            result.label(Integer.toString(players.size()), PANEL_WIDTH - PAD_X - 15, 4, 15, 12, 7, "var(--muted)", "center", true);
+            result.label(Integer.toString(players.size()), PANEL_WIDTH - PAD_X - 15, 4, 15, 12, 7, "var(--muted)", "right", false);
         }
         if (players.isEmpty()) {
             result.label(OrionGuiLanguage.translate("Никого рядом"), PAD_X, HEADER_HEIGHT, PANEL_WIDTH - PAD_X * 2, ROW_HEIGHT,
@@ -162,7 +162,7 @@ public final class OrionBetterNearHud {
         for (int i = 0; i < players.size(); i++) {
             NearPlayer player = players.get(i);
             int row = HEADER_HEIGHT + i * ROW_HEIGHT;
-            result.well(PAD_X, row, PANEL_WIDTH - PAD_X * 2, ROW_HEIGHT - 2, 4);
+            if (i > 0) result.divider(PAD_X, row - 1, PANEL_WIDTH - PAD_X * 2);
             result.icon(OrionHudView.arrow(player.sector * (360F / ARROW_SECTORS)),
                     PAD_X + 4, row + 3, 9, tint, true);
             result.label(player.name, PAD_X + 17, row, PANEL_WIDTH - PAD_X * 2 - 48, ROW_HEIGHT - 2,
