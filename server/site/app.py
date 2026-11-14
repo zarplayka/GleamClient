@@ -85,6 +85,10 @@ def init_db():
             user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
             slots TEXT NOT NULL
         )''')
+        db.execute('''CREATE TABLE IF NOT EXISTS friend_appearances (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            skin TEXT NOT NULL, slim INTEGER NOT NULL
+        )''')
         session_columns = {column['name'] for column in db.execute('PRAGMA table_info(sessions)')}
         if 'device' not in session_columns:
             db.execute('ALTER TABLE sessions ADD COLUMN device TEXT')
@@ -795,7 +799,21 @@ async def friends_list(request):
             FROM friendships f JOIN users u ON u.id=CASE WHEN f.low_id=:uid THEN f.high_id ELSE f.low_id END
             LEFT JOIN profiles p ON p.user_id=u.id
             WHERE f.low_id=:uid OR f.high_id=:uid ORDER BY u.username_key''', {'uid': uid}).fetchall()
-    return web.json_response({'items': [dict(row) for row in rows]})
+        items = [dict(row) for row in rows]
+        if request.query.get('appearance') == '1':
+            appearances = db.execute('''SELECT u.username,a.skin,a.slim,c.slots,p.avatar IS NOT NULL AS has_avatar
+                FROM friendships f JOIN users u ON u.id=CASE WHEN f.low_id=:uid THEN f.high_id ELSE f.low_id END
+                JOIN profiles p ON p.user_id=u.id AND p.published=1
+                LEFT JOIN friend_appearances a ON a.user_id=u.id
+                LEFT JOIN cosmetic_loadouts c ON c.user_id=u.id
+                WHERE f.accepted=1 AND (f.low_id=:uid OR f.high_id=:uid) AND u.banned_at IS NULL''', {'uid': uid}).fetchall()
+            by_name = {row['username']: row for row in appearances}
+            for item in items:
+                row = by_name.get(item['username'])
+                if row:
+                    item['appearance'] = {'skin': row['skin'], 'slim': bool(row['slim']), 'avatar': bool(row['has_avatar']),
+                                          'slots': json.loads(row['slots']) if row['slots'] else {}}
+    return web.json_response({'items': items}, dumps=lambda value: json.dumps(value, ensure_ascii=False))
 
 async def friends_update(request):
     user = auth_csrf(request)
@@ -803,6 +821,15 @@ async def friends_update(request):
     if not limit(request, 'friends-update', 50, 60): return error('rate', 429)
     data = await json_body(request)
     username, action = data.get('username'), data.get('action')
+    if action == 'appearance':
+        skin, slim = data.get('skin'), data.get('slim')
+        if not isinstance(skin, str) or not re.fullmatch(r'(?:[a-f0-9]{1,64})?', skin) or type(slim) is not bool:
+            return error('invalid')
+        with connect() as db:
+            db.execute('''INSERT INTO friend_appearances(user_id,skin,slim) VALUES (?,?,?)
+                ON CONFLICT(user_id) DO UPDATE SET skin=excluded.skin,slim=excluded.slim
+                WHERE skin<>excluded.skin OR slim<>excluded.slim''', (user['id'], skin, int(slim)))
+        return web.json_response({'ok': True})
     if not valid_username(username) or action not in ('request', 'accept', 'decline', 'cancel', 'remove'):
         return error('invalid')
     uid = user['id']
@@ -836,6 +863,7 @@ async def friends_update(request):
         else:
             db.execute('DELETE FROM friendships WHERE low_id=? AND high_id=?', pair)
     return web.json_response({'ok': True})
+
 
 def world_endpoint(request, data):
     port, pin, addresses = data.get('port'), data.get('pin'), data.get('addresses')

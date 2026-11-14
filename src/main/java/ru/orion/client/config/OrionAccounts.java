@@ -536,6 +536,15 @@ public final class OrionAccounts {
         return loadFriends(active);
     }
 
+    public void publishFriendAppearance(String hash, boolean slim) {
+        if (active == null) return;
+        var body = new JsonObject();
+        body.addProperty("action", "appearance");
+        body.addProperty("skin", hash);
+        body.addProperty("slim", slim);
+        send("/api/friends", body, active, true);
+    }
+
     public CompletableFuture<JsonObject> friendWorlds(JsonObject action) {
         Session session = active;
         if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
@@ -956,7 +965,7 @@ public final class OrionAccounts {
     }
 
     private static CompletableFuture<JsonArray> loadFriends(Session session) {
-        return send("/api/friends", null, session, false)
+        return send("/api/friends?appearance=1", null, session, false)
                 .thenApply(response -> friendResponse(response).getAsJsonArray("items"));
     }
 

@@ -525,7 +525,9 @@ function renderFriendProfile() {
     + (profile?.id ? '<div class="setting-row"><span>' + text(t('ID аккаунта')) + '</span>'
       + actionButton('friend-profile-copy',profile.id,'copy') + '</div><div class="setting-row"><span>'
       + text(t('Дата регистрации')) + '</span><small>' + text(profile.created) + '</small></div>'
-      : '<div class="setting-row"><span>' + text(profile?.status ?? t('Загрузка…')) + '</span></div>') + '</div>';
+      : '<div class="setting-row"><span>' + text(profile?.status ?? t('Загрузка…')) + '</span></div>')
+    + (item.status === 'friend' ? '<div class="setting-row"><button type="button" class="button" data-friend-change="remove" data-username="'
+      + text(item.username) + '">' + text(t('Удалить из друзей')) + '</button></div>' : '') + '</div>';
 }
 function renderFriends() {
   if (state.friendProfile && friends.signedIn) return renderFriendProfile();
@@ -559,8 +561,10 @@ function renderFriends() {
     + (worlds.hosting ? button('close','Закрыть доступ') + '<small>TCP ' + text(String(worlds.port)) + '</small>' : '') + '</div>' : '';
   const commands = selected ? ({friend:[['remove','Удалить из друзей']],incoming:[['accept','Принять'],['decline','Отклонить']],
     outgoing:[['cancel','Отозвать']]}[selected.status] ?? []) : [];
-  const detail = selected ? '<div class="friend-detail"><div class="profile-top">' + friendAvatar(selected,true)
-    + '<div><h2>' + text(selected.username) + '</h2><small>' + text(t(presence(selected))) + '</small></div></div>'
+  const detail = selected ? '<div class="friend-detail"><div class="profile-top"><div class="friend-model" data-friend-model="'
+    + text(selected.username) + '">' + (typeof sendGame === 'function' ? '' : friendAvatar(selected,true))
+    + '</div><div><h2>' + text(selected.username) + '</h2><small class="friend-live" data-online="' + online(selected)
+    + '">' + text(t(presence(selected))) + '</small></div></div><div class="friend-controls">'
     + (invite ? '<div class="friend-world"><b>' + text(invite.world) + '</b><small>Minecraft ' + text(invite.version)
       + '</small><div class="friends-tools">' + (invite.incoming && invite.state === 'pending'
         ? button('accept','Зайти к другу',invite.id,true,invite.version !== worlds.version)
@@ -572,9 +576,9 @@ function renderFriends() {
         + button('invite','Пригласить в мир',selected.username,true) + '</div>' : '')
     + '<button type="button" class="friend-open-profile" data-friend-profile="' + text(selected.username) + '">'
     + text(t('Открыть профиль')) + '</button>'
-    + '<div class="friends-tools friend-detail-actions">' + commands.map(([change,label]) => '<button type="button" class="button'
+    + '<div class="friends-tools friend-detail-actions">' + commands.filter(([change]) => change !== 'remove').map(([change,label]) => '<button type="button" class="button'
       + (change === 'accept' ? ' primary' : '') + '" data-friend-change="' + change + '" data-username="' + text(selected.username)
-      + '"' + (friends.busy ? ' disabled' : '') + '>' + text(t(label)) + '</button>').join('') + '</div></div>' : '';
+      + '"' + (friends.busy ? ' disabled' : '') + '>' + text(t(label)) + '</button>').join('') + '</div></div></div>' : '';
   const summary = query ? 'Никого не найдено' : friends.busy ? 'Загрузка…' : active.id === 'online'
     ? 'Друзей нет в сети' : active.id === 'friend' ? 'Друзей пока нет' : 'Заявок пока нет';
   return head + controls + (worlds.status || friends.status ? '<p class="friends-status" role="status">'
@@ -870,14 +874,21 @@ function scheduleCosmeticPreview() {
   if (typeof sendGame !== 'function' || cosmeticFrame) return;
   cosmeticFrame = requestAnimationFrame(() => {
     cosmeticFrame = 0;
-    const stage = state.page === 'cosmetics' && !$('dialog').hasAttribute('open')
-      && !$('window').hidden && $('content').querySelector('.cosmetic-stage');
+    const selector = state.page === 'cosmetics' ? '.cosmetic-stage' : state.page === 'friends' ? '.friend-model' : '';
+    const stage = selector && !$('dialog').hasAttribute('open') && !$('window').hidden && $('content').querySelector(selector);
     const data = {};
     if (stage) {
       const box = stage.getBoundingClientRect(), clip = $('content').getBoundingClientRect();
       data.items = cosmeticLoadout();
       data.yaw = state.cosmeticYaw;
       data.zoom = state.cosmeticZoom;
+      if (stage.dataset.friendModel) {
+        data.friend = stage.dataset.friendModel;
+        const slots = friends.items.find(item => item.username === data.friend)?.appearance?.slots ?? {};
+        data.items = [slots.wings,slots.pet,slots.halo && 'halo',slots.hat && 'hat'].filter(Boolean);
+        data.yaw = -30;
+        data.zoom = 1;
+      }
       data.x = box.left;
       data.y = box.top;
       data.w = box.width;
@@ -1530,7 +1541,7 @@ window.addEventListener('resize', () => {
 });
 $('content').addEventListener('scroll', () => {
   if (openChoice) showChoices(openChoice,false);
-  if (state.page === 'cosmetics') scheduleCosmeticPreview();
+  if (state.page === 'cosmetics' || state.page === 'friends') scheduleCosmeticPreview();
 });
 new ResizeObserver(() => { fitGrid(); fitCategories(); positionWindow(); }).observe($('content'));
 document.addEventListener('input', event => {

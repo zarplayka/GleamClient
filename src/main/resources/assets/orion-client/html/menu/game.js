@@ -527,6 +527,7 @@ document.addEventListener('input',event => {
     else if (old) old.remove();
     else if (current) $('content').querySelector('.friends-layout')?.appendChild(current);
   }
+  scheduleCosmeticPreview();
 });
 let rangeDrag, colorDrag, colorPicker;
 const clampUnit = value => Math.max(0,Math.min(1,value));
@@ -882,7 +883,7 @@ window.paradox = {
       menu.style.setProperty('opacity',String(.3 + .7 * eased));
       menu.style.setProperty('transform','translateY(' + (10 * (1 - eased)) + 'px)');
     }
-    if (state.page === 'cosmetics') scheduleCosmeticPreview();
+    if (state.page === 'cosmetics' || state.page === 'friends') scheduleCosmeticPreview();
   },
   update(data) {
     let redraw = false, look = false, friendsChanged = false, chatChanged = false;

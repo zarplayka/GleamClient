@@ -253,38 +253,76 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       min-width: 0; gap: 8px; padding-left: 14px; border-left: 1px solid var(--border); text-align: center;
     }
     .cosmetics h2 { margin: 0 0 5px; font-size: 14px; letter-spacing: 0 }
-    .friends-layout { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.08fr);gap:14px;align-items:start }
-    .friends-heading { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px }
-    .friends-heading h2 { margin:0;font-size:25px;letter-spacing:-.045em }
-    .friends-tools,.friend-session-actions { display:flex;flex-wrap:wrap;align-items:center;gap:7px }
-    .catalog-input { height:36px;padding:0 11px;border:1px solid var(--border);border-radius:6px;background:var(--control-bg);color:var(--text);font:inherit }
-    .friends-search { width:100%;margin-bottom:8px }
-    .friends-tabs { display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px;padding:3px;border:1px solid var(--border);border-radius:7px;background:var(--panel) }
-    .friends-tabs button { flex:1;white-space:nowrap;min-height:32px;padding:0 7px;border:1px solid transparent;border-radius:5px;color:var(--muted);background:transparent }
-    .friends-tabs button[aria-pressed="true"] { background:var(--selected-bg);border-color:var(--border);color:var(--selected-text) }
-    .friends-tabs small { margin-left:5px;color:var(--muted) }
-    .friends-rows { display:grid;gap:6px }
-    .friends-row { display:flex;align-items:center;gap:10px;min-width:0;width:100%;min-height:63px;padding:9px 11px;text-align:left;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text) }
-    .friends-row:hover,.friends-row[aria-pressed="true"] { border-color:var(--focus-stroke);background:var(--control-bg) }
-    .friends-text { display:grid;gap:3px;min-width:0 }
+    #page-friends { width:min(100%,1270px);padding:30px clamp(16px,3vw,34px) 45px }
+    .friends-layout { display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:22px;align-items:start }
+    .friends-heading { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:26px }
+    #page-friends .friends-heading h2 { margin:0;font-size:34px;line-height:1.14;letter-spacing:-.048em }
+    .friends-tools,.friend-session-actions { display:flex;flex-wrap:wrap;align-items:center;gap:8px }
+    .friends-tools .button,.friends-form .button,.friends-tools .button.primary { min-height:35px;font-size:12px;font-weight:700;border-radius:7px }
+    .catalog-input { height:36px;padding:0 11px;border:1px solid var(--border);border-radius:7px;background:var(--panel);color:var(--text);font:inherit }
+    .friends-search { display:flex;gap:10px;align-items:center;border:1px solid var(--border);border-radius:9px;padding:0 13px;height:48px;background:var(--panel);color:var(--muted) }
+    .friends-search:focus-within { border-color:var(--focus-stroke) }
+    .friends-search input { min-width:0;width:100%;height:100%;border:0;outline:0;background:transparent;color:var(--text);font:inherit }
+    .friends-tabs { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;margin:10px 0 15px;padding:4px;border:1px solid var(--border);border-radius:8px;background:var(--panel) }
+    .friends-tabs button { white-space:nowrap;min-height:32px;padding:0 4px;border:0;border-radius:5px;color:var(--muted);background:transparent;font-size:12px }
+    .friends-tabs button:hover { color:var(--text) }
+    .friends-tabs button[aria-pressed="true"] { background:var(--selected-bg);color:var(--selected-text);font-weight:700 }
+    .friends-tabs small { margin-left:5px;font-variant-numeric:tabular-nums }
+    .friends-rows { display:grid;gap:8px }
+    .friends-row { display:flex;align-items:center;gap:12px;min-width:0;width:100%;min-height:70px;padding:10px 14px;text-align:left;background:var(--panel);border:1px solid var(--border);border-radius:9px;color:var(--text);transition:background .16s,border-color .16s,transform .16s var(--ease) }
+    .friends-row:hover { background:var(--control-bg) }
+    .friends-row:active { transform:translateY(1px) }
+    .friends-row[aria-pressed="true"] { border-color:var(--focus-stroke);background:color-mix(in srgb,var(--selected-bg) 60%,var(--panel)) }
+    .friends-text { display:grid;gap:4px;min-width:0;flex:1 }
     .friends-text>* { overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+    .friends-row>.icon { width:15px;height:15px;color:var(--side-muted) }
+    .friends-row[aria-pressed="true"]>.icon { color:var(--selected-text) }
     .friends-text small,.friend-details small,.friends-note { color:var(--muted);font-size:12px }
-    .friends-text small[data-online] { color:#80d3a4 }
-    .friend-face { position:relative;display:grid;place-items:center;width:38px;height:38px;flex:none;overflow:hidden;border:1px solid var(--border);border-radius:7px;background:var(--control-bg);color:var(--muted);font-weight:700 }
-    .friend-face img { position:absolute;inset:0;width:100%;height:100%;object-fit:cover }
-    .friend-details { min-width:0;border:1px solid var(--border);border-radius:10px;background:var(--panel);padding:15px }
-    .friend-profile-head { display:flex;align-items:center;gap:13px;min-height:87px;padding-bottom:10px }
-    .friend-profile-head .friend-face { width:66px;height:66px;border-radius:9px;font-size:23px }
-    .friend-profile-head h2 { margin:0;overflow-wrap:anywhere;font-size:23px }
-    .friend-session { display:grid;gap:8px;padding:12px 0;border-top:1px solid var(--border) }
-    .friend-session .primary { flex:1 }
-    .friend-profile-link { display:flex;justify-content:space-between;align-items:center;width:100%;min-height:35px;border:0;border-top:1px solid var(--border);background:transparent;color:var(--text);padding:6px 0;text-align:left }
-    .friend-profile-link:hover { color:var(--accent) }
-    .friend-profile-link .icon { width:14px;height:14px }
+    .friends-text small[data-online],.friend-identity .friend-presence[data-online] { color:#80d3a4 }
+    .friend-face { position:relative;display:grid;place-items:center;width:43px;height:43px;flex:none;border-radius:9px;background:var(--selected-bg);color:var(--selected-text);font-weight:700 }
+    .friend-face img { position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;image-rendering:pixelated }
+    .friends-row .friend-face::after { content:"";position:absolute;right:-2px;bottom:-2px;width:12px;height:12px;border:2px solid var(--panel);border-radius:50%;background:#777985 }
+    .friends-row .friend-face[data-online]::after { background:#80d3a4 }
+    .friend-details { min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:12px;background:var(--panel) }
+    .friend-profile-head { display:grid;grid-template-columns:minmax(105px,46%) minmax(0,1fr);align-items:center;gap:9px;min-height:268px;padding:10px 22px;background:radial-gradient(ellipse at 25% 63%,color-mix(in srgb,var(--selected-bg) 75%,var(--panel)),var(--panel) 65%) }
+    .friend-render { height:248px;display:grid;place-items:center;position:relative }
+    .friend-render canvas { position:absolute;inset:0;margin:auto;width:100%;height:100%;max-width:254px }
+    .friend-render .friend-face { width:78px;height:78px;font-size:24px }
+    #page-friends .friend-identity h2 { margin:0 0 8px;overflow-wrap:anywhere;font-size:31px;letter-spacing:-.04em }
+    .friend-presence { display:flex;align-items:center;gap:7px }
+    .friend-presence::before { content:"";flex:none;width:7px;height:7px;border-radius:50%;background:#777985 }
+    .friend-presence[data-online]::before { background:currentColor }
+    .friend-tag { display:block;margin-top:8px }
+    .friend-session { padding:14px 17px 17px;border-top:1px solid var(--border);background:var(--home-surface) }
+    .friend-world { display:grid;grid-template-columns:86px minmax(0,1fr);gap:11px;align-items:center;margin-bottom:13px }
+    .friend-world-art { height:48px;border-radius:6px;object-fit:cover;width:100% }
+    .friend-world b,.friend-world small { display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+    .friend-world small { margin-top:4px }
+    .friend-session-actions { align-items:stretch }
+    .friend-session-actions .button { min-height:43px;border-radius:7px;white-space:normal;font-size:13px }
+    .friend-session-actions .primary { flex:1 }
+    .friend-session-actions .button:not(.primary) { background:transparent }
+    .friend-session-actions .button:not(.primary):hover { background:var(--control-bg) }
+    .friend-session-actions .primary .icon { width:15px;height:15px }
+    .friend-profile-link { display:flex;align-items:center;gap:8px;width:100%;min-height:35px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--muted);padding:7px 10px;text-align:left;font-size:12px }
+    .friend-profile-link:not(:first-child) { margin-top:10px }
+    .friend-profile-link:hover { background:var(--control-bg);color:var(--text) }
+    .friend-profile-link .icon { width:15px;height:15px }
+    .friend-profile-link .icon:last-child { margin-left:auto }
+    .friend-modal-person { display:flex;gap:12px;align-items:center;margin-bottom:14px }
+    .friend-modal-person .friend-face { width:54px;height:54px }
+    .friend-modal-person small { display:block;margin-top:4px;color:var(--muted) }
     .friends-note { margin:0 0 12px }
+    .friends-empty { margin:0;padding:16px;border:1px solid var(--border);border-radius:9px;background:var(--panel) }
     .friends-form { display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px }
     .friends-form input { flex:1;min-width:110px }
-    @media(max-width:860px) { .friends-layout { grid-template-columns:1fr } }
+    @media(max-width:1160px) { .friends-tabs { grid-template-columns:repeat(2,minmax(0,1fr)) } }
+    @media(max-width:860px) {
+      .friends-layout { grid-template-columns:1fr;gap:13px }
+      .friend-profile-head { min-height:198px;grid-template-columns:minmax(86px,43%) minmax(0,1fr);padding-inline:14px }
+      .friend-render { height:178px }
+      #page-friends .friend-identity h2 { font-size:25px }
+    }
     .cosmetics p { margin: 0; color: var(--muted); font-size: 13px }
     .cosmetics h2 .text-button { color: var(--text); padding: 0; font-size: inherit; font-weight: inherit }
     .cosmetics h2 .text-button:hover { color: var(--accent) }
@@ -1286,12 +1324,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </form>
         <p class="friends-note" id="friends-status" role="status" hidden></p>
         <div class="friends-layout">
-          <div><input class="catalog-input friends-search" type="search" id="friends-search" placeholder="Поиск по нику" aria-label="Поиск по нику">
+          <div><label class="friends-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="friends-search" placeholder="Поиск по нику" aria-label="Поиск по нику"></label>
           <div class="friends-tabs" id="friends-tabs" role="group" aria-label="Друзья"></div>
           <div class="friends-rows" id="friends-rows"></div></div>
           <div class="friend-details" id="friend-details" hidden></div>
         </div>
       </section>
+      <dialog class="minecraft-dialog" id="friend-profile-dialog" aria-labelledby="friend-profile-title">
+        <header class="minecraft-dialog-header"><h2 id="friend-profile-title">Профиль друга</h2>
+          <form method="dialog"><button class="minecraft-dialog-close" aria-label="Закрыть"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></form>
+        </header>
+        <div id="friend-profile-body"></div>
+      </dialog>
       <section id="page-cosmetics" class="page secondary-page" aria-labelledby="wardrobe-heading" hidden>
         <header class="wardrobe-heading">
           <h2 id="wardrobe-heading" tabindex="-1">Косметика</h2>
@@ -1455,6 +1499,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+          <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-039">
+            <span class="release-meta"><span class="release-version">0.1.39</span><time datetime="2026-11-14">14.11.2026</time></span>
+            <div>
+              <h3 id="release-launcher-039">Обновлённый экран друзей</h3>
+              <p>Крупная 3D-модель со скином и экипировкой, отдельная карточка мира и профиль под приглашением.</p>
+            </div>
+          </article>
           <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-038">
             <span class="release-meta"><span class="release-version">0.1.38</span><time datetime="2026-11-14">14.11.2026</time></span>
             <div>
@@ -2281,6 +2332,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       "Статус заявки уже изменился":["Request status already changed","Anfragestatus hat sich bereits geändert","El estado de la solicitud ya cambió"],
       "Достигнут лимит друзей или заявок":["Friend or request limit reached","Freunde- oder Anfragelimit erreicht","Límite de amigos o solicitudes alcanzado"],
       "Этот аккаунт заблокирован":["This account is banned","Dieses Konto ist gesperrt","Esta cuenta está bloqueada"],
+      'Обновлённый экран друзей':['Updated Friends screen','Überarbeitete Freundesliste','Pantalla de amigos renovada'],
+      'Крупная 3D-модель со скином и экипировкой, отдельная карточка мира и профиль под приглашением.':['A larger 3D model with skin and cosmetics, a world card, and a profile link below the invitation.','Ein größeres 3D-Modell mit Skin und Kosmetik, eine Weltkarte und ein Profillink unter der Einladung.','Un modelo 3D más grande con aspecto y cosméticos, una tarjeta del mundo y un enlace al perfil bajo la invitación.'],
+      'Профиль друга':['Friend profile','Freundesprofil','Perfil del amigo'],
+      'Игрок скрыл свой профиль':['This player has hidden their profile','Dieser Spieler hat sein Profil verborgen','Este jugador ha ocultado su perfil'],
+      'Дата регистрации · {0}':['Joined · {0}','Registriert seit · {0}','Registro · {0}'],
       'Не удалось синхронизировать косметику':['Could not sync cosmetics','Kosmetik konnte nicht synchronisiert werden','No se pudo sincronizar la cosmética'],
       'Косметика в лаунчере':['Cosmetics in the launcher','Kosmetik im Launcher','Cosméticos en el lanzador'],
       'Экипировка синхронизируется с GleamClient. Нажми на карточку для предпросмотра, затем на кнопку экипировки.':['Your loadout syncs with GleamClient. Select a card to preview the item and use the equip button to wear it.','Deine Ausrüstung wird mit GleamClient synchronisiert. Wähle eine Karte für die Vorschau und lege den Gegenstand über die Schaltfläche an.','Tu equipamiento se sincroniza con GleamClient. Selecciona una tarjeta para ver el objeto y usa el botón para equiparlo.'],
@@ -3973,6 +4029,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     let minecraftPollTimer;
     let minecraftSkinRequest = 0;
     let selectedMinecraftAccount;
+    let selectedFriendAppearance, sentFriendAppearance, publishingFriendAppearance = false;
     const minecraftErrors = {
       mc_expired:'Код Microsoft истёк',mc_denied:'Microsoft отклонил вход',
       mc_license:'На аккаунте нет Minecraft Java Edition',mc_java_profile:'Создай игровой профиль Minecraft Java Edition',
@@ -4025,6 +4082,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     function renderMinecraftAccounts(data) {
       const selected = data.accounts.find(profile => profile.id === data.selected);
       selectedMinecraftAccount = selected?.id;
+      const texture = /^https:\/\/textures\.minecraft\.net\/texture\/([a-f\d]{1,64})$/i.exec(selected?.skin_url || '');
+      selectedFriendAppearance = {skin:texture?.[1] ?? '',slim:!!texture && !!selected.slim};
+      void syncFriendAppearance();
       $('minecraft-account-count').textContent = String(data.accounts.length);
       const name = $('minecraft-name');
       name.textContent = selected?.name || '';
@@ -4579,9 +4639,82 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (value !== undefined) element.textContent = value;
       return element;
     }
-    const social = {friends:[],worlds:{items:[],people:{}},tab:'all',selected:'',profile:null,pending:false,epoch:0,owner:'',seen:new Set()};
+    const social = {friends:[],worlds:{items:[],people:{}},tab:'all',selected:'',pending:false,epoch:0,owner:'',seen:new Set()};
     const friendCall = (action,target,autojoin) => window.__TAURI__.core.invoke('gleam_friends',{action,target,autojoin});
     const friendsOpen = () => !$('page-friends').hidden;
+    const friendCanvas = document.createElement('canvas');
+    const friendSkins = new Map();
+    let friendPreview, friendModelKey = '', friendModelRequest = 0;
+    async function syncFriendAppearance() {
+      if (!signedIn || !window.__TAURI__ || !selectedFriendAppearance || publishingFriendAppearance) return;
+      const {skin,slim} = selectedFriendAppearance;
+      const key = JSON.stringify([$('account-name').textContent,skin,slim]);
+      if (sentFriendAppearance === key) return;
+      publishingFriendAppearance = true;
+      try {
+        await window.__TAURI__.core.invoke('gleam_friends',{action:'appearance',target:skin,slim});
+        if (signedIn) sentFriendAppearance = key;
+      } catch {
+        // The next friends refresh retries a failed appearance update.
+      } finally {
+        publishingFriendAppearance = false;
+      }
+    }
+    function loadFriendSkin(hash) {
+      const key = /^[a-f\d]{1,64}$/i.test(hash ?? '') ? hash : '';
+      if (!friendSkins.has(key)) {
+        const image = new Image();
+        if (key) image.crossOrigin = 'anonymous';
+        image.src = key ? 'https://textures.minecraft.net/texture/' + key : 'launcher-default-skin.png';
+        const load = image.decode().then(() => {
+          if (image.naturalWidth !== 64 || ![32,64].includes(image.naturalHeight)) throw Error('skin');
+          const skin = prepareMinecraftSkin(image);
+          const face = document.createElement('canvas');
+          face.width = face.height = 8;
+          const ctx = face.getContext('2d');
+          ctx.drawImage(image,8,8,8,8,0,0,8,8);
+          if (skin.headLayer) ctx.drawImage(image,40,8,8,8,0,0,8,8);
+          return {...skin,face:face.toDataURL('image/png')};
+        }).catch(error => {
+          if (key) return loadFriendSkin('');
+          throw error;
+        });
+        if (friendSkins.size >= 224) friendSkins.delete(friendSkins.keys().next().value);
+        friendSkins.set(key,load);
+      }
+      return friendSkins.get(key);
+    }
+    async function drawFriendModel(stage,person) {
+      const request = ++friendModelRequest;
+      const look = person.appearance ?? {};
+      const key = JSON.stringify([person.username,look]);
+      stage.append(friendCanvas);
+      friendCanvas.hidden = friendModelKey !== key;
+      stage.firstElementChild.hidden = !friendCanvas.hidden;
+      try {
+        friendPreview ??= new GleamCosmeticPreview(friendCanvas);
+        const slots = {...look.slots,dance:false};
+        const [skin,pet] = await Promise.all([
+          loadFriendSkin(look.skin),
+          slots.pet ? friendPreview.loadPet(slots.pet).catch(() => null) : null,
+          slots.wings ? friendPreview.loadGeometry().catch(() => { slots.wings = ''; }) : null
+        ]);
+        if (request !== friendModelRequest || !stage.isConnected || !friendsOpen()) return;
+        friendCanvas.hidden = false;
+        stage.firstElementChild.hidden = true;
+        const density = Math.min(2,window.devicePixelRatio);
+        friendCanvas.width = Math.max(1,Math.round(friendCanvas.clientWidth*density));
+        friendCanvas.height = Math.max(1,Math.round(friendCanvas.clientHeight*density));
+        if (key !== friendModelKey) friendPreview.setSkin(skin.image,!!look.slim,skin.headLayer);
+        friendPreview.draw({yaw:-.53,pitch:.16,home:true,zoom:.94,slots,pet});
+        friendModelKey = key;
+      } catch {
+        if (request === friendModelRequest) {
+          friendCanvas.hidden = true;
+          stage.firstElementChild.hidden = false;
+        }
+      }
+    }
     function friendButton(label,action,target='',primary=false) {
       const button = catalogElement('button','button' + (primary ? ' primary' : ''),translated(label));
       button.type = 'button';
@@ -4589,17 +4722,20 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       button.dataset.target = target;
       return button;
     }
-    function friendFace(person) {
+    function friendFace(person,online=false) {
       const face = catalogElement('span','friend-face',person.username[0].toUpperCase());
       face.setAttribute('aria-hidden','true');
-      if (/^[a-f0-9]{16}$/.test(person.public_id ?? '')) {
-        const image = document.createElement('img');
-        image.alt = '';
-        image.hidden = true;
-        image.onload = () => { image.hidden = false; };
+      face.toggleAttribute('data-online',online);
+      const image = document.createElement('img');
+      image.alt = '';
+      image.hidden = true;
+      image.onload = () => { image.hidden = false; };
+      const fallback = () => loadFriendSkin(person.appearance?.skin).then(skin => { image.src = skin.face; }).catch(() => {});
+      face.append(image);
+      if (/^[a-f0-9]{16}$/.test(person.public_id ?? '') && person.appearance?.avatar !== false) {
+        image.addEventListener('error',fallback,{once:true});
         image.src = 'https://gleamclient.xyz/api/profile/' + person.public_id + '/avatar';
-        face.append(image);
-      }
+      } else void fallback();
       return face;
     }
     function friendsStatus(message='') {
@@ -4646,30 +4782,48 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           person.status === 'friend' ? status(person) : person.status === 'incoming' ? 'Заявка в друзья' : 'Ожидает ответа'));
         label.toggleAttribute('data-online',online(person));
         summary.append(nick,label);
-        row.append(friendFace(person),summary);
+        row.append(friendFace(person,online(person)),summary);
+        row.insertAdjacentHTML('beforeend','<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>');
         return row;
       }));
-      if (!found.length) $('friends-rows').append(catalogElement('p','friends-note',translated(query ? 'Никого не найдено' :
+      if (!found.length) $('friends-rows').append(catalogElement('p','friends-note friends-empty',translated(query ? 'Никого не найдено' :
         tab === 'all' ? 'Друзей пока нет' : tab === 'online' ? 'Друзей нет в сети' : 'Заявок пока нет')));
       const detail = $('friend-details');
       detail.hidden = !selected;
       detail.replaceChildren();
       if (!selected) return;
       const head = catalogElement('div','friend-profile-head');
-      const name = catalogElement('div','friends-text');
-      name.append(catalogElement('h2','',selected.username),catalogElement('small','',translated(status(selected))));
-      head.append(friendFace(selected),name);
+      const stage = catalogElement('div','friend-render');
+      stage.setAttribute('aria-hidden','true');
+      stage.append(friendFace(selected));
+      const name = catalogElement('div','friend-identity');
+      const presenceLabel = catalogElement('small','friend-presence',translated(status(selected)));
+      presenceLabel.toggleAttribute('data-online',online(selected));
+      name.append(catalogElement('h2','',selected.username),presenceLabel);
+      const tag = {owner:'Owner',admin:'Admin',media:'Media'}[selected.role];
+      if (tag) name.append(catalogElement('small','friend-tag',tag));
+      head.append(stage,name);
       detail.append(head);
       const invite = invites.find(i => i.username === selected.username &&
         (tab === 'incoming' ? i.incoming : tab !== 'outgoing' || !i.incoming));
+      const session = catalogElement('div','friend-session');
       if (invite || worlds.hosting && selected.status === 'friend') {
-        const session = catalogElement('div','friend-session');
         if (invite) {
-          session.append(catalogElement('b','',invite.world),catalogElement('small','','Minecraft ' + invite.version));
+          const world = catalogElement('div','friend-world');
+          const image = document.createElement('img');
+          image.className = 'friend-world-art';
+          image.alt = '';
+          const version = playableVersions.has(invite.version) ? invite.version : '26.3';
+          image.src = 'launcher-background-' + version.replaceAll('.','-') + '.webp';
+          const label = catalogElement('div','');
+          label.append(catalogElement('b','',invite.world),catalogElement('small','','Minecraft ' + invite.version));
+          world.append(image,label);
+          session.append(world);
           const actions = catalogElement('div','friend-session-actions');
           if (invite.incoming && invite.state === 'pending') {
-            actions.append(friendButton('Зайти к другу','join',invite.id,true),
-              friendButton('Отклонить','world-decline',invite.id));
+            const join = friendButton('Зайти к другу','join',invite.id,true);
+            join.insertAdjacentHTML('afterbegin','<svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>');
+            actions.append(join,friendButton('Отклонить','world-decline',invite.id));
           } else if (invite.incoming) {
             actions.append(catalogElement('small','',translated(invite.state === 'connected' ? 'В мире друга' : 'Подключение…')));
           } else {
@@ -4678,36 +4832,55 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           }
           session.append(actions);
         } else {
-          session.append(friendButton('Пригласить в мир','world-invite',selected.username,true));
+          const actions = catalogElement('div','friend-session-actions');
+          actions.append(friendButton('Пригласить в мир','world-invite',selected.username,true));
+          session.append(actions);
         }
-        detail.append(session);
+      }
+      if (selected.status !== 'friend') {
+        const actions = catalogElement('div','friend-session-actions');
+        if (selected.status === 'incoming') {
+          actions.append(friendButton('Принять','accept',selected.username,true),friendButton('Отклонить','decline',selected.username));
+        } else actions.append(friendButton('Отозвать','cancel',selected.username));
+        session.append(actions);
       }
       const profile = friendButton('Открыть профиль','profile',selected.username);
       profile.className = 'friend-profile-link';
-      profile.setAttribute('aria-expanded',String(social.profile?.username === selected.username));
+      profile.setAttribute('aria-haspopup','dialog');
+      profile.insertAdjacentHTML('afterbegin','<svg class="icon" aria-hidden="true"><use href="#i-profiles"/></svg>');
       profile.insertAdjacentHTML('beforeend','<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>');
-      detail.append(profile);
-      if (social.profile?.username === selected.username) {
-        const info = catalogElement('div','friend-session');
-        if (social.profile.data) {
-          const record = social.profile.data;
-          if (record.role && record.role !== 'member') info.append(catalogElement('strong','',record.role));
-          info.append(catalogElement('small','',translated('Дата регистрации') + ' · '
-            + new Intl.DateTimeFormat(launcherLanguage).format(new Date(record.created_at * 1000))));
-        } else info.append(catalogElement('small','',translated(social.profile.loading ? 'Загрузка…' : 'Профиль недоступен')));
-        detail.append(info);
-      }
-      const commands = {friend:[['Удалить из друзей','remove']],incoming:[['Принять','accept'],['Отклонить','decline']],
-        outgoing:[['Отозвать','cancel']]}[selected.status] ?? [];
-      const manage = catalogElement('div','friends-tools');
-      manage.append(...commands.map(([label,action]) => friendButton(label,action,selected.username,action === 'accept')));
-      detail.append(manage);
+      session.append(profile);
+      detail.append(session);
+      void drawFriendModel(stage,selected);
+    }
+    async function showFriendProfile(person) {
+      const dialog = $('friend-profile-dialog');
+      const body = $('friend-profile-body');
+      const top = catalogElement('div','friend-modal-person');
+      const text = catalogElement('div','');
+      const meta = catalogElement('small','');
+      text.append(catalogElement('strong','',person.username),meta);
+      top.append(friendFace(person),text);
+      const actions = catalogElement('div','minecraft-dialog-actions');
+      if (person.status === 'friend') actions.append(friendButton('Удалить из друзей','remove',person.username));
+      body.replaceChildren(top,actions);
+      if (!dialog.open) dialog.showModal();
+      if (!person.public_id) return writeLocale(meta,'Игрок скрыл свой профиль');
+      writeLocale(meta,'Загрузка…');
+      try {
+        const record = await friendCall('profile',person.public_id);
+        if (!meta.isConnected || !dialog.open) return;
+        const date = new Date(record.created_at * 1000);
+        if (Number.isFinite(date.valueOf())) writeLocale(meta,'Дата регистрации · {0}',new Intl.DateTimeFormat(launcherLanguage).format(date));
+        else meta.hidden = true;
+      } catch { writeLocale(meta,'Профиль недоступен'); }
     }
     async function refreshFriends(full=false) {
       if (!signedIn || !window.__TAURI__ || social.pending) return;
       const owner = $('account-name').textContent;
       if (social.owner !== owner) Object.assign(social,{owner,friends:[],worlds:{items:[],people:{}},tab:'all',selected:'',
-        profile:null,seen:new Set(),epoch:social.epoch+1});
+        seen:new Set(),epoch:social.epoch+1});
+      void syncFriendAppearance();
       const epoch = social.epoch;
       social.pending = true;
       try {
@@ -4769,15 +4942,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       button.disabled = true;
       try {
         if (action === 'profile') {
-          if (social.profile?.username === target) { social.profile = null; renderFriends(); return; }
           const person = social.friends.find(item => item.username === target);
-          if (!person) return;
-          const profile = {username:target,loading:!!person.public_id,data:null};
-          social.profile = profile;
-          renderFriends();
-          try { if (person.public_id) profile.data = await friendCall('profile',person.public_id); }
-          catch { /* The player can hide their public profile. */ }
-          profile.loading = false;
+          if (person) await showFriendProfile(person);
+          return;
         } else if (action === 'join') {
           const invite = social.worlds.items.find(item => item.id === target && item.incoming && item.state === 'pending');
           if (!invite) return friendsStatus('Приглашение больше не действует');
@@ -4787,10 +4954,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           if (!running && !selectedMinecraftAccount) { chooseMinecraftLogin(button); return; }
           await friendCall('world-reserve',target,!!running);
           if (!signedIn || $('account-name').textContent !== owner) return;
-          friendsStatus('Подключение…');
+          friendsStatus();
           if (!running) void launchGame(null,button,invite);
         } else {
           await friendCall(action,target);
+          if (action === 'remove' && $('friend-profile-dialog').open) $('friend-profile-dialog').close();
           if (action === 'world-invite') friendsStatus('Приглашение отправлено');
         }
         if (signedIn && $('account-name').textContent === owner) {
@@ -4801,7 +4969,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (signedIn && $('account-name').textContent === owner) friendError(error);
       } finally { button.disabled = false; }
     });
-    setInterval(() => { if (signedIn && !document.hidden) void refreshFriends(friendsOpen() && social.friends.length === 0); },3000);
+    let friendListRefresh = 0;
+    setInterval(() => {
+      if (!signedIn || document.hidden) return;
+      const full = friendsOpen() && performance.now() - friendListRefresh > 12_000;
+      if (full) friendListRefresh = performance.now();
+      void refreshFriends(full);
+    },3000);
+    addEventListener('resize',() => { if (friendsOpen()) renderFriends(); });
     function catalogMessage(message, retry = false) {
       const container = catalogElement('div','catalog-message');
       const description = document.createElement('p');

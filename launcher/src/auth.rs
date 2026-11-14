@@ -134,6 +134,7 @@ pub async fn gleam_friends(
     action: String,
     target: Option<String>,
     autojoin: Option<bool>,
+    slim: Option<bool>,
 ) -> Result<Value, String> {
     let state = auth.inner().clone();
     let generation = state.1.load(Ordering::SeqCst);
@@ -144,7 +145,10 @@ pub async fn gleam_friends(
         let invite_id = target.len() == 32
             && target.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-');
         let request = match action.as_str() {
-            "list" => session.account_request(Method::GET, "/api/friends"),
+            "list" => session.account_request(Method::GET, "/api/friends?appearance=1"),
+            "appearance" if target.len() <= 64 && target.bytes().all(|c| c.is_ascii_hexdigit()) =>
+                session.account_request(Method::POST, "/api/friends")
+                    .json(&json!({"action": "appearance", "skin": target.to_ascii_lowercase(), "slim": slim.unwrap_or(false)})),
             "presence" => session.account_request(Method::POST, "/api/friend-worlds")
                 .json(&json!({"action": "presence", "device": "launcher"})),
             "worlds" => session.account_request(Method::GET, "/api/friend-worlds"),

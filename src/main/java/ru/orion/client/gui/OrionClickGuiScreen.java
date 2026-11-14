@@ -65,6 +65,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -295,6 +296,9 @@ public final class OrionClickGuiScreen extends Screen {
     private record CosmeticStage(float x, float y, float w, float h, float clipTop, float clipBottom,
                                  float yaw, float zoom, java.util.Set<String> items) { }
     private CosmeticStage cosmeticPreview;
+    private String friendPreviewName = "";
+    private final Map<String, java.util.concurrent.CompletableFuture<net.minecraft.core.ClientAsset.Texture>> friendSkins = new HashMap<>();
+    private String sharedFriendSkin = "";
     private GleamPet previewPet;
     private long petPreviewStarted;
     private net.minecraft.client.User previewUser;
@@ -807,6 +811,13 @@ public final class OrionClickGuiScreen extends Screen {
         long chatNow = System.nanoTime();
         if ("FRIENDS".equals(siteSection) || chatPage) {
             if (friendsAccountChanged) refreshFriends(null, null);
+            if (!chatPage && !friendsSession.isEmpty()) {
+                shareFriendSkin();
+                if (chatNow >= nextChatFriends && !friendsBusy) {
+                    nextChatFriends = chatNow + 15_000_000_000L;
+                    refreshFriends(null, null);
+                }
+            }
             var social = new JsonObject();
             social.addProperty("signedIn", !friendsSession.isEmpty());
             social.addProperty("busy", friendsBusy);
@@ -918,7 +929,9 @@ public final class OrionClickGuiScreen extends Screen {
 
     private void drawCosmeticPreview(GuiGraphicsExtractor graphics) {
         var preview = cosmeticPreview;
-        if (preview == null || !"COSMETICS".equals(siteSection)) return;
+        if (preview == null) return;
+        boolean friend = "FRIENDS".equals(siteSection) && !friendPreviewName.isEmpty();
+        if (!friend && !"COSMETICS".equals(siteSection)) return;
         float scale = minecraft.getWindow().getGuiScale();
         int x = Math.round(preview.x() / scale);
         int y = Math.round(preview.y() / scale);
@@ -935,12 +948,53 @@ public final class OrionClickGuiScreen extends Screen {
         graphics.nextStratum();
         graphics.enableScissor(x, top, x + w, bottom);
         try {
-            OrionCosmeticPreview.draw(graphics, cosmeticSkin(), items, preview.yaw(), color, x, y, x + w, y + h,
+            OrionCosmeticPreview.draw(graphics, friend ? friendSkin() : cosmeticSkin(), items, preview.yaw(), color, x, y, x + w, y + h,
                     size, wings || items.contains("hat") ? 1.20F : 1.04F,
                     previewPet, (System.nanoTime() - petPreviewStarted) / 1_000_000L);
         } finally {
             graphics.disableScissor();
         }
+    }
+
+    private net.minecraft.world.entity.player.PlayerSkin friendSkin() {
+        var fallback = net.minecraft.client.resources.DefaultPlayerSkin.get(java.util.UUID.nameUUIDFromBytes(
+                friendPreviewName.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        for (var value : friends) {
+            var item = value.getAsJsonObject();
+            if (!friendPreviewName.equals(item.get("username").getAsString()) || !item.has("appearance")) continue;
+            var appearance = item.getAsJsonObject("appearance");
+            var raw = appearance.get("skin");
+            if (raw == null || raw.isJsonNull()) return fallback;
+            String hash = raw.getAsString();
+            if (!hash.matches("[a-f0-9]{1,64}")) return fallback;
+            var pending = friendSkins.computeIfAbsent(hash, key -> {
+                var downloader = new net.minecraft.client.renderer.texture.SkinTextureDownloader(
+                        minecraft.getProxy(), minecraft.getTextureManager(), net.minecraft.util.Util.ioPool());
+                var id = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "friends/skins/" + key);
+                var cache = net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir()
+                        .resolve("assets/skins").resolve(key);
+                return downloader.downloadAndRegisterSkin(id, cache, "https://textures.minecraft.net/texture/" + key, true)
+                        .exceptionally(failure -> null);
+            });
+            var texture = pending.getNow(null);
+            if (texture == null) return fallback;
+            var model = appearance.get("slim").getAsBoolean()
+                    ? net.minecraft.world.entity.player.PlayerModelType.SLIM : net.minecraft.world.entity.player.PlayerModelType.WIDE;
+            return net.minecraft.world.entity.player.PlayerSkin.insecure(texture, null, null, model);
+        }
+        return fallback;
+    }
+
+    private void shareFriendSkin() {
+        var skin = cosmeticSkin();
+        if (skin == null || !(skin.body() instanceof net.minecraft.core.ClientAsset.DownloadedTexture texture)) return;
+        var url = texture.url();
+        if (!url.matches("https?://textures\\.minecraft\\.net/texture/[a-f0-9]{1,64}")) return;
+        var owner = accounts.username() + "/" + url;
+        if (sharedFriendSkin.equals(owner)) return;
+        sharedFriendSkin = owner;
+        accounts.publishFriendAppearance(url.substring(url.lastIndexOf('/') + 1),
+                skin.model() == net.minecraft.world.entity.player.PlayerModelType.SLIM);
     }
 
     private net.minecraft.world.entity.player.PlayerSkin cosmeticSkin() {
@@ -1346,9 +1400,17 @@ public final class OrionClickGuiScreen extends Screen {
             }
             case "cosmetic-preview" -> {
                 cosmeticPreview = null;
-                if (!"COSMETICS".equals(siteSection) || !event.has("items")) {
+                friendPreviewName = "";
+                boolean friend = "FRIENDS".equals(siteSection) && event.has("friend");
+                if ((!friend && !"COSMETICS".equals(siteSection)) || !event.has("items")) {
                     previewPet = null;
                     return;
+                }
+                if (friend) {
+                    String username = event.get("friend").getAsString();
+                    if (friends.asList().stream().noneMatch(value -> username.equals(value.getAsJsonObject().get("username").getAsString())))
+                        return;
+                    friendPreviewName = username;
                 }
                 var items = new java.util.HashSet<String>();
                 for (var item : event.getAsJsonArray("items")) {

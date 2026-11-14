@@ -408,15 +408,19 @@ button.module-toggle[data-toggle-style="label"][aria-checked="true"]:hover{backg
 .friend-identity small[data-online="true"]{color:var(--accent)}
 .friend-identity:hover .friend-name{color:var(--accent)}
 .friend-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;text-align:left}
-.friend-detail{min-width:0;padding:12px;background:var(--card);border:1px solid var(--rule);border-radius:7px}
-.friend-detail .profile-top{margin-bottom:10px}
+.friend-detail{min-width:0;overflow:hidden;background:var(--card);border:1px solid var(--rule);border-radius:8px}
+.friend-detail .profile-top{min-height:152px;margin:0;padding:8px 10px;gap:10px;background:radial-gradient(ellipse at 25% 62%,var(--accent-surface),var(--card) 68%)}
 .friend-detail .profile-top h2{overflow-wrap:anywhere}
+.friend-model{width:45%;min-width:72px;height:136px;display:flex;justify-content:center;align-items:center;flex:none}
+.friend-live{display:block;margin-top:4px}
+.friend-detail .friend-live[data-online="true"]{color:var(--accent)}
+.friend-controls{border-top:1px solid var(--rule);padding:8px 10px 10px}
 .friend-world,.friend-world-tools{display:flex;gap:7px;border-top:1px solid var(--rule);padding:8px 0;align-items:flex-start}
-.friend-world{flex-direction:column}
+.friend-world{border-top:0;padding-top:0;flex-direction:column}
 .friend-world-tools{flex-wrap:wrap;align-items:center;margin-bottom:7px}
 .friend-world-tools label{font-size:12px;display:flex;align-items:center;gap:4px;margin-right:auto}
 .friend-world .friends-tools,.friend-detail-actions{justify-content:flex-start}
-.friend-open-profile{display:flex;align-items:center;width:100%;min-height:32px;padding:5px 0;border-top:1px solid var(--rule);text-align:left}
+.friend-open-profile{display:flex;align-items:center;width:100%;min-height:30px;padding:5px 8px;border:1px solid var(--rule);border-radius:5px;text-align:left}
 .friend-open-profile:hover{color:var(--accent)}
 .friends-tools button:disabled{opacity:.5;cursor:default}
 .friends-empty{display:flex;align-items:center;justify-content:center;gap:8px;min-height:74px;padding:8px;color:var(--muted);font-size:13px}
