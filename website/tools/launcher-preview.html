@@ -155,6 +155,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       letter-spacing: .045em; line-height: 1.4; opacity: 0;
     }
     .startup-credit .credit-divider { display: inline-block; margin-inline: 11px; font-size: 12px; font-weight: 400; opacity: .55 }
+    .startup-update {
+      position: absolute; inset: calc(50% + 127px) 16px auto; margin: 0;
+      color: #c8c5d1; text-align: center; font-size: 13px; line-height: 1.4;
+    }
     .launcher[data-starting] { opacity: 0 }
     button,input { font: inherit }
     button { color: inherit; cursor: pointer }
@@ -988,6 +992,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <p class="window-status" id="startup-window-status" role="status" hidden></p>
     <img class="startup-logo" id="startup-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjExNSAxMjYgMTAyNCAxMDI0IiByb2xlPSJpbWciIGFyaWEtbGFiZWxsZWRieT0idGl0bGUiPgogIDx0aXRsZSBpZD0idGl0bGUiPkdsZWFtIGV5ZTwvdGl0bGU+CiAgPHBhdGggZmlsbD0iI2ZmZjVkZSIgZD0iCiAgICBNIDE0NyA2OTUKICAgIEMgMTk1IDU3OSA0NDggNDUwIDczMCA0NTQKICAgIEwgNTk4IDY5MiBMIDY1MCA1NDMKICAgIEMgNTc0IDU0OCA1MDIgNTYzIDQzOCA1ODEKICAgIEMgNDEzIDYzNCA0MTMgNjk4IDQ0MSA3NDgKICAgIEMgNDc1IDgwNiA1MzYgODQwIDYxMCA4NDAKICAgIEMgNzE0IDg0MCA3OTkgNzU1IDc5OSA2NTAKICAgIEMgNzk5IDYxMiA3ODggNTgwIDc2OCA1NTAKICAgIEwgNjQzIDY2MSBMIDc2OCA0NTUKICAgIEMgODk5IDQ2MSAxMDI2IDQ0OCAxMTExIDM4NgogICAgQyAxMDk1IDQ1MiAxMDU0IDUwNSAxMDEwIDUzNQogICAgQyA5NTQgNzI1IDc5NCA4OTAgNTgxIDg5MAogICAgQyA0MzAgODkwIDMwNCA4MTQgMjAzIDcxMwogICAgQyAxODIgNzExIDE2NiA3MTcgMTU0IDcxNwogICAgQyAxNDMgNzE4IDE0MCA3MTEgMTQ3IDY5NSBaIi8+Cjwvc3ZnPgo=" alt="">
     <p class="startup-name" id="startup-name" role="status" aria-label="Открываем Gleam Launcher">Gleam</p>
+    <p class="startup-update" id="startup-update" role="status" hidden></p>
     <p class="startup-credit" id="startup-credit"><span>zarplayka</span> <span class="credit-divider">x</span> <span>LayOffick</span></p>
   </div>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -1337,6 +1342,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+          <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-027">
+            <span class="release-meta"><span class="release-version">0.1.27</span><time datetime="2026-11-14">14.11.2026</time></span>
+            <div>
+              <h3 id="release-launcher-027">Автообновление при запуске</h3>
+              <p>Лаунчер проверяет и устанавливает обновления на заставке, до открытия главного окна.</p>
+            </div>
+          </article>
           <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-026">
             <span class="release-meta"><span class="release-version">0.1.26</span><time datetime="2026-11-13">13.11.2026</time></span>
             <div>
@@ -1579,7 +1591,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <div class="setting">
               <div class="setting-caption">
                 <label class="setting-label" for="motion-setting">Меньше анимаций</label>
-                <small id="motion-hint">Отключает анимированные переходы и заставку</small>
+                <small id="motion-hint">Отключает анимации интерфейса</small>
               </div>
               <label class="switch motion-switch"><input id="motion-setting" type="checkbox" role="switch" aria-describedby="motion-hint"><span class="switch-track"><span class="switch-thumb"></span></span></label>
             </div>
@@ -1612,7 +1624,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <div class="setting">
               <div class="setting-caption">
                 <label class="setting-label" for="launcher-auto-update">Обновлять автоматически</label>
-                <small>Устанавливает обновления в фоне и перезапускает лаунчер, если Minecraft закрыт</small>
+                <small>Проверяет и устанавливает обновления при запуске лаунчера</small>
                 <small id="launcher-update-status" role="status" hidden></small>
               </div>
               <label class="switch"><input id="launcher-auto-update" type="checkbox" role="switch" checked><span class="switch-track"><span class="switch-thumb"></span></span></label>
@@ -1815,7 +1827,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Обновления лаунчера':['Launcher updates','Launcher-Updates','Actualizaciones del lanzador'],
       'Проверить сейчас':['Check now','Jetzt prüfen','Buscar ahora'],
       'Обновлять автоматически':['Update automatically','Automatisch aktualisieren','Actualizar automáticamente'],
-      'Устанавливает обновления в фоне и перезапускает лаунчер, если Minecraft закрыт':['Installs updates in the background and restarts the launcher when Minecraft is closed','Installiert Updates im Hintergrund und startet den Launcher neu, wenn Minecraft geschlossen ist','Instala actualizaciones en segundo plano y reinicia el lanzador si Minecraft está cerrado'],
+      'Проверяет и устанавливает обновления при запуске лаунчера':['Checks for and installs updates when the launcher starts','Sucht und installiert Updates beim Start des Launchers','Busca e instala actualizaciones al iniciar el lanzador'],
       'Проверяем обновления…':['Checking for updates…','Suche nach Updates…','Buscando actualizaciones…'],
       'Доступна версия {0}':['Version {0} is available','Version {0} ist verfügbar','La versión {0} está disponible'],
       'Обновить и перезапустить':['Update and restart','Aktualisieren und neu starten','Actualizar y reiniciar'],
@@ -2022,6 +2034,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Игровой профиль':['Game profile','Spielprofil','Perfil de juego'],
       'Профили':['Profiles','Profile','Perfiles'],
       'Питомцы видны другим игрокам Gleam':['Pets are visible to other Gleam players','Haustiere sind für andere Gleam-Spieler sichtbar','Los demás jugadores de Gleam pueden ver tus mascotas'],
+      'Автообновление при запуске':['Automatic updates at startup','Automatische Updates beim Start','Actualizaciones automáticas al iniciar'],
+      'Лаунчер проверяет и устанавливает обновления на заставке, до открытия главного окна.':['The launcher checks for and installs updates on the splash screen, before the main window opens.','Der Launcher sucht und installiert Updates auf dem Startbildschirm, bevor sich das Hauptfenster öffnet.','El lanzador busca e instala actualizaciones en la pantalla de inicio antes de abrir la ventana principal.'],
       'Новый питомец Tarnkappe':['New Tarnkappe pet','Neues Haustier Tarnkappe','Nueva mascota Tarnkappe'],
       'Три новых питомца в GleamClient':['Three new pets in GleamClient','Drei neue Haustiere in GleamClient','Tres nuevas mascotas en GleamClient'],
       'Снежный хорёк, слизень-космонавт и гусеничный разведчик появились в разделе «Питомцы». Каждый по-своему двигается и реагирует на остановку.':['Find the Snow Ferret, Space Slime and Tracked Scout in Pets. Each moves and reacts differently when you stop.','Unter „Haustiere“ findest du jetzt das Schneefrettchen, den Weltraumschleim und den Kettenaufklärer. Jedes bewegt sich anders und reagiert auf seine eigene Weise, wenn du stehen bleibst.','Encuentra al hurón de nieve, al slime astronauta y al explorador de orugas en Mascotas. Cada uno se mueve y reacciona de forma distinta cuando te detienes.'],
@@ -2096,7 +2110,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Открыть папку Minecraft {0}':['Open Minecraft {0} folder','Ordner für Minecraft {0} öffnen','Abrir la carpeta de Minecraft {0}'],
       'Оформление':['Appearance','Darstellung','Apariencia'],
       'Меньше анимаций':['Reduce motion','Animationen reduzieren','Reducir animaciones'],
-      'Отключает анимированные переходы и заставку':['Turns off animated transitions and the splash screen','Deaktiviert animierte Übergänge und den Startbildschirm','Desactiva las transiciones animadas y la pantalla de inicio'],
+      'Отключает анимации интерфейса':['Turns off interface animations','Deaktiviert Animationen der Oberfläche','Desactiva las animaciones de la interfaz'],
       'Тема':['Theme','Design','Tema'],
       'Система':['System','System','Sistema'],
       'Тёмная':['Dark','Dunkel','Oscuro'],
@@ -2368,18 +2382,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       const logo = $('startup-logo');
       const name = $('startup-name');
       const credit = $('startup-credit');
-      function revealLauncher() {
-        launcher.removeAttribute('data-starting');
-        launcher.inert = false;
-        splash.remove();
-      }
-      try {
-        await Promise.all([document.fonts.ready, logo.decode()]);
-        const animate = settings.motion && !reducedMotion.matches;
+      const animate = settings.motion && !reducedMotion.matches;
+      const update = checkLauncherUpdate({startup:true});
+      const intro = async () => {
         if (!animate) {
-          revealLauncher();
+          logo.style.opacity = name.style.opacity = credit.style.opacity = '1';
           return;
         }
+        await Promise.allSettled([document.fonts.ready, logo.decode()]);
         await Promise.all([
           logo.animate([
             {opacity:0,transform:'translateY(8px) scale(.72) rotate(-12deg)',filter:'blur(6px)'},
@@ -2393,17 +2403,25 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           credit.animate([{opacity:0,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}],
             {duration:1000,delay:900,easing:'ease-out',fill:'forwards'}).finished
         ]);
-        launcher.removeAttribute('data-starting');
-        await Promise.all([
-          splash.animate([{opacity:1},{opacity:0}],{duration:750,fill:'forwards'}).finished,
-          launcher.animate([{opacity:0},{opacity:1}],
-            {duration:750,easing:'cubic-bezier(.22,1,.36,1)'}).finished
-        ]);
+      };
+      const [willRestart] = await Promise.all([update, intro().catch(() => {})]);
+      if (willRestart) return false;
+      try {
+        if (animate) {
+          launcher.removeAttribute('data-starting');
+          await Promise.allSettled([
+            splash.animate([{opacity:1},{opacity:0}],{duration:750,fill:'forwards'}).finished,
+            launcher.animate([{opacity:0},{opacity:1}],
+              {duration:750,easing:'cubic-bezier(.22,1,.36,1)'}).finished
+          ]);
+        }
       } finally {
-        revealLauncher();
+        launcher.removeAttribute('data-starting');
+        launcher.inert = false;
+        splash.remove();
       }
+      return true;
     }
-    showStartup().catch(() => {});
 
     const units = value => 'calc(' + value + ' * var(--unit))';
     const skinModel = $('skin-model');
@@ -2820,9 +2838,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     let readyUpdate;
     let restarting = false;
     function updateStatus(source, ...values) {
-      const status = $('launcher-update-status');
-      status.hidden = !source;
-      if (source) writeLocale(status,source,...values);
+      for (const id of ['launcher-update-status','startup-update']) {
+        const status = $(id);
+        if (!status) continue;
+        status.hidden = !source;
+        if (source) writeLocale(status,source,...values);
+      }
     }
     function renderUpdateActions() {
       const busy = Boolean(updateRequest || restarting);
@@ -2838,6 +2859,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       updateStatus('Перезапускаем лаунчер…');
       try {
         await window.__TAURI__.core.invoke('restart_launcher_update');
+        return true;
       } catch (error) {
         restarting = false;
         renderUpdateActions();
@@ -2846,9 +2868,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           : 'Не удалось перезапустить лаунчер');
       }
     }
-    async function checkLauncherUpdate(manual = false, requested = undefined) {
-      if (!window.__TAURI__ || updateRequest || restarting || (!manual && (!settings.autoUpdate || availableUpdate || readyUpdate))) return;
-      updateRequest = {manual,installing:false};
+    async function checkLauncherUpdate({startup = false, requested} = {}) {
+      if (!window.__TAURI__ || updateRequest || restarting || (startup && !settings.autoUpdate)) return;
+      updateRequest = {installing:false};
       renderUpdateActions();
       let restart = false;
       const install = version => {
@@ -2861,24 +2883,26 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         let result = requested
           ? await install(requested)
           : await window.__TAURI__.core.invoke('check_launcher_update');
-        if (!manual && settings.autoUpdate && result.status === 'available') {
+        if (startup && result.status === 'available') {
           result = await install(result.version);
         }
         if (result.status === 'installed') {
           availableUpdate = undefined;
           updateStatus('Версия {0} готова к запуску',result.version);
           readyUpdate = result.version;
-          restart = updateRequest.installing ? (manual || settings.autoUpdate) : !manual && settings.autoUpdate;
+          restart = startup || updateRequest.installing;
         } else if (result.status === 'available') {
           availableUpdate = result.version;
           updateStatus('Доступна версия {0}',result.version);
         } else {
           availableUpdate = undefined;
           readyUpdate = undefined;
-          updateStatus(manual ? (result.status === 'current' ? 'Установлена актуальная версия' : 'Канал обновлений пока недоступен') : '');
+          updateStatus(result.status === 'current'
+            ? (startup ? '' : 'Установлена актуальная версия')
+            : 'Канал обновлений пока недоступен');
         }
       } catch (error) {
-        if ((!manual && !settings.autoUpdate) || String(error) === 'cancelled') {
+        if (String(error) === 'cancelled') {
           updateStatus('');
         }
         else if (String(error) === 'verification') updateStatus('Не удалось проверить подпись или целостность обновления');
@@ -2887,28 +2911,21 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         updateRequest = undefined;
         renderUpdateActions();
       }
-      if (restart) void restartLauncherUpdate();
+      if (restart) return restartLauncherUpdate();
     }
     $('launcher-auto-update').addEventListener('change',event => {
       changeSettings({autoUpdate:event.target.checked});
-      if (settings.autoUpdate) checkLauncherUpdate();
-      else if (!updateRequest?.manual) {
-        if (!readyUpdate && !availableUpdate) updateStatus('');
-        if (updateRequest) window.__TAURI__?.core.invoke('cancel_launcher_update').catch(() => {});
-      }
     });
     renderUpdateActions();
-    updateButton.addEventListener('click', () => checkLauncherUpdate(true));
+    updateButton.addEventListener('click', () => checkLauncherUpdate());
     applyUpdateButton.addEventListener('click', () => {
       if (readyUpdate) void restartLauncherUpdate();
-      else if (availableUpdate) void checkLauncherUpdate(true,availableUpdate);
+      else if (availableUpdate) void checkLauncherUpdate({requested:availableUpdate});
     });
     if (window.__TAURI__) {
       window.__TAURI__.event.listen('launcher-update-progress',({payload}) => {
-        if (updateRequest?.installing && (updateRequest.manual || settings.autoUpdate)) updateStatus('Загрузка обновления · {0}%',payload);
+        if (updateRequest?.installing) updateStatus('Загрузка обновления · {0}%',payload);
       }).catch(() => {});
-      setTimeout(checkLauncherUpdate,2500);
-      setInterval(checkLauncherUpdate,6 * 60 * 60 * 1000);
     }
     for (const [key,input] of Object.entries(gameDimensions)) input.addEventListener('change', () => {
       if (!input.reportValidity()) return;
@@ -4640,7 +4657,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       ++gleamAttempt; clearTimeout(gleamPoll);
       gleamAuth('cancel').catch(() => {}); showGleamLogin('choice');
     });
-    restoreGleamLogin();
+    showGleamLogin('restore');
+    showStartup().then(revealed => {
+      if (revealed) return restoreGleamLogin();
+    }).catch(() => {});
   </script>
 </body>
 </html>

@@ -146,10 +146,11 @@ fn download(
     Ok(())
 }
 
-fn asset(client: &Client, path: &str) -> Result<Response> {
+fn asset(client: &Client, path: &str, timeout: Duration) -> Result<Response> {
     client
         .get(format!("{RELEASES}/{path}"))
         .header("Cache-Control", "no-cache")
+        .timeout(timeout)
         .send()
         .map_err(|_| "network")
 }
@@ -191,10 +192,9 @@ fn check(
         .redirect(reqwest::redirect::Policy::none())
         .user_agent(concat!("Gleam-Launcher/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(8))
-        .timeout(Duration::from_secs(120))
         .build()
         .map_err(|_| "network")?;
-    let response = asset(&client, "launcher-update.json")?;
+    let response = asset(&client, "launcher-update.json", Duration::from_secs(5))?;
     if response.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(UpdateResult::Unavailable);
     }
@@ -220,7 +220,7 @@ fn check(
         return Ok(UpdateResult::Available { version: manifest.version });
     }
     check_cancelled(cancelled)?;
-    let response = asset(&client, &format!("{}/Gleam.Launcher.exe", manifest.version))?
+    let response = asset(&client, &format!("{}/Gleam.Launcher.exe", manifest.version), Duration::from_secs(120))?
         .error_for_status()
         .map_err(|_| "network")?;
     if response
