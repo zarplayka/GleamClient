@@ -12,7 +12,8 @@ import ru.orion.client.config.OrionConfigManager;
 
 /** Фон Lumen и реальные модели предметов из основного инвентаря. */
 public final class OrionInventoryHud {
-    private static final int COLS=9, ROWS=3, CELL=19, DESIGN_W=COLS*CELL, DESIGN_H=ROWS*CELL;
+    private static final int COLS = 9, ROWS = 3, CELL = 19, PAD = 5;
+    private static final int DESIGN_W = COLS * CELL + PAD * 2 - 2, DESIGN_H = ROWS * CELL + PAD * 2 - 2;
     private final OrionConfigManager configManager;
     private final OrionHudDrag drag=new OrionHudDrag("inventory");
     private final OrionHudView view = new OrionHudView("inventory_hud");
@@ -38,7 +39,7 @@ public final class OrionInventoryHud {
             for(int i=0;i<COLS*ROWS;i++) {
                 ItemStack item=client.player.getInventory().getItem(i+9);
                 if(item.isEmpty())continue;
-                int ix=(i%COLS)*CELL+1,iy=(i/COLS)*CELL+1;
+                int ix = PAD + (i % COLS) * CELL, iy = PAD + (i / COLS) * CELL;
                 context.item(item,ix,iy);
                 context.itemDecorations(client.font,item,ix,iy);
             }
@@ -46,9 +47,9 @@ public final class OrionInventoryHud {
     }
     private static OrionHudView.Scene scene() {
         var scene = new OrionHudView.Scene(DESIGN_W, DESIGN_H);
-        scene.panel(0, 0, DESIGN_W, DESIGN_H, 6);
+        scene.panel(0, 0, DESIGN_W, DESIGN_H, 7);
         for (int i = 0; i < COLS * ROWS; i++) {
-            scene.well(i % COLS * CELL + 1.5F, i / COLS * CELL + 1.5F, 16, 16, 3);
+            scene.well(PAD + i % COLS * CELL - .5F, PAD + i / COLS * CELL - .5F, 17, 17, 3);
         }
         return scene;
     }

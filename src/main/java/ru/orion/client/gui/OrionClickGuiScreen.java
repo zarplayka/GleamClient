@@ -288,6 +288,8 @@ public final class OrionClickGuiScreen extends Screen {
     private JsonArray chatMessages = new JsonArray();
     private boolean chatBusy, chatLoading, chatLoaded, chatOlder, chatKeyBusy;
     private String chatKeyState = "";
+    private long nextChatTransferPoll;
+    private boolean chatTransferPolling;
     private int chatRequest, chatSent;
     private long nextChatPoll, nextChatFriends;
     private record CosmeticStage(float x, float y, float w, float h, float clipTop, float clipBottom,
@@ -833,6 +835,9 @@ public final class OrionClickGuiScreen extends Screen {
             updateChat(null, false);
         if (chatPage) {
             var chat = new JsonObject();
+            var transfer = accounts.chatTransfer();
+            chat.addProperty("linkPending", transfer != null);
+            if (transfer != null && !chatTransferPolling && chatNow >= nextChatTransferPoll) pollChatTransfer();
             chat.addProperty("peer", chatPeer);
             chat.addProperty("busy", chatLoading);
             chat.addProperty("loaded", chatLoaded);
@@ -905,7 +910,7 @@ public final class OrionClickGuiScreen extends Screen {
         }
         String status = !siteStatus.isBlank() ? siteStatus : configsPage ? configStatus : accountStatus;
         data.addProperty("status",tr(status));
-        data.addProperty("statusKind", status.matches("(?s)^(Не удалось|Неверн|Недоступ|Сайт|Укажите|Слишком|Войди|Восстанови|Сохрани ключ|Код уже).*")
+        data.addProperty("statusKind", status.matches("(?s)^(Не удалось|Неверн|Недоступ|Сайт|Укажите|Слишком|Войди|Восстанови|Сохрани ключ|Код уже|Срок действия|Запрос на подключение|Подтверди подключение).*")
                 ? "error" : "success");
         return data;
     }
@@ -1064,6 +1069,30 @@ public final class OrionClickGuiScreen extends Screen {
         chatRequest++;
     }
 
+    private void pollChatTransfer() {
+        chatTransferPolling = true;
+        nextChatTransferPoll = System.nanoTime() + 3_000_000_000L;
+        String session = friendsSession;
+        var transfer = accounts.chatTransfer();
+        accounts.pollChatTransfer().whenComplete((apply, failure) -> minecraft.execute(() -> {
+            chatTransferPolling = false;
+            if (!session.equals(accounts.sessionCookieHeader())) return;
+            if (apply != null && accounts.chatTransfer() == transfer) {
+                try {
+                    apply.run();
+                } catch (IllegalStateException expired) {
+                    siteStatus = expired.getMessage();
+                    return;
+                }
+                chatKeyState = chatStatus = "";
+                siteStatus = "Переписка синхронизирована";
+                nextChatPoll = 0;
+            } else if (failure != null && accounts.chatTransfer() == null) {
+                siteStatus = "Срок действия кода истёк";
+            }
+        }));
+    }
+
     public boolean isViewingChat(String username) {
         return siteActive && "CHAT".equals(siteSection) && chatPeer.equalsIgnoreCase(username);
     }
@@ -1088,7 +1117,7 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void updateChat(String message, boolean older, OrionAccounts.ChatReply reply) {
-        if (chatPeer.isEmpty() || chatKeyBusy || chatBusy && (chatLoading || message == null && !older)) return;
+        if (chatPeer.isEmpty() || chatKeyBusy || accounts.chatTransfer() != null || chatBusy && (chatLoading || message == null && !older)) return;
         chatBusy = true;
         int request = ++chatRequest;
         String session = friendsSession;
@@ -1370,17 +1399,32 @@ public final class OrionClickGuiScreen extends Screen {
                     updateChat(message, false, reply);
                 }
             }
-            case "chat-key-copy", "chat-key-restore" -> {
-                if (!"CHAT".equals(siteSection) || syncFriendsAccount() || friendsSession.isEmpty() || chatKeyBusy || chatLoading) return;
+            case "chat-link-copy" -> {
+                var transfer = accounts.chatTransfer();
+                if ("CHAT".equals(siteSection) && transfer != null) {
+                    minecraft.keyboardHandler.setClipboard(transfer.code());
+                    siteStatus = "Код подключения скопирован";
+                }
+            }
+            case "chat-link-cancel" -> {
+                if ("CHAT".equals(siteSection)) accounts.cancelChatTransfer();
+            }
+            case "chat-key-copy", "chat-key-restore", "chat-link-start", "chat-link-approve" -> {
+                if (!"CHAT".equals(siteSection) || syncFriendsAccount() || friendsSession.isEmpty() || chatKeyBusy) return;
                 boolean restoring = "chat-key-restore".equals(action);
-                if (restoring && !event.has("code")) return;
+                boolean approving = "chat-link-approve".equals(action);
+                if ((restoring || approving) && !event.has("code")) return;
+                String code = restoring || approving ? event.get("code").getAsString().strip() : "";
                 chatKeyBusy = true;
                 int request = ++chatRequest;
                 chatBusy = chatLoading = false;
                 String session = friendsSession;
-                java.util.concurrent.CompletableFuture<Runnable> result = restoring
-                        ? accounts.restoreChatKey(event.get("code").getAsString().strip())
-                        : accounts.copyChatRecoveryCode().thenApply(code -> () -> minecraft.keyboardHandler.setClipboard(code));
+                java.util.concurrent.CompletableFuture<Runnable> result = switch (action) {
+                    case "chat-key-restore" -> accounts.restoreChatKey(code);
+                    case "chat-link-start" -> accounts.startChatTransfer();
+                    case "chat-link-approve" -> accounts.approveChatTransfer(code).thenApply(ignored -> () -> { });
+                    default -> accounts.copyChatRecoveryCode().thenApply(secret -> () -> minecraft.keyboardHandler.setClipboard(secret));
+                };
                 result.whenComplete((apply, failure) -> minecraft.execute(() -> {
                     if (!session.equals(accounts.sessionCookieHeader())) return;
                     if (failure == null && restoring) apply.run();
@@ -1391,7 +1435,12 @@ public final class OrionClickGuiScreen extends Screen {
                             chatKeyState = chatStatus = "";
                             updateChat(null, false);
                         } else apply.run();
-                        siteStatus = restoring ? "Ключ чата восстановлен" : "Код скопирован. Сохрани его в надёжном месте";
+                        siteStatus = switch (action) {
+                            case "chat-key-restore" -> "Ключ чата восстановлен";
+                            case "chat-link-start" -> "";
+                            case "chat-link-approve" -> "Подключение подтверждено";
+                            default -> "Код скопирован. Сохрани его в надёжном месте";
+                        };
                         return;
                     }
                     Throwable cause = failure;

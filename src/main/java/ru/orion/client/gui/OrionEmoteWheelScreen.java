@@ -18,17 +18,17 @@ import ru.orion.client.keybind.OrionKeybinds;
 public final class OrionEmoteWheelScreen extends Screen {
     private static final int WIDTH = 392, HEIGHT = 420;
     private static final int CENTER_X = WIDTH / 2, CENTER_Y = 196;
-    private static final int RADIUS = 112, INNER = 56, OUTER = 146;
+    private static final int RADIUS = 103, INNER = 53, OUTER = 146;
     private static final int CONTROL_Y = 354;
     private static final int OPTION_TOP = 117, OPTION_STEP = 36, PICKER_CONTROLS = 310;
     private static final long OPEN_NANOS = 210_000_000L;
-    private static final String[] LABELS = {"Танцы", "Остановить", "Изменить круг", "Готово", "Сбросить",
+    private static final String[] LABELS = {"Эмоции", "Остановить", "Изменить круг", "Готово", "Сбросить",
             "Выбери слот", "Выбери эмоцию", "Пусто", "Назад", "Отпусти клавишу или нажми 1–6"};
     private final OrionLumenView view = new OrionLumenView("emote-wheel.html", "emote_wheel",
             "/assets/orion-client/fonts/paradox/ParadoxSans-Regular.ttf");
     private final long openedAt = System.nanoTime();
     private JsonObject previous;
-    private boolean editing;
+    private boolean editing, introComplete;
     private int slotToEdit = -1;
 
     public OrionEmoteWheelScreen() { super(Component.literal("GleamClient Emotes")); }
@@ -58,14 +58,11 @@ public final class OrionEmoteWheelScreen extends Screen {
     private double wheelY(double y) { return CENTER_Y + (pageY(y) - CENTER_Y) / zoom(); }
     private int slotAt(double x, double y) {
         double px = wheelX(x), py = wheelY(y);
-        for (int slot = 0; slot < OrionEmotes.WHEEL_SLOTS; slot++) {
-            if (Math.abs(px - slotX(slot)) <= 46 && Math.abs(py - slotY(slot)) <= 24) return slot;
-        }
         return sector(px - CENTER_X, py - CENTER_Y);
     }
 
     @Override public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, width, height, Math.round(104F * ease()) << 24);
+        context.fill(0, 0, width, height, Math.round(44F * ease()) << 24);
     }
 
     @Override
@@ -90,7 +87,11 @@ public final class OrionEmoteWheelScreen extends Screen {
                 view.update(state);
                 previous = state;
             }
-            view.opening(opening());
+            if (!introComplete) {
+                float progress = opening();
+                view.opening(progress);
+                introComplete = progress >= 1F;
+            }
             view.frame();
             if (view.draw(context, left(), top(), Math.round(WIDTH * scale), Math.round(HEIGHT * scale), scale, scale)) return;
         }
@@ -142,11 +143,13 @@ public final class OrionEmoteWheelScreen extends Screen {
     }
 
     private void selectSlot(int slot) {
+        OrionClickGuiScreen.playInterfaceSound(minecraft, "click");
         if (editing) slotToEdit = slot;
         else choose(slot);
     }
 
     private void assign(int id) {
+        OrionClickGuiScreen.playInterfaceSound(minecraft, "click");
         var manager = OrionClient.getInstance().getConfigManager();
         manager.getConfig().setEmoteSlot(slotToEdit, id);
         manager.save();
@@ -154,6 +157,7 @@ public final class OrionEmoteWheelScreen extends Screen {
     }
 
     private void toggleEditor() {
+        OrionClickGuiScreen.playInterfaceSound(minecraft, "click");
         editing = !editing;
         slotToEdit = -1;
     }
@@ -231,7 +235,11 @@ public final class OrionEmoteWheelScreen extends Screen {
                 double pointerX = minecraft.mouseHandler.getScaledXPos(window);
                 double pointerY = minecraft.mouseHandler.getScaledYPos(window);
                 if (primaryControl(wheelX(pointerX), wheelY(pointerY))) toggleEditor();
-                else choose(slotAt(pointerX, pointerY));
+                else {
+                    int slot = slotAt(pointerX, pointerY);
+                    if (slot >= 0) selectSlot(slot);
+                    else onClose();
+                }
             }
             return true;
         }

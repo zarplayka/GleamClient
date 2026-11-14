@@ -616,10 +616,17 @@ function renderChatMessages() {
     + text(friends.busy ? t('Загрузка…') : friends.status || t('Чатов пока нет')) + '</b>'
     + (friends.busy ? '' : friends.status ? retry() : '<small>' + text(t('Чат появится после принятия заявки в друзья')) + '</small>'
       + actionButton('chat-friends',t('Перейти к друзьям'),'users')) + '</div>';
+  if (chat.linkPending) return '<div class="chat-empty chat-unlock">' + icon('monitor') + '<b>'
+    + text(t('Подключение нового ПК')) + '</b><small>'
+    + text(t('Скопируй код и введи его на старом ПК в разделе «Устройства чата». Код действует пять минут.'))
+    + '</small>' + actionButton('chat-link-copy',t('Скопировать код'),'copy','primary')
+    + actionButton('chat-link-cancel',t('Отмена')) + '</div>';
   if (chat.keyState) return '<div class="chat-empty chat-unlock">' + icon('lock') + '<b>'
-    + text(t('Защищённый чат')) + '</b><small>' + text(chat.status) + '</small>'
-    + (chat.keyState === 'restore' ? actionButton('chat-key-restore',t('Ввести код восстановления'),'lock','primary',chat.keyBusy)
-      : retry()) + '</div>';
+    + text(t('Открой переписку на этом ПК')) + '</b><small>'
+    + text(t('Подтверди подключение на устройстве, где чат уже работает.')) + '</small>'
+    + actionButton('chat-link-start',t('Подключить этот ПК'),'monitor','primary',chat.keyBusy)
+    + (chat.keyState === 'restore' ? actionButton('chat-key-restore',t('Ввести код восстановления'),'lock','',chat.keyBusy) : '')
+    + '</div>';
   if (!chat.items.length) return '<div class="chat-empty"><b>'
     + text(chat.busy ? t('Загрузка…') : chat.status || t(chat.loaded ? 'Сообщений пока нет' : 'Загрузка…')) + '</b>'
     + (chat.busy ? '' : chat.status ? retry() : chat.loaded ? actionButton('chat-wave',t('Поздороваться'),'chat') : '') + '</div>';
@@ -649,13 +656,15 @@ function renderChatMessages() {
 function renderChatThread() {
   const person = chatContacts().find(item => item.username === chat.peer);
   const title = person ? '<div class="chat-heading"><div id="chat-heading-avatar">' + friendAvatar(person)
-    + '</div><strong>' + text(person.username) + '</strong>'
+    + '</div><div class="chat-person"><strong>' + text(person.username) + '</strong><small>'
+    + text(t('Личная переписка')) + '</small></div>'
     + '<button id="chat-verify" type="button" class="button" data-action="chat-verify"'
-    + (chat.verification ? '' : ' hidden') + '>' + icon('lock') + text(t('Код безопасности')) + '</button>'
-    + '<button id="chat-key" type="button" class="icon-button" data-action="chat-key-copy" aria-label="'
-    + text(t('Сохранить ключ чата')) + '" title="' + text(t('Сохранить ключ чата')) + '"'
+    + ' title="' + text(t('Код безопасности')) + '" aria-label="' + text(t('Код безопасности')) + '"'
+    + (chat.verification ? '' : ' hidden') + '>' + icon('lock') + '</button>'
+    + '<button id="chat-key" type="button" class="icon-button" data-action="chat-key-settings" aria-label="'
+    + text(t('Устройства чата')) + '" title="' + text(t('Устройства чата')) + '"'
     + (chat.loaded && !chat.keyState ? '' : ' hidden') + (chat.keyBusy || chat.busy ? ' disabled' : '')
-    + '>' + icon('copy') + '</button></div>' : '';
+    + '>' + icon('monitor') + '</button></div>' : '';
   const controls = person ? '<form id="chat-compose" class="chat-compose"><input name="body" autocomplete="off" maxlength="500"'
     + ' aria-label="' + text(t('Сообщение')) + '" placeholder="' + text(t('Напиши сообщение')) + '" value="'
     + text(chatDrafts.get(chat.peer) ?? '') + '"><button class="button primary chat-send" type="submit" aria-label="'
@@ -723,7 +732,7 @@ function patchChat(previous, friendsChanged) {
   const box = $('chat-messages');
   if (JSON.stringify(previous.items) !== JSON.stringify(chat.items) || previous.busy !== chat.busy || friendsChanged
       || previous.loaded !== chat.loaded || previous.status !== chat.status
-      || previous.keyState !== chat.keyState || previous.keyBusy !== chat.keyBusy) {
+      || previous.keyState !== chat.keyState || previous.keyBusy !== chat.keyBusy || previous.linkPending !== chat.linkPending) {
     const top = box.scrollTop, height = box.scrollHeight;
     const atEnd = height - top - box.clientHeight < 40;
     const older = previous.items[0] && chat.items[0] && chat.items[0].id < previous.items[0].id;

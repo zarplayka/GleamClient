@@ -125,18 +125,41 @@ final class OrionChatCrypto {
     }
 
     static Recovery createRecovery(String account, Identity identity) throws GeneralSecurityException {
-        byte[] secret = new byte[32], nonce = new byte[NONCE];
+        String code = transferCode();
+        return new Recovery(code, encryptIdentity(account, identity, code, (byte) 1));
+    }
+
+    static String transferCode() {
+        byte[] secret = new byte[32];
         RANDOM.nextBytes(secret);
+        try {
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
+        } finally {
+            Arrays.fill(secret, (byte) 0);
+        }
+    }
+
+    static String transferId(String code) {
+        return keyFingerprint(("GleamChatTransfer/1/" + code).getBytes(StandardCharsets.US_ASCII));
+    }
+
+    static String encryptTransfer(String account, Identity identity, String code) throws GeneralSecurityException {
+        return encryptIdentity(account, identity, code, (byte) 2);
+    }
+
+    private static String encryptIdentity(String account, Identity identity, String code, byte version)
+            throws GeneralSecurityException {
+        byte[] secret = Base64.getUrlDecoder().decode(code), nonce = new byte[NONCE];
         RANDOM.nextBytes(nonce);
         byte[] encryption = identity.encryption().getPrivate().getEncoded();
         byte[] signing = identity.signing().getPrivate().getEncoded();
         byte[] plain = ByteBuffer.allocate(4 + encryption.length + signing.length)
                 .putInt(encryption.length).put(encryption).put(signing).array();
         try {
-            var aes = recoveryCipher(Cipher.ENCRYPT_MODE, secret, nonce, account, identity.publicKeys());
+            var aes = recoveryCipher(Cipher.ENCRYPT_MODE, secret, nonce, account, identity.publicKeys(), version);
             byte[] sealed = aes.doFinal(plain);
-            byte[] packet = ByteBuffer.allocate(1 + NONCE + sealed.length).put((byte) 1).put(nonce).put(sealed).array();
-            return new Recovery(Base64.getUrlEncoder().withoutPadding().encodeToString(secret), encode(packet));
+            byte[] packet = ByteBuffer.allocate(1 + NONCE + sealed.length).put(version).put(nonce).put(sealed).array();
+            return encode(packet);
         } finally {
             Arrays.fill(plain, (byte) 0);
             Arrays.fill(secret, (byte) 0);
@@ -146,14 +169,23 @@ final class OrionChatCrypto {
     }
 
     static Identity recover(String account, Recovery recovery, JsonObject keys) throws GeneralSecurityException {
+        return decryptIdentity(account, recovery, keys, (byte) 1);
+    }
+
+    static Identity openTransfer(String account, String code, String packet, JsonObject keys) throws GeneralSecurityException {
+        return decryptIdentity(account, new Recovery(code, packet), keys, (byte) 2);
+    }
+
+    private static Identity decryptIdentity(String account, Recovery recovery, JsonObject keys, byte version)
+            throws GeneralSecurityException {
         byte[] packet = Base64.getDecoder().decode(recovery.backup());
-        if (packet.length < 1700 || packet.length > 2850 || packet[0] != 1)
+        if (packet.length < 1700 || packet.length > 2850 || packet[0] != version)
             throw new GeneralSecurityException("Invalid key backup");
         byte[] secret = Base64.getUrlDecoder().decode(recovery.code());
         try {
             if (secret.length != 32) throw new GeneralSecurityException("Invalid recovery code");
             byte[] nonce = Arrays.copyOfRange(packet, 1, 1 + NONCE);
-            var aes = recoveryCipher(Cipher.DECRYPT_MODE, secret, nonce, account, keys);
+            var aes = recoveryCipher(Cipher.DECRYPT_MODE, secret, nonce, account, keys, version);
             byte[] plain = aes.doFinal(packet, 1 + NONCE, packet.length - 1 - NONCE);
             try {
                 var buffer = ByteBuffer.wrap(plain);
@@ -181,11 +213,11 @@ final class OrionChatCrypto {
         }
     }
 
-    private static Cipher recoveryCipher(int mode, byte[] secret, byte[] nonce, String account, JsonObject keys)
+    private static Cipher recoveryCipher(int mode, byte[] secret, byte[] nonce, String account, JsonObject keys, byte version)
             throws GeneralSecurityException {
         var aes = Cipher.getInstance("AES/GCM/NoPadding");
         aes.init(mode, new SecretKeySpec(secret, "AES"), new GCMParameterSpec(128, nonce));
-        aes.updateAAD(("GleamChatRecovery/1\0" + account.toLowerCase(Locale.ROOT) + "\0").getBytes(StandardCharsets.UTF_8));
+        aes.updateAAD(("GleamChatRecovery/" + version + "\0" + account.toLowerCase(Locale.ROOT) + "\0").getBytes(StandardCharsets.UTF_8));
         aes.updateAAD(decode(keys, "encryption"));
         aes.updateAAD(decode(keys, "signing"));
         return aes;

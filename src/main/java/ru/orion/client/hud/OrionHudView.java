@@ -32,6 +32,7 @@ public final class OrionHudView {
     private int lastWidth, lastHeight, lastDrawWidth, lastDrawHeight, lastScale;
     private boolean lastLight, lastGlass;
     private String lastAccent;
+    private long animateUntil;
 
     public OrionHudView(String id) {
         this.id = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, id);
@@ -74,9 +75,10 @@ public final class OrionHudView {
             lastGlass = glass;
             lastAccent = accent;
             ACTIVE.add(this);
+            if (scene.animated) animateUntil = System.nanoTime() + 180_000_000L;
             view.frame();
         } else if (scene.width != lastWidth || scene.height != lastHeight || width != lastDrawWidth
-                || height != lastDrawHeight || scale != lastScale) {
+                || height != lastDrawHeight || scale != lastScale || System.nanoTime() < animateUntil) {
             view.frame();
         }
         lastWidth = scene.width;
@@ -133,6 +135,7 @@ public final class OrionHudView {
         private final JsonObject state = new JsonObject();
         private final JsonArray parts = new JsonArray();
         private final List<OrionGlassCompositor.Panel> panels = new ArrayList<>();
+        private boolean animated;
 
         public Scene(int width, int height) {
             this.width = Math.max(1, width);
@@ -171,8 +174,14 @@ public final class OrionHudView {
             part("well", x, y, w, h).addProperty("radius", radius);
         }
 
-        void activeKey(float x, float y, float w, float h, float radius) {
-            part("key-active", x, y, w, h).addProperty("radius", radius);
+        void key(float x, float y, float w, float h, String text, String mouse, boolean pressed) {
+            var part = part("key", x, y, w, h);
+            part.addProperty("radius", 4);
+            part.addProperty("text", text);
+            part.addProperty("mouse", mouse);
+            part.addProperty("pressed", pressed);
+            panels.add(new OrionGlassCompositor.Panel(x, y, w, h, 8));
+            animated = true;
         }
 
         public void label(String text, float x, float y, float w, float h, float size,
@@ -209,11 +218,21 @@ public final class OrionHudView {
                     int left = Math.round(part.get("x").getAsFloat()), top = Math.round(part.get("y").getAsFloat());
                     int partWidth = Math.round(part.get("w").getAsFloat()), partHeight = Math.round(part.get("h").getAsFloat());
                     String kind = part.get("kind").getAsString();
-                    if (kind.equals("panel") || kind.equals("box") || kind.equals("well") || kind.equals("key-active")) {
+                    if (kind.equals("key")) {
+                        int fill = part.get("pressed").getAsBoolean() ? 0xff46527c : 0xdd1b1e28;
+                        context.fill(left, top, left + partWidth, top + partHeight, fill);
+                        String mouse = part.get("mouse").getAsString();
+                        var label = font.plainSubstrByWidth((mouse.isEmpty() ? "" : mouse + " ") + part.get("text").getAsString(), partWidth - 2);
+                        int labelX = left + (partWidth - font.width(label)) / 2, labelY = top + (partHeight - font.lineHeight) / 2;
+                        //? if >=26.1 {
+                        context.text(font, label, labelX, labelY, 0xfff5f5f8);
+                        //?} else {
+                        /*context.drawString(font, label, labelX, labelY, 0xfff5f5f8);
+                        *///?}
+                    } else if (kind.equals("panel") || kind.equals("box") || kind.equals("well")) {
                         int color = switch (kind) {
                             case "panel" -> 0xcf181a22;
                             case "well" -> 0xff101119;
-                            case "key-active" -> 0x66c2d2f7;
                             default -> argb(part.get("color").getAsString());
                         };
                         context.fill(left, top, left + partWidth, top + partHeight, color);

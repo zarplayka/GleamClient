@@ -86,6 +86,9 @@ public final class OrionAccounts {
 
     public record Profile(String id, long createdAt, boolean published, BufferedImage avatar) { }
     public record ChatReply(long id, boolean own, String body) { }
+    public record ChatTransfer(String code, long expiresAt) { }
+    private Session transferSession;
+    private ChatTransfer chatTransfer;
     public static final class ChatRecoveryRequired extends IllegalStateException {
         private final boolean backupAvailable;
 
@@ -700,12 +703,88 @@ public final class OrionAccounts {
                 OrionChatCrypto.saveRecovery(session.username(), recovery);
                 return null;
             });
-            return () -> {
-                if (active != session) return;
-                registeredChatSession = session;
-                registeredChatIdentity = CompletableFuture.completedFuture(identity);
-            };
+            return () -> useChatIdentity(session, identity);
         }, storage);
+    }
+
+    public ChatTransfer chatTransfer() {
+        return active != null && active == transferSession ? chatTransfer : null;
+    }
+
+    public CompletableFuture<Runnable> startChatTransfer() {
+        Session session = active;
+        if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
+        if (chatTransfer() != null) return CompletableFuture.completedFuture(() -> { });
+        String code = OrionChatCrypto.transferCode();
+        return transferRequest(session, "start", code, null).thenApply(ignored -> () -> {
+            if (active != session) return;
+            transferSession = session;
+            chatTransfer = new ChatTransfer(code, System.nanoTime() + TimeUnit.SECONDS.toNanos(295));
+        });
+    }
+
+    public CompletableFuture<Runnable> pollChatTransfer() {
+        Session session = active;
+        ChatTransfer current = chatTransfer();
+        if (current == null) return CompletableFuture.completedFuture(null);
+        if (System.nanoTime() >= current.expiresAt()) {
+            chatTransfer = null;
+            return CompletableFuture.failedFuture(new IllegalStateException("Срок действия кода истёк"));
+        }
+        return transferRequest(session, "poll", current.code(), null).thenCompose(result -> {
+            if (result == null) return CompletableFuture.completedFuture(() -> {
+                if (chatTransfer == current) chatTransfer = null;
+                throw new IllegalStateException("Срок действия кода истёк");
+            });
+            if (!hasChatBackup(result)) return CompletableFuture.completedFuture(null);
+            return chatRecoveryState(session).thenApplyAsync(keys -> {
+                var identity = chatCrypto(() -> {
+                    var restored = OrionChatCrypto.openTransfer(session.username(), current.code(),
+                            result.get("backup").getAsString(), keys);
+                    OrionChatCrypto.saveIdentity(session.username(), restored);
+                    return restored;
+                });
+                return () -> {
+                    if (active != session || chatTransfer != current) return;
+                    chatTransfer = null;
+                    transferRequest(session, "cancel", current.code(), null);
+                    useChatIdentity(session, identity);
+                };
+            }, storage);
+        });
+    }
+
+    public void cancelChatTransfer() {
+        ChatTransfer current = chatTransfer();
+        if (current == null) return;
+        chatTransfer = null;
+        transferRequest(active, "cancel", current.code(), null);
+    }
+
+    public CompletableFuture<Void> approveChatTransfer(String code) {
+        Session session = active;
+        if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
+        if (!code.matches("[A-Za-z0-9_-]{43}"))
+            return CompletableFuture.failedFuture(new IllegalStateException("Неверный код подключения"));
+        return chatIdentity(session).thenApplyAsync(identity -> chatCrypto(
+                () -> OrionChatCrypto.encryptTransfer(session.username(), identity, code)), storage)
+                .thenCompose(backup -> transferRequest(session, "approve", code, backup))
+                .thenAccept(ignored -> { });
+    }
+
+    private static CompletableFuture<JsonObject> transferRequest(Session session, String action, String code, String backup) {
+        JsonObject body = new JsonObject();
+        body.addProperty("action", action);
+        body.addProperty("id", OrionChatCrypto.transferId(code));
+        if (backup != null) body.addProperty("backup", backup);
+        return send("/api/chat/transfer", body, session, true).thenApply(response ->
+                action.equals("poll") && response.statusCode() == 404 ? null : friendResponse(response));
+    }
+
+    private void useChatIdentity(Session session, OrionChatCrypto.Identity identity) {
+        if (active != session) return;
+        registeredChatSession = session;
+        registeredChatIdentity = CompletableFuture.completedFuture(identity);
     }
 
     private static CompletableFuture<JsonObject> chatRecoveryState(Session session) {
@@ -889,6 +968,9 @@ public final class OrionAccounts {
             case "friend_unavailable" -> "Этот аккаунт заблокирован";
             case "chat_device" -> "Синхронизируй ключ чата и попробуй снова";
             case "chat_recovery_exists" -> "Код уже был создан. Используй сохранённый код восстановления";
+            case "chat_transfer_busy" -> "Запрос на подключение уже обработан или достигнут лимит";
+            case "chat_transfer_expired" -> "Срок действия кода истёк";
+            case "chat_transfer_same_session" -> "Подтверди подключение на другом устройстве";
             case "chat_key_missing" -> "Друг ещё не настроил защищённый чат";
             case "chat_encryption_required" -> "Чат требует обновления клиента";
             default -> "Не удалось выполнить действие";

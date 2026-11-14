@@ -11,7 +11,7 @@ import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.effect.OrionClickCounter;
 
 public final class OrionStatusHud {
-    private static final int WIDTH = 66, HEIGHT = 72;
+    private static final int WIDTH = 75, HEIGHT = 77;
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView("hud_status_panels");
     private final OrionHudDrag drag = new OrionHudDrag("keystrokes");
@@ -40,13 +40,11 @@ public final class OrionStatusHud {
         State state = new State(pressed, OrionClickCounter.count(false), OrionClickCounter.count(true));
         if (!state.equals(previous)) {
             scene = new OrionHudView.Scene(WIDTH, HEIGHT);
-            key(state, 0, "W", 23, 0, 20, 20, 7.5F);
-            key(state, 1, "A", 0, 23, 20, 20, 7.5F);
-            key(state, 2, "S", 23, 23, 20, 20, 7.5F);
-            key(state, 3, "D", 46, 23, 20, 20, 7.5F);
-            key(state, 4, "SPACE", 0, 46, 66, 10, 7.5F);
-            key(state, 5, "L " + state.leftCps + " CPS", 0, 59, 31.5F, 13, 6.2F);
-            key(state, 6, "R " + state.rightCps + " CPS", 34.5F, 59, 31.5F, 13, 6.2F);
+            key(state, 0, keyLabel(keys[0]), "", 26, 0, 23, 21);
+            for (int i = 1; i <= 3; i++) key(state, i, keyLabel(keys[i]), "", (i - 1) * 26, 24, 23, 21);
+            key(state, 4, keyLabel(keys[4]), "", 0, 48, WIDTH, 10);
+            key(state, 5, Integer.toString(state.leftCps), "L", 0, 61, 36, 16);
+            key(state, 6, Integer.toString(state.rightCps), "R", 39, 61, 36, 16);
             previous = state;
         }
         float scale = config.getHudScale() * config.getHudElementScale("keystrokes");
@@ -62,12 +60,12 @@ public final class OrionStatusHud {
         view.draw(context, scene, position.x(), position.y(), w, h);
     }
 
-    private void key(State state, int index, String label, float x, float y, float w, float h, float fontSize) {
-        scene.panel(x, y, w, h, 3.5F);
-        if ((state.pressed & 1 << index) != 0) {
-            scene.activeKey(x, y, w, h, 3.5F);
-        }
-        scene.label(label, x + 1, y, w - 2, h, fontSize, "var(--text)", "center", true);
+    private static String keyLabel(KeyMapping key) {
+        return key.getTranslatedKeyMessage().getString();
+    }
+
+    private void key(State state, int index, String label, String mouse, float x, float y, float w, float h) {
+        scene.key(x, y, w, h, label, mouse, (state.pressed & 1 << index) != 0);
     }
 
     private record State(int pressed, int leftCps, int rightCps) {}

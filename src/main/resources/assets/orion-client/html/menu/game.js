@@ -291,7 +291,7 @@ let gameStatus = '';
 let lastProfile = '';
 let gameReady = false;
 let pendingChatDraft;
-const gameForms = new Set(['game-login','game-publish','game-config-command','add-account','add-config','add-point','add-friend','chat-compose','chat-recovery-form']);
+const gameForms = new Set(['game-login','game-publish','game-config-command','add-account','add-config','add-point','add-friend','chat-compose','chat-recovery-form','chat-link-form']);
 let lastChatRoute = 0;
 function applyGameLanguage(language) {
   uiLanguage = ['en','de','es'].includes(language) ? language : 'ru';
@@ -328,6 +328,20 @@ Object.assign(actions,{
   'friends-refresh'() { sendGame('friends-refresh'); },
   'chat-friends'() { selectPage('friends'); sendGame('section',{page:'friends'}); },
   'chat-retry'() { sendGame('chat-retry'); },
+  'chat-link-start'() { sendGame('chat-link-start'); },
+  'chat-link-copy'() { sendGame('chat-link-copy'); },
+  'chat-link-cancel'() { sendGame('chat-link-cancel'); },
+  'chat-key-settings'() {
+    showDialog(t('Устройства чата'),'<div class="chat-device-actions">'
+      + actionButton('chat-link-approve',t('Подключить новый ПК'),'monitor','primary')
+      + actionButton('chat-key-copy',t('Сохранить ключ чата'),'copy') + '</div>');
+  },
+  'chat-link-approve'() {
+    const label = text(t('Код подключения'));
+    showDialog(t('Подключить новый ПК'),'<p>' + text(t('Введи код, показанный в чате на твоём новом ПК. Подтверждение даст этому ПК доступ к переписке.'))
+      + '</p><form id="chat-link-form" autocomplete="off"><input type="password" required maxlength="43" placeholder="'
+      + label + '" aria-label="' + label + '"><button class="button primary" type="submit">' + text(t('Подтвердить')) + '</button></form>');
+  },
   'chat-key-copy'() {
     showDialog(t('Сохранить ключ чата'),'<p>' + text(t('Сохрани код в надёжном месте. Он откроет твою зашифрованную переписку на другом устройстве.'))
       + '</p>' + actionButton('chat-key-confirm',t('Скопировать код'),'copy','primary'));
@@ -702,16 +716,17 @@ function submitGameForm(form) {
     }
     return;
   }
-  if (form.id === 'chat-recovery-form') {
+  if (form.id === 'chat-recovery-form' || form.id === 'chat-link-form') {
+    const linking = form.id === 'chat-link-form';
     const field = form.querySelector('input');
     const code = field.value.trim();
     if (!/^[A-Za-z0-9_-]{43}$/.test(code)) {
-      toast(t('Неверный код восстановления'),'error');
+      toast(t(linking ? 'Неверный код подключения' : 'Неверный код восстановления'),'error');
       return;
     }
     field.value = '';
     closeDialog();
-    sendGame('chat-key-restore',{code});
+    sendGame(linking ? 'chat-link-approve' : 'chat-key-restore',{code});
     return;
   }
   if (form.id === 'game-login') {

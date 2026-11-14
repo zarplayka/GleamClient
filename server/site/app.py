@@ -35,6 +35,7 @@ MAIL_QUEUE = web.AppKey('mail_queue', asyncio.Queue)
 FAKE_PUNISHMENTS = web.AppKey('fake_punishments', deque)
 FAKE_PUNISHMENT_EPOCH = web.AppKey('fake_punishment_epoch', str)
 LAUNCHER_REQUESTS = web.AppKey('launcher_requests', dict)
+CHAT_TRANSFERS = web.AppKey('chat_transfers', dict)
 MAIL_TOKEN = re.compile(r'[A-Za-z0-9_-]{43}')
 logger = logging.getLogger(__name__)
 
@@ -887,6 +888,48 @@ async def chat_recovery(request):
         row = db.execute('SELECT encryption,signing,recovery AS backup FROM chat_keys WHERE user_id=?', (uid,)).fetchone()
     return web.json_response(dict(row) if row else {})
 
+async def chat_transfer(request):
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    data = await json_body(request)
+    action, key = data.get('action'), data.get('id')
+    if action not in ('start', 'approve', 'poll', 'cancel') or not isinstance(key, str) or not re.fullmatch(r'[0-9a-f]{64}', key):
+        return error('invalid')
+    if not limit(request, 'chat-transfer-'+action, 75 if action == 'poll' else 12, 60):
+        return error('rate', 429)
+    transfers, now = request.app[CHAT_TRANSFERS], time.monotonic()
+    for stale in [key for key, item in transfers.items() if item['expires'] <= now]:
+        del transfers[stale]
+    scope = (user['id'], key)
+    session_id = digest(request.cookies[COOKIE])
+    entry = transfers.get(scope)
+    if action == 'start':
+        if entry or sum(uid == user['id'] for uid, _ in transfers) >= 5 or len(transfers) >= 1024:
+            return error('chat_transfer_busy', 409)
+        with connect() as db:
+            if not db.execute('SELECT 1 FROM chat_keys WHERE user_id=?', (user['id'],)).fetchone():
+                return error('chat_key_missing', 409)
+        transfers[scope] = {'expires': now + 300, 'session': session_id, 'backup': None}
+        return web.json_response({'ok': True})
+    if not entry: return error('chat_transfer_expired', 404)
+    if action == 'approve':
+        if entry['session'] == session_id: return error('chat_transfer_same_session', 409)
+        backup = data.get('backup')
+        if not isinstance(backup, str) or len(backup) > 3800: return error('invalid')
+        try:
+            packet = base64.b64decode(backup, validate=True)
+            if not 1700 <= len(packet) <= 2850 or packet[0] != 2: return error('invalid')
+        except (ValueError, binascii.Error):
+            return error('invalid')
+        if entry['backup'] is not None: return error('chat_transfer_busy', 409)
+        entry['backup'] = backup
+        return web.json_response({'ok': True})
+    if entry['session'] != session_id: return error('auth', 401)
+    if action == 'cancel':
+        del transfers[scope]
+        return web.json_response({'ok': True})
+    return web.json_response({'backup': entry['backup']})
+
 async def chat_updates(request):
     user = session(request)
     if not user: return error('auth', 401)
@@ -1384,6 +1427,7 @@ def create_app():
     app[FAKE_PUNISHMENTS] = deque(maxlen=256)
     app[FAKE_PUNISHMENT_EPOCH] = secrets.token_hex(8)
     app[LAUNCHER_REQUESTS] = {}
+    app[CHAT_TRANSFERS] = {}
     app.router.add_post('/api/launcher-auth/start', launcher_start)
     app.router.add_post('/api/launcher-auth/approve', launcher_approve)
     app.router.add_post('/api/launcher-auth/poll', launcher_poll)
@@ -1403,6 +1447,7 @@ def create_app():
     app.router.add_get('/api/chat/keys/{username}', chat_keys)
     app.router.add_route('GET', '/api/chat/recovery', chat_recovery)
     app.router.add_route('POST', '/api/chat/recovery', chat_recovery)
+    app.router.add_post('/api/chat/transfer', chat_transfer)
     app.router.add_get('/api/chat/updates', chat_updates)
     app.router.add_get('/api/admin/accounts', admin_accounts)
     app.router.add_post('/api/admin/accounts', admin_update)
