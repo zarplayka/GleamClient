@@ -6,6 +6,7 @@ import base64
 import binascii
 import smtplib
 import ssl
+import ipaddress
 from html import escape
 from collections import defaultdict, deque
 from contextlib import contextmanager
@@ -36,6 +37,9 @@ FAKE_PUNISHMENTS = web.AppKey('fake_punishments', deque)
 FAKE_PUNISHMENT_EPOCH = web.AppKey('fake_punishment_epoch', str)
 LAUNCHER_REQUESTS = web.AppKey('launcher_requests', dict)
 CHAT_TRANSFERS = web.AppKey('chat_transfers', dict)
+WORLD_PRESENCE = web.AppKey('world_presence', dict)
+WORLD_INVITES = web.AppKey('world_invites', dict)
+WORLD_VERSIONS = frozenset(('1.21.11', '26.1.2', '26.2', '26.3'))
 MAIL_TOKEN = re.compile(r'[A-Za-z0-9_-]{43}')
 logger = logging.getLogger(__name__)
 
@@ -833,6 +837,165 @@ async def friends_update(request):
             db.execute('DELETE FROM friendships WHERE low_id=? AND high_id=?', pair)
     return web.json_response({'ok': True})
 
+def world_endpoint(request, data):
+    port, pin, addresses = data.get('port'), data.get('pin'), data.get('addresses')
+    if type(port) is not int or not 1024 <= port <= 65535 or not isinstance(pin, str) or not re.fullmatch(r'[0-9a-f]{64}', pin):
+        return None
+    if not isinstance(addresses, list) or len(addresses) > 8:
+        return None
+    result = []
+    local = []
+    observed = None
+    for index, raw in enumerate([request.headers.get('X-Real-IP', request.remote), *addresses]):
+        try:
+            if not isinstance(raw, str) or len(raw) > 45 or '%' in raw:
+                continue
+            ip = ipaddress.ip_address(raw)
+        except ValueError:
+            continue
+        if ip.is_global and not ip.is_multicast and not ip.is_reserved:
+            if index == 0:
+                observed = str(ip)
+            if str(ip) not in result:
+                result.append(str(ip))
+        elif index and (ip in ipaddress.ip_network('10.0.0.0/8') or ip in ipaddress.ip_network('172.16.0.0/12')
+                        or ip in ipaddress.ip_network('192.168.0.0/16')) and str(ip) not in local:
+            local.append(str(ip))
+    return {'port': port, 'pin': pin, 'addresses': result, 'observed': observed, 'local': local}
+
+
+async def friend_worlds(request):
+    writing = request.method == 'POST'
+    user = auth_csrf(request) if writing else session(request)
+    if not user:
+        return error('auth', 401)
+    if not limit(request, 'friend-worlds-write' if writing else 'friend-worlds-read', 100 if writing else 140, 60):
+        return error('rate', 429)
+    data = await json_body(request) if writing else {}
+    uid, now = user['id'], time.monotonic()
+    presence, invites = request.app[WORLD_PRESENCE], request.app[WORLD_INVITES]
+    for key, entry in list(presence.items()):
+        if entry['until'] <= now:
+            del presence[key]
+    with connect() as db:
+        rows = db.execute('''SELECT u.id,u.username,CASE WHEN p.published=1 THEN p.public_id END AS public_id
+            FROM friendships f JOIN users u ON u.id=CASE WHEN f.low_id=:uid THEN f.high_id ELSE f.low_id END
+            LEFT JOIN profiles p ON p.user_id=u.id WHERE (f.low_id=:uid OR f.high_id=:uid)
+            AND f.accepted=1 AND u.banned_at IS NULL''', {'uid': uid}).fetchall()
+    friends = {row['id']: row for row in rows}
+    for key, entry in list(invites.items()):
+        open_world = presence.get((entry['host'], 'game'), {}).get('game')
+        if entry['until'] <= now or not open_world:
+            del invites[key]
+        elif uid in (entry['host'], entry['guest']) and (entry['guest'] if uid == entry['host'] else entry['host']) not in friends:
+            del invites[key]
+    action = data.get('action')
+    if action == 'presence':
+        device = data.get('device')
+        if device not in ('launcher', 'game'):
+            return error('invalid')
+        entry = {'until': now + 15}
+        world = data.get('world')
+        if device == 'game' and world is not None:
+            version, name = data.get('version'), data.get('world')
+            endpoint = world_endpoint(request, data)
+            if not endpoint or not isinstance(version, str) or version not in WORLD_VERSIONS \
+                    or not isinstance(name, str) or not 1 <= len(name) <= 80 or not name.isprintable():
+                return error('invalid')
+            entry['game'] = {'world': name, 'version': version, 'offline': data.get('offline') is True, 'endpoint': endpoint}
+        previous = presence.get((uid, device), {})
+        old = previous.get('game')
+        current = entry.get('game')
+        if device == 'game' and old and (not current or old['endpoint']['pin'] != current['endpoint']['pin']):
+            for key, invite in list(invites.items()):
+                if invite['host'] == uid:
+                    del invites[key]
+        elif old and current and old['offline'] != current['offline']:
+            for invite in invites.values():
+                if invite['host'] == uid:
+                    invite['world'] = current
+        presence[uid, device] = entry
+        if current:
+            for invite in invites.values():
+                if invite['host'] == uid and invite['state'] == 'connected':
+                    invite['until'] = now + 15
+    elif action == 'invite':
+        name = data.get('username')
+        guest = next((row['id'] for row in friends.values() if row['username'] == name), None)
+        world = presence.get((uid, 'game'), {}).get('game')
+        if guest is None or not world:
+            return error('world_unavailable', 409)
+        if not limit(request, 'friend-world-invite', 12, 60):
+            return error('rate', 429)
+        if len(invites) >= 2000 or sum(entry['host'] == uid for entry in invites.values()) >= 12:
+            return error('rate', 429)
+        if any(e['host'] == uid and e['guest'] == guest and e['state'] != 'pending' for e in invites.values()):
+            return error('world_unavailable', 409)
+        for key, entry in list(invites.items()):
+            if entry['host'] == uid and entry['guest'] == guest:
+                del invites[key]
+        invites[secrets.token_urlsafe(24)] = {'host': uid, 'guest': guest, 'world': world,
+                                             'state': 'pending', 'until': now + 15}
+    elif action in ('reserve', 'accept', 'connected', 'decline', 'cancel', 'finish'):
+        key = data.get('id')
+        entry = invites.get(key) if isinstance(key, str) else None
+        if not entry:
+            return error('world_expired', 409)
+        host, guest = entry['host'] == uid, entry['guest'] == uid
+        if action == 'reserve' and guest and entry['state'] == 'pending':
+            entry.update(state='reserved', until=now + 180, autojoin=data.get('autojoin') is True)
+        elif action == 'accept' and guest and entry['state'] in ('pending', 'reserved'):
+            endpoint = world_endpoint(request, data)
+            name, offline = data.get('name'), data.get('offline') is True
+            if not endpoint or not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9_]{1,16}', name):
+                return error('invalid')
+            if offline and not entry['world']['offline']:
+                return error('world_license', 409)
+            entry.update(state='accepted', until=now + 180, endpoint=endpoint, name=name, offline=offline)
+        elif action == 'connected' and host and entry['state'] == 'accepted':
+            entry.update(state='connected', until=now + 15)
+        elif ((action == 'decline' and guest and entry['state'] in ('pending', 'reserved'))
+              or (action == 'cancel' and host) or (action == 'finish' and (host or guest) and entry['state'] in ('accepted', 'connected'))):
+            del invites[key]
+        else:
+            return error('world_expired', 409)
+    elif writing:
+        return error('invalid')
+
+    people = {}
+    for friend_id, row in friends.items():
+        game = presence.get((friend_id, 'game'))
+        launcher = presence.get((friend_id, 'launcher'))
+        world = game.get('game') if game else None
+        people[row['username']] = {
+            'status': 'world' if world else 'game' if game else 'launcher' if launcher else 'offline',
+            'world': world['world'] if world else None,
+            'version': world['version'] if world else None,
+        }
+    items = []
+    for key, entry in invites.items():
+        host = entry['host'] == uid
+        peer = friends.get(entry['guest'] if host else entry['host']) if host or entry['guest'] == uid else None
+        if peer is None:
+            continue
+        world = entry['world']
+        item = {'id': key, 'username': peer['username'], 'public_id': peer['public_id'],
+                'incoming': not host, 'state': entry['state'], 'remaining': max(0, int((entry['until'] - now) * 1000)),
+                'world': world['world'], 'version': world['version'], 'allowOffline': world['offline']}
+        if not host and entry['state'] == 'reserved':
+            item['autojoin'] = entry.get('autojoin', False)
+        if entry['state'] == 'accepted' and request.query.get('transport') == '1':
+            remote, own = (entry['endpoint'], world['endpoint']) if host else (world['endpoint'], entry['endpoint'])
+            same_network = own['observed'] and own['observed'] == remote['observed']
+            item['endpoint'] = {'port': remote['port'], 'pin': remote['pin'],
+                                'addresses': (remote['local'] if same_network else []) + remote['addresses']}
+            item['player'] = entry['name']
+            item['offline'] = entry['offline']
+            if host:
+                item['guestId'] = entry['guest']
+        items.append(item)
+    return web.json_response({'items': items, 'people': people, 'hosting': 'game' in presence.get((uid, 'game'), {})})
+
 async def chat_keys(request):
     writing = request.method == 'POST'
     user = auth_csrf(request) if writing else session(request)
@@ -1428,6 +1591,8 @@ def create_app():
     app[FAKE_PUNISHMENT_EPOCH] = secrets.token_hex(8)
     app[LAUNCHER_REQUESTS] = {}
     app[CHAT_TRANSFERS] = {}
+    app[WORLD_PRESENCE] = {}
+    app[WORLD_INVITES] = {}
     app.router.add_post('/api/launcher-auth/start', launcher_start)
     app.router.add_post('/api/launcher-auth/approve', launcher_approve)
     app.router.add_post('/api/launcher-auth/poll', launcher_poll)
@@ -1441,6 +1606,8 @@ def create_app():
     app.router.add_get('/auth.html', profile_page)
     app.router.add_get('/api/friends', friends_list)
     app.router.add_post('/api/friends', friends_update)
+    app.router.add_get('/api/friend-worlds', friend_worlds)
+    app.router.add_post('/api/friend-worlds', friend_worlds)
     app.router.add_get('/api/friends/{username}/chat', friend_chat)
     app.router.add_post('/api/friends/{username}/chat', friend_chat)
     app.router.add_post('/api/chat/keys', chat_keys)

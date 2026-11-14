@@ -253,6 +253,38 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       min-width: 0; gap: 8px; padding-left: 14px; border-left: 1px solid var(--border); text-align: center;
     }
     .cosmetics h2 { margin: 0 0 5px; font-size: 14px; letter-spacing: 0 }
+    .friends-layout { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.08fr);gap:14px;align-items:start }
+    .friends-heading { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px }
+    .friends-heading h2 { margin:0;font-size:25px;letter-spacing:-.045em }
+    .friends-tools,.friend-session-actions { display:flex;flex-wrap:wrap;align-items:center;gap:7px }
+    .catalog-input { height:36px;padding:0 11px;border:1px solid var(--border);border-radius:6px;background:var(--control-bg);color:var(--text);font:inherit }
+    .friends-search { width:100%;margin-bottom:8px }
+    .friends-tabs { display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px;padding:3px;border:1px solid var(--border);border-radius:7px;background:var(--panel) }
+    .friends-tabs button { flex:1;white-space:nowrap;min-height:32px;padding:0 7px;border:1px solid transparent;border-radius:5px;color:var(--muted);background:transparent }
+    .friends-tabs button[aria-pressed="true"] { background:var(--selected-bg);border-color:var(--border);color:var(--selected-text) }
+    .friends-tabs small { margin-left:5px;color:var(--muted) }
+    .friends-rows { display:grid;gap:6px }
+    .friends-row { display:flex;align-items:center;gap:10px;min-width:0;width:100%;min-height:63px;padding:9px 11px;text-align:left;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text) }
+    .friends-row:hover,.friends-row[aria-pressed="true"] { border-color:var(--focus-stroke);background:var(--control-bg) }
+    .friends-text { display:grid;gap:3px;min-width:0 }
+    .friends-text>* { overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+    .friends-text small,.friend-details small,.friends-note { color:var(--muted);font-size:12px }
+    .friends-text small[data-online] { color:#80d3a4 }
+    .friend-face { position:relative;display:grid;place-items:center;width:38px;height:38px;flex:none;overflow:hidden;border:1px solid var(--border);border-radius:7px;background:var(--control-bg);color:var(--muted);font-weight:700 }
+    .friend-face img { position:absolute;inset:0;width:100%;height:100%;object-fit:cover }
+    .friend-details { min-width:0;border:1px solid var(--border);border-radius:10px;background:var(--panel);padding:15px }
+    .friend-profile-head { display:flex;align-items:center;gap:13px;min-height:87px;padding-bottom:10px }
+    .friend-profile-head .friend-face { width:66px;height:66px;border-radius:9px;font-size:23px }
+    .friend-profile-head h2 { margin:0;overflow-wrap:anywhere;font-size:23px }
+    .friend-session { display:grid;gap:8px;padding:12px 0;border-top:1px solid var(--border) }
+    .friend-session .primary { flex:1 }
+    .friend-profile-link { display:flex;justify-content:space-between;align-items:center;width:100%;min-height:35px;border:0;border-top:1px solid var(--border);background:transparent;color:var(--text);padding:6px 0;text-align:left }
+    .friend-profile-link:hover { color:var(--accent) }
+    .friend-profile-link .icon { width:14px;height:14px }
+    .friends-note { margin:0 0 12px }
+    .friends-form { display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px }
+    .friends-form input { flex:1;min-width:110px }
+    @media(max-width:860px) { .friends-layout { grid-template-columns:1fr } }
     .cosmetics p { margin: 0; color: var(--muted); font-size: 13px }
     .cosmetics h2 .text-button { color: var(--text); padding: 0; font-size: inherit; font-weight: inherit }
     .cosmetics h2 .text-button:hover { color: var(--accent) }
@@ -1122,6 +1154,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <button type="button" class="nav-item" data-page="profiles" aria-controls="page-profiles" aria-label="Профили" title="Профили"><svg class="icon" aria-hidden="true"><use href="#i-profiles"/></svg><span class="nav-label">Профили</span></button>
         <button type="button" class="nav-item" data-page="catalog" aria-controls="page-catalog" aria-label="Моды" title="Моды"><svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg><span class="nav-label">Моды</span></button>
         <button type="button" class="nav-item" data-page="cosmetics" aria-controls="page-cosmetics" aria-label="Косметика" title="Косметика"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 4 6l-2 5 4 2 1-2v9h10v-9l1 2 4-2-2-5-5-2a3 3 0 0 1-6 0Z"/></svg><span class="nav-label">Косметика</span></button>
+        <button type="button" class="nav-item" data-page="friends" aria-controls="page-friends" aria-label="Друзья" title="Друзья"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-4M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zm4-4a4 4 0 0 1 0 8"/></svg><span class="nav-label">Друзья</span></button>
         <button type="button" class="nav-item" data-page="updates" aria-controls="page-updates" aria-label="Обновления" title="Обновления"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg><span class="nav-label">Обновления</span></button>
         <button type="button" class="nav-item" data-page="activity" aria-controls="page-activity" aria-label="Активность" title="Активность"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19v-6m7 6V5m7 14v-9"/></svg><span class="nav-label">Активность</span></button>
       </nav>
@@ -1240,6 +1273,23 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
               <p id="cosmetics-summary">Ничего не надето</p>
             </div>
           </section>
+        </div>
+      </section>
+      <section id="page-friends" class="page secondary-page" aria-labelledby="friends-heading" hidden>
+        <div class="friends-heading"><h2 id="friends-heading" tabindex="-1">Друзья</h2>
+          <div class="friends-tools"><button type="button" class="button" id="friends-refresh">Обновить</button>
+          <button type="button" class="button primary" id="friends-add">Добавить в друзья</button></div>
+        </div>
+        <form class="friends-form" id="friends-form" hidden>
+          <input class="catalog-input" id="friends-name" required pattern="[A-Za-z0-9_]{3,24}" maxlength="24" placeholder="Ник в Gleam" aria-label="Ник в Gleam">
+          <button class="button primary" type="submit">Отправить заявку</button>
+        </form>
+        <p class="friends-note" id="friends-status" role="status" hidden></p>
+        <div class="friends-layout">
+          <div><input class="catalog-input friends-search" type="search" id="friends-search" placeholder="Поиск по нику" aria-label="Поиск по нику">
+          <div class="friends-tabs" id="friends-tabs" role="group" aria-label="Друзья"></div>
+          <div class="friends-rows" id="friends-rows"></div></div>
+          <div class="friend-details" id="friend-details" hidden></div>
         </div>
       </section>
       <section id="page-cosmetics" class="page secondary-page" aria-labelledby="wardrobe-heading" hidden>
@@ -1405,6 +1455,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+          <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-038">
+            <span class="release-meta"><span class="release-version">0.1.38</span><time datetime="2026-11-14">14.11.2026</time></span>
+            <div>
+              <h3 id="release-launcher-038">Игра с друзьями</h3>
+              <p>Открывай одиночный мир для друзей, принимай приглашения из лаунчера или удерживай Y в игре. Офлайн-профили доступны с разрешения хозяина мира.</p>
+            </div>
+          </article>
           <article class="release-card" tabindex="-1" aria-labelledby="release-client-027">
             <span class="release-meta"><span class="release-version">0.2.7</span><time datetime="2026-11-14">14.11.2026</time></span>
             <div>
@@ -1846,7 +1903,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     let storageRequest = 0;
     let storageUsage = null;
     let signedIn = false;
-    let running = false;
+    let running = false, runningVersion = null;
     let launchPending = false;
     let launchCancelling = false;
     let stopRequest;
@@ -2165,6 +2222,65 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Позвать':['Summon','Rufen','Llamar'],
       'Убрать':['Dismiss','Wegschicken','Retirar'],
       'Загружаем экипировку…':['Loading your loadout…','Ausrüstung wird geladen…','Cargando equipamiento…'],
+      "Игра с друзьями":["Play with friends","Mit Freunden spielen","Jugar con amigos"],
+      "Открывай одиночный мир для друзей, принимай приглашения из лаунчера или удерживай Y в игре. Офлайн-профили доступны с разрешения хозяина мира.":["Share a single-player world with friends and accept invitations in the launcher or by holding Y in-game. The host can allow offline profiles.","Teile deine Einzelspielerwelt mit Freunden und nimm Einladungen im Launcher oder durch Halten von Y im Spiel an. Der Host kann Offline-Profile zulassen.","Comparte un mundo individual con tus amigos. Acepta invitaciones en el launcher o manteniendo Y en el juego. El anfitrión puede permitir perfiles sin conexión."],
+      "Друзья":["Friends","Freunde","Amigos"],
+      "В сети":["Online","Online","En línea"],
+      "Входящие":["Incoming","Eingehend","Entrantes"],
+      "Исходящие":["Outgoing","Ausgehend","Salientes"],
+      "Разрешить офлайн-профили":["Allow offline profiles","Offline-Profile zulassen","Permitir perfiles sin conexión"],
+      "Сохранить доступ":["Save access","Zugriff speichern","Guardar acceso"],
+      "Открыть мир для друзей":["Open world to friends","Welt für Freunde öffnen","Abrir mundo a amigos"],
+      "Закрыть доступ":["Close access","Zugriff schließen","Cerrar el acceso"],
+      "Приглашение в мир":["World invitation","Welteinladung","Invitación al mundo"],
+      "Зайти к другу":["Join friend","Freund beitreten","Unirse al amigo"],
+      "Отклонить":["Decline","Ablehnen","Rechazar"],
+      "Отозвать":["Cancel request","Anfrage zurückziehen","Retirar solicitud"],
+      "Отозвать приглашение":["Revoke invitation","Einladung zurückziehen","Retirar invitación"],
+      "Пригласить в мир":["Invite to world","In die Welt einladen","Invitar al mundo"],
+      "Никого не найдено":["No matches","Keine Treffer","Sin resultados"],
+      "Друзей нет в сети":["No friends online","Keine Freunde online","No hay amigos en línea"],
+      "Друзей пока нет":["No friends yet","Noch keine Freunde","Aún no tienes amigos"],
+      "Заявок пока нет":["No requests yet","Noch keine Anfragen","Aún no hay solicitudes"],
+      "Заявка в друзья":["Friend request","Freundschaftsanfrage","Solicitud de amistad"],
+      "Ожидает ответа":["Awaiting response","Wartet auf Antwort","Pendiente de respuesta"],
+      "В лаунчере":["In launcher","Im Launcher","En el launcher"],
+      "В игре":["In game","Im Spiel","En el juego"],
+      "В своём мире":["In their world","In eigener Welt","En su mundo"],
+      "Не в сети":["Offline","Offline","Sin conexión"],
+      "В мире друга":["In a friend's world","In der Welt eines Freundes","En el mundo de un amigo"],
+      "В твоём мире":["In your world","In deiner Welt","En tu mundo"],
+      "Мир друга сейчас недоступен":["Friend’s world is unavailable","Die Welt des Freundes ist nicht verfügbar","El mundo del amigo no está disponible"],
+      "Приглашение больше не действует":["Invitation expired","Die Einladung ist abgelaufen","La invitación ha caducado"],
+      "Друг разрешил вход только с лицензией Minecraft":["This world requires a licensed Minecraft account","Diese Welt erfordert ein lizenziertes Minecraft-Konto","Este mundo requiere una cuenta de Minecraft con licencia"],
+      "Добавить в друзья":["Add friend","Freund hinzufügen","Añadir amigo"],
+      "Удалить из друзей":["Remove friend","Freund entfernen","Eliminar amigo"],
+      "Ник в Gleam":["Gleam username","Gleam-Benutzername","Nombre de Gleam"],
+      "Отправить заявку":["Send request","Anfrage senden","Enviar solicitud"],
+      "Поиск по нику":["Search by username","Nach Namen suchen","Buscar por nombre"],
+      "Открыть профиль":["Open profile","Profil öffnen","Abrir perfil"],
+      "Приглашение отправлено":["Invitation sent","Einladung gesendet","Invitación enviada"],
+      "приглашает в мир":["invites you to play","lädt dich in seine Welt ein","te invita a su mundo"],
+      "Удерживай Y, чтобы принять":["Hold Y to accept","Halte Y zum Annehmen","Mantén Y para aceptar"],
+      "Открой приглашение в лаунчере":["Open the invitation in the launcher","Öffne die Einladung im Launcher","Abre la invitación en el launcher"],
+      "Доступ к миру закрыт":["World access closed","Weltzugriff geschlossen","Acceso al mundo cerrado"],
+      "Доступ к миру настроен":["World access saved","Weltzugriff gespeichert","Acceso al mundo guardado"],
+      "Не удалось открыть порт для друзей":["Could not open the friends port","Port für Freunde konnte nicht geöffnet werden","No se pudo abrir el puerto para amigos"],
+      "Открой нужную версию Minecraft в лаунчере":["Open the matching Minecraft version in the launcher","Starte die passende Minecraft-Version im Launcher","Abre la versión correcta de Minecraft en el launcher"],
+      "Мир открыт для друзей":["World is open to friends","Welt ist für Freunde geöffnet","Mundo abierto a amigos"],
+      "Сначала открой одиночный мир в Minecraft":["Open a single-player world first","Öffne zuerst eine Einzelspielerwelt","Abre primero un mundo individual"],
+      "Прямое подключение недоступно":["Direct connection unavailable","Direkte Verbindung nicht verfügbar","Conexión directa no disponible"],
+      "Подключение к миру друга…":["Connecting to your friend’s world…","Verbindung zur Welt deines Freundes…","Conectando al mundo de tu amigo…"],
+      "Закрой Minecraft и попробуй снова":["Close Minecraft and try again","Schließe Minecraft und versuche es erneut","Cierra Minecraft e inténtalo de nuevo"],
+      "Дата регистрации":["Date joined","Registriert seit","Fecha de registro"],
+      "Подключение…":["Connecting…","Verbindung wird hergestellt…","Conectando…"],
+      "Профиль недоступен":["Profile unavailable","Profil nicht verfügbar","Perfil no disponible"],
+      "Заявка отправлена":["Request sent","Anfrage gesendet","Solicitud enviada"],
+      "Игрок с таким ником не найден":["Player not found","Spieler nicht gefunden","Jugador no encontrado"],
+      "Нельзя добавить себя в друзья":["You can’t add yourself","Du kannst dich nicht selbst hinzufügen","No puedes añadirte a ti mismo"],
+      "Статус заявки уже изменился":["Request status already changed","Anfragestatus hat sich bereits geändert","El estado de la solicitud ya cambió"],
+      "Достигнут лимит друзей или заявок":["Friend or request limit reached","Freunde- oder Anfragelimit erreicht","Límite de amigos o solicitudes alcanzado"],
+      "Этот аккаунт заблокирован":["This account is banned","Dieses Konto ist gesperrt","Esta cuenta está bloqueada"],
       'Не удалось синхронизировать косметику':['Could not sync cosmetics','Kosmetik konnte nicht synchronisiert werden','No se pudo sincronizar la cosmética'],
       'Косметика в лаунчере':['Cosmetics in the launcher','Kosmetik im Launcher','Cosméticos en el lanzador'],
       'Экипировка синхронизируется с GleamClient. Нажми на карточку для предпросмотра, затем на кнопку экипировки.':['Your loadout syncs with GleamClient. Select a card to preview the item and use the equip button to wear it.','Deine Ausrüstung wird mit GleamClient synchronisiert. Wähle eine Karte für die Vorschau und lege den Gegenstand über die Schaltfläche an.','Tu equipamiento se sincroniza con GleamClient. Selecciona una tarjeta para ver el objeto y usa el botón para equiparlo.'],
@@ -2486,6 +2602,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         const label = liveLabels.get(element);
         if (label) writeLabel(element,label.source,...label.values);
       }
+      if (!$('page-friends').hidden) renderFriends();
     }
     for (const select of [windowMode,fabricLoader]) createSettingDropdown(select);
     applyLocale();
@@ -2952,6 +3069,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       window.scrollTo(0, 0);
       if (page === 'play' && !$('startup')) void renderBackdrop();
       if (page === 'catalog') loadCatalog();
+      if (page === 'friends') void refreshFriends(true);
       if (page === 'cosmetics' || page === 'play') void refreshWardrobe();
       if (page === 'cosmetics' || page === 'play') renderWardrobe();
       if (page === 'profiles') {
@@ -4336,6 +4454,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         checkingGame = false;
       }
       const active = Boolean(version);
+      runningVersion = version || null;
       if (launchPending || stopRequest || running === active) return;
       running = active;
       if (active) $('download-item-title').textContent = 'Minecraft '+version;
@@ -4368,16 +4487,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
     }
 
-    async function launchGame(profile = null, opener = launch) {
+    async function launchGame(profile = null, opener = launch, world = null) {
       await initialGameStatus;
       await memoryReady;
       if (restarting) return;
+      if (world && (running || launchPending)) return;
       if (running) return stopGame();
       if (launchPending) {
         cancelLaunch();
         return;
       }
-      const version = profile?.version ?? selectedVersion;
+      const version = world?.version ?? profile?.version ?? selectedVersion;
       if (!playableVersions.has(version) || (profile && !profile.playable)) return;
       if (!window.__TAURI__) {
         setStatus('Открой Gleam Launcher, чтобы запустить игру','','Играть',true);
@@ -4393,6 +4513,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         chooseMinecraftLogin(opener);
         return;
       }
+      runningVersion = version;
       launchPending = true;
       launchedProfileId = profile?.id ?? null;
       launchStage = undefined;
@@ -4405,7 +4526,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         instanceId: launchedProfileId,
         width:settings.gameWidth,height:settings.gameHeight,
         fullscreen:settings.windowMode === 'fullscreen',jvmArguments:settings.jvmArguments,
-        fabricLoader:settings.fabricLoader,installOptimizers:settings.installOptimizers
+        fabricLoader:settings.fabricLoader,installOptimizers:settings.installOptimizers,worldInvite:world?.id ?? null
       };
       $('download-item-title').textContent = profile ? profile.name+' · Minecraft '+version : 'Minecraft '+version;
       setProgress(progress,0);
@@ -4427,6 +4548,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (kind === 'game_exit' && /^-?\d+$/.test(exitCode)) detail = translated('Код выхода: {0}',exitCode);
       } finally {
         launchPending = launchCancelling = running = false;
+        runningVersion = null;
         stopRequest = undefined;
         if (busy) await syncRunningGame().catch(() => {});
         if (!running) {
@@ -4457,6 +4579,229 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (value !== undefined) element.textContent = value;
       return element;
     }
+    const social = {friends:[],worlds:{items:[],people:{}},tab:'all',selected:'',profile:null,pending:false,epoch:0,owner:'',seen:new Set()};
+    const friendCall = (action,target,autojoin) => window.__TAURI__.core.invoke('gleam_friends',{action,target,autojoin});
+    const friendsOpen = () => !$('page-friends').hidden;
+    function friendButton(label,action,target='',primary=false) {
+      const button = catalogElement('button','button' + (primary ? ' primary' : ''),translated(label));
+      button.type = 'button';
+      button.dataset.friendAction = action;
+      button.dataset.target = target;
+      return button;
+    }
+    function friendFace(person) {
+      const face = catalogElement('span','friend-face',person.username[0].toUpperCase());
+      face.setAttribute('aria-hidden','true');
+      if (/^[a-f0-9]{16}$/.test(person.public_id ?? '')) {
+        const image = document.createElement('img');
+        image.alt = '';
+        image.hidden = true;
+        image.onload = () => { image.hidden = false; };
+        image.src = 'https://gleamclient.xyz/api/profile/' + person.public_id + '/avatar';
+        face.append(image);
+      }
+      return face;
+    }
+    function friendsStatus(message='') {
+      writeLocale($('friends-status'),message);
+      $('friends-status').hidden = !message;
+    }
+    function friendError(error) {
+      friendsStatus({friend_missing:'Игрок с таким ником не найден',friend_self:'Нельзя добавить себя в друзья',
+        friend_state:'Статус заявки уже изменился',friend_limit:'Достигнут лимит друзей или заявок',
+        friend_unavailable:'Этот аккаунт заблокирован',world_expired:'Приглашение больше не действует',
+        world_unavailable:'Мир друга сейчас недоступен',world_license:'Друг разрешил вход только с лицензией Minecraft',
+        rate:'Слишком много попыток, попробуй позже'}[String(error)] || 'Не удалось подключиться к Gleam');
+    }
+    function renderFriends() {
+      if (!friendsOpen()) return;
+      const {friends,worlds,tab} = social;
+      const invites = worlds.items ?? [];
+      const presence = person => worlds.people?.[person.username]?.status ?? 'offline';
+      const online = person => presence(person) !== 'offline';
+      const status = person => ({world:'В своём мире',game:'В игре',launcher:'В лаунчере',offline:'Не в сети'}[presence(person)]);
+      const tabs = [
+        ['all','Друзья',person => person.status === 'friend'],
+        ['online','В сети',person => person.status === 'friend' && online(person)],
+        ['incoming','Входящие',person => person.status === 'incoming' || invites.some(i => i.incoming && i.username === person.username)],
+        ['outgoing','Исходящие',person => person.status === 'outgoing' || invites.some(i => !i.incoming && i.username === person.username)]
+      ].map(([id,label,filter]) => ({id,label,rows:friends.filter(filter)}));
+      $('friends-tabs').replaceChildren(...tabs.map(({id,label,rows}) => {
+        const button = friendButton(label,'tab',id);
+        button.setAttribute('aria-pressed',String(tab === id));
+        button.append(catalogElement('small','',String(rows.length)));
+        return button;
+      }));
+      const query = $('friends-search').value.trim().toLowerCase();
+      const found = tabs.find(item => item.id === tab).rows.filter(person => person.username.toLowerCase().includes(query));
+      const selected = found.find(person => person.username === social.selected) ?? found[0];
+      $('friends-rows').replaceChildren(...found.map(person => {
+        const row = friendButton('','select',person.username);
+        row.className = 'friends-row';
+        row.setAttribute('aria-pressed',String(person === selected));
+        const summary = catalogElement('span','friends-text');
+        const nick = catalogElement('strong','',person.username);
+        const invited = invites.some(i => i.username === person.username && (tab !== 'outgoing' || !i.incoming));
+        const label = catalogElement('small','',translated(invited ? 'Приглашение в мир' :
+          person.status === 'friend' ? status(person) : person.status === 'incoming' ? 'Заявка в друзья' : 'Ожидает ответа'));
+        label.toggleAttribute('data-online',online(person));
+        summary.append(nick,label);
+        row.append(friendFace(person),summary);
+        return row;
+      }));
+      if (!found.length) $('friends-rows').append(catalogElement('p','friends-note',translated(query ? 'Никого не найдено' :
+        tab === 'all' ? 'Друзей пока нет' : tab === 'online' ? 'Друзей нет в сети' : 'Заявок пока нет')));
+      const detail = $('friend-details');
+      detail.hidden = !selected;
+      detail.replaceChildren();
+      if (!selected) return;
+      const head = catalogElement('div','friend-profile-head');
+      const name = catalogElement('div','friends-text');
+      name.append(catalogElement('h2','',selected.username),catalogElement('small','',translated(status(selected))));
+      head.append(friendFace(selected),name);
+      detail.append(head);
+      const invite = invites.find(i => i.username === selected.username &&
+        (tab === 'incoming' ? i.incoming : tab !== 'outgoing' || !i.incoming));
+      if (invite || worlds.hosting && selected.status === 'friend') {
+        const session = catalogElement('div','friend-session');
+        if (invite) {
+          session.append(catalogElement('b','',invite.world),catalogElement('small','','Minecraft ' + invite.version));
+          const actions = catalogElement('div','friend-session-actions');
+          if (invite.incoming && invite.state === 'pending') {
+            actions.append(friendButton('Зайти к другу','join',invite.id,true),
+              friendButton('Отклонить','world-decline',invite.id));
+          } else if (invite.incoming) {
+            actions.append(catalogElement('small','',translated(invite.state === 'connected' ? 'В мире друга' : 'Подключение…')));
+          } else {
+            actions.append(catalogElement('small','',translated(invite.state === 'pending' ? 'Ожидает ответа' : invite.state === 'connected' ? 'В твоём мире' : 'Подключение…')),
+              friendButton('Отозвать приглашение','world-cancel',invite.id));
+          }
+          session.append(actions);
+        } else {
+          session.append(friendButton('Пригласить в мир','world-invite',selected.username,true));
+        }
+        detail.append(session);
+      }
+      const profile = friendButton('Открыть профиль','profile',selected.username);
+      profile.className = 'friend-profile-link';
+      profile.setAttribute('aria-expanded',String(social.profile?.username === selected.username));
+      profile.insertAdjacentHTML('beforeend','<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>');
+      detail.append(profile);
+      if (social.profile?.username === selected.username) {
+        const info = catalogElement('div','friend-session');
+        if (social.profile.data) {
+          const record = social.profile.data;
+          if (record.role && record.role !== 'member') info.append(catalogElement('strong','',record.role));
+          info.append(catalogElement('small','',translated('Дата регистрации') + ' · '
+            + new Intl.DateTimeFormat(launcherLanguage).format(new Date(record.created_at * 1000))));
+        } else info.append(catalogElement('small','',translated(social.profile.loading ? 'Загрузка…' : 'Профиль недоступен')));
+        detail.append(info);
+      }
+      const commands = {friend:[['Удалить из друзей','remove']],incoming:[['Принять','accept'],['Отклонить','decline']],
+        outgoing:[['Отозвать','cancel']]}[selected.status] ?? [];
+      const manage = catalogElement('div','friends-tools');
+      manage.append(...commands.map(([label,action]) => friendButton(label,action,selected.username,action === 'accept')));
+      detail.append(manage);
+    }
+    async function refreshFriends(full=false) {
+      if (!signedIn || !window.__TAURI__ || social.pending) return;
+      const owner = $('account-name').textContent;
+      if (social.owner !== owner) Object.assign(social,{owner,friends:[],worlds:{items:[],people:{}},tab:'all',selected:'',
+        profile:null,seen:new Set(),epoch:social.epoch+1});
+      const epoch = social.epoch;
+      social.pending = true;
+      try {
+        const [worlds, list] = await Promise.all([friendCall('presence'), full ? friendCall('list') : null]);
+        if (!signedIn || epoch !== social.epoch || owner !== $('account-name').textContent) return;
+        if (list) social.friends = list.items;
+        const changed = JSON.stringify({...worlds,items:worlds.items.map(({remaining,...i}) => i)}) !==
+          JSON.stringify({...social.worlds,items:social.worlds.items.map(({remaining,...i}) => i)});
+        social.worlds = worlds;
+        if (full || changed) renderFriends();
+        for (const invite of worlds.items) {
+          if (!invite.incoming || invite.state !== 'pending' || social.seen.has(invite.id)) continue;
+          social.seen.add(invite.id);
+          if (social.seen.size > 128) social.seen.delete(social.seen.values().next().value);
+          if (!friendsOpen()) {
+            const notice = catalogElement('li','');
+            notice.append(friendButton(invite.username + ' · ' + invite.world,'open-invite',invite.username));
+            notificationList.prepend(notice);
+            if (notificationList.children.length > 12) notificationList.lastElementChild.remove();
+            $('notification-empty').hidden = true;
+            notificationDot.hidden = false;
+          }
+        }
+      } catch (error) {
+        if (full && friendsOpen()) friendError(error);
+      } finally { social.pending = false; }
+    }
+    $('friends-search').addEventListener('input',renderFriends);
+    $('friends-refresh').addEventListener('click',() => void refreshFriends(true));
+    $('friends-add').addEventListener('click',() => {
+      $('friends-form').hidden = !$('friends-form').hidden;
+      if (!$('friends-form').hidden) $('friends-name').focus();
+    });
+    $('friends-form').addEventListener('submit',async event => {
+      event.preventDefault();
+      try {
+        await friendCall('request',$('friends-name').value.trim());
+        $('friends-form').reset();
+        $('friends-form').hidden = true;
+        friendsStatus('Заявка отправлена');
+        await refreshFriends(true);
+      } catch (error) { friendError(error); }
+    });
+    document.addEventListener('click',async event => {
+      const button = event.target.closest('[data-friend-action]');
+      if (!button) return;
+      const {friendAction:action,target} = button.dataset;
+      if (action === 'open-invite' || action === 'tab' || action === 'select') {
+        if (action === 'open-invite') {
+          social.tab = 'incoming';
+          social.selected = target;
+          navigate('friends');
+        } else if (action === 'tab') social.tab = target;
+        else social.selected = target;
+        renderFriends();
+        return;
+      }
+      const owner = $('account-name').textContent;
+      button.disabled = true;
+      try {
+        if (action === 'profile') {
+          if (social.profile?.username === target) { social.profile = null; renderFriends(); return; }
+          const person = social.friends.find(item => item.username === target);
+          if (!person) return;
+          const profile = {username:target,loading:!!person.public_id,data:null};
+          social.profile = profile;
+          renderFriends();
+          try { if (person.public_id) profile.data = await friendCall('profile',person.public_id); }
+          catch { /* The player can hide their public profile. */ }
+          profile.loading = false;
+        } else if (action === 'join') {
+          const invite = social.worlds.items.find(item => item.id === target && item.incoming && item.state === 'pending');
+          if (!invite) return friendsStatus('Приглашение больше не действует');
+          await initialGameStatus;
+          if (launchPending || restarting) return;
+          if (running && runningVersion !== invite.version) return friendsStatus('Закрой Minecraft и попробуй снова');
+          if (!running && !selectedMinecraftAccount) { chooseMinecraftLogin(button); return; }
+          await friendCall('world-reserve',target,!!running);
+          if (!signedIn || $('account-name').textContent !== owner) return;
+          friendsStatus('Подключение…');
+          if (!running) void launchGame(null,button,invite);
+        } else {
+          await friendCall(action,target);
+          if (action === 'world-invite') friendsStatus('Приглашение отправлено');
+        }
+        if (signedIn && $('account-name').textContent === owner) {
+          await refreshFriends(true);
+          renderFriends();
+        }
+      } catch (error) {
+        if (signedIn && $('account-name').textContent === owner) friendError(error);
+      } finally { button.disabled = false; }
+    });
+    setInterval(() => { if (signedIn && !document.hidden) void refreshFriends(friendsOpen() && social.friends.length === 0); },3000);
     function catalogMessage(message, retry = false) {
       const container = catalogElement('div','catalog-message');
       const description = document.createElement('p');
@@ -5058,6 +5403,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       signedIn = true;
       void refreshWardrobe();
       $('account-name').textContent = data.user.username;
+      void refreshFriends(true);
       $('account-pop-name').textContent = data.user.username;
       writeLocale($('account-pop-plan'),data.plus_active ? 'Plus' : 'Бесплатный');
       $('account-plus').hidden = data.plus_active !== false;

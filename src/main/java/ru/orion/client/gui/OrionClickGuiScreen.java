@@ -814,6 +814,7 @@ public final class OrionClickGuiScreen extends Screen {
             social.add("items", friends);
             social.add("avatars", friendAvatars);
             if (friendProfile != null) social.add("profile", friendProfile);
+            if (!chatPage) social.add("worlds", OrionFriendWorlds.state(minecraft));
             data.add("friends", social);
         }
         if (chatPage) {
@@ -1482,6 +1483,12 @@ public final class OrionClickGuiScreen extends Screen {
                     refreshFriends(username, change);
             }
             case "friend-profile" -> openFriendProfile(event.get("username").getAsString());
+            case "friend-world" -> {
+                if ("FRIENDS".equals(siteSection))
+                    OrionFriendWorlds.action(minecraft, event.get("command").getAsString(),
+                            event.has("target") ? event.get("target").getAsString() : "",
+                            event.has("offline") && event.get("offline").getAsBoolean());
+            }
             case "friend-profile-back" -> friendProfile = null;
             case "friend-profile-copy" -> {
                 if ("FRIENDS".equals(siteSection) && friendProfile != null && friendProfile.has("id")

@@ -130,6 +130,7 @@ public final class OrionAccounts {
         ClientTickEvents.END_CLIENT_TICK.register(this::pollFakePunishments);
         ClientTickEvents.END_CLIENT_TICK.register(this::syncCosmetics);
         OrionChatNotifications.register();
+        ru.orion.client.gui.OrionFriendWorlds.register();
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             try {
                 lastWrite.get(2, TimeUnit.SECONDS);
@@ -533,6 +534,12 @@ public final class OrionAccounts {
 
     public CompletableFuture<JsonArray> friends() {
         return loadFriends(active);
+    }
+
+    public CompletableFuture<JsonObject> friendWorlds(JsonObject action) {
+        Session session = active;
+        if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
+        return send("/api/friend-worlds?transport=1", action, session, action != null).thenApply(OrionAccounts::friendResponse);
     }
 
     public CompletableFuture<JsonObject> publicProfile(String id) {
@@ -966,6 +973,9 @@ public final class OrionAccounts {
             case "friend_state" -> "Статус заявки уже изменился";
             case "friend_limit" -> "Достигнут лимит друзей или заявок";
             case "friend_unavailable" -> "Этот аккаунт заблокирован";
+            case "world_unavailable" -> "Мир друга сейчас недоступен";
+            case "world_expired" -> "Приглашение больше не действует";
+            case "world_license" -> "Друг разрешил вход только с лицензией Minecraft";
             case "chat_device" -> "Синхронизируй ключ чата и попробуй снова";
             case "chat_recovery_exists" -> "Код уже был создан. Используй сохранённый код восстановления";
             case "chat_transfer_busy" -> "Запрос на подключение уже обработан или достигнут лимит";

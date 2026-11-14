@@ -45,6 +45,51 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
                 'Cookie': app.COOKIE + '=' + response.cookies[app.COOKIE].value,
                 'X-CSRF-Token': (await response.json())['csrf']}
 
+    async def test_friend_world_invitation_scopes_direct_connection_to_the_two_players(self):
+        host = await self.account_headers('WorldHost')
+        guest = await self.account_headers('WorldGuest')
+        other = await self.account_headers('WorldOther')
+        path = '/api/friend-worlds'
+
+        async def send(headers, action, transport=False, **values):
+            return await self.client.post(path + ('?transport=1' if transport else ''), headers=headers,
+                                          json={'action': action, **values})
+
+        first = {'port': 25566, 'pin': '1' * 64, 'addresses': ['192.168.0.4', '8.8.8.8']}
+        second = {'port': 25567, 'pin': '2' * 64, 'addresses': ['9.9.9.9']}
+        self.assertEqual((await send(host, 'presence', device='game', world='World', version='26.3', **first)).status, 200)
+        self.assertEqual((await send(host, 'invite', username='WorldGuest')).status, 409)
+        for headers, action, username in [(host, 'request', 'WorldGuest'), (guest, 'accept', 'WorldHost')]:
+            self.assertEqual((await self.client.post('/api/friends', headers=headers,
+                                                   json={'username': username, 'action': action})).status, 200)
+        invited = await send(host, 'invite', username='WorldGuest')
+        self.assertEqual(invited.status, 200)
+        invitation = (await invited.json())['items'][0]
+        key = invitation['id']
+        self.assertLessEqual(invitation['remaining'], 15000)
+        self.assertNotIn('endpoint', invitation)
+        self.assertEqual((await send(other, 'accept', id=key, name='Guest', **second)).status, 409)
+        self.assertEqual((await send(guest, 'accept', id=key, name='Guest', offline=True, **second)).status, 409)
+        self.assertEqual((await send(host, 'presence', device='game', world='World', version='26.3', offline=True, **first)).status, 200)
+        reserved = await send(guest, 'reserve', id=key, autojoin=True)
+        self.assertTrue((await reserved.json())['items'][0]['autojoin'])
+        accepted = await send(guest, 'accept', True, id=key, name='Guest', offline=True, **second)
+        self.assertEqual(accepted.status, 200)
+        peer = (await accepted.json())['items'][0]
+        self.assertEqual(peer['endpoint'], {'port': 25566, 'pin': first['pin'], 'addresses': ['8.8.8.8']})
+        self.assertTrue(peer['offline'])
+        response = await self.client.get(path, headers=host)
+        self.assertNotIn('endpoint', (await response.json())['items'][0])
+        response = await self.client.get(path + '?transport=1', headers=host)
+        self.assertEqual((await response.json())['items'][0]['endpoint']['pin'], second['pin'])
+        response = await self.client.get(path + '?transport=1', headers=other)
+        self.assertEqual((await response.json())['items'], [])
+        self.assertEqual((await send(host, 'connected', id=key)).status, 200)
+        self.assertEqual((await send(guest, 'decline', id=key)).status, 409)
+        self.assertEqual((await send(host, 'presence', device='game')).status, 200)
+        response = await self.client.get(path, headers=guest)
+        self.assertEqual((await response.json())['items'], [])
+
     async def test_launcher_browser_approval_is_csrf_protected_and_single_use(self):
         headers = await self.account_headers('LauncherUser')
         native = {'Origin': NEW, 'X-Orion-Request': '1', 'User-Agent': 'Gleam-Launcher/0.1.0'}

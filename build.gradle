@@ -66,6 +66,9 @@ processResources {
 processResources.doLast {
     def descriptor = destinationDir.toPath().resolve('orion-client.mixins.json').toFile()
     def mixins = new groovy.json.JsonSlurper().parse(descriptor)
+    if (stonecutter.eval(stonecutter.current.version, '<26.2')) {
+        mixins.client.addAll(['OrionLegacyLanAccess', 'OrionLanListenersAccess'])
+    }
     if (stonecutter.eval(stonecutter.current.version, '<26.3')) {
         mixins.client.removeAll(['ClientClockInstanceMixin', 'EnchantGlintItemMixin', 'EnchantGlintShieldMixin'])
         mixins.client.addAll(['GleamLumenVertexMixin', 'GleamLegacyGlintMixin', 'GleamLegacySlotDropMixin'])

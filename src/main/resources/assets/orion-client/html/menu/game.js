@@ -456,6 +456,8 @@ document.addEventListener('click',event => {
     sendGame('profile');
   } else if (d.friendChange) {
     sendGame('friend-change',{username:d.username,change:d.friendChange});
+  } else if (d.worldAction) {
+    sendGame('friend-world',{command:d.worldAction,target:d.target,offline:!!$('friends-allow-offline')?.checked});
   } else if (d.friendProfile) {
     sendGame('friend-profile',{username:d.friendProfile});
   } else if (d.chatPeer) {
@@ -510,6 +512,21 @@ document.addEventListener('input',event => {
   }
   if (state.page === 'module' && state.module === 'ENCHANT_GLINT' && field.dataset?.setting !== undefined) updateGlintPreview();
   if (state.page === 'module' && state.module === 'WORLD_CHANGER' && field.dataset?.setting !== undefined) updateWorldPreview();
+});
+document.addEventListener('change',event => {
+  if (event.target.id === 'friends-allow-offline') state.friendOffline = event.target.checked;
+});
+document.addEventListener('input',event => {
+  if (event.target.id !== 'friends-search') return;
+  state.friendSearch = event.target.value;
+  const markup = document.createElement('div');
+  markup.innerHTML = renderFriends();
+  for (const selector of ['.friends-list','.friend-detail']) {
+    const old = $('content').querySelector(selector), current = markup.querySelector(selector);
+    if (old && current) old.replaceWith(current);
+    else if (old) old.remove();
+    else if (current) $('content').querySelector('.friends-layout')?.appendChild(current);
+  }
 });
 let rangeDrag, colorDrag, colorPicker;
 const clampUnit = value => Math.max(0,Math.min(1,value));
@@ -942,7 +959,9 @@ window.paradox = {
       lastProfile = accountKey;
       accounts.splice(0,accounts.length,...data.accounts);
       if (state.account !== data.account) {
-        state.friendTab = state.friendProfile = null;
+        state.friendTab = state.friendProfile = state.friendSelected = null;
+        state.friendSearch = '';
+        state.friendOffline = null;
         chatDrafts.clear();
         chatReplies.clear();
         closeChatContext();
@@ -1020,11 +1039,15 @@ window.paradox = {
     if (look) applyLook();
     if (redraw) {
       const contentScroll = $('content').scrollTop;
+      const searchFocused = document.activeElement?.id === 'friends-search';
       const scroll = $('content').querySelector('.modules-grid')?.scrollTop ?? 0;
       render(false,!gameReady);
       const grid = $('content').querySelector('.modules-grid');
       if (grid) grid.scrollTop = scroll;
-      else if (state.page === 'friends') $('content').scrollTop = contentScroll;
+      else if (state.page === 'friends') {
+        $('content').scrollTop = contentScroll;
+        if (searchFocused) $('friends-search')?.focus({preventScroll:true});
+      }
     } else if (state.page === 'chat' && (friendsChanged || chatChanged)) patchChat(previousChat,friendsChanged);
     if (titleAccount) {
       if (state.account) sendGame('profile');

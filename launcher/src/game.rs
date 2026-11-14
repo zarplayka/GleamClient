@@ -243,6 +243,7 @@ pub struct LaunchOptions {
     fabric_loader: String,
     #[serde(default)]
     install_optimizers: bool,
+    world_invite: Option<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -1754,6 +1755,8 @@ pub async fn launch_minecraft(
         || !(320..=8192).contains(&options.width)
         || !(240..=8192).contains(&options.height)
         || options.jvm_arguments.len() > 16384
+        || options.world_invite.as_ref().is_some_and(|id| id.len() != 32
+            || !id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-'))
         || (options.fabric_loader != "auto" && !valid_loader(&options.fabric_loader))
     {
         return Err("game_options".into());
@@ -1877,6 +1880,9 @@ pub async fn launch_minecraft(
         command.env_remove("GLEAM_LAUNCH_SESSION");
         if let Some(directory) = &gleam_session {
             command.env("GLEAM_LAUNCH_SESSION", directory.path().join("session.bin"));
+            if let Some(invite) = &options.world_invite {
+                command.env("GLEAM_WORLD_INVITE", invite);
+            }
         }
         let mut child = {
             let mut status = game.status.lock().map_err(|_| "game_install")?;

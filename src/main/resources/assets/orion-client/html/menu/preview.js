@@ -534,27 +534,65 @@ function renderFriends() {
       + actionButton('friends-add',t('Добавить'),'plus','primary',friends.busy) + '</div>' : '');
   if (!friends.signedIn) return head + '<div class="empty">' + icon('users') + '<b>' + text(t('Войди в аккаунт GleamClient'))
     + '</b>' + actionButton('friends-login',t('Войти'),'user','primary') + '</div>';
+  const worlds = friends.worlds ?? {};
+  const invites = worlds.invites ?? [];
+  const online = item => ['launcher','game','world'].includes(worlds.people?.[item.username]?.status);
+  const presence = item => ({launcher:'В лаунчере',game:'В игре',world:'В своём мире'}[worlds.people?.[item.username]?.status] ?? 'Не в сети');
   const tabs = [
-    ['friend','Друзья',[['remove','Удалить из друзей']]],
-    ['incoming','Входящие',[['accept','Принять'],['decline','Отклонить']]],
-    ['outgoing','Исходящие',[['cancel','Отозвать']]]
-  ].map(([id,title,commands]) => ({id,title,commands,rows:friends.items.filter(item => item.status === id)}));
-  const active = tabs.find(tab => tab.id === state.friendTab) ?? tabs.find(tab => tab.rows.length) ?? tabs[0];
-  const summary = friends.busy ? 'Загрузка…' : active.id === 'friend' ? 'Друзей пока нет' : 'Заявок пока нет';
-  return head + '<div class="tabs friends-tabs" role="tablist" aria-label="' + text(t('Друзья')) + '">'
+    ['friend','Друзья',item => item.status === 'friend'],
+    ['online','В сети',item => item.status === 'friend' && online(item)],
+    ['incoming','Входящие',item => item.status === 'incoming' || invites.some(invite => invite.incoming && invite.username === item.username)],
+    ['outgoing','Исходящие',item => item.status === 'outgoing' || invites.some(invite => !invite.incoming && invite.username === item.username)]
+  ].map(([id,title,include]) => ({id,title,rows:friends.items.filter(include)}));
+  const active = tabs.find(tab => tab.id === state.friendTab) ?? tabs[0];
+  const query = (state.friendSearch ?? '').toLowerCase();
+  const rows = active.rows.filter(item => item.username.toLowerCase().includes(query));
+  const selected = rows.find(item => item.username === state.friendSelected) ?? rows[0];
+  const button = (action,label,target='',primary=false,disabled=false) => '<button type="button" class="button'
+    + (primary ? ' primary' : '') + '" data-world-action="' + action + '" data-target="' + text(target) + '"'
+    + (disabled || worlds.busy ? ' disabled' : '') + '>' + text(t(label)) + '</button>';
+  const invite = selected && invites.find(item => item.username === selected.username
+    && (active.id === 'incoming' ? item.incoming : active.id !== 'outgoing' || !item.incoming));
+  const controls = worlds.canHost ? '<div class="friend-world-tools"><label><input type="checkbox" id="friends-allow-offline"'
+    + ((state.friendOffline ?? worlds.offline) ? ' checked' : '') + '> ' + text(t('Разрешить офлайн-профили')) + '</label>'
+    + button('open',worlds.hosting ? 'Сохранить доступ' : 'Открыть мир для друзей','',true)
+    + (worlds.hosting ? button('close','Закрыть доступ') + '<small>TCP ' + text(String(worlds.port)) + '</small>' : '') + '</div>' : '';
+  const commands = selected ? ({friend:[['remove','Удалить из друзей']],incoming:[['accept','Принять'],['decline','Отклонить']],
+    outgoing:[['cancel','Отозвать']]}[selected.status] ?? []) : [];
+  const detail = selected ? '<div class="friend-detail"><div class="profile-top">' + friendAvatar(selected,true)
+    + '<div><h2>' + text(selected.username) + '</h2><small>' + text(t(presence(selected))) + '</small></div></div>'
+    + (invite ? '<div class="friend-world"><b>' + text(invite.world) + '</b><small>Minecraft ' + text(invite.version)
+      + '</small><div class="friends-tools">' + (invite.incoming && invite.state === 'pending'
+        ? button('accept','Зайти к другу',invite.id,true,invite.version !== worlds.version)
+          + button('decline','Отклонить',invite.id)
+        : invite.incoming ? '<small>' + text(t(invite.state === 'connected' ? 'В мире друга' : 'Подключение…')) + '</small>'
+        : '<small>' + text(t(invite.state === 'connected' ? 'В твоём мире' : 'Ожидает ответа')) + '</small>'
+          + button('cancel','Отозвать приглашение',invite.id)) + '</div></div>'
+      : selected.status === 'friend' && worlds.hosting ? '<div class="friend-world">'
+        + button('invite','Пригласить в мир',selected.username,true) + '</div>' : '')
+    + '<button type="button" class="friend-open-profile" data-friend-profile="' + text(selected.username) + '">'
+    + text(t('Открыть профиль')) + '</button>'
+    + '<div class="friends-tools friend-detail-actions">' + commands.map(([change,label]) => '<button type="button" class="button'
+      + (change === 'accept' ? ' primary' : '') + '" data-friend-change="' + change + '" data-username="' + text(selected.username)
+      + '"' + (friends.busy ? ' disabled' : '') + '>' + text(t(label)) + '</button>').join('') + '</div></div>' : '';
+  const summary = query ? 'Никого не найдено' : friends.busy ? 'Загрузка…' : active.id === 'online'
+    ? 'Друзей нет в сети' : active.id === 'friend' ? 'Друзей пока нет' : 'Заявок пока нет';
+  return head + controls + (worlds.status || friends.status ? '<p class="friends-status" role="status">'
+      + text(worlds.status || friends.status) + '</p>' : '')
+    + '<div class="friends-layout"><div class="friends-column"><input type="search" class="friend-search" id="friends-search"'
+    + ' aria-label="' + text(t('Поиск по нику')) + '" placeholder="' + text(t('Поиск по нику'))
+    + '" value="' + text(state.friendSearch ?? '') + '"><div class="tabs friends-tabs" role="tablist" aria-label="' + text(t('Друзья')) + '">'
     + tabs.map(({id,title,rows}) => '<button type="button" role="tab" aria-selected="' + (id === active.id)
       + '" data-friend-tab="' + id + '"><span>' + text(t(title)) + '</span><span class="friend-count">'
       + rows.length + '</span></button>').join('') + '</div>'
-    + (friends.status ? '<p class="friends-status" role="status">' + text(friends.status) + '</p>' : '')
     + '<div class="friends-list" role="tabpanel" aria-label="' + text(t(active.title)) + '">'
-    + (active.rows.length ? active.rows.map(item => '<div class="friends-row"><button type="button" class="friend-identity" data-friend-profile="'
-      + text(item.username) + '">' + friendAvatar(item) + '<span class="friend-name">' + text(item.username)
-      + '</span></button><div class="friends-tools"><button type="button" class="button" data-friend-profile="' + text(item.username)
-      + '">' + text(t('Профиль')) + '</button>'
-      + active.commands.map(([change,label]) => '<button type="button" class="button' + (change === 'accept' ? ' primary' : '')
-        + '" data-friend-change="' + change + '" data-username="' + text(item.username) + '"'
-        + (friends.busy ? ' disabled' : '') + '>' + text(t(label)) + '</button>').join('') + '</div></div>').join('')
-      : '<div class="friends-empty">' + icon(active.id === 'friend' ? 'users' : 'user') + '<span>' + text(t(summary)) + '</span></div>') + '</div>';
+    + (rows.length ? rows.map(item => '<button type="button" class="friends-row" aria-pressed="' + (item === selected)
+      + '" data-friend-select="' + text(item.username) + '">' + friendAvatar(item) + '<span class="friend-identity"><b class="friend-name">'
+      + text(item.username) + '</b><small data-online="' + online(item) + '">'
+      + text(t(invites.some(invite => invite.username === item.username && invite.incoming) ? 'Приглашение в мир'
+        : item.status === 'friend' ? presence(item) : item.status === 'incoming' ? 'Заявка в друзья' : 'Ожидает ответа'))
+      + '</small></span></button>').join('') : '<div class="friends-empty">' + text(t(summary)) + '</div>')
+    + '</div></div>' + detail + '</div>';
 }
 const chatContacts = () => friends.items.filter(item => item.status === 'friend');
 function chatTime(sentAt) {
@@ -1367,6 +1405,9 @@ document.addEventListener('click', event => {
     render(true,false);
     if (!document.documentElement.hasAttribute('data-pointer-focus'))
       $('content').querySelector('[data-friend-tab][aria-selected="true"]').focus({preventScroll:true});
+  } else if (data.friendSelect) {
+    state.friendSelected = data.friendSelect;
+    render(true,false);
   } else if (data.friendProfile) {
     state.friendProfile = data.friendProfile;
     render();
