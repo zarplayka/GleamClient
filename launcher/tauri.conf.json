@@ -1,6 +1,6 @@
 {
   "productName": "Gleam Launcher",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "identifier": "xyz.gleamclient.launcher",
   "build": {
     "frontendDist": [
@@ -11,14 +11,23 @@
       "../website/tools/launcher-background-26-1-2.webp",
       "../website/tools/launcher-background-26-2.webp",
       "../website/tools/launcher-background-26-3.webp",
-      "../src/main/resources/assets/orion-client/textures/gui/click_gui_cosmetics.png",
-      "../src/main/resources/assets/orion-client/html/menu/assets/cosmetic-ember_fox-item.png",
-      "../src/main/resources/assets/orion-client/html/menu/assets/cosmetic-moon_moth-item.png",
-      "../src/main/resources/assets/orion-client/html/menu/assets/cosmetic-moss_turtle-item.png",
-      "../src/main/resources/assets/orion-client/html/menu/assets/cosmetic-rhm_tarnkappe-item.png",
-      "../src/main/resources/assets/orion-client/html/menu/assets/cosmetic-snow_ferret-item.png",
-      "../src/main/resources/assets/orion-client/html/menu/assets/cosmetic-space_slime-item.png",
-      "../src/main/resources/assets/orion-client/html/menu/assets/cosmetic-tracked_scout-item.png"
+      "../website/tools/launcher-cosmetics.js",
+      "../website/tools/launcher-default-skin.png",
+      "../build/launcher-cosmetics.json",
+      "../src/main/resources/assets/orion-client/cosmetics/pets/ember_fox.json",
+      "../src/main/resources/assets/orion-client/cosmetics/pets/moon_moth.json",
+      "../src/main/resources/assets/orion-client/cosmetics/pets/moss_turtle.json",
+      "../src/main/resources/assets/orion-client/cosmetics/pets/rhm_tarnkappe.mesh",
+      "../src/main/resources/assets/orion-client/cosmetics/pets/snow_ferret.json",
+      "../src/main/resources/assets/orion-client/cosmetics/pets/space_slime.json",
+      "../src/main/resources/assets/orion-client/cosmetics/pets/tracked_scout.json",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/pets/ember_fox.png",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/pets/moon_moth.png",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/pets/moss_turtle.png",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/pets/rhm_tarnkappe.png",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/pets/snow_ferret.png",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/pets/space_slime.png",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/pets/tracked_scout.png"
     ]
   },
   "app": {

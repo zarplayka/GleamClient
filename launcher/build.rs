@@ -6,7 +6,44 @@ fn main() {
     }
     embed_client_jars();
     embed_curseforge_key();
+    export_cosmetic_preview();
     tauri_build::build();
+}
+
+fn export_cosmetic_preview() {
+    use std::{env, fs, path::PathBuf, process::Command};
+
+    let sources = [
+        "ExportCosmeticPreview.java",
+        "../src/main/java/ru/orion/client/effect/OrionWingMesh.java",
+        "../src/main/java/ru/orion/client/effect/OrionEmoteClips.java",
+    ];
+    for source in sources {
+        println!("cargo:rerun-if-changed={source}");
+    }
+    println!("cargo:rerun-if-env-changed=JAVA_HOME");
+    let output = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let classes = output.join("cosmetic-preview-classes");
+    fs::create_dir_all(&classes).expect("create cosmetic preview compiler output");
+    let java_tool = |name: &str| {
+        env::var_os("JAVA_HOME")
+            .map(|home| PathBuf::from(home).join("bin").join(format!("{name}{}", env::consts::EXE_SUFFIX)))
+            .unwrap_or_else(|| PathBuf::from(name))
+    };
+    let compiled = Command::new(java_tool("javac"))
+        .args(["-encoding", "UTF-8", "-d"]).arg(&classes).args(sources)
+        .status().expect("compile cosmetic preview exporter with the project JDK");
+    assert!(compiled.success(), "compile cosmetic preview exporter");
+
+    // Write and publish only a complete asset. The same path is included by Tauri.
+    let target = PathBuf::from("../build/launcher-cosmetics.json");
+    fs::create_dir_all(target.parent().unwrap()).expect("create cosmetic preview asset directory");
+    let staged = tempfile::NamedTempFile::new_in(target.parent().unwrap()).expect("stage cosmetic preview asset");
+    let exported = Command::new(java_tool("java"))
+        .arg("-cp").arg(&classes).arg("ExportCosmeticPreview").arg(staged.path())
+        .status().expect("run cosmetic preview exporter");
+    assert!(exported.success(), "export cosmetic preview geometry");
+    staged.persist(target).expect("publish cosmetic preview geometry locally");
 }
 
 fn embed_client_jars() {
