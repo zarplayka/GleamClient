@@ -1499,10 +1499,16 @@ fn running_game(app: &tauri::AppHandle) -> Result<Option<(String, process::Runni
 }
 
 #[tauri::command]
-pub fn minecraft_running(app: tauri::AppHandle) -> Result<Option<String>> {
+pub async fn minecraft_running(app: tauri::AppHandle) -> Result<Option<String>> {
+    tauri::async_runtime::spawn_blocking(move || running_game_version(&app))
+        .await
+        .map_err(|_| "game_storage".to_owned())?
+}
+
+pub(crate) fn running_game_version(app: &tauri::AppHandle) -> Result<Option<String>> {
     #[cfg(windows)]
     {
-        Ok(running_game(&app)?.map(|(version, _)| version))
+        Ok(running_game(app)?.map(|(version, _)| version))
     }
     #[cfg(not(windows))]
     {

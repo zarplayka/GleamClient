@@ -1,9 +1,17 @@
 {
   "productName": "Gleam Launcher",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "identifier": "xyz.gleamclient.launcher",
   "build": {
-    "frontendDist": ["../website/tools/launcher-preview.html"]
+    "frontendDist": [
+      "../website/tools/launcher-preview.html",
+      "../website/tools/launcher-background-1-16-5.webp",
+      "../website/tools/launcher-background-1-21-4.webp",
+      "../website/tools/launcher-background-1-21-11.webp",
+      "../website/tools/launcher-background-26-1-2.webp",
+      "../website/tools/launcher-background-26-2.webp",
+      "../website/tools/launcher-background-26-3.webp"
+    ]
   },
   "app": {
     "withGlobalTauri": true,

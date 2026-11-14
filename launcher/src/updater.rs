@@ -333,7 +333,7 @@ pub async fn restart_launcher_update(
             return Err("verification");
         }
         game.restart_when_idle(|| {
-            if crate::game::minecraft_running(app.clone()).map_err(|_| "game_busy")?.is_some() {
+            if crate::game::running_game_version(&app).map_err(|_| "game_busy")?.is_some() {
                 return Err("game_busy");
             }
             std::process::Command::new(executable)
