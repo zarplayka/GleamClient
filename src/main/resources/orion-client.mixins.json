@@ -30,6 +30,7 @@
     "OrionDebugCrosshairMixin",
     "OrionNoAnimationsMixin",
     "OrionEmoteModelMixin",
+    "OrionEmotePropsMixin",
     "OrionCosmeticPreviewMixin",
     "OrionSkinModelMixin",
     "OrionSkinPartMixin",

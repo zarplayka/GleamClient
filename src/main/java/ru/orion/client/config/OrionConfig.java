@@ -1,5 +1,7 @@
 package ru.orion.client.config;
 
+import ru.orion.client.effect.OrionEmotes;
+
 public final class OrionConfig {
     private GleamLyricsSettings animatedLyrics = new GleamLyricsSettings();
 
@@ -44,7 +46,7 @@ public final class OrionConfig {
     public int[] getEmoteSlots() { return emoteSlots.clone(); }
 
     public void setEmoteSlot(int slot, int id) {
-        if (slot < 0 || slot >= emoteSlots.length || id < 0 || id > DEFAULT_EMOTE_SLOTS.length) return;
+        if (slot < 0 || slot >= emoteSlots.length || (id != 0 && !OrionEmotes.supports(id))) return;
         for (int i = 0; id != 0 && i < emoteSlots.length; i++) {
             if (emoteSlots[i] == id) emoteSlots[i] = emoteSlots[slot];
         }
@@ -58,7 +60,7 @@ public final class OrionConfig {
             resetEmoteSlots();
             return;
         }
-        boolean[] used = new boolean[emoteSlots.length + 1];
+        boolean[] used = new boolean[OrionEmotes.NAMES.length + 1];
         for (int id : emoteSlots) {
             if (id < 0 || id >= used.length || id != 0 && used[id]) {
                 resetEmoteSlots();

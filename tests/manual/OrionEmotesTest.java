@@ -54,13 +54,14 @@ public final class OrionEmotesTest {
         if (!Arrays.equals(config.getEmoteSlots(), defaults)) throw new AssertionError("Default order");
         config.setEmoteSlot(0, 6);
         config.setEmoteSlot(1, 0);
-        int[] edited = {6, 0, 3, 4, 5, 1};
+        config.setEmoteSlot(2, 9);
+        int[] edited = {6, 0, 9, 4, 5, 1};
         Gson gson = new Gson();
         var restored = gson.fromJson(gson.toJson(config), OrionConfig.class);
         restored.sanitize();
         if (!Arrays.equals(restored.getEmoteSlots(), edited)) throw new AssertionError("Wheel order after reload");
         restored.setEmoteSlot(-1, 6);
-        restored.setEmoteSlot(0, 7);
+        restored.setEmoteSlot(0, 10);
         if (!Arrays.equals(restored.getEmoteSlots(), edited)) throw new AssertionError("Invalid slot update");
         restored.resetEmoteSlots();
         var corrupt = gson.fromJson("{\"emoteSlots\":[1,1,3,4,5,6]}", OrionConfig.class);
@@ -80,13 +81,13 @@ public final class OrionEmotesTest {
         pose.setAccessible(true);
         for (boolean slim : new boolean[]{false, true}) {
             var model = new PlayerModel(LayerDefinition.create(PlayerModel.createMesh(CubeDeformation.NONE, slim), 64, 64).bakeRoot(), slim);
-            for (int id = 1; id <= 6; id++) {
+            for (int id = 1; id <= OrionEmotes.NAMES.length; id++) {
                 model.resetPose();
                 visible.put(state.id, dance.newInstance(id, System.nanoTime() - 900_000_000L));
                 OrionEmotes.apply(model, state);
                 if (Math.abs(model.rightArm.xRot) + Math.abs(model.rightArm.zRot) < .01F) throw new AssertionError("No pose " + id);
                 if (model.rightSleeve.xRot != 0F) throw new AssertionError("Double-transformed skin layer");
-                double period = new double[]{1.36F, 2F, 1.92F, 1.48F, 2.4F, 2F}[id - 1];
+                double period = new double[]{1.36F, 2F, 1.92F, 1.48F, 2.4F, 2F, 1.3F, 5.4F, 4.5F}[id - 1];
                 model.resetPose();
                 pose.invoke(null, model, id, 0D, 1F);
                 float origin = model.rightArm.xRot, base = model.body.x;
@@ -106,6 +107,6 @@ public final class OrionEmotesTest {
                 }
             }
         }
-        System.out.println("Wheel selection, editable slot persistence, localization and six cyclic dances for both skin models passed");
+        System.out.println("Wheel selection, editable slot persistence, localization and all nine cyclic emotes for both skin models passed");
     }
 }

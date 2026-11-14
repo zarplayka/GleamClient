@@ -329,18 +329,22 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
     async def test_emote_lifecycle_and_legacy_presence(self):
         player, headers, _ = await self.login()
         await self.client.post("/v1/presence", headers=headers, json={"players": []})
-        for invalid in (-1, 7, True, "1"):
+        for invalid in (-1, 10, True, "1"):
             response = await self.client.post("/v1/emote", headers=headers, json={"emote": invalid})
             self.assertEqual(response.status, 400)
         response = await self.client.post("/v1/emote", json={"emote": 1})
         self.assertEqual(response.status, 401)
         revision = self.app[STORE].revision
-        response = await self.client.post("/v1/emote", headers=headers, json={"emote": 4})
+        for emote in (7, 8, 9):
+            response = await self.client.post("/v1/emote", headers=headers, json={"emote": emote})
+            self.assertEqual(response.status, 200)
+            state = await (await self.client.post("/v1/presence", headers=headers, json={"players": [player]})).json()
+            self.assertEqual(state["emotes"][uuid.UUID(player).hex]["id"], emote)
         self.assertEqual(response.status, 200)
         self.assertGreater(self.app[STORE].revision, revision)
         self.now += 2
         state = await (await self.client.post("/v1/presence", headers=headers, json={"players": [player]})).json()
-        self.assertEqual(state["emotes"][uuid.UUID(player).hex]["id"], 4)
+        self.assertEqual(state["emotes"][uuid.UUID(player).hex]["id"], 9)
         self.assertEqual(state["emotes"][uuid.UUID(player).hex]["elapsed"], 2)
         self.now += 11
         state = await (await self.client.post("/v1/presence", headers=headers, json={"players": [player]})).json()

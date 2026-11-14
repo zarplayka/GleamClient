@@ -353,7 +353,7 @@ async def emote(request):
     store = request.app[STORE]
     player = await store.authenticate(request.headers.get("Authorization", ""))
     value = (await body(request)).get("emote")
-    if type(value) is not int or not 0 <= value <= 6:
+    if type(value) is not int or not 0 <= value <= 9:
         raise web.HTTPBadRequest(reason="Invalid emote")
     async with store.lock:
         try:

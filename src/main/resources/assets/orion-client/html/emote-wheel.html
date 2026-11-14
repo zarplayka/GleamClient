@@ -50,15 +50,15 @@ body { width: 392px; height: 420px; margin: 0; overflow: hidden; color: var(--te
 #reset { left: 44px; top: 354px; width: 132px; color: var(--muted); }
 #hint { position: absolute; top: 393px; width: 392px; text-align: center; color: #f1f1fa; font-size: 11px; }
 #picker {
-    position: absolute; left: 50px; top: 100px; width: 292px; height: 216px;
+    position: absolute; left: 50px; top: 66px; width: 292px; height: 288px;
     border: 1px solid var(--edge); border-radius: 13px; background: var(--surface);
     box-shadow: 0 7px 22px #0004; text-align: center;
 }
-#picker-title { margin: 14px 0 0; font-size: 15px; line-height: 20px; font-weight: bold; }
-#options { position: absolute; left: 0; top: 0; width: 290px; height: 170px; }
-#options .option { width: 126px; height: 30px; line-height: 28px; }
-#clear { left: 15px; top: 171px; width: 126px; }
-#back { left: 149px; top: 171px; width: 126px; }
+#picker-title { margin: 18px 0 0; font-size: 15px; line-height: 20px; font-weight: bold; }
+#options { position: absolute; left: 0; top: 0; width: 290px; height: 232px; }
+#options .option { width: 126px; height: 30px; line-height: 28px; overflow: hidden; text-overflow: ellipsis; }
+#clear { left: 15px; top: 243px; width: 126px; }
+#back { left: 149px; top: 243px; width: 126px; }
 </style>
 </head>
 <body>
@@ -96,13 +96,23 @@ for (let i = 0; i < 6; i++) {
     byId('slots').appendChild(slot);
     slots.push({slot, name});
 
-    const option = document.createElement('div');
-    option.className = 'option';
-    option.style.left = 15 + (i % 2) * 134 + 'px';
-    option.style.top = 50 + Math.floor(i / 2) * 36 + 'px';
-    byId('options').appendChild(option);
-    options.push(option);
 }
+
+function updateOptions(names, selected, hovered) {
+    for (let id = 1; id < names.length; id++) {
+        let option = options[id - 1];
+        if (!option) {
+            option = document.createElement('div');
+            option.style.left = 15 + (id - 1) % 2 * 134 + 'px';
+            option.style.top = 50 + Math.floor((id - 1) / 2) * 36 + 'px';
+            byId('options').appendChild(option);
+            options.push(option);
+        }
+        option.textContent = id + '  ' + names[id];
+        option.className = 'option' + (id === selected || id === hovered ? ' active' : '');
+    }
+}
+
 window.paradox = {
     update(state) {
         const root = document.documentElement;
@@ -132,13 +142,11 @@ window.paradox = {
             slot.style.left = x + 'px';
             slot.style.top = y + 'px';
             name.textContent = state.names[id];
-            options[i].textContent = (i + 1) + '  ' + state.names[i + 1];
-            options[i].className = 'option' + (picking && state.slots[state.slotToEdit].id === i + 1 ? ' active' : '');
         }
         for (const control of ['edit', 'done', 'reset', 'clear', 'back']) {
             byId(control).className = 'control' + (state.control === control ? ' active' : '');
         }
-        if (picking && state.option > 0) options[state.option - 1].className = 'option active';
+        if (picking) updateOptions(state.names, state.slots[state.slotToEdit].id, state.option);
     },
     opening(progress) {
         const eased = 1 - (1 - progress) ** 3;

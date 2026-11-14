@@ -6,14 +6,13 @@ import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import ru.orion.client.OrionClient;
-
-import static ru.orion.client.effect.OrionEmoteClips.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,9 +21,11 @@ import static ru.orion.client.effect.OrionEmoteClips.*;
 
 /** Ключевые позы танцев и состояние синхронизированных моделей игроков. */
 public final class OrionEmotes {
-    public static final String[] NAMES = {"Шаффл", "Робот", "Диско", "Флосс", "Волна", "Праздник"};
+    public static final String[] NAMES = {"Шаффл", "Робот", "Диско", "Флосс", "Волна", "Праздник", "67", "Курение", "Кофе на стуле"};
+    static final int SMOKING = 8, COFFEE = 9;
+    public static final int WHEEL_SLOTS = 6;
     public static final double DURATION = 12D;
-    private record Dance(int id, long start) {}
+    record Dance(int id, long start) {}
     private static final Map<Integer, Dance> VISIBLE = new HashMap<>();
     private static Dance local;
     private static Vec3 origin;
@@ -40,9 +41,11 @@ public final class OrionEmotes {
                 && !player.isVisuallySwimming() && !player.isSleeping();
     }
 
+    public static boolean supports(int id) { return id > 0 && id <= OrionEmoteClips.count(); }
+
     public static void start(int id) {
         Minecraft client = Minecraft.getInstance();
-        if (id < 1 || id > NAMES.length || !canDance(client.player)) return;
+        if (!supports(id) || !canDance(client.player)) return;
         world = client.level;
         local = new Dance(id, System.nanoTime());
         origin = client.player.position();
@@ -80,15 +83,25 @@ public final class OrionEmotes {
                 || client.options.keyLeft.isDown() || client.options.keyRight.isDown()
                 || client.options.keyJump.isDown() || client.options.keyAttack.isDown())) stop();
         VISIBLE.clear();
-        if (local != null) VISIBLE.put(client.player.getId(), local);
+        if (local != null) show(client.level, client.player, local);
         for (Entity entity : client.level.entitiesForRendering()) {
             if (!(entity instanceof Player player) || player == client.player || !canDance(player)) continue;
             if (player.getDeltaMovement().horizontalDistanceSqr() > .0025) continue;
             var remote = OrionBadgePresence.emote(player.getUUID());
             if (remote != null && now - remote.localStart() < (long) (DURATION * 1e9)) {
-                VISIBLE.put(player.getId(), new Dance(remote.id(), remote.localStart()));
+                show(client.level, player, new Dance(remote.id(), remote.localStart()));
             }
         }
+    }
+
+    private static void show(ClientLevel level, Player player, Dance dance) {
+        VISIBLE.put(player.getId(), dance);
+        if (dance.id != SMOKING || player.isInvisible() || level.getGameTime() % 4L != 0L) return;
+        double phase = age(dance) % 5.4D;
+        if (phase < 1.76D || phase > 2.7D) return;
+        Vec3 forward = Vec3.directionFromRotation(0F, player.getYHeadRot()).scale(.34D);
+        level.addParticle(ParticleTypes.SMOKE, player.getX() + forward.x, player.getEyeY() - .15D,
+                player.getZ() + forward.z, forward.x * .10D, .027D, forward.z * .10D);
     }
 
     public static void apply(HumanoidModel<?> model, AvatarRenderState state) {
@@ -96,16 +109,28 @@ public final class OrionEmotes {
             if (preview.dances()) applyPose(model, 3, System.nanoTime() / 1e9, 1F);
             return;
         }
+        Dance dance = visibleDance(state);
+        if (dance == null) return;
+        double age = age(dance);
+        applyPose(model, dance.id, age, blend(age));
+    }
+
+    static Dance visibleDance(AvatarRenderState state) {
         var config = OrionClient.getConfigOrNull();
         Minecraft client = Minecraft.getInstance();
         if (config == null || !config.isEmotesEnabled() || (config.isNoAnimationsEnabled()
-                && client.player != null && state.id != client.player.getId())) return;
+                && client.player != null && state.id != client.player.getId())) return null;
         Dance dance = VISIBLE.get(state.id);
-        if (dance == null) return;
-        double age = (System.nanoTime() - dance.start) / 1e9;
-        if (age < 0 || age >= DURATION) return;
-        float blend = (float) Math.min(1D, Math.min(age / .20D, (DURATION - age) / .25D));
-        applyPose(model, dance.id, age, blend * blend * (3F - 2F * blend));
+        if (dance == null || !supports(dance.id)) return null;
+        double age = age(dance);
+        return age >= 0 && age < DURATION ? dance : null;
+    }
+
+    static double age(Dance dance) { return (System.nanoTime() - dance.start) / 1e9; }
+
+    static float blend(double age) {
+        float t = (float) Math.clamp(Math.min(age / .30D, (DURATION - age) / .32D), 0D, 1D);
+        return t * t * (3F - 2F * t);
     }
 
     private static void applyPose(HumanoidModel<?> model, int danceId, double age, float blend) {
@@ -122,8 +147,8 @@ public final class OrionEmotes {
                 radians(pose[HEAD + 2]), blend);
         poseArm(model.rightArm, pose, RIGHT_ARM, torso, blend);
         poseArm(model.leftArm, pose, LEFT_ARM, torso, blend);
-        poseLeg(model.rightLeg, pose[RIGHT_LEG], pose[RIGHT_LEG + 1], swing, blend);
-        poseLeg(model.leftLeg, pose[LEFT_LEG], pose[LEFT_LEG + 1], swing, blend);
+        poseLeg(model.rightLeg, pose[RIGHT_LEG], pose[RIGHT_LEG + 1], swing, blend, danceId == COFFEE ? rise : 0F);
+        poseLeg(model.leftLeg, pose[LEFT_LEG], pose[LEFT_LEG + 1], swing, blend, danceId == COFFEE ? rise : 0F);
     }
 
     private static void translateTorsoPart(ModelPart part, Quaternionf torso, float sway, float rise, float blend) {
@@ -143,11 +168,11 @@ public final class OrionEmotes {
         arm.setRotation(angles.x, angles.y, angles.z);
     }
 
-    private static void poseLeg(ModelPart leg, float pitch, float lift, float sway, float blend) {
+    private static void poseLeg(ModelPart leg, float pitch, float lift, float sway, float blend, float seatRise) {
         float angle = radians(pitch);
         leg.x += sway;
         // Account for the rotation shortening the vertical reach of a 12-pixel leg.
-        leg.y += (12F * (1F - (float) Math.cos(angle)) - lift) * blend;
+        leg.y += seatRise != 0F ? -seatRise : (12F * (1F - (float) Math.cos(angle)) - lift) * blend;
         rotate(leg, angle, 0F, 0F, blend);
     }
 
@@ -157,5 +182,5 @@ public final class OrionEmotes {
         part.zRot += (z - part.zRot) * blend;
     }
 
-    private static float radians(float degrees) { return degrees * ((float) Math.PI / 180F); }
+    static float radians(float degrees) { return degrees * ((float) Math.PI / 180F); }
 }

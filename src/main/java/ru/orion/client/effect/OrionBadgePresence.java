@@ -175,7 +175,7 @@ public final class OrionBadgePresence {
                         int id = value.get("id").getAsInt();
                         double started = value.get("started").getAsDouble();
                         double elapsed = value.get("elapsed").getAsDouble();
-                        if (id < 1 || id > 6 || !Double.isFinite(started) || !Double.isFinite(elapsed) || elapsed < 0 || elapsed >= 12) return;
+                        if (!OrionEmotes.supports(id) || !Double.isFinite(started) || !Double.isFinite(elapsed) || elapsed < 0 || elapsed >= OrionEmotes.DURATION) return;
                         UUID player = parseUuid(entry.getKey());
                         Emote old = emotes.get(player);
                         foundEmotes.put(player, old != null && old.id() == id && old.started() == started ? old

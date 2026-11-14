@@ -20,6 +20,7 @@ public final class OrionEmoteWheelScreen extends Screen {
     private static final int CENTER_X = WIDTH / 2, CENTER_Y = 196;
     private static final int RADIUS = 112, INNER = 56, OUTER = 146;
     private static final int CONTROL_Y = 354;
+    private static final int OPTION_TOP = 117, OPTION_STEP = 36, PICKER_CONTROLS = 310;
     private static final long OPEN_NANOS = 210_000_000L;
     private static final String[] LABELS = {"Танцы", "Остановить", "Изменить круг", "Готово", "Сбросить",
             "Выбери слот", "Выбери эмоцию", "Пусто", "Назад", "Отпусти клавишу или нажми 1–6"};
@@ -57,7 +58,7 @@ public final class OrionEmoteWheelScreen extends Screen {
     private double wheelY(double y) { return CENTER_Y + (pageY(y) - CENTER_Y) / zoom(); }
     private int slotAt(double x, double y) {
         double px = wheelX(x), py = wheelY(y);
-        for (int slot = 0; slot < OrionEmotes.NAMES.length; slot++) {
+        for (int slot = 0; slot < OrionEmotes.WHEEL_SLOTS; slot++) {
             if (Math.abs(px - slotX(slot)) <= 46 && Math.abs(py - slotY(slot)) <= 24) return slot;
         }
         return sector(px - CENTER_X, py - CENTER_Y);
@@ -121,7 +122,7 @@ public final class OrionEmoteWheelScreen extends Screen {
         state.addProperty("slotToEdit", slotToEdit);
         state.addProperty("option", slotToEdit < 0 ? 0 : optionAt(x, y));
         String control = "";
-        if (slotToEdit >= 0 && y >= 272 && y < 300) {
+        if (slotToEdit >= 0 && y >= PICKER_CONTROLS && y < PICKER_CONTROLS + 28) {
             if (x >= 66 && x < 192) control = "clear";
             if (x >= 200 && x < 326) control = "back";
         } else if (slotToEdit < 0) {
@@ -168,7 +169,7 @@ public final class OrionEmoteWheelScreen extends Screen {
     private static int optionAt(double x, double y) {
         for (int id = 1; id <= OrionEmotes.NAMES.length; id++) {
             int col = (id - 1) % 2, row = (id - 1) / 2;
-            int left = 66 + col * 134, top = 151 + row * 36;
+            int left = 66 + col * 134, top = OPTION_TOP + row * OPTION_STEP;
             if (x >= left && x < left + 126 && y >= top && y < top + 30) return id;
         }
         return 0;
@@ -184,8 +185,8 @@ public final class OrionEmoteWheelScreen extends Screen {
         if (slotToEdit >= 0) {
             int id = optionAt(x, y);
             if (id > 0) assign(id);
-            else if (y >= 272 && y < 300 && x >= 66 && x < 192) assign(0);
-            else if (y >= 272 && y < 300 && x >= 200 && x < 326) slotToEdit = -1;
+            else if (y >= PICKER_CONTROLS && y < PICKER_CONTROLS + 28 && x >= 66 && x < 192) assign(0);
+            else if (y >= PICKER_CONTROLS && y < PICKER_CONTROLS + 28 && x >= 200 && x < 326) slotToEdit = -1;
         } else if (primaryControl(x, y)) {
             toggleEditor();
         } else if (resetControl(x, y)) {
@@ -213,7 +214,7 @@ public final class OrionEmoteWheelScreen extends Screen {
         int key = event.key();
         if (key == InputConstants.KEY_ESCAPE) { back(); return true; }
         if (key == InputConstants.KEY_TAB) { toggleEditor(); return true; }
-        if (key >= InputConstants.KEY_1 && key <= InputConstants.KEY_6) {
+        if (key >= InputConstants.KEY_1 && key <= (slotToEdit >= 0 ? InputConstants.KEY_9 : InputConstants.KEY_6)) {
             if (slotToEdit >= 0) assign(key - InputConstants.KEY_1 + 1);
             else selectSlot(key - InputConstants.KEY_1);
             return true;
@@ -239,13 +240,13 @@ public final class OrionEmoteWheelScreen extends Screen {
 
     private void fallback(GuiGraphicsExtractor context, int active, int[] slots) {
         if (slotToEdit >= 0) {
-            label(context, LABELS[6], CENTER_X, 123);
-            for (int i = 0; i < slots.length; i++) {
+            label(context, LABELS[6], CENTER_X, 96);
+            for (int i = 0; i < OrionEmotes.NAMES.length; i++) {
                 label(context, (i + 1) + "  " + OrionGuiLanguage.translate(OrionEmotes.NAMES[i]),
-                        129 + i % 2 * 134, 166 + i / 2 * 36);
+                        129 + i % 2 * 134, OPTION_TOP + 15 + i / 2 * OPTION_STEP);
             }
-            label(context, LABELS[7], 129, 286);
-            label(context, LABELS[8], 263, 286);
+            label(context, LABELS[7], 129, PICKER_CONTROLS + 14);
+            label(context, LABELS[8], 263, PICKER_CONTROLS + 14);
             return;
         }
         for (int slot = 0; slot < slots.length; slot++) {
