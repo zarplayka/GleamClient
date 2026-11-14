@@ -23,6 +23,13 @@ public abstract class ChatTimeMixin {
     private Component orion$timestamp(Component message) {
         var config = OrionClient.getConfigOrNull();
         if (config == null || !config.isChatTimeEnabled()) return message;
-        return Component.literal("[" + LocalTime.now().format(ORION_TIME) + "] ").withStyle(ChatFormatting.GRAY).append(message);
+        return withTimestamp(message, LocalTime.now().format(ORION_TIME));
+    }
+
+    @Unique
+    private static Component withTimestamp(Component message, String time) {
+        return Component.empty().withStyle(ChatFormatting.WHITE)
+                .append(Component.literal("[" + time + "]").withStyle(ChatFormatting.GRAY))
+                .append(" ").append(message);
     }
 }

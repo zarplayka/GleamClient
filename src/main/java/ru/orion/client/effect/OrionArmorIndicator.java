@@ -46,7 +46,7 @@ public final class OrionArmorIndicator {
                     : living.getBbHeight() + .76) + options.offset;
             if (options.mode != 0) {
                 OrionHealthTags.submitNumber(context, client.font, options.mode == 2 ? (armor * 5) + "%" : Integer.toString(armor),
-                        0xFFB6D9FF, position.x - camera.pos.x, position.y - camera.pos.y + lift,
+                        options.getValueArgb(), position.x - camera.pos.x, position.y - camera.pos.y + lift,
                         position.z - camera.pos.z, camera, options.scale);
                 continue;
             }

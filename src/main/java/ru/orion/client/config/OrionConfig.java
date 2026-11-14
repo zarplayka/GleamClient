@@ -692,22 +692,47 @@ public final class OrionConfig {
     public void setShowFakePunishments(boolean value) { showFakePunishments = value; }
 
     public static final class IndicatorOptions {
+        private static final String HEALTH_VALUE_COLOR = "#FF737A", ARMOR_VALUE_COLOR = "#B6D9FF";
         public int mode;
         public float scale = 1F;
         public float offset;
         public int distance = 64;
         public boolean players = true, passive, hostile, self, targetOnly, attackedOnly, changedOnly;
         public String hidden = "";
+        private String valueColor;
+        private transient int valueArgb;
 
-        private IndicatorOptions(boolean mobs) { passive = hostile = mobs; changedOnly = !mobs; }
+        private IndicatorOptions(boolean mobs) {
+            passive = hostile = mobs;
+            changedOnly = !mobs;
+            setValueColor(defaultValueColor(mobs));
+        }
 
-        private void sanitize() {
+        public String getValueColor() { return valueColor; }
+        public int getValueArgb() { return valueArgb; }
+
+        public void setValueColor(String value) {
+            if (!validValueColor(value)) return;
+            valueColor = value.toUpperCase(java.util.Locale.ROOT);
+            valueArgb = 0xFF000000 | Integer.parseInt(value.substring(1), 16);
+        }
+
+        private static boolean validValueColor(String value) {
+            return value != null && value.matches("#[0-9a-fA-F]{6}");
+        }
+
+        private static String defaultValueColor(boolean health) {
+            return health ? HEALTH_VALUE_COLOR : ARMOR_VALUE_COLOR;
+        }
+
+        private void sanitize(boolean health) {
             mode = Math.clamp(mode, 0, 2);
             scale = finiteClamp(scale, .4F, 2F, 1F);
             offset = finiteClamp(offset, -.5F, 2F, 0F);
             distance = Math.clamp(distance, 8, 96);
             if (hidden == null) hidden = "";
             if (hidden.length() > 256) hidden = hidden.substring(0, 256);
+            setValueColor(validValueColor(valueColor) ? valueColor : defaultValueColor(health));
         }
     }
     public boolean isLockSlotEnabled() { return lockSlotEnabled; }
@@ -1498,8 +1523,8 @@ public final class OrionConfig {
         pvpSafeSeconds = Math.max(1, Math.min(300, pvpSafeSeconds));
         if (healthIndicatorOptions == null) healthIndicatorOptions = new IndicatorOptions(true);
         if (armorIndicatorOptions == null) armorIndicatorOptions = new IndicatorOptions(false);
-        healthIndicatorOptions.sanitize();
-        armorIndicatorOptions.sanitize();
+        healthIndicatorOptions.sanitize(true);
+        armorIndicatorOptions.sanitize(false);
         customTimeTicks = Math.max(0, Math.min(23999, customTimeTicks));
         itemScaling = Float.isFinite(itemScaling) ? clamp(itemScaling, 0.2F, 2.0F) : 1.0F;
         smallShieldScale = Float.isFinite(smallShieldScale) ? clamp(smallShieldScale, 0.2F, 1.0F) : 0.65F;

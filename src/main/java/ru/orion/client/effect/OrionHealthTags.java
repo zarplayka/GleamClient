@@ -103,7 +103,7 @@ public final class OrionHealthTags {
                 String value = health + (options.mode == 2 ? "%" : "");
                 int absorption = Mth.ceil(living.getAbsorptionAmount());
                 if (absorption > 0) value += " +" + absorption;
-                submitNumber(context, client.font, value, 0xFFFF737A, dx,
+                submitNumber(context, client.font, value, options.getValueArgb(), dx,
                         dy + baseLift(living, options), dz, cameraState, options.scale);
             }
         }

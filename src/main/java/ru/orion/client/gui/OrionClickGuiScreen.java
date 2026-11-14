@@ -641,7 +641,7 @@ public final class OrionClickGuiScreen extends Screen {
                     siteSection = titlePage == TitlePage.SETTINGS ? "SETTINGS" : configManager.getConfig().getClickGuiLastSection();
                 siteMenu = new OrionSiteMenu(Arrays.stream(Action.VALUES).map(Enum::name).toArray(String[]::new),this::onSiteAction);
             }
-            siteActive = siteMenu.ready() && siteMenu.render(context,width,height,mouseX,mouseY,siteState());
+            siteActive = siteMenu.ready() && siteMenu.render(context,width,height,mouseX,mouseY,this::siteState);
             if (siteActive) {
                 drawCosmeticPreview(context);
                 return;
@@ -1053,6 +1053,7 @@ public final class OrionClickGuiScreen extends Screen {
         screen.selectChat(peer);
         screen.chatRoute++;
         screen.nextChatFriends = 0;
+        if (screen.siteMenu != null) screen.siteMenu.invalidateState();
         if (screen != current) GleamMinecraft.setScreen(client, screen);
     }
 
@@ -3790,6 +3791,7 @@ public final class OrionClickGuiScreen extends Screen {
         return new Setting[]{
                 new ChoiceSetting("Вид индикатора", new String[]{armor ? "Значки брони" : "Сердца", "Число", "Проценты"},
                         () -> options.mode, value -> options.mode = value),
+                new ColorSetting("Цвет чисел и процентов", COLOR_PRESETS, options::getValueColor, options::setValueColor),
                 new SliderSetting("Масштаб индикатора", 40, 200, () -> options.scale * 100,
                         value -> options.scale = value / 100, "%", true),
                 new SliderSetting("Смещение по высоте", -.5F, 2F, () -> options.offset, value -> options.offset = value, " м"),

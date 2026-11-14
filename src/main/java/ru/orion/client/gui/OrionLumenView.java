@@ -161,7 +161,8 @@ public final class OrionLumenView {
         frameAt = 0;
     }
 
-    public void resize(int width, int height, float ratio) {
+    public boolean resize(int width, int height, float ratio) {
+        boolean changed = pixelRatio != ratio || viewportWidth != width || viewportHeight != height;
         if (pixelRatio != ratio) {
             pixelRatio = ratio;
             LumenNative.setPixelRatio(engine, ratio);
@@ -173,6 +174,7 @@ public final class OrionLumenView {
             viewportHeight = height;
             LumenNative.setViewport(engine, width, height);
         }
+        return changed;
     }
 
     public void update(JsonObject state) {
@@ -297,6 +299,7 @@ public final class OrionLumenView {
             pose.translate(x, y);
             pose.scale(sx, sy);
             Matrix3x2f base = new Matrix3x2f(pose);
+            Matrix3x2f paintPose = base;
             ScreenRectangle viewport = graphics.scissorStack.peek();
             for (int i = 0; i < count; i++) {
                 int at = 16 + i * COMMAND_SIZE;
@@ -306,10 +309,15 @@ public final class OrionLumenView {
                     pose.mul(new Matrix3x2f(commands.getFloat(at+4),commands.getFloat(at+8),commands.getFloat(at+12),
                             commands.getFloat(at+16),commands.getFloat(at+20),commands.getFloat(at+24)));
                     transforms++;
+                    paintPose = new Matrix3x2f(pose);
                     continue;
                 }
                 if (kind == 7) {
-                    if (transforms > 0) { pose.popMatrix(); transforms--; }
+                    if (transforms > 0) {
+                        pose.popMatrix();
+                        transforms--;
+                        paintPose = transforms == 0 ? base : new Matrix3x2f(pose);
+                    }
                     continue;
                 }
 
@@ -398,7 +406,7 @@ public final class OrionLumenView {
                 var bounds = scissor.intersection(bounds(pose, x0, y0, x1, y1));
                 if (bounds == null) continue;
                 RenderPipeline pipeline = kind == 5 || kind == 8 || kind == 12 ? Paint.TEXTURED : Paint.SHAPE;
-                graphics.guiRenderState.addGuiElement(new Paint(pipeline, texture, scissor, bounds, new Matrix3x2f(pose),
+                graphics.guiRenderState.addGuiElement(new Paint(pipeline, texture, scissor, bounds, paintPose,
                         x0, y0, x1, y1, left, top, w, h, u0, v0, u1, v1, color, radius, kind, variant, circle));
             }
         } finally {
