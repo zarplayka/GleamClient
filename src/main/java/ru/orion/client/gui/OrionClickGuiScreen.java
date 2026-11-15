@@ -942,8 +942,9 @@ public final class OrionClickGuiScreen extends Screen {
         if (w < 12 || h < 12 || top >= bottom || x < 0 || x + w > width + 1) return;
         var items = preview.items();
         boolean wings = items.contains("angel") || items.contains("dragon");
-        float stageWidth = wings ? 5.5F : previewPet != null ? 3.2F : 2.6F;
-        float size = Math.min(w / stageWidth, h / (wings ? 2.95F : 2.8F)) * preview.zoom();
+        float stageWidth = wings ? (friend ? 5.15F : 5.5F) : previewPet != null ? 3.2F : 2.6F;
+        float stageHeight = wings ? 2.95F : (friend ? 2.5F : 2.8F);
+        float size = Math.min(w / stageWidth, h / stageHeight) * preview.zoom();
         int color = parseColor(configManager.getConfig().getAccentColor()).getRGB();
         graphics.nextStratum();
         graphics.enableScissor(x, top, x + w, bottom);

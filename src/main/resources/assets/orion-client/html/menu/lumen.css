@@ -9,6 +9,7 @@ button,input,select{font-family:OrionRegular}
 html[data-pointer-focus] :focus-visible,
 html[data-pointer-focus] .range-control:focus-within .range-thumb{outline:none}
 .brand b,.page-head h1{font-family:OrionBold;font-weight:normal}
+.friend-profile-identity h2{font-family:OrionSemibold;font-weight:normal}
 .brand img{width:23px;height:23px}
 .module-name,.module-toggle,.nav-item,.category-toggle,.breadcrumb b,.account-name,.account-option-text b,.button{font-family:OrionMedium;font-weight:normal}
 .nav-item,.account-trigger,.account-option,.account-back,.account-actions button,.list-row{text-align:left}

@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.mojang.authlib.GameProfile;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConnectScreen;
@@ -14,6 +15,8 @@ import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.orion.client.GleamMinecraft;
 import ru.orion.client.config.OrionAccounts;
 
@@ -36,6 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class OrionFriendWorlds {
+    private static final Logger LOGGER = LoggerFactory.getLogger("GleamClient Friends");
     private static final OrionAccounts ACCOUNTS = OrionAccounts.INSTANCE;
     private static final String VERSION = SharedConstants.getCurrentVersion().name();
     private static final Map<String, HostPeer> PEERS = new ConcurrentHashMap<>();
@@ -65,6 +69,10 @@ public final class OrionFriendWorlds {
     public static void register() {
         ClientTickEvents.END_CLIENT_TICK.register(OrionFriendWorlds::tick);
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> reset());
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            var peer = LAN_LOGINS.get(handler.getRemoteAddress());
+            if (peer != null && peer.world().server() == server) peer.ready().set(true);
+        });
         OrionWorldInvitation.register();
     }
 
@@ -126,6 +134,7 @@ public final class OrionFriendWorlds {
         if (joining != null && !joining.claimed().get() && now >= joining.deadline()) {
             var pending = joining;
             closeGuest(pending);
+            LOGGER.warn("No direct TCP path to the invited world before timeout");
             announce(client, "Прямое подключение недоступно");
             ACCOUNTS.friendWorlds(command("finish", pending.id()));
         }
@@ -324,16 +333,28 @@ public final class OrionFriendWorlds {
         return Boolean.TRUE.equals(PRIVATE_LAN.get()) ? OrionWorldTunnel.LOOPBACK : vanilla;
     }
 
-    static void accept(Minecraft client, String id) {
-        if (busy || joining != null || !client.allowsMultiplayer() || !id.matches("[A-Za-z0-9_-]{32}")) return;
+    static boolean accept(Minecraft client, String id) {
+        if (busy || joining != null) {
+            announce(client, "Подожди завершения текущего подключения");
+            return false;
+        }
+        if (!client.allowsMultiplayer()) {
+            announce(client, "Сетевая игра недоступна для этого аккаунта");
+            return false;
+        }
+        if (!id.matches("[A-Za-z0-9_-]{32}")) return false;
         var entry = find(id);
         if (entry == null || !entry.get("incoming").getAsBoolean()) {
             announce(client, "Приглашение больше не действует");
-            return;
+            return false;
         }
         if (!VERSION.equals(entry.get("version").getAsString())) {
             announce(client, "Открой нужную версию Minecraft в лаунчере");
-            return;
+            return false;
+        }
+        if (isOffline(client) && !entry.get("allowOffline").getAsBoolean()) {
+            announce(client, "Друг разрешил вход только с лицензией Minecraft");
+            return false;
         }
         var currentServer = client.getSingleplayerServer();
         if (currentServer != null || client.level != null) {
@@ -344,14 +365,20 @@ public final class OrionFriendWorlds {
             }, Component.literal(OrionGuiLanguage.translate("Зайти к другу")),
                     Component.literal(OrionGuiLanguage.translate("Текущий мир будет закрыт")));
             GleamMinecraft.setScreen(client, confirmation);
-            return;
+        } else {
+            connect(client, id, entry);
         }
-        connect(client, id, entry);
+        return true;
+    }
+
+    private static boolean isOffline(Minecraft client) {
+        String token = client.getUser().getAccessToken();
+        return token.isEmpty() || token.equals("0");
     }
 
     private static void connect(Minecraft client, String id, JsonObject entry) {
         if (busy || joining != null || !account.equals(ACCOUNTS.sessionCookieHeader()) || find(id) == null) return;
-        boolean offline = "0".equals(client.getUser().getAccessToken()) || client.getUser().getAccessToken().isEmpty();
+        boolean offline = isOffline(client);
         if (offline && !entry.get("allowOffline").getAsBoolean()) {
             announce(client, "Друг разрешил вход только с лицензией Minecraft");
             return;
@@ -380,13 +407,17 @@ public final class OrionFriendWorlds {
             if (failure != null) { busy = false; report(failure); return; }
             joining = guest;
             announce(client, "Подключение к миру друга…");
+            LOGGER.info("Accepting a friend world invitation");
             ACCOUNTS.friendWorlds(body).whenComplete((data, error) -> client.execute(() -> {
                 if (joining != guest || !session.equals(ACCOUNTS.sessionCookieHeader())) return;
                 busy = false;
                 if (error != null) { closeGuest(guest); report(error); return; }
                 update(client, data);
                 var accepted = find(id);
-                if (accepted == null || !accepted.has("endpoint")) { closeGuest(guest); return; }
+                if (accepted == null || !accepted.has("endpoint")) {
+                    closeGuest(guest);
+                    announce(client, "Приглашение больше не действует");
+                }
             }));
         }));
     }
@@ -407,7 +438,6 @@ public final class OrionFriendWorlds {
             var out = new DataOutputStream(remote.getOutputStream());
             out.writeByte(1);
             out.flush();
-            peer.ready().set(true);
             OrionWorldTunnel.pipe(local, remote);
         } finally {
             LAN_LOGINS.values().removeIf(value -> value == peer);
@@ -426,6 +456,7 @@ public final class OrionFriendWorlds {
         Guest guest = joining;
         if (guest == null || !guest.id().equals(id) || new DataInputStream(remote.getInputStream()).readUnsignedByte() != 1
                 || !guest.claimed().compareAndSet(false, true)) return;
+        LOGGER.info("Direct connection established, starting Minecraft login");
         var client = Minecraft.getInstance();
         client.execute(() -> {
             if (joining != guest || !guest.account().equals(ACCOUNTS.sessionCookieHeader())) return;

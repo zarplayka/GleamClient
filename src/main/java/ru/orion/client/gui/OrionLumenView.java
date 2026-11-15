@@ -71,6 +71,7 @@ public final class OrionLumenView {
 
     private final String resource, texturePrefix, fontResource;
     private final Supplier<byte[]> pageSource;
+    private final boolean smoothText;
     private final Map<Integer, DynamicTexture> atlases = new HashMap<>();
     private final Map<Integer, DynamicTexture> images = new HashMap<>();
     private final LinkedHashMap<GradientKey, DynamicTexture> gradients = new LinkedHashMap<>(16, .75F, true);
@@ -87,10 +88,15 @@ public final class OrionLumenView {
     }
 
     public OrionLumenView(String resource, String texturePrefix, String fontResource, Supplier<byte[]> pageSource) {
+        this(resource,texturePrefix,fontResource,pageSource,false);
+    }
+
+    OrionLumenView(String resource, String texturePrefix, String fontResource, Supplier<byte[]> pageSource, boolean smoothText) {
         this.resource = "/assets/orion-client/html/" + resource;
         this.texturePrefix = texturePrefix;
         this.fontResource = fontResource;
         this.pageSource = pageSource;
+        this.smoothText = smoothText;
     }
 
     public boolean ready() {
@@ -379,6 +385,7 @@ public final class OrionLumenView {
                             int index = commands.getInt(at + 48) - 1;
                             if (index < 0 || index > 15 || !atlases.containsKey(index) && !uploadAtlas(index)) continue;
                             pixels = atlases.get(index);
+                            if (smoothText) filter = FilterMode.LINEAR;
                         } else {
                             int id = commands.getInt(at + 48) - 65536;
                             if (id < 0) continue;

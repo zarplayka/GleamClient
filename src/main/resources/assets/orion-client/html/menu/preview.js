@@ -521,7 +521,8 @@ function friendPresence(item) {
   const presence = friends.worlds?.people?.[item.username];
   const label = {world:'В своём мире',game:'В игре',launcher:'В лаунчере'}[presence?.status] ?? 'Не в сети';
   const online = ['world','game','launcher'].includes(presence?.status);
-  return '<small class="friend-live" data-online="' + online + '">' + text(t(label)) + '</small>'
+  return '<small class="friend-live" data-online="' + online + '"><i class="friend-live-dot" aria-hidden="true"></i><span>'
+    + text(t(label)) + '</span></small>'
     + (presence?.world ? '<small>' + text(presence.world + (presence.version ? ' · Minecraft ' + presence.version : '')) + '</small>' : '');
 }
 function friendOutfit(item) {
@@ -537,7 +538,7 @@ function renderFriendProfile() {
   if (!item) return head + empty(t('Профиль недоступен'),'');
   const badge = {owner:'Owner', admin:'Admin', media:'Media'}[profile?.role ?? item.role];
   const outfit = friendOutfit(item);
-  return head + '<article class="friend-detail friend-profile-page"><div class="profile-top">' + friendModel(item)
+  return head + '<article class="friend-detail friend-profile-page"><div class="friend-portrait">' + friendModel(item)
     + '<div class="friend-profile-identity"><h2>' + text(item.username) + '</h2>' + friendPresence(item)
     + (badge ? '<p>' + accountStatus({badge}) + '</p>' : '') + '</div></div>'
     + '<section class="friend-profile-section">' + (profile?.id
@@ -578,14 +579,15 @@ function renderFriends() {
     + (disabled || worlds.busy ? ' disabled' : '') + '>' + text(t(label)) + '</button>';
   const invite = selected && invites.find(item => item.username === selected.username
     && (active.id === 'incoming' ? item.incoming : active.id !== 'outgoing' || !item.incoming));
-  const controls = worlds.canHost ? '<div class="friend-world-tools"><label><input type="checkbox" id="friends-allow-offline"'
-    + ((state.friendOffline ?? worlds.offline) ? ' checked' : '') + '> ' + text(t('Разрешить офлайн-профили')) + '</label>'
+  const controls = worlds.canHost ? '<div class="friend-world-tools">'
+    + settingToggle('friends-allow-offline',t('Разрешить офлайн-профили'),state.friendOffline ?? worlds.offline,'data-action="friend-offline"')
+    + '<div class="friends-tools">'
     + button('open',worlds.hosting ? 'Сохранить доступ' : 'Открыть мир для друзей','',true)
-    + (worlds.hosting ? button('close','Закрыть доступ') + '<small>TCP ' + text(String(worlds.port)) + '</small>' : '') + '</div>' : '';
+    + (worlds.hosting ? button('close','Закрыть доступ') + '<small>TCP ' + text(String(worlds.port)) + '</small>' : '') + '</div></div>' : '';
   const commands = selected ? ({friend:[['remove','Удалить из друзей']],incoming:[['accept','Принять'],['decline','Отклонить']],
     outgoing:[['cancel','Отозвать']]}[selected.status] ?? []) : [];
-  const detail = selected ? '<div class="friend-detail"><div class="profile-top">' + friendModel(selected)
-    + '<div><h2>' + text(selected.username) + '</h2>' + friendPresence(selected) + '</div></div><div class="friend-controls">'
+  const detail = selected ? '<div class="friend-detail"><div class="friend-portrait">' + friendModel(selected)
+    + '<div class="friend-profile-identity"><h2>' + text(selected.username) + '</h2>' + friendPresence(selected) + '</div></div><div class="friend-controls">'
     + (invite ? '<div class="friend-world"><b>' + text(invite.world) + '</b><small>Minecraft ' + text(invite.version)
       + '</small><div class="friends-tools">' + (invite.incoming && invite.state === 'pending'
         ? button('accept','Зайти к другу',invite.id,true,invite.version !== worlds.version)
@@ -596,7 +598,7 @@ function renderFriends() {
       : selected.status === 'friend' && worlds.hosting ? '<div class="friend-world">'
         + button('invite','Пригласить в мир',selected.username,true) + '</div>' : '')
     + '<button type="button" class="friend-open-profile" data-friend-profile="' + text(selected.username) + '">'
-    + text(t('Открыть профиль')) + '</button>'
+    + icon('user') + '<span>' + text(t('Открыть профиль')) + '</span>' + icon('arrow') + '</button>'
     + '<div class="friends-tools friend-detail-actions">' + commands.filter(([change]) => change !== 'remove').map(([change,label]) => '<button type="button" class="button'
       + (change === 'accept' ? ' primary' : '') + '" data-friend-change="' + change + '" data-username="' + text(selected.username)
       + '"' + (friends.busy ? ' disabled' : '') + '>' + text(t(label)) + '</button>').join('') + '</div></div></div>' : '';
@@ -604,9 +606,10 @@ function renderFriends() {
     ? 'Друзей нет в сети' : active.id === 'friend' ? 'Друзей пока нет' : 'Заявок пока нет';
   return head + controls + (worlds.status || friends.status ? '<p class="friends-status" role="status">'
       + text(worlds.status || friends.status) + '</p>' : '')
-    + '<div class="friends-layout"><div class="friends-column"><input type="search" class="friend-search" id="friends-search"'
+    + '<div class="friends-layout"><div class="friends-column"><div class="friend-search-box">' + icon('search')
+    + '<input type="search" class="friend-search" id="friends-search"'
     + ' aria-label="' + text(t('Поиск по нику')) + '" placeholder="' + text(t('Поиск по нику'))
-    + '" value="' + text(state.friendSearch ?? '') + '"><div class="tabs friends-tabs" role="tablist" aria-label="' + text(t('Друзья')) + '">'
+    + '" value="' + text(state.friendSearch ?? '') + '"></div><div class="tabs friends-tabs" role="tablist" aria-label="' + text(t('Друзья')) + '">'
     + tabs.map(({id,title,rows}) => '<button type="button" role="tab" aria-selected="' + (id === active.id)
       + '" data-friend-tab="' + id + '"><span>' + text(t(title)) + '</span><span class="friend-count">'
       + rows.length + '</span></button>').join('') + '</div>'
@@ -1076,8 +1079,11 @@ function render(scrollTop=true, animate=true) {
 }
 function fitGrid() {
   const content = $('content');
-  const availableWidth = content.getBoundingClientRect().width / (state.windowScale / 100);
+  const scale = state.windowScale / 100;
+  const availableWidth = content.getBoundingClientRect().width / scale;
   content.toggleAttribute('data-stacked',availableWidth <= 540);
+  const friendsLayout = state.page === 'friends' && content.querySelector('.friends-layout');
+  if (friendsLayout) friendsLayout.toggleAttribute('data-stacked',friendsLayout.getBoundingClientRect().width / scale <= 560);
   const grid = content.querySelector('.modules-grid');
   if (!grid) return;
   const columns = availableWidth < 360 ? 1 : availableWidth < 740 ? 2 : availableWidth < 875 ? 3 : 4;

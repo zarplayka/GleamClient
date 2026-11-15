@@ -10,6 +10,7 @@ import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.resources.Identifier;
@@ -20,10 +21,10 @@ import ru.orion.client.config.OrionAccounts;
 import java.awt.image.BufferedImage;
 
 final class OrionWorldInvitation {
-    private static final int WIDTH = 360, HEIGHT = 86;
+    private static final int WIDTH = 328, HEIGHT = 79;
     private static final long MOTION = 230_000_000L, HOLD = 830_000_000L, TTL = 15_000_000_000L;
     private static final OrionLumenView VIEW = new OrionLumenView(
-            "world-invite.html", "world_invite", "/assets/orion-client/fonts/paradox/ParadoxSans-Regular.ttf");
+            "world-invite.html", "world_invite", "/assets/orion-client/fonts/paradox/ParadoxSans-Regular.ttf", null, true);
     private static JsonObject invite, lastState;
     private static String seen = "";
     private static long shownAt, expires, closing, startedHold, stoppedHold;
@@ -33,7 +34,7 @@ final class OrionWorldInvitation {
     private static String asset = "";
     private static HitBox hit;
 
-    private record HitBox(Screen screen, float x, float y, float scale) {}
+    private record HitBox(Screen screen, float x, float y, float scale, boolean compatible, int acceptLeft) {}
 
     private OrionWorldInvitation() {}
 
@@ -49,8 +50,12 @@ final class OrionWorldInvitation {
                 if (hit == null || hit.screen() != current || invite == null || closing != 0
                         || event.button() != InputConstants.MOUSE_BUTTON_LEFT) return true;
                 double x = (event.x() - hit.x()) / hit.scale(), y = (event.y() - hit.y()) / hit.scale();
-                if (x >= 330 && x < 354 && y >= 1 && y < 21) {
+                if (x >= 305 && x < 323 && y >= 7 && y < 25) {
                     close(System.nanoTime());
+                    return false;
+                }
+                if (hit.compatible() && x >= hit.acceptLeft() && x < 310 && y >= 27 && y < 55) {
+                    accept(client, System.nanoTime());
                     return false;
                 }
                 return true;
@@ -99,9 +104,8 @@ final class OrionWorldInvitation {
             close(now);
             return;
         }
-        var screen = GleamMinecraft.screen(client);
         boolean down = keyDown(client);
-        boolean usable = client.isWindowActive() && GleamMinecraft.overlay(client) == null && (screen == null || screen instanceof TitleScreen)
+        boolean usable = client.isWindowActive() && GleamMinecraft.overlay(client) == null && acceptsKey(GleamMinecraft.screen(client))
                 && SharedConstants.getCurrentVersion().name().equals(invite.get("version").getAsString());
         if (down && !wasDown && usable) startedHold = now;
         wasDown = down;
@@ -110,10 +114,19 @@ final class OrionWorldInvitation {
             stoppedHold = now;
             startedHold = 0;
         }
-        if (startedHold != 0 && now - startedHold >= HOLD) {
-            String id = invite.get("id").getAsString();
-            close(now);
-            OrionFriendWorlds.accept(client, id);
+        if (startedHold != 0 && now - startedHold >= HOLD) accept(client, now);
+    }
+
+    private static boolean acceptsKey(Screen screen) {
+        return screen == null || screen instanceof TitleScreen || screen instanceof PauseScreen;
+    }
+
+    private static void accept(Minecraft client, long now) {
+        if (OrionFriendWorlds.accept(client, invite.get("id").getAsString())) close(now);
+        else {
+            startedHold = 0;
+            stoppedHold = now;
+            releasedProgress = 0;
         }
     }
 
@@ -142,22 +155,27 @@ final class OrionWorldInvitation {
         if (invite == null || !VIEW.ready()) return;
         var client = Minecraft.getInstance();
         var window = client.getWindow();
-        float scale = Math.clamp(window.getWidth() / 1600F, .75F, 2F) / window.getGuiScale();
+        float pixelScale = Math.clamp(window.getWidth() / 1600F, .75F, 2F);
+        float scale = pixelScale / window.getGuiScale();
         int width = (int) Math.ceil(WIDTH * scale), height = (int) Math.ceil(HEIGHT * scale);
         int x = Math.max(0, window.getGuiScaledWidth() - width - 7), y = 7;
-        VIEW.resize(WIDTH, HEIGHT, 1F);
+        VIEW.resize(WIDTH, HEIGHT, Math.max(1F, pixelScale));
         if (avatar != null && asset.isEmpty()) asset = OrionSiteMenu.registerAvatar(avatar);
         String user = invite.get("username").getAsString();
         String version = invite.get("version").getAsString();
         boolean compatible = version.equals(SharedConstants.getCurrentVersion().name());
+        boolean keyboard = acceptsKey(GleamMinecraft.screen(client));
         long now = System.nanoTime();
         long sample = closing == 0 ? now : closing;
         var config = OrionClient.getConfigOrNull();
         var state = new JsonObject();
         state.addProperty("title", user + " " + OrionGuiLanguage.translate("приглашает в мир"));
         state.addProperty("world", invite.get("world").getAsString() + " · Minecraft " + version);
-        state.addProperty("hint", OrionGuiLanguage.translate(compatible ? "Удерживай Y, чтобы принять" : "Открой приглашение в лаунчере"));
+        String hint = compatible ? (keyboard ? "Удерживай Y, чтобы принять" : "Нажми «Принять»") : "Открой приглашение в лаунчере";
+        state.addProperty("hint", OrionGuiLanguage.translate(hint));
         state.addProperty("key", compatible);
+        state.addProperty("keyboard", keyboard);
+        state.addProperty("keyLabel", keyboard ? "Y" : OrionGuiLanguage.translate("Принять"));
         state.addProperty("avatar", asset);
         state.addProperty("initial", user.substring(0, 1).toUpperCase(java.util.Locale.ROOT));
         state.addProperty("light", config != null && config.getClickGuiTheme() == 4);
@@ -167,13 +185,14 @@ final class OrionWorldInvitation {
         double enter = Math.clamp((sample - shownAt) / (double) MOTION, 0, 1);
         double exit = closing == 0 ? 0 : Math.clamp((now - closing) / (double) MOTION, 0, 1);
         state.addProperty("opacity", (1 - Math.pow(1 - enter, 3)) * Math.pow(1 - exit, 2));
-        state.addProperty("offset", 5 * (1 - enter) - 6 * exit);
+        float offset = (float) (5 * (1 - enter) - 6 * exit);
+        state.addProperty("offset", offset);
         if (!state.equals(lastState)) {
             VIEW.update(state);
             lastState = state;
         }
         VIEW.frame();
         if (VIEW.draw(graphics, x, y, width, height, scale, scale))
-            hit = new HitBox(GleamMinecraft.screen(client), x, y, scale);
+            hit = new HitBox(GleamMinecraft.screen(client), x, y + offset * scale, scale, compatible, keyboard ? 276 : 254);
     }
 }

@@ -456,8 +456,11 @@ document.addEventListener('click',event => {
     sendGame('profile');
   } else if (d.friendChange) {
     sendGame('friend-change',{username:d.username,change:d.friendChange});
+  } else if (d.action === 'friend-offline') {
+    state.friendOffline = button.getAttribute('aria-checked') !== 'true';
+    button.setAttribute('aria-checked',String(state.friendOffline));
   } else if (d.worldAction) {
-    sendGame('friend-world',{command:d.worldAction,target:d.target,offline:!!$('friends-allow-offline')?.checked});
+    sendGame('friend-world',{command:d.worldAction,target:d.target,offline:Boolean(state.friendOffline ?? friends.worlds?.offline)});
   } else if (d.friendProfile) {
     sendGame('friend-profile',{username:d.friendProfile});
   } else if (d.chatPeer) {
@@ -512,9 +515,6 @@ document.addEventListener('input',event => {
   }
   if (state.page === 'module' && state.module === 'ENCHANT_GLINT' && field.dataset?.setting !== undefined) updateGlintPreview();
   if (state.page === 'module' && state.module === 'WORLD_CHANGER' && field.dataset?.setting !== undefined) updateWorldPreview();
-});
-document.addEventListener('change',event => {
-  if (event.target.id === 'friends-allow-offline') state.friendOffline = event.target.checked;
 });
 document.addEventListener('input',event => {
   if (event.target.id !== 'friends-search') return;
