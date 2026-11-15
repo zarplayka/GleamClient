@@ -37,6 +37,17 @@ tasks.register('buildMediaHelpers', Exec) {
     commandLine 'powershell.exe', '-NoProfile', '-File', file('native/media/build.ps1').absolutePath
 }
 
+def iceOverride = providers.gradleProperty('worldIceExecutable')
+def iceExecutable = iceOverride.map { rootProject.layout.projectDirectory.file(it) }
+        .orElse(layout.buildDirectory.file('world-ice/release/gleam-world-ice.exe'))
+def buildWorldIce = tasks.register('buildWorldIce', Exec) {
+    onlyIf { System.getProperty('os.name').startsWith('Windows') && !iceOverride.isPresent() }
+    inputs.files(fileTree('native/world-ice') { exclude 'target/**' })
+    outputs.file(iceExecutable)
+    commandLine 'cargo', 'build', '--locked', '--release', '--manifest-path',
+            file('native/world-ice/Cargo.toml').absolutePath, '--target-dir', layout.buildDirectory.dir('world-ice').get().asFile.absolutePath
+}
+
 def collect = tasks.register('collectArtifacts', Sync) {
     into layout.buildDirectory.dir('libs')
     // Стабильное имя для существующих потребителей всегда указывает на 26.3.
@@ -51,6 +62,12 @@ def collect = tasks.register('collectArtifacts', Sync) {
 
 gradle.projectsEvaluated {
     subprojects.each { target ->
+        if (System.getProperty('os.name').startsWith('Windows')) {
+            target.tasks.named('processResources') {
+                dependsOn buildWorldIce
+                from(iceExecutable) { into 'assets/orion-client/native' }
+            }
+        }
         def remapped = target.name == '1.21.11'
         collect.configure { from(target.tasks.named(remapped ? 'remapJar' : 'jar')); from(target.tasks.named(remapped ? 'remapSourcesJar' : 'sourcesJar')) }
         def audit = target.tasks.register('auditMixins', JavaExec) {
@@ -89,6 +106,8 @@ tasks.register('verifyArtifacts') {
             def sources = layout.buildDirectory.file("libs/${name}-sources.jar").get().asFile
             if (!artifact.isFile() || !sources.isFile()) throw new GradleException("Missing artifacts for ${mc}")
             new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+                if (System.getProperty('os.name').startsWith('Windows') && zip.getEntry('assets/orion-client/native/gleam-world-ice.exe') == null)
+                    throw new GradleException("Missing direct UDP helper in ${artifact.name}")
                 def metadata = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry('fabric.mod.json')))
                 if (metadata.depends.minecraft != mc || metadata.version != mod_version)
                     throw new GradleException("Wrong Minecraft/mod version in ${artifact.name}")

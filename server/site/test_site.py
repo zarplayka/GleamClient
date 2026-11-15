@@ -90,6 +90,51 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.get(path, headers=guest)
         self.assertEqual((await response.json())['items'], [])
 
+    async def test_direct_ice_signals_are_invite_scoped_and_retry_clears_them(self):
+        host = await self.account_headers('IceHost')
+        guest = await self.account_headers('IceGuest')
+        other = await self.account_headers('IceOther')
+
+        async def send(headers, action, **values):
+            return await self.client.post('/api/friend-worlds?transport=1', headers=headers,
+                                          json={'action': action, **values})
+
+        for headers, action, username in [(host, 'request', 'IceGuest'), (guest, 'accept', 'IceHost')]:
+            self.assertEqual((await self.client.post('/api/friends', headers=headers,
+                                                   json={'username': username, 'action': action})).status, 200)
+        self.assertEqual((await send(host, 'presence', device='game', world='Ice World', version='26.3',
+                                     port=25566, pin='1' * 64, addresses=[], directIce=True)).status, 200)
+        outgoing = await send(host, 'invite', username='IceGuest')
+        invite = (await outgoing.json())['items'][0]
+        self.assertTrue(invite['directIce'])
+        key = invite['id']
+        endpoint = dict(id=key, name='IceGuest', port=25567, pin='2' * 64, addresses=[])
+        offer = 'v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=fingerprint:sha-256 AA\r\n'
+        answer = offer.replace('AA', 'BB')
+        relay = offer + 'a=candidate:1 1 udp 100 8.8.8.8 2048 typ relay\r\n'
+        self.assertEqual((await send(guest, 'accept', iceOffer=relay, **endpoint)).status, 400)
+        self.assertEqual((await send(other, 'accept', iceOffer=offer, **endpoint)).status, 409)
+        accepted = await send(guest, 'accept', iceOffer=offer, **endpoint)
+        self.assertEqual(accepted.status, 200)
+        self.assertNotIn('iceOffer', (await accepted.json())['items'][0])
+        public = await self.client.get('/api/friend-worlds', headers=host)
+        self.assertNotIn('iceOffer', (await public.json())['items'][0])
+        topology = await self.client.get('/api/friend-worlds?transport=1', headers=host)
+        self.assertEqual((await topology.json())['items'][0]['iceOffer'], offer)
+        self.assertEqual((await send(guest, 'ice-answer', id=key, iceAnswer=answer)).status, 409)
+        self.assertEqual((await send(host, 'ice-answer', id=key, iceAnswer=answer)).status, 200)
+        self.assertEqual((await send(host, 'ice-answer', id=key, iceAnswer=offer)).status, 400)
+        topology = await self.client.get('/api/friend-worlds?transport=1', headers=guest)
+        self.assertEqual((await topology.json())['items'][0]['iceAnswer'], answer)
+        retry = await send(guest, 'retry', id=key)
+        self.assertEqual(retry.status, 200)
+        data = await retry.json()
+        self.assertNotEqual(data['retryId'], key)
+        self.assertEqual(data['items'][0]['id'], data['retryId'])
+        self.assertEqual(data['items'][0]['state'], 'reserved')
+        self.assertNotIn('iceAnswer', data['items'][0])
+        self.assertEqual((await send(host, 'ice-answer', id=key, iceAnswer=answer)).status, 409)
+
     async def test_launcher_browser_approval_is_csrf_protected_and_single_use(self):
         headers = await self.account_headers('LauncherUser')
         native = {'Origin': NEW, 'X-Orion-Request': '1', 'User-Agent': 'Gleam-Launcher/0.1.0'}

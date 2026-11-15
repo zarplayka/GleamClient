@@ -24,6 +24,7 @@ import javax.net.ssl.SSLSocket;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.net.InetSocketAddress;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -37,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class OrionFriendWorlds {
     private static final Logger LOGGER = LoggerFactory.getLogger("GleamClient Friends");
@@ -44,7 +46,7 @@ public final class OrionFriendWorlds {
     private static final String VERSION = SharedConstants.getCurrentVersion().name();
     private static final Map<String, HostPeer> PEERS = new ConcurrentHashMap<>();
     private static final Map<SocketAddress, HostPeer> LAN_LOGINS = new ConcurrentHashMap<>();
-    private static final long JOIN_TIMEOUT = 13_000_000_000L;
+    private static final long JOIN_TIMEOUT = 18_000_000_000L;
     private static final ThreadLocal<Boolean> PRIVATE_LAN = new ThreadLocal<>();
     private static String account = "", status = "";
     private static volatile Host hosting;
@@ -60,9 +62,11 @@ public final class OrionFriendWorlds {
 
     private record Host(IntegratedServer server, boolean ownLan, int lanPort, OrionWorldTunnel tunnel, JsonObject presence) {}
     private record HostPeer(Host world, long guestId, String pin, String name, boolean offline, long expires,
-                            AtomicBoolean claimed, AtomicBoolean ready, CompletableFuture<Socket> socket, JsonObject endpoint) {}
+                            AtomicBoolean claimed, AtomicBoolean ready, CompletableFuture<Socket> socket, JsonObject endpoint,
+                            AtomicReference<CompletableFuture<OrionWorldIce>> ice) {}
     private record Guest(String id, String username, OrionWorldTunnel tunnel, ServerSocket local, String account,
-                         long deadline, AtomicBoolean claimed, CompletableFuture<Socket> socket) {}
+                         long deadline, AtomicBoolean claimed, CompletableFuture<Socket> socket,
+                         OrionWorldIce ice, AtomicBoolean answered) {}
 
     private OrionFriendWorlds() {}
 
@@ -131,17 +135,16 @@ public final class OrionFriendWorlds {
             nextPresence = 0;
         }
         long now = System.nanoTime();
-        if (joining != null && !joining.claimed().get() && now >= joining.deadline()) {
-            var pending = joining;
+        var pending = joining;
+        if (pending != null && now >= pending.deadline() && pending.claimed().compareAndSet(false, true)) {
             closeGuest(pending);
-            LOGGER.warn("No direct TCP path to the invited world before timeout");
-            announce(client, "Прямое подключение недоступно");
-            ACCOUNTS.friendWorlds(command("finish", pending.id()));
+            LOGGER.warn("No direct route to the invited world before timeout (UDP attempted: {})", pending.ice() != null);
+            showRouteFailure(client, pending);
         }
         PEERS.entrySet().removeIf(e -> {
             var peer = e.getValue();
             if (peer.claimed().get() || now < peer.expires()) return false;
-            peer.world().tunnel().forgetPeer(peer.pin());
+            closePeer(peer);
             FINISHED.add(e.getKey());
             return true;
         });
@@ -172,7 +175,7 @@ public final class OrionFriendWorlds {
         for (var element : data.getAsJsonArray("items")) {
             var entry = element.getAsJsonObject();
             var visible = entry.deepCopy();
-            for (String key : new String[]{"endpoint", "player", "offline", "guestId", "remaining"}) visible.remove(key);
+            for (String key : new String[]{"endpoint", "player", "offline", "guestId", "remaining", "iceOffer", "iceAnswer"}) visible.remove(key);
             list.add(visible);
             if (entry.get("incoming").getAsBoolean()) continue;
             if (hosting == null) continue;
@@ -192,10 +195,12 @@ public final class OrionFriendWorlds {
             if (entry.get("offline").getAsBoolean() && !offlineAllowed) continue;
             var peer = PEERS.computeIfAbsent(id, key -> new HostPeer(hosting, entry.get("guestId").getAsLong(),
                     endpoint.get("pin").getAsString(), name, entry.get("offline").getAsBoolean(),
-                    System.nanoTime() + JOIN_TIMEOUT, new AtomicBoolean(), new AtomicBoolean(), new CompletableFuture<>(), endpoint));
+                    System.nanoTime() + JOIN_TIMEOUT, new AtomicBoolean(), new AtomicBoolean(), new CompletableFuture<>(), endpoint,
+                    new AtomicReference<>()));
             if (!peer.claimed().get() && System.nanoTime() < peer.expires()) {
                 hosting.tunnel().allowPeer(peer.pin());
                 hosting.tunnel().dial(id, peer.endpoint());
+                if (entry.has("iceOffer") && OrionWorldIce.available()) answerIce(client, id, peer, entry.get("iceOffer").getAsString());
             } else if (peer.ready().get() && REPORTED.add(id)) {
                 ACCOUNTS.friendWorlds(command("connected", id)).exceptionally(failure -> {
                     client.execute(() -> REPORTED.remove(id));
@@ -212,12 +217,30 @@ public final class OrionFriendWorlds {
         }
         visibleInvites = list;
         OrionWorldInvitation.sync(client, data.getAsJsonArray("items"));
-        if (joining != null && !joining.claimed().get()) {
-            var accepted = find(joining.id());
-            if (accepted != null && accepted.has("endpoint")) {
+        var pendingGuest = joining;
+        if (pendingGuest != null && !pendingGuest.claimed().get()) {
+            var accepted = find(pendingGuest.id());
+            if (accepted == null && pendingGuest.claimed().compareAndSet(false, true)) {
+                closeGuest(pendingGuest);
+                showJoinFailure(client, "Друг закрыл мир или приглашение истекло");
+            } else if (accepted != null && accepted.has("endpoint")) {
                 var endpoint = accepted.getAsJsonObject("endpoint");
-                joining.tunnel().allowPeer(endpoint.get("pin").getAsString());
-                joining.tunnel().dial(joining.id(), endpoint);
+                String pin = endpoint.get("pin").getAsString();
+                pendingGuest.tunnel().allowPeer(pin);
+                pendingGuest.tunnel().dial(pendingGuest.id(), endpoint);
+                if (pendingGuest.ice() != null && accepted.has("iceAnswer") && pendingGuest.answered().compareAndSet(false, true)) {
+                    String answer = accepted.get("iceAnswer").getAsString();
+                    Thread.startVirtualThread(() -> {
+                        try {
+                            pendingGuest.ice().answer(answer);
+                            pendingGuest.tunnel().attachIce(pendingGuest.id(), pin, pendingGuest.ice());
+                        } catch (IOException | GeneralSecurityException failure) {
+                            LOGGER.debug("Direct UDP guest connection did not complete", failure);
+                        } finally {
+                            OrionWorldTunnel.closeSocket(pendingGuest.ice());
+                        }
+                    });
+                }
             }
         }
         if (!busy && joining == null && !account.isEmpty()) {
@@ -236,6 +259,45 @@ public final class OrionFriendWorlds {
 
     private static void request(JsonObject body, String success) {
         request(body, success, () -> {});
+    }
+
+    private static void answerIce(Minecraft client, String id, HostPeer peer, String offer) {
+        if (peer.ice().get() != null) return;
+        String session = account;
+        CompletableFuture<OrionWorldIce> startup = new CompletableFuture<>();
+        if (!peer.ice().compareAndSet(null, startup)) return;
+        Thread.startVirtualThread(() -> startup.complete(startIce(offer)));
+        startup.thenAccept(ice -> client.execute(() -> {
+            if (ice == null) return;
+            if (PEERS.get(id) != peer || peer.claimed().get() || !session.equals(ACCOUNTS.sessionCookieHeader())) {
+                OrionWorldTunnel.closeSocket(ice);
+                return;
+            }
+            var message = command("ice-answer", id);
+            message.addProperty("iceAnswer", ice.description());
+            ACCOUNTS.friendWorlds(message).whenComplete((reply, failure) -> {
+                if (failure != null) {
+                    OrionWorldTunnel.closeSocket(ice);
+                    return;
+                }
+                Thread.startVirtualThread(() -> {
+                    try (ice) {
+                        peer.world().tunnel().attachIce(id, peer.pin(), ice);
+                    } catch (IOException | GeneralSecurityException refused) {
+                        LOGGER.debug("Direct UDP host connection did not complete", refused);
+                    }
+                });
+            });
+        }));
+    }
+
+    private static OrionWorldIce startIce(String offer) {
+        try {
+            return OrionWorldIce.start(offer);
+        } catch (IOException | RuntimeException failure) {
+            LOGGER.debug("Direct UDP helper did not start", failure);
+            return null;
+        }
     }
 
     private static void request(JsonObject body, String success, Runnable after) {
@@ -273,6 +335,7 @@ public final class OrionFriendWorlds {
         body.addProperty("world", world.substring(0, world.offsetByCodePoints(0, Math.min(80, world.codePointCount(0, world.length())))));
         body.addProperty("version", VERSION);
         body.addProperty("offline", offline);
+        body.addProperty("directIce", OrionWorldIce.available());
         String session = account;
         busy = true;
         CompletableFuture.supplyAsync(() -> {
@@ -395,7 +458,7 @@ public final class OrionFriendWorlds {
         var entry = find(id);
         if (account.isEmpty() || !account.equals(ACCOUNTS.sessionCookieHeader()) || entry == null
                 || !entry.get("incoming").getAsBoolean() || !"reserved".equals(entry.get("state").getAsString())) {
-            announce(client, "Приглашение больше не действует");
+            showJoinFailure(client, "Друг закрыл мир или приглашение истекло");
             return;
         }
         boolean offline = isOffline(client);
@@ -407,18 +470,25 @@ public final class OrionFriendWorlds {
         var body = command("accept", id);
         body.addProperty("name", client.getUser().getName());
         body.addProperty("offline", offline);
+        boolean useIce = entry.has("directIce") && entry.get("directIce").getAsBoolean() && OrionWorldIce.available();
         busy = true;
         announce(client, "Подключение к миру друга…");
         LOGGER.info("Accepting a reserved friend world invitation");
         CompletableFuture.supplyAsync(() -> {
             OrionWorldTunnel tunnel = null;
+            OrionWorldIce ice = null;
             try {
                 tunnel = new OrionWorldTunnel(false, OrionFriendWorlds::connectGuest);
                 tunnel.endpoint(body);
+                if (useIce) {
+                    ice = startIce(null);
+                    if (ice != null) body.addProperty("iceOffer", ice.description());
+                }
                 return new Guest(id, entry.get("username").getAsString(), tunnel, new ServerSocket(0, 1, OrionWorldTunnel.LOOPBACK),
-                        session, System.nanoTime() + JOIN_TIMEOUT, new AtomicBoolean(), new CompletableFuture<>());
+                        session, System.nanoTime() + JOIN_TIMEOUT, new AtomicBoolean(), new CompletableFuture<>(), ice, new AtomicBoolean());
             } catch (Exception failure) {
                 OrionWorldTunnel.closeSocket(tunnel);
+                OrionWorldTunnel.closeSocket(ice);
                 throw new IllegalStateException("Не удалось открыть порт для друзей", failure);
             }
         }).whenComplete((guest, failure) -> client.execute(() -> {
@@ -426,18 +496,13 @@ public final class OrionFriendWorlds {
                 if (guest != null) closeGuest(guest);
                 return;
             }
-            if (failure != null) { busy = false; report(failure); return; }
+            if (failure != null) { busy = false; showJoinFailure(client, failureText(failure)); return; }
             joining = guest;
             ACCOUNTS.friendWorlds(body).whenComplete((data, error) -> client.execute(() -> {
                 if (joining != guest || !session.equals(ACCOUNTS.sessionCookieHeader())) return;
                 busy = false;
-                if (error != null) { closeGuest(guest); report(error); return; }
+                if (error != null) { closeGuest(guest); showJoinFailure(client, failureText(error)); return; }
                 update(client, data);
-                var accepted = find(id);
-                if (accepted == null || !accepted.has("endpoint")) {
-                    closeGuest(guest);
-                    announce(client, "Приглашение больше не действует");
-                }
             }));
         }));
     }
@@ -464,6 +529,7 @@ public final class OrionFriendWorlds {
             world.tunnel().forgetPeer(pin);
             Minecraft.getInstance().execute(() -> {
                 PEERS.remove(id, peer);
+                closePeer(peer);
                 if (hosting == world) {
                     FINISHED.add(id);
                     ACCOUNTS.friendWorlds(command("finish", id));
@@ -545,10 +611,41 @@ public final class OrionFriendWorlds {
     }
 
     private static void report(Throwable failure) {
+        announce(Minecraft.getInstance(), failureText(failure));
+    }
+
+    private static String failureText(Throwable failure) {
         while (failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null)
             failure = failure.getCause();
-        announce(Minecraft.getInstance(), failure instanceof IllegalStateException
-                ? failure.getMessage() : "Сайт GleamClient недоступен");
+        return failure instanceof IllegalStateException ? failure.getMessage() : "Сайт GleamClient недоступен";
+    }
+
+    private static void showJoinFailure(Minecraft client, String reason) {
+        announce(client, reason);
+        var previous = GleamMinecraft.screen(client);
+        GleamMinecraft.setScreen(client, new net.minecraft.client.gui.screens.AlertScreen(
+                () -> GleamMinecraft.setScreen(client, previous),
+                Component.literal(OrionGuiLanguage.translate("Не удалось подключиться к миру друга")),
+                Component.literal(OrionGuiLanguage.translate(reason))));
+    }
+
+    private static void showRouteFailure(Minecraft client, Guest guest) {
+        announce(client, "Прямое подключение недоступно");
+        var previous = GleamMinecraft.screen(client);
+        GleamMinecraft.setScreen(client, new net.minecraft.client.gui.screens.ConfirmScreen(retry -> {
+            GleamMinecraft.setScreen(client, previous);
+            if (!guest.account().equals(ACCOUNTS.sessionCookieHeader())) return;
+            String action = retry ? "retry" : "finish";
+            ACCOUNTS.friendWorlds(command(action, guest.id())).whenComplete((data, failure) -> client.execute(() -> {
+                if (!retry || !guest.account().equals(ACCOUNTS.sessionCookieHeader())) return;
+                if (failure != null) { showJoinFailure(client, failureText(failure)); return; }
+                if (busy || joining != null) return;
+                update(client, data);
+                if (data.has("retryId")) connect(client, data.get("retryId").getAsString());
+            }));
+        }, Component.literal(OrionGuiLanguage.translate("Не удалось подключиться к миру друга")),
+                Component.literal(OrionGuiLanguage.translate("Gleam не смог установить прямое соединение. Причиной могут быть настройки роутера, провайдера или брандмауэра.")),
+                Component.literal(OrionGuiLanguage.translate("Повторить")), Component.literal(OrionGuiLanguage.translate("Закрыть"))));
     }
 
     private static void announce(Minecraft client, String message) {
@@ -599,12 +696,15 @@ public final class OrionFriendWorlds {
 
     private static void closePeer(HostPeer peer) {
         peer.world().tunnel().forgetPeer(peer.pin());
+        var ice = peer.ice().get();
+        if (ice != null) ice.thenAccept(OrionWorldTunnel::closeSocket);
         if (!peer.socket().complete(null)) OrionWorldTunnel.closeSocket(peer.socket().getNow(null));
     }
 
     private static void closeGuest(Guest guest) {
         if (joining == guest) joining = null;
         guest.tunnel().close();
+        OrionWorldTunnel.closeSocket(guest.ice());
         OrionWorldTunnel.closeSocket(guest.local());
         if (!guest.socket().complete(null)) OrionWorldTunnel.closeSocket(guest.socket().getNow(null));
     }

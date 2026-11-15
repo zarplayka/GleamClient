@@ -106,6 +106,23 @@ final class OrionWorldTunnel implements java.io.Closeable {
 
     void forgetPeer(String peerPin) { allowedPeers.remove(peerPin); }
 
+    void attachIce(String id, String expectedPin, OrionWorldIce ice) throws IOException, GeneralSecurityException {
+        try (var bridge = ice.connect();
+             var socket = (SSLSocket) tls.getSocketFactory().createSocket(bridge, "localhost", bridge.getPort(), true)) {
+            if (!track(socket)) return;
+            try {
+                socket.setUseClientMode(!host);
+                if (host) socket.setNeedClientAuth(true);
+                prepare(socket);
+                String peer = fingerprint((X509Certificate) socket.getSession().getPeerCertificates()[0]);
+                if (!expectedPin.equals(peer)) throw new IOException("Unexpected direct UDP peer");
+                handler.connected(id, peer, socket);
+            } finally {
+                remoteSockets.remove(socket);
+            }
+        }
+    }
+
     void dial(String id, JsonObject endpoint) {
         int port = endpoint.get("port").getAsInt();
         String expectedPin = endpoint.get("pin").getAsString();
@@ -202,6 +219,8 @@ final class OrionWorldTunnel implements java.io.Closeable {
         });
         try {
             remote.getInputStream().transferTo(local.getOutputStream());
+        } catch (IOException failure) {
+            if (!remote.isClosed()) throw failure;
         } finally {
             closeSocket(local);
             upstream.interrupt();

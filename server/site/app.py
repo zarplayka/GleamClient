@@ -16,6 +16,7 @@ from aiohttp import ClientError, web
 from account_mail import account_mail
 from local_pricing import pricing_for_ip
 from profile_oauth import PROVIDERS, authorization_url, configuration, verified_identity
+import funpay_sales
 
 BASE = Path(__file__).resolve().parent
 DB_PATH = os.environ.get('ORION_SITE_DB', str(BASE / 'site.db'))
@@ -711,7 +712,9 @@ def plus_status(db, user):
     if user['role'] in ('owner', 'admin'):
         return True, None
     entitlement = db.execute('SELECT expires_at FROM plus_access WHERE user_id=?', (user['id'],)).fetchone()
-    expires_at = entitlement['expires_at'] if entitlement else None
+    expires_at = funpay_sales.plus_expiry(db, user['id'], entitlement['expires_at'] if entitlement else None)
+    if expires_at is not None and expires_at >= funpay_sales.PERMANENT:
+        return True, None
     return expires_at is not None and expires_at > int(time.time()), expires_at
 
 async def catalog_access(request):
@@ -893,6 +896,13 @@ def world_endpoint(request, data):
     return {'port': port, 'pin': pin, 'addresses': result, 'observed': observed, 'local': local}
 
 
+def direct_ice_description(value):
+    return (isinstance(value, str) and len(value) <= 3000 and value.isascii()
+            and value.startswith('v=0\r\n') and '\r\nm=application ' in value
+            and '\r\na=fingerprint:' in value
+            and not any(line.startswith('a=candidate:') and ' typ relay' in line for line in value.splitlines()))
+
+
 async def friend_worlds(request):
     writing = request.method == 'POST'
     user = auth_csrf(request) if writing else session(request)
@@ -919,6 +929,7 @@ async def friend_worlds(request):
         elif uid in (entry['host'], entry['guest']) and (entry['guest'] if uid == entry['host'] else entry['host']) not in friends:
             del invites[key]
     action = data.get('action')
+    retry_id = None
     if action == 'presence':
         device = data.get('device')
         if device not in ('launcher', 'game'):
@@ -931,7 +942,8 @@ async def friend_worlds(request):
             if not endpoint or not isinstance(version, str) or version not in WORLD_VERSIONS \
                     or not isinstance(name, str) or not 1 <= len(name) <= 80 or not name.isprintable():
                 return error('invalid')
-            entry['game'] = {'world': name, 'version': version, 'offline': data.get('offline') is True, 'endpoint': endpoint}
+            entry['game'] = {'world': name, 'version': version, 'offline': data.get('offline') is True,
+                             'endpoint': endpoint, 'directIce': data.get('directIce') is True}
         previous = presence.get((uid, device), {})
         old = previous.get('game')
         current = entry.get('game')
@@ -965,7 +977,7 @@ async def friend_worlds(request):
                 del invites[key]
         invites[secrets.token_urlsafe(24)] = {'host': uid, 'guest': guest, 'world': world,
                                              'state': 'pending', 'until': now + 15}
-    elif action in ('reserve', 'accept', 'connected', 'decline', 'cancel', 'finish'):
+    elif action in ('reserve', 'accept', 'ice-answer', 'retry', 'connected', 'decline', 'cancel', 'finish'):
         key = data.get('id')
         entry = invites.get(key) if isinstance(key, str) else None
         if not entry:
@@ -980,7 +992,23 @@ async def friend_worlds(request):
                 return error('invalid')
             if offline and not entry['world']['offline']:
                 return error('world_license', 409)
+            offer = data.get('iceOffer')
+            if offer is not None:
+                if not direct_ice_description(offer):
+                    return error('invalid')
+                if entry['world'].get('directIce'):
+                    entry['iceOffer'] = offer
             entry.update(state='accepted', until=now + 180, endpoint=endpoint, name=name, offline=offline)
+        elif action == 'ice-answer' and host and entry['state'] == 'accepted' and 'iceOffer' in entry:
+            answer = data.get('iceAnswer')
+            if not direct_ice_description(answer) or entry.get('iceAnswer', answer) != answer:
+                return error('invalid')
+            entry['iceAnswer'] = answer
+        elif action == 'retry' and guest and entry['state'] == 'accepted':
+            retry_id = secrets.token_urlsafe(24)
+            invites[retry_id] = {'host': entry['host'], 'guest': uid, 'world': entry['world'],
+                                 'state': 'reserved', 'until': now + 180, 'autojoin': False}
+            del invites[key]
         elif action == 'connected' and host and entry['state'] == 'accepted':
             entry.update(state='connected', until=now + 15)
         elif ((action == 'decline' and guest and entry['state'] in ('pending', 'reserved'))
@@ -1011,6 +1039,8 @@ async def friend_worlds(request):
         item = {'id': key, 'username': peer['username'], 'public_id': peer['public_id'],
                 'incoming': not host, 'state': entry['state'], 'remaining': max(0, int((entry['until'] - now) * 1000)),
                 'world': world['world'], 'version': world['version'], 'allowOffline': world['offline']}
+        if world.get('directIce'):
+            item['directIce'] = True
         if not host and entry['state'] == 'reserved':
             item['autojoin'] = entry.get('autojoin', False)
         if entry['state'] == 'accepted' and request.query.get('transport') == '1':
@@ -1022,8 +1052,15 @@ async def friend_worlds(request):
             item['offline'] = entry['offline']
             if host:
                 item['guestId'] = entry['guest']
+                if 'iceOffer' in entry:
+                    item['iceOffer'] = entry['iceOffer']
+            elif 'iceAnswer' in entry:
+                item['iceAnswer'] = entry['iceAnswer']
         items.append(item)
-    return web.json_response({'items': items, 'people': people, 'hosting': 'game' in presence.get((uid, 'game'), {})})
+    response = {'items': items, 'people': people, 'hosting': 'game' in presence.get((uid, 'game'), {})}
+    if retry_id is not None:
+        response['retryId'] = retry_id
+    return web.json_response(response)
 
 async def chat_keys(request):
     writing = request.method == 'POST'
@@ -1616,6 +1653,9 @@ async def account_page(request): return web.FileResponse(BASE/'static'/'account.
 async def health(request): return web.json_response({'status':'ok','service':'orion-site'})
 def create_app():
     init_db(); app=web.Application(middlewares=[security],client_max_size=4096)
+    with connect() as db:
+        funpay_sales.initialize(db)
+    app.add_routes(funpay_sales.routes(connect, session, auth_csrf, limit, json_body, error))
     app[FAKE_PUNISHMENTS] = deque(maxlen=256)
     app[FAKE_PUNISHMENT_EPOCH] = secrets.token_hex(8)
     app[LAUNCHER_REQUESTS] = {}
