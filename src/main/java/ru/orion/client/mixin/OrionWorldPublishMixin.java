@@ -12,8 +12,14 @@ import java.net.InetAddress;
 
 @Mixin(IntegratedServer.class)
 abstract class OrionWorldPublishMixin {
-    @Redirect(method = "publishServer", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/server/network/ServerConnectionListener;startTcpServerListener(Ljava/net/InetAddress;I)V"))
+    @Redirect(
+            //? if >=26.2 {
+            method = "publishServer(Lnet/minecraft/server/MinecraftServer$MultiplayerScope;I)Z",
+            //?} else {
+            /*method = "publishServer(Lnet/minecraft/world/level/GameType;ZI)Z",
+            *///?}
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/server/network/ServerConnectionListener;startTcpServerListener(Ljava/net/InetAddress;I)V"))
     private void gleam$bindPrivateLan(ServerConnectionListener connections, InetAddress address, int port) throws IOException {
         connections.startTcpServerListener(OrionFriendWorlds.lanBindAddress(address), port);
     }
