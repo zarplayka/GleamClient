@@ -356,19 +356,30 @@ public final class OrionFriendWorlds {
             announce(client, "Друг разрешил вход только с лицензией Minecraft");
             return false;
         }
-        var currentServer = client.getSingleplayerServer();
-        if (currentServer != null || client.level != null) {
+        String state = entry.get("state").getAsString();
+        if ("pending".equals(state)) {
+            request(command("reserve", id), "", () -> confirmJoin(client, id));
+        } else if ("reserved".equals(state)) {
+            confirmJoin(client, id);
+        } else {
+            announce(client, "Приглашение больше не действует");
+            return false;
+        }
+        return true;
+    }
+
+    private static void confirmJoin(Minecraft client, String id) {
+        if (client.getSingleplayerServer() != null || client.level != null) {
             var previous = GleamMinecraft.screen(client);
             var confirmation = new net.minecraft.client.gui.screens.ConfirmScreen(accepted -> {
                 GleamMinecraft.setScreen(client, previous);
-                if (accepted) connect(client, id, entry);
+                if (accepted) connect(client, id);
             }, Component.literal(OrionGuiLanguage.translate("Зайти к другу")),
                     Component.literal(OrionGuiLanguage.translate("Текущий мир будет закрыт")));
             GleamMinecraft.setScreen(client, confirmation);
         } else {
-            connect(client, id, entry);
+            connect(client, id);
         }
-        return true;
     }
 
     private static boolean isOffline(Minecraft client) {
@@ -376,8 +387,17 @@ public final class OrionFriendWorlds {
         return token.isEmpty() || token.equals("0");
     }
 
-    private static void connect(Minecraft client, String id, JsonObject entry) {
-        if (busy || joining != null || !account.equals(ACCOUNTS.sessionCookieHeader()) || find(id) == null) return;
+    private static void connect(Minecraft client, String id) {
+        if (busy || joining != null) {
+            announce(client, "Подожди завершения текущего подключения");
+            return;
+        }
+        var entry = find(id);
+        if (account.isEmpty() || !account.equals(ACCOUNTS.sessionCookieHeader()) || entry == null
+                || !entry.get("incoming").getAsBoolean() || !"reserved".equals(entry.get("state").getAsString())) {
+            announce(client, "Приглашение больше не действует");
+            return;
+        }
         boolean offline = isOffline(client);
         if (offline && !entry.get("allowOffline").getAsBoolean()) {
             announce(client, "Друг разрешил вход только с лицензией Minecraft");
@@ -388,6 +408,8 @@ public final class OrionFriendWorlds {
         body.addProperty("name", client.getUser().getName());
         body.addProperty("offline", offline);
         busy = true;
+        announce(client, "Подключение к миру друга…");
+        LOGGER.info("Accepting a reserved friend world invitation");
         CompletableFuture.supplyAsync(() -> {
             OrionWorldTunnel tunnel = null;
             try {
@@ -406,8 +428,6 @@ public final class OrionFriendWorlds {
             }
             if (failure != null) { busy = false; report(failure); return; }
             joining = guest;
-            announce(client, "Подключение к миру друга…");
-            LOGGER.info("Accepting a friend world invitation");
             ACCOUNTS.friendWorlds(body).whenComplete((data, error) -> client.execute(() -> {
                 if (joining != guest || !session.equals(ACCOUNTS.sessionCookieHeader())) return;
                 busy = false;

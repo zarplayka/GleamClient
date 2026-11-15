@@ -589,7 +589,7 @@ function renderFriends() {
   const detail = selected ? '<div class="friend-detail"><div class="friend-portrait">' + friendModel(selected)
     + '<div class="friend-profile-identity"><h2>' + text(selected.username) + '</h2>' + friendPresence(selected) + '</div></div><div class="friend-controls">'
     + (invite ? '<div class="friend-world"><b>' + text(invite.world) + '</b><small>Minecraft ' + text(invite.version)
-      + '</small><div class="friends-tools">' + (invite.incoming && invite.state === 'pending'
+      + '</small><div class="friends-tools">' + (invite.incoming && (invite.state === 'pending' || invite.state === 'reserved')
         ? button('accept','Зайти к другу',invite.id,true,invite.version !== worlds.version)
           + button('decline','Отклонить',invite.id)
         : invite.incoming ? '<small>' + text(t(invite.state === 'connected' ? 'В мире друга' : 'Подключение…')) + '</small>'
