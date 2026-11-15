@@ -173,6 +173,20 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await action(bob, 'AlicePlayer', 'accept'), 200)
         friends = await (await self.client.get('/api/friends', headers=alice)).json()
         self.assertEqual(friends['items'], [{'username': 'BobPlayer', 'role': 'member', 'public_id': None, 'status': 'friend'}])
+        with app.connect() as db:
+            db.execute("UPDATE users SET is_media=1 WHERE username='BobPlayer'")
+        friends = await (await self.client.get('/api/friends?appearance=1', headers=alice)).json()
+        self.assertEqual(friends['items'], [{'username': 'BobPlayer', 'role': 'media', 'public_id': None, 'status': 'friend'}])
+        with app.connect() as db:
+            alice_id = db.execute("SELECT id FROM users WHERE username='AlicePlayer'").fetchone()[0]
+            db.execute('ALTER TABLE users DROP COLUMN is_media')
+        # Production resolves the session using the older user schema.
+        with patch.object(app, 'session', return_value={'id': alice_id}):
+            result = await self.client.get('/api/friends?appearance=1', headers=alice)
+            self.assertEqual(result.status, 200)
+            self.assertEqual((await result.json())['items'][0]['role'], 'member')
+        with app.connect() as db:
+            db.execute('ALTER TABLE users ADD COLUMN is_media INTEGER NOT NULL DEFAULT 0')
         self.assertEqual(await action(alice, 'BobPlayer', 'remove'), 200)
         self.assertEqual((await (await self.client.get('/api/friends', headers=bob)).json())['items'], [])
         self.assertEqual(await action(alice, 'BobPlayer', 'request'), 200)

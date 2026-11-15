@@ -792,8 +792,9 @@ async def friends_list(request):
     if not user: return error('auth', 401)
     uid = user['id']
     with connect() as db:
-        rows = db.execute('''SELECT u.username,
-            CASE WHEN u.role='member' AND u.is_media=1 THEN 'media' ELSE u.role END AS role,
+        columns = {column['name'] for column in db.execute('PRAGMA table_info(users)')}
+        role = "CASE WHEN u.role='member' AND u.is_media=1 THEN 'media' ELSE u.role END" if 'is_media' in columns else 'u.role'
+        rows = db.execute(f'''SELECT u.username, {role} AS role,
             CASE WHEN p.published=1 THEN p.public_id END AS public_id,
             CASE WHEN f.accepted=1 THEN 'friend' WHEN f.sender_id=:uid THEN 'outgoing' ELSE 'incoming' END AS status
             FROM friendships f JOIN users u ON u.id=CASE WHEN f.low_id=:uid THEN f.high_id ELSE f.low_id END
