@@ -415,6 +415,21 @@ button.module-toggle[data-toggle-style="label"][aria-checked="true"]:hover{backg
 .friend-live{display:block;margin-top:4px}
 .friend-detail .friend-live[data-online="true"]{color:var(--accent)}
 .friend-controls{border-top:1px solid var(--rule);padding:8px 10px 10px}
+.friend-profile-page .profile-top{min-height:204px;padding:10px 16px;gap:16px}
+.friend-profile-page .friend-model{height:182px}
+.friend-profile-page .friend-profile-identity{min-width:0;overflow-wrap:anywhere}
+.friend-profile-page .profile-top h2{font-size:25px;word-break:normal}
+.friend-profile-page .friend-profile-identity small{display:block;margin:5px 0}
+.friend-profile-section{padding:11px 14px;border-top:1px solid var(--rule)}
+.friend-profile-section h3{margin:0 0 8px;font-size:13px}
+.friend-profile-facts{display:flex;flex-wrap:wrap;gap:11px 16px}
+.friend-profile-facts>div{flex:1 1 120px;display:flex;align-items:flex-start;flex-direction:column;justify-content:center;gap:5px}
+.friend-profile-facts b{font-size:12px}
+.friend-profile-facts .button{min-height:25px}
+.friend-outfit{display:flex;flex-wrap:wrap;gap:6px}
+.friend-outfit-item{flex:0 1 96px;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;padding:6px;border:1px solid var(--rule);border-radius:5px;background:var(--field);font-size:10px}
+.friend-outfit-item .cosmetic-art{width:54px;height:33px;object-fit:contain}
+.friend-profile-footer{display:flex;justify-content:flex-end}
 .friend-world,.friend-world-tools{display:flex;gap:7px;border-top:1px solid var(--rule);padding:8px 0;align-items:flex-start}
 .friend-world{border-top:0;padding-top:0;flex-direction:column}
 .friend-world-tools{flex-wrap:wrap;align-items:center;margin-bottom:7px}

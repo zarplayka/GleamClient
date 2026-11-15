@@ -513,6 +513,22 @@ function friendAvatar(item,large=false) {
   return source ? '<img class="avatar friend-avatar' + size + '" src="assets/' + text(source) + '.png" alt="">'
     : '<span class="friend-initial' + size + '" aria-hidden="true">' + text(item.username[0].toUpperCase()) + '</span>';
 }
+function friendModel(item) {
+  return '<div class="friend-model" data-friend-model="' + text(item.username) + '">'
+    + (typeof sendGame === 'function' ? '' : friendAvatar(item,true)) + '</div>';
+}
+function friendPresence(item) {
+  const presence = friends.worlds?.people?.[item.username];
+  const label = {world:'В своём мире',game:'В игре',launcher:'В лаунчере'}[presence?.status] ?? 'Не в сети';
+  const online = ['world','game','launcher'].includes(presence?.status);
+  return '<small class="friend-live" data-online="' + online + '">' + text(t(label)) + '</small>'
+    + (presence?.world ? '<small>' + text(presence.world + (presence.version ? ' · Minecraft ' + presence.version : '')) + '</small>' : '');
+}
+function friendOutfit(item) {
+  const slots = item.appearance?.slots;
+  if (!slots) return [];
+  return [slots.wings,slots.pet,slots.halo && 'halo',slots.hat && 'hat'].map(cosmeticById).filter(Boolean);
+}
 function renderFriendProfile() {
   const item = friends.items.find(entry => entry.username === state.friendProfile);
   const profile = friends.profile?.username === state.friendProfile ? friends.profile : null;
@@ -520,14 +536,21 @@ function renderFriendProfile() {
   const head = pageHead(t('Профиль'),'',back);
   if (!item) return head + empty(t('Профиль недоступен'),'');
   const badge = {owner:'Owner', admin:'Admin', media:'Media'}[profile?.role ?? item.role];
-  return head + '<div class="sheet"><div class="profile-top">' + friendAvatar(item,true) + '<div><h2>'
-    + text(item.username) + '</h2>' + (badge ? '<p>' + accountStatus({badge}) + '</p>' : '') + '</div></div>'
-    + (profile?.id ? '<div class="setting-row"><span>' + text(t('ID аккаунта')) + '</span>'
-      + actionButton('friend-profile-copy',profile.id,'copy') + '</div><div class="setting-row"><span>'
-      + text(t('Дата регистрации')) + '</span><small>' + text(profile.created) + '</small></div>'
-      : '<div class="setting-row"><span>' + text(profile?.status ?? t('Загрузка…')) + '</span></div>')
-    + (item.status === 'friend' ? '<div class="setting-row"><button type="button" class="button" data-friend-change="remove" data-username="'
-      + text(item.username) + '">' + text(t('Удалить из друзей')) + '</button></div>' : '') + '</div>';
+  const outfit = friendOutfit(item);
+  return head + '<article class="friend-detail friend-profile-page"><div class="profile-top">' + friendModel(item)
+    + '<div class="friend-profile-identity"><h2>' + text(item.username) + '</h2>' + friendPresence(item)
+    + (badge ? '<p>' + accountStatus({badge}) + '</p>' : '') + '</div></div>'
+    + '<section class="friend-profile-section">' + (profile?.id
+      ? '<div class="friend-profile-facts"><div><small>' + text(t('Дата регистрации')) + '</small><b>' + text(profile.created)
+        + '</b></div><div><small>' + text(t('ID аккаунта')) + '</small>'
+        + actionButton('friend-profile-copy',profile.id,'copy') + '</div></div>'
+      : '<small>' + text(profile?.status ?? t('Загрузка…')) + '</small>') + '</section>'
+    + (item.appearance?.slots ? '<section class="friend-profile-section"><h3>' + text(t('Экипировка')) + '</h3>'
+      + (outfit.length ? '<div class="friend-outfit">' + outfit.map(([id,,label]) =>
+        '<div class="friend-outfit-item">' + cosmeticDrawing(id,false) + '<b>' + text(t(label)) + '</b></div>').join('') + '</div>'
+        : '<small>' + text(t('Ничего не надето')) + '</small>') + '</section>' : '')
+    + (item.status === 'friend' ? '<div class="friend-profile-section friend-profile-footer"><button type="button" class="button" data-friend-change="remove" data-username="'
+      + text(item.username) + '">' + text(t('Удалить из друзей')) + '</button></div>' : '') + '</article>';
 }
 function renderFriends() {
   if (state.friendProfile && friends.signedIn) return renderFriendProfile();
@@ -561,10 +584,8 @@ function renderFriends() {
     + (worlds.hosting ? button('close','Закрыть доступ') + '<small>TCP ' + text(String(worlds.port)) + '</small>' : '') + '</div>' : '';
   const commands = selected ? ({friend:[['remove','Удалить из друзей']],incoming:[['accept','Принять'],['decline','Отклонить']],
     outgoing:[['cancel','Отозвать']]}[selected.status] ?? []) : [];
-  const detail = selected ? '<div class="friend-detail"><div class="profile-top"><div class="friend-model" data-friend-model="'
-    + text(selected.username) + '">' + (typeof sendGame === 'function' ? '' : friendAvatar(selected,true))
-    + '</div><div><h2>' + text(selected.username) + '</h2><small class="friend-live" data-online="' + online(selected)
-    + '">' + text(t(presence(selected))) + '</small></div></div><div class="friend-controls">'
+  const detail = selected ? '<div class="friend-detail"><div class="profile-top">' + friendModel(selected)
+    + '<div><h2>' + text(selected.username) + '</h2>' + friendPresence(selected) + '</div></div><div class="friend-controls">'
     + (invite ? '<div class="friend-world"><b>' + text(invite.world) + '</b><small>Minecraft ' + text(invite.version)
       + '</small><div class="friends-tools">' + (invite.incoming && invite.state === 'pending'
         ? button('accept','Зайти к другу',invite.id,true,invite.version !== worlds.version)
@@ -884,8 +905,8 @@ function scheduleCosmeticPreview() {
       data.zoom = state.cosmeticZoom;
       if (stage.dataset.friendModel) {
         data.friend = stage.dataset.friendModel;
-        const slots = friends.items.find(item => item.username === data.friend)?.appearance?.slots ?? {};
-        data.items = [slots.wings,slots.pet,slots.halo && 'halo',slots.hat && 'hat'].filter(Boolean);
+        const person = friends.items.find(item => item.username === data.friend);
+        data.items = person ? friendOutfit(person).map(([id]) => id) : [];
         data.yaw = -30;
         data.zoom = 1;
       }

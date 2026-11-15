@@ -309,9 +309,36 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .friend-profile-link:hover { background:var(--control-bg);color:var(--text) }
     .friend-profile-link .icon { width:15px;height:15px }
     .friend-profile-link .icon:last-child { margin-left:auto }
-    .friend-modal-person { display:flex;gap:12px;align-items:center;margin-bottom:14px }
-    .friend-modal-person .friend-face { width:54px;height:54px }
-    .friend-modal-person small { display:block;margin-top:4px;color:var(--muted) }
+    #friend-profile-dialog { width:min(680px,calc(100vw - 40px));max-height:calc(100dvh - 48px);padding:0;overflow:auto }
+    #friend-profile-dialog>header { margin:0;padding:11px 16px;border-bottom:1px solid var(--border);background:var(--home-surface) }
+    #friend-profile-dialog>header h2 { font-size:14px;letter-spacing:0 }
+    .friend-modal-hero { display:grid;grid-template-columns:minmax(130px,43%) minmax(0,1fr);gap:17px;align-items:center;padding:10px 22px;background:radial-gradient(ellipse at 26% 62%,color-mix(in srgb,var(--selected-bg) 75%,var(--panel)),var(--panel) 68%) }
+    .friend-modal-hero .friend-render { height:236px }
+    .friend-modal-hero .friend-render[data-rendered] { cursor:grab;touch-action:none }
+    .friend-modal-hero .friend-render:active { cursor:grabbing }
+    #friend-profile-body .friend-modal-name { margin:0 0 7px;font-size:clamp(24px,4vw,33px);line-height:1.1;overflow-wrap:anywhere }
+    .friend-modal-identity { min-width:0 }
+    .friend-modal-identity .friend-presence { color:var(--muted) }
+    .friend-modal-identity .friend-presence[data-online] { color:#80d3a4 }
+    .friend-modal-identity .friend-tag { margin-top:12px;color:var(--selected-text) }
+    .friend-modal-identity .friend-world-status { display:block;margin-top:5px;color:var(--muted);overflow-wrap:anywhere }
+    .friend-profile-section { padding:14px 18px;border-top:1px solid var(--border) }
+    .friend-profile-section h3 { margin:0 0 10px;font-size:14px }
+    .friend-profile-facts { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px }
+    .friend-profile-fact { min-width:0;display:grid;gap:5px }
+    .friend-profile-fact small,.friend-profile-section>small { color:var(--muted) }
+    .friend-profile-fact .button { justify-self:start;min-height:28px;border-radius:5px;font-family:inherit }
+    .friend-profile-fact .icon { width:13px;height:13px }
+    .friend-outfit { display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:7px }
+    .friend-outfit-item { display:grid;justify-items:center;align-content:center;gap:5px;min-width:0;min-height:83px;padding:7px;border:1px solid var(--border);border-radius:7px;background:var(--home-surface);text-align:center;font-size:11px }
+    .friend-outfit-item img { width:62px;height:42px;object-fit:contain;image-rendering:pixelated }
+    .friend-profile-footer { display:flex;justify-content:flex-end }
+    .friend-profile-footer .button { min-height:32px;font-size:12px;color:var(--muted) }
+    @media(max-width:560px) {
+      .friend-modal-hero { padding-inline:12px;gap:9px;grid-template-columns:minmax(95px,43%) minmax(0,1fr) }
+      .friend-modal-hero .friend-render { height:174px }
+      .friend-profile-facts { grid-template-columns:1fr }
+    }
     .friends-note { margin:0 0 12px }
     .friends-empty { margin:0;padding:16px;border:1px solid var(--border);border-radius:9px;background:var(--panel) }
     .friends-form { display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px }
@@ -1499,6 +1526,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+          <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-040">
+            <span class="release-meta"><span class="release-version">0.1.40</span><time datetime="2026-11-15">15.11.2026</time></span>
+            <div>
+              <h3 id="release-launcher-040">Профили друзей</h3>
+              <p>Открой профиль друга, чтобы рассмотреть 3D-модель и экипировку, увидеть статус и скопировать ID.</p>
+            </div>
+          </article>
           <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-039">
             <span class="release-meta"><span class="release-version">0.1.39</span><time datetime="2026-11-14">14.11.2026</time></span>
             <div>
@@ -2335,6 +2369,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Обновлённый экран друзей':['Updated Friends screen','Überarbeitete Freundesliste','Pantalla de amigos renovada'],
       'Крупная 3D-модель со скином и экипировкой, отдельная карточка мира и профиль под приглашением.':['A larger 3D model with skin and cosmetics, a world card, and a profile link below the invitation.','Ein größeres 3D-Modell mit Skin und Kosmetik, eine Weltkarte und ein Profillink unter der Einladung.','Un modelo 3D más grande con aspecto y cosméticos, una tarjeta del mundo y un enlace al perfil bajo la invitación.'],
       'Профиль друга':['Friend profile','Freundesprofil','Perfil del amigo'],
+      'Профили друзей':['Friend profiles','Freundesprofile','Perfiles de amigos'],
+      'Открой профиль друга, чтобы рассмотреть 3D-модель и экипировку, увидеть статус и скопировать ID.':['Open a friend’s profile to see their 3D model, outfit, status and copy their ID.','Öffne das Profil eines Freundes für 3D-Modell, Ausrüstung, Status und ID.','Abre el perfil de un amigo para ver su modelo 3D, equipamiento y estado, o copiar su ID.'],
+      'Экипировка':['Outfit','Ausrüstung','Equipamiento'],
+      'ID аккаунта':['Account ID','Konto-ID','ID de cuenta'],
+      'Скопировать ID':['Copy ID','ID kopieren','Copiar ID'],
       'Игрок скрыл свой профиль':['This player has hidden their profile','Dieser Spieler hat sein Profil verborgen','Este jugador ha ocultado su perfil'],
       'Дата регистрации · {0}':['Joined · {0}','Registriert seit · {0}','Registro · {0}'],
       'Не удалось синхронизировать косметику':['Could not sync cosmetics','Kosmetik konnte nicht synchronisiert werden','No se pudo sincronizar la cosmética'],
@@ -4645,6 +4684,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     const friendCanvas = document.createElement('canvas');
     const friendSkins = new Map();
     let friendPreview, friendModelKey = '', friendModelRequest = 0;
+    let friendProfileModel = null;
     async function syncFriendAppearance() {
       if (!signedIn || !window.__TAURI__ || !selectedFriendAppearance || publishingFriendAppearance) return;
       const {skin,slim} = selectedFriendAppearance;
@@ -4684,7 +4724,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
       return friendSkins.get(key);
     }
-    async function drawFriendModel(stage,person) {
+    async function drawFriendModel(stage,person,profile=false) {
       const request = ++friendModelRequest;
       const look = person.appearance ?? {};
       const key = JSON.stringify([person.username,look]);
@@ -4699,14 +4739,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           slots.pet ? friendPreview.loadPet(slots.pet).catch(() => null) : null,
           slots.wings ? friendPreview.loadGeometry().catch(() => { slots.wings = ''; }) : null
         ]);
-        if (request !== friendModelRequest || !stage.isConnected || !friendsOpen()) return;
+        if (request !== friendModelRequest || !stage.isConnected || !friendsOpen()
+            || profile !== $('friend-profile-dialog').open) return;
         friendCanvas.hidden = false;
         stage.firstElementChild.hidden = true;
         const density = Math.min(2,window.devicePixelRatio);
-        friendCanvas.width = Math.max(1,Math.round(friendCanvas.clientWidth*density));
-        friendCanvas.height = Math.max(1,Math.round(friendCanvas.clientHeight*density));
+        const width = Math.max(1,Math.round(friendCanvas.clientWidth*density));
+        const height = Math.max(1,Math.round(friendCanvas.clientHeight*density));
+        if (friendCanvas.width !== width) friendCanvas.width = width;
+        if (friendCanvas.height !== height) friendCanvas.height = height;
         if (key !== friendModelKey) friendPreview.setSkin(skin.image,!!look.slim,skin.headLayer);
-        friendPreview.draw({yaw:-.53,pitch:.16,home:true,zoom:.94,slots,pet});
+        const draw = yaw => friendPreview.draw({yaw,pitch:.16,home:true,zoom:.94,slots,pet});
+        if (profile) {
+          friendProfileModel = {stage,draw,yaw:friendProfileModel?.yaw ?? -.53};
+          stage.setAttribute('data-rendered','');
+        }
+        draw(profile ? friendProfileModel.yaw : -.53);
         friendModelKey = key;
       } catch {
         if (request === friendModelRequest) {
@@ -4851,30 +4899,113 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       profile.insertAdjacentHTML('beforeend','<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>');
       session.append(profile);
       detail.append(session);
-      void drawFriendModel(stage,selected);
+      if (!$('friend-profile-dialog').open) void drawFriendModel(stage,selected);
     }
     async function showFriendProfile(person) {
       const dialog = $('friend-profile-dialog');
       const body = $('friend-profile-body');
-      const top = catalogElement('div','friend-modal-person');
-      const text = catalogElement('div','');
+      const hero = catalogElement('div','friend-modal-hero');
+      const stage = catalogElement('div','friend-render');
+      stage.setAttribute('aria-hidden','true');
+      stage.append(friendFace(person));
+      const identity = catalogElement('div','friend-modal-identity');
+      const presence = social.worlds.people?.[person.username];
+      const status = catalogElement('small','friend-presence');
+      writeLocale(status,{world:'В своём мире',game:'В игре',launcher:'В лаунчере'}[presence?.status] ?? 'Не в сети');
+      status.toggleAttribute('data-online',!!presence?.status && presence.status !== 'offline');
+      identity.append(catalogElement('h3','friend-modal-name',person.username),status);
+      if (presence?.world) identity.append(catalogElement('small','friend-world-status',
+        presence.world + (presence.version ? ' · Minecraft ' + presence.version : '')));
+      const role = {owner:'Owner',admin:'Admin',media:'Media'}[person.role];
+      if (role) identity.append(catalogElement('strong','friend-tag',role));
+      hero.append(stage,identity);
+      const facts = catalogElement('section','friend-profile-section');
+      const fields = catalogElement('div','friend-profile-facts');
       const meta = catalogElement('small','');
-      text.append(catalogElement('strong','',person.username),meta);
-      top.append(friendFace(person),text);
-      const actions = catalogElement('div','minecraft-dialog-actions');
-      if (person.status === 'friend') actions.append(friendButton('Удалить из друзей','remove',person.username));
-      body.replaceChildren(top,actions);
+      facts.append(fields,meta);
+      const outfit = catalogElement('section','friend-profile-section');
+      const outfitTitle = catalogElement('h3','');
+      writeLocale(outfitTitle,'Экипировка');
+      outfit.append(outfitTitle);
+      const slots = person.appearance?.slots;
+      if (slots) {
+        const worn = wardrobeItems.filter(([id,slot]) => slot !== 'dance' && (typeof slots[slot] === 'boolean' ? slots[slot] : slots[slot] === id));
+        if (worn.length) {
+          const shelf = catalogElement('div','friend-outfit');
+          for (const [id,,label] of worn) {
+            const tile = catalogElement('div','friend-outfit-item');
+            const name = catalogElement('strong','');
+            writeLocale(name,label);
+            const art = document.createElement('img');
+            art.alt = '';
+            art.hidden = true;
+            art.dataset.friendOutfit = id;
+            tile.append(art,name);
+            shelf.append(tile);
+          }
+          outfit.append(shelf);
+          void loadCosmeticIcons().then(() => {
+            for (const art of shelf.querySelectorAll('[data-friend-outfit]')) {
+              const src = cosmeticIcons.get(art.dataset.friendOutfit);
+              if (src) { art.src = src; art.hidden = false; }
+            }
+          });
+        } else {
+          const empty = catalogElement('small','');
+          writeLocale(empty,'Ничего не надето');
+          outfit.append(empty);
+        }
+      }
+      const footer = catalogElement('div','friend-profile-section friend-profile-footer');
+      if (person.status === 'friend') footer.append(friendButton('Удалить из друзей','remove',person.username));
+      body.replaceChildren(hero,facts);
+      if (slots) body.append(outfit);
+      if (footer.childElementCount) body.append(footer);
       if (!dialog.open) dialog.showModal();
+      void drawFriendModel(stage,person,true);
+      let drag = null;
+      stage.addEventListener('pointerdown',event => {
+        if (event.button !== 0 || friendProfileModel?.stage !== stage) return;
+        stage.setPointerCapture(event.pointerId);
+        drag = {id:event.pointerId,x:event.clientX,yaw:friendProfileModel.yaw};
+      });
+      stage.addEventListener('pointermove',event => {
+        if (drag?.id !== event.pointerId || friendProfileModel?.stage !== stage) return;
+        friendProfileModel.yaw = drag.yaw + (event.clientX - drag.x) * .018;
+        friendProfileModel.draw(friendProfileModel.yaw);
+      });
+      stage.addEventListener('lostpointercapture',() => { drag = null; });
       if (!person.public_id) return writeLocale(meta,'Игрок скрыл свой профиль');
       writeLocale(meta,'Загрузка…');
       try {
         const record = await friendCall('profile',person.public_id);
         if (!meta.isConnected || !dialog.open) return;
         const date = new Date(record.created_at * 1000);
-        if (Number.isFinite(date.valueOf())) writeLocale(meta,'Дата регистрации · {0}',new Intl.DateTimeFormat(launcherLanguage).format(date));
-        else meta.hidden = true;
+        const fact = (label,value) => {
+          const row = catalogElement('div','friend-profile-fact');
+          const heading = catalogElement('small','');
+          writeLocale(heading,label);
+          row.append(heading,value);
+          return row;
+        };
+        if (Number.isFinite(date.valueOf())) fields.append(fact('Дата регистрации',
+          catalogElement('strong','',new Intl.DateTimeFormat(launcherLanguage,{dateStyle:'medium'}).format(date))));
+        const id = record.id || person.public_id;
+        const copy = catalogElement('button','button',id);
+        copy.type = 'button';
+        writeLabel(copy,'Скопировать ID');
+        copy.insertAdjacentHTML('beforeend','<svg class="icon" aria-hidden="true"><use href="#i-account-copy"/></svg>');
+        copy.addEventListener('click',() => void copyAccountValue(copy,id,'Скопировать ID'));
+        fields.append(fact('ID аккаунта',copy));
+        meta.hidden = true;
       } catch { writeLocale(meta,'Профиль недоступен'); }
     }
+    $('friend-profile-dialog').addEventListener('close',() => {
+      friendProfileModel = null;
+      friendModelRequest++;
+      renderFriends();
+      $('friend-details').querySelector('.friend-profile-link')?.focus({preventScroll:true});
+    });
     async function refreshFriends(full=false) {
       if (!signedIn || !window.__TAURI__ || social.pending) return;
       const owner = $('account-name').textContent;
