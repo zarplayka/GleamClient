@@ -1048,78 +1048,61 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     #profiles-status,#profile-detail-status { margin: 0 0 12px; color: var(--muted); font-size: 13px }
     #profiles-status[data-error],#profile-detail-status[data-error] { color: var(--error-text) }
     #page-profiles:has(#profile-detail:not([hidden])) { width: 100%; padding: 10px 12px 12px }
-    #profile-detail {
-      --profile-surface: var(--panel); --profile-list: var(--home-surface); --profile-control: var(--control-bg);
-      --profile-line: var(--border); --profile-muted: var(--muted); --profile-text: var(--text); --profile-blue: var(--on-fill);
-    }
-    :root[data-theme="dark"] #profile-detail {
-      --profile-surface: #20201f; --profile-list: #262625; --profile-control: #262625;
-      --profile-line: #30302e; --profile-muted: #a4a39e; --profile-text: #efefeb; --profile-blue: #397ff1;
-      --selected-bg: #292928; --selected-text: #efefeb;
-    }
     #profile-detail-back .icon { transform: rotate(180deg) }
     .profile-detail-header { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 14px; padding: 19px 24px 15px }
     .profile-detail-identity { display: flex; align-items: center; flex: 1 1 275px; min-width: 0; gap: 15px }
     .profile-detail-identity > div:last-child { min-width: 0 }
     #profile-detail-art { flex: none }
-    #profile-detail-art .profile-cover { width: 68px; height: 68px; border-radius: 12px; background: var(--profile-control) }
+    #profile-detail-art .profile-cover { width: 68px; height: 68px; border-radius: 12px }
     #profile-detail-art .profile-cover::after { display: none }
-    #profile-detail-heading { margin: 0 0 5px; color: var(--profile-text); font-size: clamp(21px,2.6cqw,26px); font-weight: 600; line-height: 1.15; letter-spacing: -.025em; overflow-wrap: anywhere }
+    #profile-detail-heading { margin: 0 0 5px; font-size: clamp(21px,2.6cqw,26px); font-weight: 600; line-height: 1.15; letter-spacing: -.025em; overflow-wrap: anywhere }
     .profile-detail-header .profiles-actions { max-width: 100%; gap: 7px }
     .profile-detail-header .button { min-height: 38px; border-radius: 7px; font-size: 13px; font-weight: 600 }
-    #profile-detail .button:not(.primary) { border-color: var(--profile-line); background: var(--profile-control); color: var(--profile-muted) }
-    #profile-detail .button:not(.primary):hover:enabled { color: var(--profile-text); border-color: var(--focus-stroke) }
-    #profile-detail .button.primary:not([data-close-game]) { background: var(--profile-blue); color: #fff }
-    #profile-detail .button.primary:not([data-close-game]):hover:enabled { background: color-mix(in srgb,var(--profile-blue) 86%,white) }
     .profile-detail-header .profile-icon-button { width: 36px; min-height: 36px; padding: 0 }
     .profile-detail-header .icon { width: 14px; height: 14px }
     #profile-detail-play { min-width: 146px }
-    .profile-detail-panel { display: flex; flex-direction: column; min-height: calc(var(--content-height) - 22px); border: 1px solid var(--profile-line); border-radius: 13px; background: var(--profile-surface) }
-    .profile-detail-specs { display: flex; flex-wrap: wrap; gap: 4px 6px; color: var(--profile-muted); font-size: 12px; overflow-wrap: anywhere }
+    .profile-detail-panel { display: flex; flex-direction: column; min-height: calc(var(--content-height) - 22px); border: 1px solid var(--border); border-radius: 13px; background: var(--panel) }
+    .profile-detail-specs { display: flex; flex-wrap: wrap; gap: 4px 6px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere }
     .profile-detail-specs > span + span::before { content: '·'; margin-inline-end: 6px }
-    #profile-detail-activity { margin: 5px 0 0; color: var(--profile-muted); font-size: 12px }
+    #profile-detail-activity { margin: 5px 0 0; color: var(--muted); font-size: 12px }
     #profile-detail-status { margin: 0 24px 11px }
     #profile-detail-content { display: flex; flex-direction: column; flex: 1 }
-    .profile-detail-tabs { display: flex; gap: 17px; overflow: auto; padding: 0 24px; border-bottom: 1px solid var(--profile-line) }
-    .profile-detail-tabs button { display: inline-flex; align-items: center; gap: 6px; min-height: 37px; padding: 0 1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--profile-muted); font-size: 12px; white-space: nowrap }
+    .profile-detail-tabs { display: flex; gap: 17px; overflow: auto; padding: 0 24px; border-bottom: 1px solid var(--border) }
+    .profile-detail-tabs button { display: inline-flex; align-items: center; gap: 6px; min-height: 37px; padding: 0 1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font-size: 12px; white-space: nowrap }
     .profile-detail-tabs button .icon,.profile-content-kinds .icon { width: 13px; height: 13px }
-    .profile-detail-tabs button:hover { color: var(--profile-text) }
-    .profile-detail-tabs button[aria-pressed="true"] { border-color: var(--profile-text); color: var(--profile-text); font-weight: 600 }
+    .profile-detail-tabs button:hover { color: var(--text) }
+    .profile-detail-tabs button[aria-pressed="true"] { border-color: var(--accent); color: var(--selected-text); font-weight: 600 }
     .profile-detail-tabs button:focus-visible { outline-offset: -2px }
     .profile-content { display: flex; flex-direction: column; flex: 1; min-width: 0; padding: 14px 24px 22px }
     .profile-content-tools { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px }
-    .profile-content-kinds.segmented-tabs { margin: 0; justify-content: flex-start; border-color: var(--profile-line); background: var(--profile-surface) }
-    .profile-content-kinds.segmented-tabs button { display: inline-flex; align-items: center; gap: 5px; min-width: 0; min-height: 27px; padding-inline: 8px; color: var(--profile-muted); font-size: 12px }
-    .profile-content-kinds.segmented-tabs button[aria-pressed="true"] { border-color: var(--profile-line); color: var(--profile-text) }
+    .profile-content-kinds.segmented-tabs { margin: 0; justify-content: flex-start }
+    .profile-content-kinds.segmented-tabs button { display: inline-flex; align-items: center; gap: 5px; min-width: 0; min-height: 27px; padding-inline: 8px; font-size: 12px }
     #profile-find-mods { flex: 0 0 auto; margin-left: auto }
     #profile-find-mods .icon { width: 13px; height: 13px }
     .profile-content-query,.profile-content-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px }
     .profile-content-query { flex: 1 1 290px }
-    .profile-content-query .profiles-search { flex: 1 1 190px; min-height: 34px; margin: 0; border-color: var(--profile-line); background: var(--profile-surface); color: var(--profile-muted) }
-    .profile-content-query .profiles-search:focus-within { border-color: var(--focus-stroke) }
+    .profile-content-query .profiles-search { flex: 1 1 190px; min-height: 34px; margin: 0 }
     .profile-content-query input { min-height: 32px; font-size: 13px }
     .profile-content-query .setting-dropdown { min-width: 100px }
-    .profile-content-query .dropdown-trigger { border-color: var(--profile-line); background: var(--profile-control); color: var(--profile-text) }
     .profile-content-actions { margin-left: auto }
     .profile-content-actions .button,#profile-find-mods { min-height: 34px; border-radius: 6px; font-size: 12px }
     .profile-content-actions button { width: 34px; padding: 0 }
     .profile-content-actions .icon { width: 15px; height: 15px }
-    #profile-content-count { color: var(--profile-muted); font-size: 12px }
-    .profile-content-list { flex: 1; min-height: 195px; border: 1px solid var(--profile-line); border-radius: 10px; background: var(--profile-list) }
+    #profile-content-count { color: var(--muted); font-size: 12px }
+    .profile-content-list { flex: 1; min-height: 195px; border: 1px solid var(--border); border-radius: 10px; background: var(--home-surface) }
     #profile-content-entries { margin: 0; padding: 0; list-style: none }
     .profile-entry { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 12px; min-height: 71px; padding: 9px 12px }
-    .profile-entry + .profile-entry { border-top: 1px solid var(--profile-line) }
-    .profile-entry-icon { display: grid; width: 38px; height: 38px; place-items: center; overflow: hidden; border-radius: 8px; background: var(--profile-control); color: var(--profile-muted) }
+    .profile-entry + .profile-entry { border-top: 1px solid var(--border) }
+    .profile-entry-icon { display: grid; width: 38px; height: 38px; place-items: center; overflow: hidden; border-radius: 8px; background: var(--control-bg); color: var(--muted) }
     .profile-entry-icon .icon { width: 17px; height: 17px }
     .profile-entry-icon img { width: 100%; height: 100%; object-fit: contain }
     .profile-entry-copy { min-width: 0 }
     .profile-entry strong,.profile-entry small { display: block; overflow-wrap: anywhere }
-    .profile-entry strong { color: var(--profile-text); font-size: 13px; font-weight: 600 }
-    .profile-entry small { margin-top: 3px; color: var(--profile-muted); font-size: 12px }
-    .profile-entry .profile-entry-meta { color: color-mix(in srgb,var(--profile-muted) 80%,var(--profile-list)); font-size: 11px }
-    .profile-entry .switch input:checked + .switch-track { background: color-mix(in srgb,var(--profile-blue) 68%,var(--profile-list)) }
+    .profile-entry strong { font-size: 13px; font-weight: 600 }
+    .profile-entry small { margin-top: 3px; color: var(--muted); font-size: 12px }
+    .profile-entry .profile-entry-meta { font-size: 11px }
     .profile-entry .switch:has(input:disabled) { opacity: .65; cursor: default }
-    #profile-content-note { margin: 0; padding: 16px 13px; color: var(--profile-muted); font-size: 13px }
+    #profile-content-note { margin: 0; padding: 16px 13px; color: var(--muted); font-size: 13px }
     #profile-content-note[data-error] { color: var(--error-text) }
     @container workspace (max-width: 560px) {
       #page-profiles:has(#profile-detail:not([hidden])) { padding-inline: 7px }
