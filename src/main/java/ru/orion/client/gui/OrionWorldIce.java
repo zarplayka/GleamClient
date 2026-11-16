@@ -15,10 +15,13 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.FileSystemException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.HexFormat;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -29,7 +32,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class OrionWorldIce implements Closeable {
     private static final String RESOURCE = "/assets/orion-client/native/gleam-world-ice.exe";
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static Path executable;
 
     private final ServerSocket bridge;
     private final Process process;
@@ -51,17 +53,34 @@ final class OrionWorldIce implements Closeable {
     }
 
     private static synchronized Path executable() throws IOException {
-        if (executable != null) return executable;
+        String appData = System.getenv("LOCALAPPDATA");
+        if (appData == null || !Path.of(appData).isAbsolute()) throw new IOException("Local application directory unavailable");
+        Path directory = Path.of(appData, "GleamClient", "native");
+        Path file = directory.resolve("gleam-world-ice.exe");
+        byte[] bytes;
         try (var resource = OrionWorldIce.class.getResourceAsStream(RESOURCE)) {
             if (resource == null) throw new IOException("Direct UDP helper unavailable");
-            var directory = Files.createTempDirectory("gleam-world-ice-");
-            directory.toFile().deleteOnExit();
-            var file = directory.resolve("gleam-world-ice.exe");
-            file.toFile().deleteOnExit();
-            Files.copy(resource, file);
-            executable = file;
-            return file;
+            bytes = resource.readAllBytes();
         }
+        if (matches(file, bytes)) return file;
+        Files.createDirectories(directory);
+        Path staged = Files.createTempFile(directory, "gleam-world-ice-", ".tmp");
+        try {
+            Files.write(staged, bytes);
+            try {
+                Files.move(staged, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (FileSystemException failure) {
+                // Another running client may already have installed and started the same helper.
+                if (!matches(file, bytes)) throw failure;
+            }
+            return file;
+        } finally {
+            Files.deleteIfExists(staged);
+        }
+    }
+
+    private static boolean matches(Path file, byte[] bytes) throws IOException {
+        return Files.isRegularFile(file) && Files.size(file) == bytes.length && Arrays.equals(Files.readAllBytes(file), bytes);
     }
 
     static OrionWorldIce start(String offer) throws IOException {
