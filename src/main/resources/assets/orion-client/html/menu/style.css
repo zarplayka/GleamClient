@@ -616,5 +616,8 @@ dialog::backdrop{background:#080b12a3}
 @media(max-width:940px){.window{--sidebar:min(var(--window-sidebar),190px,32%);--inset:16px}.review{padding-inline:14px}}
 @media(max-width:760px){.module-settings.with-toc{grid-template-columns:1fr;gap:12px}.settings-toc{position:static;grid-template-columns:repeat(2,minmax(0,1fr))}.settings-toc>span{grid-column:1/-1}.module-head-art{width:42px;height:42px}.module-state{display:none}}
 @media(max-width:660px){.window{--sidebar:min(148px,37%);--inset:10px}.review{padding-inline:7px}.modules-grid{gap:5px}.module-main{padding-inline:6px}.nav-item{padding-inline:5px;gap:5px;font-size:11px}.sidebar{padding-inline:6px}.search{padding-inline:4px}.search kbd,.nav-item small,.review-divider,.review-label>span:last-child{display:none}.brand{font-size:14px;gap:6px;padding-inline:3px}.brand img{width:19px}.account-trigger{gap:4px;padding-inline:3px;font-size:11px}.plan{font-size:10px}.avatar{width:19px;height:19px}.account-settings{width:22px}.page-head{gap:6px}.page-head h1{font-size:20px}.page-head .meta{display:none}.setting-row{flex-wrap:wrap}.setting-row select{max-width:100%}.review-controls{gap:4px}.window-options .look-tile-label{font-size:10px;padding-inline:0}}
+.cosmetic-tile,.friends-row,.friend-open-profile,.friends-tabs button,.friend-count{
+  transition:background-color .16s,border-color .16s,color .16s
+}
 @media (hover:none){.module-tools button{opacity:1;transform:none;pointer-events:auto}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}

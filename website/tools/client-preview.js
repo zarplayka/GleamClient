@@ -18,6 +18,12 @@ function hub() {
   const screens = { clickgui: '/clickgui/', title: '/title/', splash: '/title/?splash', hud: '/hud/', widgets: '/widgets/' };
   const frame = document.querySelector('#screen');
   const tabs = [...document.querySelectorAll('[data-preview]')];
+  let reveal;
+  frame.addEventListener('load', () => {
+    reveal?.cancel();
+    if (location.hash === '#splash' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    reveal = frame.animate([{ opacity: .7 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' });
+  });
   function navigate() {
     const name = location.hash.slice(1);
     const selected = Object.hasOwn(screens, name) ? name : 'clickgui';
@@ -141,13 +147,20 @@ async function clickGui() {
       return;
     }
     const item = accessory[0];
-    const image = document.createElement('img');
-    image.className = 'cosmetic-art';
-    image.alt = '';
-    const name = `cosmetic-${item}-${accessory[1] === 'PET' ? 'item' : 'preview'}.png`;
-    image.src = sprites.get(name) ?? 'assets/' + name;
-    image.style.transform = `scale(${message.zoom ?? 1})`;
-    stage.replaceChildren(image);
+    let image = stage.querySelector('img');
+    if (image?.dataset.previewItem !== item) {
+      image = document.createElement('img');
+      image.className = 'cosmetic-art';
+      image.alt = '';
+      image.dataset.previewItem = item;
+      const name = `cosmetic-${item}-${accessory[1] === 'PET' ? 'item' : 'preview'}.png`;
+      image.src = sprites.get(name) ?? 'assets/' + name;
+      stage.replaceChildren(image);
+      appear(image,0,0,150);
+    }
+    const facing = accessory[1] === 'WINGS' ? 158 : -19;
+    const tilt = Math.sin((message.yaw - facing) * Math.PI / 180) * 32;
+    image.style.transform = `perspective(430px) rotateY(${tilt}deg) scale(${message.zoom ?? 1})`;
   }
 
   connectBridge(message => {

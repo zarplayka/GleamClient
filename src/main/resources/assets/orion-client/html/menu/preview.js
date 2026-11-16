@@ -146,6 +146,12 @@ function animatePage(content) {
   }
 }
 
+function animateRows(list) {
+  if (!list || reducedMotion.matches) return;
+  for (const [index,row] of Array.from(list.children).slice(0,8).entries())
+    appear(row,0,4,175,Math.min(index,4) * 13);
+}
+
 function navItem([id,title,svg], count) {
   const current = state.page === id && !state.query ? ' aria-current="page"' : '';
   return '<button type="button" class="nav-item" data-page="' + id + '"' + current + '>' + icon(svg)
@@ -863,7 +869,7 @@ function renderCosmetics() {
     + actionButton('cosmetic-show-equipped',t('Надето'),'',state.cosmeticOnlyEquipped ? 'selected' : '') + '</div></header>'
     + '<div id="cosmetic-items" class="cosmetic-items"></div></section>'
     + '<section class="cosmetic-preview"><header class="cosmetic-preview-head">'
-    + '<span>' + text(t('Примерка')) + '</span>' + actionButton('cosmetic-turn',t(Math.cos(state.cosmeticYaw * Math.PI / 180) < 0 ? 'Спереди' : 'Со спины'),'rotate') + '</header>'
+    + '<span>' + text(t('Примерка')) + '</span>' + actionButton('cosmetic-turn',t(cosmeticFacingBack() ? 'Спереди' : 'Со спины'),'rotate') + '</header>'
     + '<div class="cosmetic-stage" data-preview="' + id + '">' + (typeof sendGame === 'function' ? '' : cosmeticDrawing(id,true)) + '</div>'
     + '<div class="cosmetic-info"><div class="cosmetic-info-title">' + cosmeticDrawing(id,false) + '<div><strong>'
     + text(t(label)) + '</strong><div class="cosmetic-type">' + text(t(type)) + '</div></div></div>'
@@ -887,7 +893,18 @@ function patchCosmeticShelf() {
   }).join('') : '<p class="chat-hint">' + text(t('Ничего не найдено')) + '</p>';
 }
 let cosmeticFrame = 0, cosmeticLayout = '';
-let cosmeticHover = '', cosmeticSuppressed = '', cosmeticSpin = null;
+let cosmeticHover = '', cosmeticSuppressed = '', cosmeticSpin = null, cosmeticTurn = null;
+function cosmeticFacingBack() {
+  return Math.cos((cosmeticTurn?.target ?? state.cosmeticYaw) * Math.PI / 180) < 0;
+}
+function turnCosmetic(target) {
+  if (cosmeticTurn?.target === target) return;
+  const start = state.cosmeticYaw;
+  const delta = (target - start + 540) % 360 - 180;
+  cosmeticTurn = !reducedMotion.matches && typeof sendGame === 'function' && Math.abs(delta) > 1
+    ? {start,target,delta,started:performance.now()} : null;
+  if (!cosmeticTurn) state.cosmeticYaw = target;
+}
 function cosmeticLoadout() {
   const peek = cosmeticById(cosmeticHover || state.cosmetic);
   const worn = cosmetics.filter(item => item[0] !== 'dance' && isCosmeticEquipped(item) && item[1] !== peek?.[1]);
@@ -896,8 +913,16 @@ function cosmeticLoadout() {
 }
 function scheduleCosmeticPreview() {
   if (typeof sendGame !== 'function' || cosmeticFrame) return;
-  cosmeticFrame = requestAnimationFrame(() => {
+  cosmeticFrame = requestAnimationFrame(now => {
     cosmeticFrame = 0;
+    if (cosmeticTurn) {
+      const turn = cosmeticTurn;
+      const progress = state.page === 'cosmetics' && !reducedMotion.matches
+        ? Math.max(0,Math.min(1,(now - turn.started) / 250)) : 1;
+      state.cosmeticYaw = progress === 1 ? turn.target : turn.start + turn.delta * (1 - (1 - progress) ** 3);
+      if (progress === 1) cosmeticTurn = null;
+      else scheduleCosmeticPreview();
+    }
     const selector = state.page === 'cosmetics' ? '.cosmetic-stage' : state.page === 'friends' ? '.friend-model' : '';
     const stage = selector && !$('dialog').hasAttribute('open') && !$('window').hidden && $('content').querySelector(selector);
     const data = {};
@@ -942,6 +967,7 @@ document.addEventListener('mouseout',event => {
 });
 document.addEventListener('pointerdown',event => {
   if (event.button !== 0 || !event.target.closest('.cosmetic-stage')) return;
+  cosmeticTurn = null;
   cosmeticSpin = event.clientX;
 });
 document.addEventListener('pointermove',event => {
@@ -1047,7 +1073,7 @@ function chatPreference(id,key,label,fallback=true) {
 }
 const renderers = {module:renderModule,profile:renderProfile,configs:renderConfigs,presets:renderPresets,
   waypoints:renderWaypoints,settings:renderSettings,friends:renderFriends,chat:renderChat,cosmetics:renderCosmetics};
-let renderedPage;
+let renderedPage, renderedTab;
 function render(scrollTop=true, animate=true) {
   if (openChoice) showChoices(openChoice,false);
   renderNavigation();
@@ -1060,7 +1086,13 @@ function render(scrollTop=true, animate=true) {
   $('breadcrumb').querySelector('svg').style.height = '11px';
   $('content').toggleAttribute('data-grid',modulePage());
   $('content').toggleAttribute('data-chat',state.page === 'chat');
-  const previousConfig = $('content').querySelector('[data-config-detail]')?.dataset.configDetail;
+  const content = $('content');
+  const previousConfig = content.querySelector('[data-config-detail]')?.dataset.configDetail;
+  const previousConfigList = content.querySelector('.config-list');
+  const previousFriend = content.querySelector('.friend-model')?.dataset.friendModel;
+  const previousFriendProfile = Boolean(content.querySelector('.friend-profile-page'));
+  const previousFriendFacts = Boolean(content.querySelector('.friend-profile-facts'));
+  const previousCosmetic = content.querySelector('.cosmetic-stage')?.dataset.preview;
   $('content').innerHTML = modulePage() ? renderModules() : renderers[state.page]();
   if (state.page === 'chat') mountChatThread();
   if (state.page === 'cosmetics') patchCosmeticShelf();
@@ -1068,12 +1100,26 @@ function render(scrollTop=true, animate=true) {
   fitCategories();
   if (scrollTop) $('content').scrollTop = 0;
   const page = isModule ? state.module : state.page;
+  const tab = page === 'cosmetics' ? state.cosmeticSlot + ':' + state.cosmeticOnlyEquipped
+    : page === 'friends' ? state.friendTab ?? 'friend' : page === 'configs' ? state.configTab : null;
   if (animate && renderedPage !== page) animatePage($('content'));
-  else if (page === 'configs') {
-    const detail = $('content').querySelector('[data-config-detail]');
+  else if (renderedPage === page && page === 'cosmetics') {
+    if (tab !== renderedTab) animateRows($('cosmetic-items'));
+    if (state.cosmetic !== previousCosmetic) appear(content.querySelector('.cosmetic-info'),0,4);
+  } else if (renderedPage === page && page === 'friends') {
+    if (tab !== renderedTab || previousFriendProfile && !isFriendProfile) animateRows(content.querySelector('.friends-list'));
+    const friend = content.querySelector('.friend-model')?.dataset.friendModel;
+    if (friend !== previousFriend || previousFriendProfile !== Boolean(isFriendProfile)) {
+      for (const part of content.querySelectorAll('.friend-profile-identity,.friend-profile-section,.friend-controls'))
+        appear(part,0,4);
+    } else if (!previousFriendFacts) appear(content.querySelector('.friend-profile-facts'),0,4);
+  } else if (page === 'configs') {
+    if (tab !== renderedTab || !previousConfigList) animateRows(content.querySelector('.config-list'));
+    const detail = content.querySelector('[data-config-detail]');
     if (detail && detail.dataset.configDetail !== previousConfig) appear(detail,0,6,170);
   }
   renderedPage = page;
+  renderedTab = tab;
   window.paradox?.refreshSettingsArtwork?.();
   scheduleCosmeticPreview();
 }
@@ -1354,7 +1400,7 @@ const actions = {
     toast(t('Скопировано'));
   },
   'cosmetic-turn'() {
-    state.cosmeticYaw = Math.cos(state.cosmeticYaw * Math.PI / 180) < 0 ? -19 : 158;
+    turnCosmetic(cosmeticFacingBack() ? -19 : 158);
     render(false,false);
   },
   'cosmetic-show-all'() { state.cosmeticOnlyEquipped = false; cosmeticHover = ''; render(false,false); },
@@ -1453,11 +1499,14 @@ document.addEventListener('click', event => {
     state.cosmetic = data.cosmetic;
     cosmeticSuppressed = data.cosmetic;
     cosmeticHover = '';
+    turnCosmetic(cosmeticById(data.cosmetic)?.[1] === 'WINGS' ? 158 : -19);
     render(false,false);
   } else if (data.cosmeticSlot) {
     state.cosmeticSlot = data.cosmeticSlot;
-    if (state.cosmeticSlot === 'Питомцы' && cosmeticById(state.cosmetic)?.[1] !== 'PET')
+    if (state.cosmeticSlot === 'Питомцы' && cosmeticById(state.cosmetic)?.[1] !== 'PET') {
       state.cosmetic = state.cosmeticPet || cosmetics.find(item => item[1] === 'PET')[0];
+      turnCosmetic(-19);
+    }
     state.cosmeticQuery = cosmeticHover = '';
     render(false,false);
   }

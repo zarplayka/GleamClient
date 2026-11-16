@@ -14,6 +14,7 @@
     .identity span { color: #a8a7b6 }
     nav { display: flex; gap: 4px; flex-wrap: wrap }
     a, button { border: 1px solid transparent; border-radius: 6px; padding: 7px 10px; color: #bcbac8; font: inherit; background: transparent; text-decoration: none; cursor: pointer }
+    @media (prefers-reduced-motion: no-preference) { a, button { transition: background-color .16s, border-color .16s, color .16s } }
     a:hover, button:hover { color: #fff; background: #292934 }
     a[aria-current] { color: #e8e9ff; border-color: #474a64; background: #30334b }
     :focus-visible { outline: 2px solid #a9b4ff; outline-offset: 2px }
