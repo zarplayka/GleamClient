@@ -1044,7 +1044,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profiles-list { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,290px),1fr)); gap: 13px }
     #profiles-default { margin-top: 18px }
     #profiles-default-heading { margin: 0 0 10px; font-size: 15px }
-    .profile-card { position: relative; display: grid; grid-template-rows: auto 1fr auto; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--panel) }
+    .profile-card { position: relative; display: grid; grid-template-rows: auto 1fr auto; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--panel); transition: transform .19s var(--ease),border-color .16s }
     .profile-cover { position: relative; isolation: isolate; height: clamp(102px,12cqw,141px); overflow: hidden; background: var(--control-bg) }
     .profile-cover img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 54% }
     .profile-cover:has(img)::after { content: ''; position: absolute; inset: auto 0 0; height: 60%; z-index: 0; background: linear-gradient(transparent,#12131db3); pointer-events: none }
@@ -1056,6 +1056,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profile-open::after { content: ''; position: absolute; inset: 0; z-index: 2; border-radius: 10px }
     .profile-open:focus-visible::after { outline: 2px solid var(--accent); outline-offset: -2px }
     .profile-card:has(.profile-open:hover) h3 { color: var(--selected-text) }
+    @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+      .launcher[data-motion="on"] .profile-card:has(.profile-open:hover) { transform: translateY(-2px); border-color: var(--focus-stroke) }
+    }
     .profile-card small { display: block; margin-top: 5px; color: var(--muted); overflow-wrap: anywhere }
     .profile-card .profiles-actions { position: relative; z-index: 3; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px; padding: 9px 12px; border-top: 1px solid var(--border) }
     .profile-card .button { min-height: 35px; border-radius: 6px; font-size: 13px }
@@ -1085,7 +1088,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     #profile-detail-status { margin: 0 24px 11px }
     #profile-detail-content { display: flex; flex-direction: column; flex: 1 }
     .profile-detail-tabs { display: flex; gap: 17px; overflow: auto; padding: 0 24px; border-bottom: 1px solid var(--border) }
-    .profile-detail-tabs button { display: inline-flex; align-items: center; gap: 6px; min-height: 37px; padding: 0 1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font-size: 12px; white-space: nowrap }
+    .profile-detail-tabs button { display: inline-flex; align-items: center; gap: 6px; min-height: 37px; padding: 0 1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font-size: 12px; white-space: nowrap; transition: border-color .16s,color .16s }
     .profile-detail-tabs button .icon,.profile-content-kinds .icon { width: 13px; height: 13px }
     .profile-detail-tabs button:hover { color: var(--text) }
     .profile-detail-tabs button[aria-pressed="true"] { border-color: var(--accent); color: var(--selected-text); font-weight: 600 }
@@ -1836,6 +1839,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+          <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-048">
+            <span class="release-meta"><span class="release-version">0.1.48</span><time datetime="2026-11-16">16.11.2026</time></span>
+            <div>
+              <h3 id="release-launcher-048">Плавные переходы в профилях</h3>
+              <p>Карточки появляются по очереди, а страница сборки и её разделы открываются с плавным переходом.</p>
+            </div>
+          </article>
           <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-047">
             <span class="release-meta"><span class="release-version">0.1.47</span><time datetime="2026-11-16">16.11.2026</time></span>
             <div>
@@ -2732,6 +2742,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Профили друзей':['Friend profiles','Freundesprofile','Perfiles de amigos'],
       'Новые профили, косметика и активность':['New profiles, cosmetics and activity','Neue Profile, Kosmetik und Aktivität','Nuevos perfiles, cosméticos y actividad'],
       'Стандартные сборки в профилях':['Default instances in Profiles','Standardinstanzen unter Profile','Instancias predeterminadas en Perfiles'],
+      'Плавные переходы в профилях':['Smooth transitions in Profiles','Flüssige Übergänge unter Profile','Transiciones suaves en Perfiles'],
+      'Карточки появляются по очереди, а страница сборки и её разделы открываются с плавным переходом.':['Cards appear in sequence, and instance pages and sections open with a smooth transition.','Die Karten erscheinen nacheinander, und Instanzseiten und Abschnitte öffnen sich mit einem flüssigen Übergang.','Las tarjetas aparecen en secuencia y las páginas de instancias y sus secciones se abren con una transición suave.'],
       'Версии Minecraft с главной можно открыть в «Профилях» и управлять их модами, мирами и другими файлами.':['Open the Minecraft versions from Home in Profiles to manage their mods, worlds and other files.','Öffne die Minecraft-Versionen der Startseite unter „Profile“, um Mods, Welten und andere Dateien zu verwalten.','Abre las versiones de Minecraft de Inicio en Perfiles para gestionar sus mods, mundos y otros archivos.'],
       'Открой сборку, чтобы посмотреть файлы и управлять модами. В косметике обновилась примерочная, а в активности появился календарь на 16 недель.':['Open an instance to see its files and manage mods. The fitting room has been updated, and Activity now shows a 16-week calendar.','Öffne eine Instanz, um ihre Dateien anzuzeigen und Mods zu verwalten. Die Anprobe wurde überarbeitet, und die Aktivität zeigt jetzt einen Kalender für 16 Wochen.','Abre una instancia para consultar sus archivos y gestionar mods. Se renovó el probador y Actividad ahora muestra un calendario de 16 semanas.'],
       'Прямое подключение к друзьям по UDP':['Direct UDP connections to friends','Direkte UDP-Verbindungen zu Freunden','Conexión UDP directa con amigos'],
@@ -3639,19 +3651,24 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (page === 'cosmetics' || page === 'play') renderWardrobe();
       if (page === 'profiles') {
         const detail = profileId !== null;
-        $('profiles-library').hidden = detail;
-        $('profile-detail').hidden = !detail;
+        const library = $('profiles-library');
+        const detailView = $('profile-detail');
+        library.hidden = detail;
+        detailView.hidden = !detail;
         $('page-profiles').setAttribute('aria-labelledby',detail ? 'profile-detail-heading' : 'profiles-heading');
         if (detail) {
           renderProfileDetail(profileId);
           if (profileById(profileId)) void loadProfileContent(profileId,profileContent.id === profileId ? profileContent.kind : 'mods');
           $('profile-detail-heading').focus({preventScroll:true});
+          if (previous.page === 'profiles') animateProfileReveal(detailView,{distance:8,duration:240});
         } else if (previous.page === 'profiles' && previous.profileId !== null) {
-          const opener = $('profiles-library').querySelector(`[data-open-profile="${CSS.escape(previous.profileId)}"]`);
+          const opener = library.querySelector(`[data-open-profile="${CSS.escape(previous.profileId)}"]`);
           if (opener && !opener.closest('[hidden]')) opener.focus();
           else $('profiles-heading').focus();
+          animateProfileReveal(library,{distance:8,duration:240});
         } else {
           if (!$('profiles-default-list').children.length) renderProfiles();
+          else animateProfileCards([...library.querySelectorAll('.profile-card:not([hidden])')]);
           loadImportedProfiles().catch(() => showProfilesError('Не удалось загрузить профили'));
         }
       }
@@ -6028,6 +6045,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       renderDownloads();
     }).catch(() => {});
     const gleamLogin = document.createElement('section');
+    function animateProfileReveal(element,{distance = 5,duration = 210,delay = 0} = {}) {
+      if (!settings.motion || reducedMotion.matches || element.closest('[hidden]')) return;
+      for (const animation of element.getAnimations()) {
+        if (animation.id === 'profile-reveal') animation.cancel();
+      }
+      element.animate([{opacity:.15,translate:`0 ${distance}px`},{opacity:1,translate:'0 0'}],{
+        id:'profile-reveal',duration,delay,fill:'backwards',easing:'cubic-bezier(.22,1,.36,1)'
+      });
+    }
+    function animateProfileCards(cards) {
+      cards.slice(0,12).forEach((card,index) => animateProfileReveal(card,{delay:Math.min(index,5) * 24}));
+    }
     function syncProfileDetailStatus() {
       const status = $('profiles-status');
       const detail = $('profile-detail-status');
@@ -6190,6 +6219,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     async function loadProfileContent(profileId,kind = profileContent.kind) {
       const state = profileContent;
+      const changedSection = state.id !== profileId || state.kind !== kind;
       if (state.id !== profileId) {
         state.summary = null;
         profileContentFilter.value = 'all';
@@ -6217,6 +6247,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (state.request === request) {
           state.loading = false;
           renderProfileEntries();
+          if (changedSection && pageHistory[historyIndex].profileId === profileId) {
+            animateProfileReveal($('profile-content-list'));
+          }
         }
       }
     }
@@ -6319,21 +6352,29 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (previous?.page === 'profiles' && previous.profileId === null) stepHistory(-1);
       else navigate('profiles');
     });
-    function filterProfiles() {
+    function filterProfiles(animate = false) {
       const query = $('profiles-search').value.trim().toLocaleLowerCase(launcherLanguage);
       const defaults = [...$('profiles-default-list').children];
       const cards = [...$('profiles-list').children,...defaults];
+      const revealed = [];
       let matches = 0;
       for (const card of cards) {
-        card.hidden = !card.dataset.searchText.toLocaleLowerCase(launcherLanguage).includes(query);
+        const hidden = !card.dataset.searchText.toLocaleLowerCase(launcherLanguage).includes(query);
+        if (animate && card.hidden && !hidden) revealed.push(card);
+        card.hidden = hidden;
         if (!card.hidden) matches++;
       }
       $('profiles-default').hidden = defaults.every(card => card.hidden);
       $('profiles-empty').hidden = importedProfiles.length > 0 || !!query || !$('profiles-status').hidden;
       $('profiles-no-results').hidden = !cards.length || matches > 0;
+      if (revealed.length) animateProfileCards(revealed);
     }
     function renderProfiles() {
       $('profiles-search-box').hidden = false;
+      const list = $('profiles-list');
+      const defaults = $('profiles-default-list');
+      const existing = new Set([...list.querySelectorAll('[data-open-profile]')].map(button => button.dataset.openProfile));
+      const entering = [];
       const renderCard = profile => {
         const card = document.createElement('article');
         card.className = 'profile-card';
@@ -6374,16 +6415,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
         actions.append(folder);
         card.append(cover,info,actions);
+        if (!existing.has(profile.id)) entering.push(card);
         return card;
       };
-      $('profiles-list').replaceChildren(...importedProfiles.map(renderCard));
-      $('profiles-default-list').replaceChildren(...Array.from(defaultProfiles.values(),renderCard));
+      list.replaceChildren(...importedProfiles.map(renderCard));
+      if (!defaults.children.length) defaults.replaceChildren(...Array.from(defaultProfiles.values(),renderCard));
       filterProfiles();
+      animateProfileCards(entering.filter(card => !card.hidden));
       syncProfileLaunchButtons();
       const {profileId} = pageHistory[historyIndex];
       if (profileId !== null) renderProfileDetail(profileId);
     }
-    $('profiles-search').addEventListener('input',filterProfiles);
+    $('profiles-search').addEventListener('input',() => filterProfiles(true));
     function openProfileFolder(profile) {
       return window.__TAURI__?.core.invoke('open_instance_folder',{gameVersion:profile.version,instanceId:profileInstanceId(profile)}).catch(error => {
         const [message,...values] = apiMessageParts(String(error));
@@ -6392,9 +6435,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     async function loadImportedProfiles() {
       if (!window.__TAURI__) return;
-      importedProfiles = await window.__TAURI__.core.invoke('imported_profiles');
+      const profiles = await window.__TAURI__.core.invoke('imported_profiles');
       $('profiles-status').hidden = true;
-      renderProfiles();
+      if (JSON.stringify(profiles) !== JSON.stringify(importedProfiles) || !$('profiles-default-list').children.length) {
+        importedProfiles = profiles;
+        renderProfiles();
+      } else filterProfiles();
       syncCatalogProfiles();
       if (!activityPage.hidden) renderActivity();
     }
@@ -6432,7 +6478,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         image.loading = 'eager';
         await image.decode().catch(() => {});
       }
-      if (createProfileVersion.value === version) $('create-profile-art').replaceChildren(cover);
+      if (createProfileVersion.value === version) {
+        $('create-profile-art').replaceChildren(cover);
+        if (createProfileDialog.open) animateProfileReveal(cover,{distance:0,duration:180});
+      }
     }
     createProfileVersion.addEventListener('change',renderCreateProfileCover);
     function setCreateProfilePending(pending) {
