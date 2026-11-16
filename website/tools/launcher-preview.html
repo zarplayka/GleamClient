@@ -1042,6 +1042,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profiles-search input { width: 100%; min-width: 0; min-height: 38px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text) }
     .profiles-search input::placeholder { color: var(--muted) }
     .profiles-list { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,290px),1fr)); gap: 13px }
+    #profiles-default { margin-top: 18px }
+    #profiles-default-heading { margin: 0 0 10px; font-size: 15px }
     .profile-card { position: relative; display: grid; grid-template-rows: auto 1fr auto; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--panel) }
     .profile-cover { position: relative; isolation: isolate; height: clamp(102px,12cqw,141px); overflow: hidden; background: var(--control-bg) }
     .profile-cover img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 54% }
@@ -1640,6 +1642,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <p class="profiles-empty" id="profiles-empty">Создай сборку или перенеси профиль из другого лаунчера</p>
           <p class="profiles-empty" id="profiles-no-results" role="status" hidden>По запросу профилей не найдено</p>
           <div id="profiles-list" class="profiles-list"></div>
+          <section id="profiles-default" aria-labelledby="profiles-default-heading" hidden>
+            <h3 id="profiles-default-heading">Стандартные сборки</h3>
+            <div id="profiles-default-list" class="profiles-list"></div>
+          </section>
         </div>
         <div id="profile-detail" hidden>
           <div class="profile-detail-panel">
@@ -1830,6 +1836,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+          <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-047">
+            <span class="release-meta"><span class="release-version">0.1.47</span><time datetime="2026-11-16">16.11.2026</time></span>
+            <div>
+              <h3 id="release-launcher-047">Стандартные сборки в профилях</h3>
+              <p>Версии Minecraft с главной можно открыть в «Профилях» и управлять их модами, мирами и другими файлами.</p>
+            </div>
+          </article>
           <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-046">
             <span class="release-meta"><span class="release-version">0.1.46</span><time datetime="2026-11-16">16.11.2026</time></span>
             <div>
@@ -2718,6 +2731,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Профиль друга':['Friend profile','Freundesprofil','Perfil del amigo'],
       'Профили друзей':['Friend profiles','Freundesprofile','Perfiles de amigos'],
       'Новые профили, косметика и активность':['New profiles, cosmetics and activity','Neue Profile, Kosmetik und Aktivität','Nuevos perfiles, cosméticos y actividad'],
+      'Стандартные сборки в профилях':['Default instances in Profiles','Standardinstanzen unter Profile','Instancias predeterminadas en Perfiles'],
+      'Версии Minecraft с главной можно открыть в «Профилях» и управлять их модами, мирами и другими файлами.':['Open the Minecraft versions from Home in Profiles to manage their mods, worlds and other files.','Öffne die Minecraft-Versionen der Startseite unter „Profile“, um Mods, Welten und andere Dateien zu verwalten.','Abre las versiones de Minecraft de Inicio en Perfiles para gestionar sus mods, mundos y otros archivos.'],
       'Открой сборку, чтобы посмотреть файлы и управлять модами. В косметике обновилась примерочная, а в активности появился календарь на 16 недель.':['Open an instance to see its files and manage mods. The fitting room has been updated, and Activity now shows a 16-week calendar.','Öffne eine Instanz, um ihre Dateien anzuzeigen und Mods zu verwalten. Die Anprobe wurde überarbeitet, und die Aktivität zeigt jetzt einen Kalender für 16 Wochen.','Abre una instancia para consultar sus archivos y gestionar mods. Se renovó el probador y Actividad ahora muestra un calendario de 16 semanas.'],
       'Прямое подключение к друзьям по UDP':['Direct UDP connections to friends','Direkte UDP-Verbindungen zu Freunden','Conexión UDP directa con amigos'],
       'GleamClient 0.2.14 проверяет UDP и TCP. Если связь не установилась, можно повторить попытку из текущего мира.':['GleamClient 0.2.14 tries UDP and TCP. If it cannot connect, you can retry from your current world.','GleamClient 0.2.14 prüft UDP und TCP. Falls die Verbindung scheitert, kannst du es in deiner aktuellen Welt erneut versuchen.','GleamClient 0.2.14 prueba UDP y TCP. Si falla la conexión, puedes reintentar desde tu mundo actual.'],
@@ -2810,6 +2825,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Профили не найдены':['No profiles found','Keine Profile gefunden','No se encontraron perfiles'],
       'Поиск профилей':['Search profiles','Profile suchen','Buscar perfiles'],
       'По запросу профилей не найдено':['No profiles match your search','Keine Profile entsprechen der Suche','Ningún perfil coincide con la búsqueda'],
+      'Стандартные сборки':['Default instances','Standardinstanzen','Instancias predeterminadas'],
+      'Стандартная сборка':['Default instance','Standardinstanz','Instancia predeterminada'],
       'К профилям':['Back to profiles','Zurück zu Profilen','Volver a perfiles'],
       'Сборка не найдена':['Instance not found','Instanz nicht gefunden','Instancia no encontrada'],
       'Загрузчик модов':['Mod loader','Mod-Loader','Cargador de mods'],
@@ -3101,6 +3118,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     renderSettings();
 
     const versionTiles = [...document.querySelectorAll('.version-tile')];
+    const defaultProfileId = version => 'default:'+version;
+    const defaultProfiles = new Map([...versionTiles].reverse().map(({dataset:{version}}) => {
+      const id = defaultProfileId(version);
+      const playable = playableVersions.has(version);
+      return [id,{id,version,name:'Minecraft '+version,builtIn:true,playable,loader:playable ? 'fabric' : ''}];
+    }));
     const storageRows = new Map();
     const storageList = $('settings-storage-versions');
     const storageTemplate = $('settings-storage-row');
@@ -3624,10 +3647,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           if (profileById(profileId)) void loadProfileContent(profileId,profileContent.id === profileId ? profileContent.kind : 'mods');
           $('profile-detail-heading').focus({preventScroll:true});
         } else if (previous.page === 'profiles' && previous.profileId !== null) {
-          const opener = $('profiles-list').querySelector(`[data-open-profile="${CSS.escape(previous.profileId)}"]`);
+          const opener = $('profiles-library').querySelector(`[data-open-profile="${CSS.escape(previous.profileId)}"]`);
           if (opener && !opener.closest('[hidden]')) opener.focus();
           else $('profiles-heading').focus();
         } else {
+          if (!$('profiles-default-list').children.length) renderProfiles();
           loadImportedProfiles().catch(() => showProfilesError('Не удалось загрузить профили'));
         }
       }
@@ -5222,7 +5246,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
       runningVersion = version;
       launchPending = true;
-      launchedProfileId = profile?.id ?? null;
+      const instanceId = profileInstanceId(profile);
+      launchedProfileId = profile?.id ?? defaultProfileId(version);
       launchStage = undefined;
       let title = 'Игра закрыта';
       let detail = '';
@@ -5230,12 +5255,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       let busy = false;
       const options = {
         version,account:selectedMinecraftAccount,memory:selectedMemory(),
-        instanceId: launchedProfileId,
+        instanceId,
         width:settings.gameWidth,height:settings.gameHeight,
         fullscreen:settings.windowMode === 'fullscreen',jvmArguments:settings.jvmArguments,
         fabricLoader:settings.fabricLoader,installOptimizers:settings.installOptimizers,worldInvite:world?.id ?? null
       };
-      $('download-item-title').textContent = profile ? profile.name+' · Minecraft '+version : 'Minecraft '+version;
+      $('download-item-title').textContent = instanceId ? profile.name+' · Minecraft '+version : 'Minecraft '+version;
       setProgress(progress,0);
       setStatus('Подготовка запуска','','Отмена');
       try {
@@ -6063,7 +6088,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       return profile.loader === 'fabric' ? 'Fabric' : profile.loader;
     }
     function profileById(id) {
-      return importedProfiles.find(profile => profile.id === id);
+      return defaultProfiles.get(id) ?? importedProfiles.find(profile => profile.id === id);
+    }
+    function profileInstanceId(profile) {
+      return profile && !profile.builtIn ? profile.id : null;
+    }
+    function profileContentTarget(id) {
+      const profile = defaultProfiles.get(id);
+      return profile ? {gameVersion:profile.version} : {profileId:id};
     }
     const profileContent = {id:null,kind:'mods',entries:[],summary:null,request:0,loading:false,error:'',toggling:false};
     const profileContentFilter = $('profile-content-filter');
@@ -6175,7 +6207,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       profileContentFilter.closest('.setting-dropdown').hidden = kind !== 'mods';
       renderProfileEntries();
       try {
-        const entries = await window.__TAURI__.core.invoke('profile_content',{profileId,kind});
+        const entries = await window.__TAURI__.core.invoke('profile_content',{...profileContentTarget(profileId),kind});
         if (state.request !== request) return;
         state.entries = entries;
         if (kind === 'mods') state.summary = {count:entries.length,bytes:entries.reduce((sum,entry) => sum + entry.bytes,0)};
@@ -6196,7 +6228,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       $('profile-content-refresh').disabled = true;
       syncProfileModSwitches();
       try {
-        await window.__TAURI__.core.invoke('profile_toggle_mod',{profileId,file:entry.fileName,enabled});
+        await window.__TAURI__.core.invoke('profile_toggle_mod',{...profileContentTarget(profileId),file:entry.fileName,enabled});
         catalogCache.clear();
         catalogState.key = '';
         if (pageHistory[historyIndex].profileId === profileId && state.kind === 'mods') await loadProfileContent(profileId);
@@ -6210,7 +6242,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     async function openProfileContent(file = null) {
       const {id:profileId,kind} = profileContent;
       try {
-        await window.__TAURI__.core.invoke('open_profile_content',{profileId,kind,file});
+        await window.__TAURI__.core.invoke('open_profile_content',{...profileContentTarget(profileId),kind,file});
       } catch (error) {
         writeProfileStatus(String(error.message || error),true,profileId);
       }
@@ -6237,7 +6269,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       catalogState.key = '';
       syncCatalogProfiles();
       const select = $('catalog-profile');
-      select.value = profile.id;
+      select.value = profileInstanceId(profile) || '';
       settingDropdowns.get(select).sync();
       syncCatalogFilters();
       navigate('catalog');
@@ -6267,7 +6299,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       loader.textContent = profileLoaderLabel(profile) || '';
       loader.hidden = !loader.textContent;
       const source = $('profile-detail-source');
-      source.textContent = profile.launcher || '';
+      writeLocale(source,profile.builtIn ? 'Стандартная сборка' : '{0}',profile.launcher || '');
       source.hidden = !source.textContent;
       const play = $('profile-detail-play');
       play.dataset.launchProfile = profile.id;
@@ -6280,7 +6312,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     });
     $('profile-detail-folder').addEventListener('click',() => {
       const profile = profileById(pageHistory[historyIndex].profileId);
-      if (profile) void openImportedFolder(profile);
+      if (profile) void openProfileFolder(profile);
     });
     $('profile-detail-back').addEventListener('click',() => {
       const previous = pageHistory[historyIndex - 1];
@@ -6289,18 +6321,20 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     });
     function filterProfiles() {
       const query = $('profiles-search').value.trim().toLocaleLowerCase(launcherLanguage);
-      const cards = $('profiles-list').children;
+      const defaults = [...$('profiles-default-list').children];
+      const cards = [...$('profiles-list').children,...defaults];
       let matches = 0;
       for (const card of cards) {
         card.hidden = !card.dataset.searchText.toLocaleLowerCase(launcherLanguage).includes(query);
         if (!card.hidden) matches++;
       }
+      $('profiles-default').hidden = defaults.every(card => card.hidden);
+      $('profiles-empty').hidden = importedProfiles.length > 0 || !!query || !$('profiles-status').hidden;
       $('profiles-no-results').hidden = !cards.length || matches > 0;
     }
     function renderProfiles() {
-      $('profiles-empty').hidden = importedProfiles.length > 0;
-      $('profiles-search-box').hidden = importedProfiles.length === 0;
-      $('profiles-list').replaceChildren(...importedProfiles.map(profile => {
+      $('profiles-search-box').hidden = false;
+      const renderCard = profile => {
         const card = document.createElement('article');
         card.className = 'profile-card';
         card.dataset.searchText = [profile.name,profile.version,profile.launcher,profile.loader].filter(Boolean).join(' ');
@@ -6316,14 +6350,15 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         open.addEventListener('click',() => navigate('profiles',profile.id));
         name.append(open);
         const details = document.createElement('small');
-        details.textContent = [profileLoaderLabel(profile),profile.launcher].filter(Boolean).join(' · ');
+        if (profile.builtIn) writeLocale(details,'Стандартная сборка');
+        else details.textContent = [profileLoaderLabel(profile),profile.launcher].filter(Boolean).join(' · ');
         info.append(name,details);
         const actions = document.createElement('div');
         actions.className = 'profiles-actions';
         const folder = storageTemplate.content.querySelector('.storage-open').cloneNode(true);
         writeLabel(folder,'Открыть папку');
         folder.disabled = false;
-        folder.addEventListener('click',() => openImportedFolder(profile));
+        folder.addEventListener('click',() => openProfileFolder(profile));
         if (profile.playable) {
           const play = document.createElement('button');
           play.type = 'button';
@@ -6340,15 +6375,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         actions.append(folder);
         card.append(cover,info,actions);
         return card;
-      }));
+      };
+      $('profiles-list').replaceChildren(...importedProfiles.map(renderCard));
+      $('profiles-default-list').replaceChildren(...Array.from(defaultProfiles.values(),renderCard));
       filterProfiles();
       syncProfileLaunchButtons();
       const {profileId} = pageHistory[historyIndex];
       if (profileId !== null) renderProfileDetail(profileId);
     }
     $('profiles-search').addEventListener('input',filterProfiles);
-    function openImportedFolder(profile) {
-      return window.__TAURI__?.core.invoke('open_instance_folder',{gameVersion:profile.version,instanceId:profile.id}).catch(error => {
+    function openProfileFolder(profile) {
+      return window.__TAURI__?.core.invoke('open_instance_folder',{gameVersion:profile.version,instanceId:profileInstanceId(profile)}).catch(error => {
         const [message,...values] = apiMessageParts(String(error));
         writeProfileStatus(message,true,profile.id,...values);
       });

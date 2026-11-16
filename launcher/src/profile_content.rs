@@ -69,7 +69,25 @@ fn metadata(path: &Path) -> io::Result<Option<fs::Metadata>> {
     }
 }
 
-fn instance(app: &tauri::AppHandle, id: &str) -> Result<PathBuf, String> {
+fn instance(
+    app: &tauri::AppHandle,
+    id: Option<&str>,
+    version: Option<&str>,
+) -> Result<PathBuf, String> {
+    let Some(id) = id else {
+        let version = version.ok_or("Профиль не найден")?;
+        catalog::validate_version(version)?;
+        let path = catalog::instance_dir(app, version)?;
+        return match fs::symlink_metadata(&path) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(path),
+            Ok(_)
+                if metadata(&path).is_ok_and(|value| value.is_some_and(|value| value.is_dir())) =>
+            {
+                Ok(path)
+            }
+            _ => Err(READ_ERROR.into()),
+        };
+    };
     profile_import::installed(app)?
         .into_iter()
         .find_map(|(profile, path)| (profile.id == id).then_some(path))
@@ -369,11 +387,12 @@ fn server_entries(instance: &Path) -> io::Result<Vec<Entry>> {
 #[tauri::command]
 pub async fn profile_content(
     app: tauri::AppHandle,
-    profile_id: String,
+    profile_id: Option<String>,
+    game_version: Option<String>,
     kind: Kind,
 ) -> Result<Vec<Entry>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let root = instance(&app, &profile_id)?;
+        let root = instance(&app, profile_id.as_deref(), game_version.as_deref())?;
         let entries = if kind == Kind::Servers {
             server_entries(&root)
         } else {
@@ -421,12 +440,13 @@ fn change_mod(root: &Path, file: &str, enabled: bool) -> Result<(), String> {
 #[tauri::command]
 pub async fn profile_toggle_mod(
     app: tauri::AppHandle,
-    profile_id: String,
+    profile_id: Option<String>,
+    game_version: Option<String>,
     file: String,
     enabled: bool,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let root = instance(&app, &profile_id)?;
+        let root = instance(&app, profile_id.as_deref(), game_version.as_deref())?;
         if crate::game::running_game_version(&app)?.is_some() {
             return Err("Закрой Minecraft или дождись завершения установки".into());
         }
@@ -459,15 +479,16 @@ pub async fn profile_toggle_mod(
 #[tauri::command]
 pub async fn open_profile_content(
     app: tauri::AppHandle,
-    profile_id: String,
+    profile_id: Option<String>,
+    game_version: Option<String>,
     kind: Kind,
     file: Option<String>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let root = instance(&app, &profile_id)?;
+        let root = instance(&app, profile_id.as_deref(), game_version.as_deref())?;
         let folder = root.join(kind.folder().ok_or("Не удалось открыть папку")?);
-        if !folder.exists() {
-            fs::create_dir(&folder).map_err(|_| "Не удалось открыть папку")?;
+        if file.is_none() && !folder.exists() {
+            fs::create_dir_all(&folder).map_err(|_| "Не удалось открыть папку")?;
         }
         if !metadata(&folder).is_ok_and(|value| value.is_some_and(|value| value.is_dir())) {
             return Err("Не удалось открыть папку".into());

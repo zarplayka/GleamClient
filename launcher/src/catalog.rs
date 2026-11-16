@@ -97,7 +97,7 @@ fn validate(provider: &str, version: &str) -> Result<(), String> {
     validate_version(version)
 }
 
-fn validate_version(version: &str) -> Result<(), String> {
+pub(crate) fn validate_version(version: &str) -> Result<(), String> {
     if !GAME_VERSIONS.contains(&version) {
         return Err("Выбери версию Minecraft".into());
     }
