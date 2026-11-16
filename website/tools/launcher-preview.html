@@ -1027,7 +1027,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profiles-search input { width: 100%; min-width: 0; min-height: 38px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text) }
     .profiles-search input::placeholder { color: var(--muted) }
     .profiles-list { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,290px),1fr)); gap: 13px }
-    .profile-card { display: grid; grid-template-rows: auto 1fr auto; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--panel) }
+    .profile-card { position: relative; display: grid; grid-template-rows: auto 1fr auto; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--panel) }
     .profile-cover { position: relative; isolation: isolate; height: clamp(102px,12cqw,141px); overflow: hidden; background: var(--control-bg) }
     .profile-cover img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 54% }
     .profile-cover:has(img)::after { content: ''; position: absolute; inset: auto 0 0; height: 60%; z-index: 0; background: linear-gradient(transparent,#12131db3); pointer-events: none }
@@ -1035,17 +1035,44 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profile-cover > .icon { position: absolute; inset: 50% auto auto 50%; width: 29px; height: 29px; transform: translate(-50%,-50%); color: var(--muted) }
     .profile-identity { padding: 13px 13px 11px }
     .profile-card h3 { margin: 0; font-size: 16px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere }
+    .profile-open { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; overflow-wrap: anywhere }
+    .profile-open::after { content: ''; position: absolute; inset: 0; z-index: 2; border-radius: 10px }
+    .profile-open:focus-visible::after { outline: 2px solid var(--accent); outline-offset: -2px }
+    .profile-card:has(.profile-open:hover) h3 { color: var(--selected-text) }
     .profile-card small { display: block; margin-top: 5px; color: var(--muted); overflow-wrap: anywhere }
-    .profile-card .profiles-actions { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px; padding: 9px 12px; border-top: 1px solid var(--border) }
+    .profile-card .profiles-actions { position: relative; z-index: 3; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px; padding: 9px 12px; border-top: 1px solid var(--border) }
     .profile-card .button { min-height: 35px; border-radius: 6px; font-size: 13px }
     .profile-card .settings-folder { width: 35px; padding: 0 }
     .profile-unavailable { color: var(--muted); font-size: 12px }
     .profiles-empty { margin: 0; padding: 22px 16px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); text-align: center }
-    #profiles-status { margin: 0 0 12px; color: var(--muted); font-size: 13px }
-    #profiles-status[data-error] { color: var(--error-text) }
-    .profile-form { display: grid; gap: 12px }
-    .profile-field { display: grid; gap: 6px; color: var(--text); font-size: 13px }
+    #profiles-status,#profile-detail-status { margin: 0 0 12px; color: var(--muted); font-size: 13px }
+    #profiles-status[data-error],#profile-detail-status[data-error] { color: var(--error-text) }
+    #profile-detail-back { margin-bottom: 14px; padding-left: 0 }
+    #profile-detail-back .icon { transform: rotate(180deg) }
+    .profile-detail-header { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 15px }
+    #profile-detail-heading { margin: 0; font-size: clamp(26px,3.5cqw,38px); line-height: 1.12; letter-spacing: -.045em; overflow-wrap: anywhere }
+    .profile-detail-header .profiles-actions { max-width: 100% }
+    .profile-detail-header .button { min-height: 39px; border-radius: 7px; font-size: 13px }
+    .profile-detail-panel { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--panel) }
+    .profile-detail-panel .profile-cover { height: clamp(155px,24cqw,280px) }
+    .profile-detail-specs { display: flex; flex-wrap: wrap; gap: 13px 28px; margin: 0; padding: 15px 18px; border-top: 1px solid var(--border) }
+    .profile-detail-specs > div { min-width: 0; max-width: 100% }
+    .profile-detail-specs dt { margin-bottom: 4px; color: var(--muted); font-size: 12px }
+    .profile-detail-specs dd { margin: 0; overflow-wrap: anywhere; font-weight: 650 }
+    #create-profile-dialog { width: min(460px,calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; overflow: auto; border-color: var(--border) }
+    #create-profile-dialog > header { margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--border) }
+    .profile-form { display: grid; gap: 13px; padding: 15px 16px 16px }
+    #create-profile-art { height: clamp(72px,16dvh,118px); border-radius: 8px; overflow: hidden; background: var(--control-bg) }
+    #create-profile-art .profile-cover { height: 100% }
+    .profile-field { display: grid; gap: 6px; min-width: 0; color: var(--text); font-size: 13px }
+    .profile-field label { font-weight: 650 }
+    .profile-field .setting-dropdown { justify-self: stretch; min-width: 0 }
     .profile-form input,.profile-form select,.catalog-target select { min-width: 0; padding: 7px 10px; border: 1px solid var(--side-rule); border-radius: 8px; background: var(--control-bg); color: var(--text); font: inherit }
+    .profile-form input,.profile-form .dropdown-trigger { min-height: 40px; border-color: var(--border) }
+    .profile-form input:focus-visible,.profile-form .dropdown-trigger:focus-visible { outline: 1px solid var(--focus-stroke); outline-offset: -1px }
+    .profile-form .minecraft-dialog-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding-top: 11px; border-top: 1px solid var(--border) }
+    .profile-form .minecraft-dialog-actions .button { min-height: 38px; border-radius: 7px; font-size: 13px }
+    #create-profile-status { margin: 0; color: var(--error-text) }
     .catalog-target { display: flex; align-items: center; gap: 8px; margin-block: 0 14px; font-size: 13px }
     .catalog-target select { max-width: min(100%,300px) }
     .minecraft-dialog[open] { animation: page-in .2s var(--ease) both }
@@ -1502,25 +1529,48 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </div>
       </section>
       <section id="page-profiles" class="page secondary-page" aria-labelledby="profiles-heading" hidden>
-        <header class="profiles-header">
-          <h2 id="profiles-heading" tabindex="-1">Профили</h2>
-          <div class="profiles-actions">
-            <button class="button" id="profiles-import" type="button">Перенести профили</button>
-            <button class="button primary" id="profiles-create" type="button">Создать сборку</button>
+        <div id="profiles-library">
+          <header class="profiles-header">
+            <h2 id="profiles-heading" tabindex="-1">Профили</h2>
+            <div class="profiles-actions">
+              <button class="button" id="profiles-import" type="button">Перенести профили</button>
+              <button class="button primary" id="profiles-create" type="button">Создать сборку</button>
+            </div>
+          </header>
+          <div class="profiles-search" id="profiles-search-box" role="search" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+            <input type="search" id="profiles-search" placeholder="Поиск профилей" aria-label="Поиск профилей" autocomplete="off">
           </div>
-        </header>
-        <div class="profiles-search" id="profiles-search-box" role="search" hidden>
-          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
-          <input type="search" id="profiles-search" placeholder="Поиск профилей" aria-label="Поиск профилей" autocomplete="off">
+          <p id="profiles-status" role="status" hidden></p>
+          <p class="profiles-empty" id="profiles-empty">Создай сборку или перенеси профиль из другого лаунчера</p>
+          <p class="profiles-empty" id="profiles-no-results" role="status" hidden>По запросу профилей не найдено</p>
+          <div id="profiles-list" class="profiles-list"></div>
         </div>
-        <p id="profiles-status" role="status" hidden></p>
-        <p class="profiles-empty" id="profiles-empty">Создай сборку или перенеси профиль из другого лаунчера</p>
-        <p class="profiles-empty" id="profiles-no-results" role="status" hidden>По запросу профилей не найдено</p>
-        <div id="profiles-list" class="profiles-list"></div>
+        <div id="profile-detail" hidden>
+          <button class="text-button" id="profile-detail-back" type="button"><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg><span>К профилям</span></button>
+          <header class="profile-detail-header">
+            <h2 id="profile-detail-heading" tabindex="-1"></h2>
+            <div class="profiles-actions" id="profile-detail-actions">
+              <span class="profile-unavailable" id="profile-detail-unavailable" hidden>Запуск недоступен</span>
+              <button class="button" id="profile-detail-folder" type="button"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><span>Открыть папку</span></button>
+              <button class="button primary" id="profile-detail-play" type="button">Играть</button>
+            </div>
+          </header>
+          <p id="profile-detail-status" role="status" hidden></p>
+          <div class="profile-detail-panel" id="profile-detail-content">
+            <div id="profile-detail-art"></div>
+            <dl class="profile-detail-specs">
+              <div><dt>Версия Minecraft</dt><dd id="profile-detail-version"></dd></div>
+              <div hidden><dt>Загрузчик модов</dt><dd id="profile-detail-loader"></dd></div>
+              <div hidden><dt>Источник профиля</dt><dd id="profile-detail-source"></dd></div>
+            </dl>
+          </div>
+        </div>
       </section>
       <dialog class="minecraft-dialog" id="create-profile-dialog" aria-labelledby="create-profile-heading">
-        <header class="minecraft-dialog-header"><h2 id="create-profile-heading">Создать сборку</h2></header>
+        <header class="minecraft-dialog-header"><h2 id="create-profile-heading">Создать сборку</h2><button class="minecraft-dialog-close" id="create-profile-close" type="button" aria-label="Закрыть"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header>
         <form class="profile-form" id="create-profile-form">
+          <div id="create-profile-art" aria-hidden="true"></div>
           <div class="profile-field"><label for="create-profile-name">Название сборки</label><input id="create-profile-name" required maxlength="100" autocomplete="off" autofocus></div>
           <div class="profile-field"><label for="create-profile-version">Версия Minecraft</label><select id="create-profile-version"></select></div>
           <p id="create-profile-status" role="status" hidden></p>
@@ -2624,6 +2674,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Профили не найдены':['No profiles found','Keine Profile gefunden','No se encontraron perfiles'],
       'Поиск профилей':['Search profiles','Profile suchen','Buscar perfiles'],
       'По запросу профилей не найдено':['No profiles match your search','Keine Profile entsprechen der Suche','Ningún perfil coincide con la búsqueda'],
+      'К профилям':['Back to profiles','Zurück zu Profilen','Volver a perfiles'],
+      'Сборка не найдена':['Instance not found','Instanz nicht gefunden','Instancia no encontrada'],
+      'Загрузчик модов':['Mod loader','Mod-Loader','Cargador de mods'],
+      'Источник профиля':['Profile source','Profilquelle','Origen del perfil'],
+      'Создаём…':['Creating…','Wird erstellt…','Creando…'],
       'Не удалось перенести: {0}':['Could not import: {0}','Import fehlgeschlagen: {0}','No se pudo importar: {0}'],
       'Не удалось прочитать профили':['Could not read profiles','Profile konnten nicht gelesen werden','No se pudieron leer los perfiles'],
       'Уже перенесён':['Already imported','Bereits importiert','Ya importado'],
@@ -3084,7 +3139,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     const sidebarToggle = $('sidebar-toggle');
     const pageBack = $('page-back');
     const pageForward = $('page-forward');
-    const pageHistory = ['play'];
+    const pageHistory = [{page:'play',profileId:null}];
     let historyIndex = 0;
 
     function setSidebarCollapsed(collapsed) {
@@ -3366,7 +3421,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       },1000);
     }
 
-    function showPage(page) {
+    function showPage({page,profileId},previous) {
       for (const button of nav) {
         const current = button.dataset.page === page;
         if (current) button.setAttribute('aria-current','page');
@@ -3382,7 +3437,20 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (page === 'cosmetics' || page === 'play') void refreshWardrobe();
       if (page === 'cosmetics' || page === 'play') renderWardrobe();
       if (page === 'profiles') {
-        loadImportedProfiles().catch(() => showProfilesError('Не удалось загрузить профили'));
+        const detail = profileId !== null;
+        $('profiles-library').hidden = detail;
+        $('profile-detail').hidden = !detail;
+        $('page-profiles').setAttribute('aria-labelledby',detail ? 'profile-detail-heading' : 'profiles-heading');
+        if (detail) {
+          renderProfileDetail(profileId);
+          $('profile-detail-heading').focus({preventScroll:true});
+        } else if (previous.page === 'profiles' && previous.profileId !== null) {
+          const opener = $('profiles-list').querySelector(`[data-open-profile="${CSS.escape(previous.profileId)}"]`);
+          if (opener && !opener.closest('[hidden]')) opener.focus();
+          else $('profiles-heading').focus();
+        } else {
+          loadImportedProfiles().catch(() => showProfilesError('Не удалось загрузить профили'));
+        }
       }
       if (page === 'activity') {
         renderActivity();
@@ -3775,18 +3843,21 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (!document.hidden && (!$('page-cosmetics').hidden || !$('page-play').hidden)) void refreshWardrobe();
     },5000);
 
-    function navigate(page) {
-      if (page === pageHistory[historyIndex]) return;
+    function navigate(page,profileId = null) {
+      const previous = pageHistory[historyIndex];
+      if (page === previous.page && profileId === previous.profileId) return;
+      const route = {page,profileId};
       pageHistory.length = historyIndex + 1;
-      pageHistory.push(page);
+      pageHistory.push(route);
       historyIndex++;
-      showPage(page);
+      showPage(route,previous);
     }
     function stepHistory(offset) {
       const index = historyIndex + offset;
       if (index < 0 || index >= pageHistory.length) return;
+      const previous = pageHistory[historyIndex];
       historyIndex = index;
-      showPage(pageHistory[historyIndex]);
+      showPage(pageHistory[historyIndex],previous);
     }
     pageBack.addEventListener('click', () => stepHistory(-1));
     pageForward.addEventListener('click', () => stepHistory(1));
@@ -4721,12 +4792,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       renderLaunchAvailability();
       syncProfileLaunchButtons();
       renderDownloads();
-      if (launchedProfileId) {
-        const status = $('profiles-status');
-        writeLocale(status,title);
-        status.toggleAttribute('data-error',error);
-        status.hidden = false;
-      }
+      if (launchedProfileId) writeProfileStatus(title,error,launchedProfileId);
     }
     function setProgress(container, value) {
       container.style.setProperty('--install-progress',value / 100);
@@ -5668,15 +5734,30 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       renderDownloads();
     }).catch(() => {});
     const gleamLogin = document.createElement('section');
-    function showProfilesError(message) {
+    function syncProfileDetailStatus() {
       const status = $('profiles-status');
-      writeLocale(status,message);
-      status.setAttribute('data-error','');
+      const detail = $('profile-detail-status');
+      const profileId = pageHistory[historyIndex].profileId;
+      detail.hidden = status.hidden || status.dataset.profileId !== profileId;
+      if (detail.hidden) return;
+      const {source,values} = liveLocale.get(status);
+      writeLocale(detail,source,...values);
+      detail.toggleAttribute('data-error',status.hasAttribute('data-error'));
+    }
+    function writeProfileStatus(message,error,profileId = '',...values) {
+      const status = $('profiles-status');
+      writeLocale(status,message,...values);
+      status.dataset.profileId = profileId;
+      status.toggleAttribute('data-error',error);
       status.hidden = false;
+      syncProfileDetailStatus();
+    }
+    function showProfilesError(message) {
+      writeProfileStatus(message,true);
       $('profiles-empty').hidden = true;
     }
     function syncProfileLaunchButtons() {
-      for (const button of $('profiles-list').querySelectorAll('[data-launch-profile]')) {
+      for (const button of $('page-profiles').querySelectorAll('[data-launch-profile]')) {
         const active = running || launchPending;
         const current = button.dataset.launchProfile === launchedProfileId;
         button.disabled = active && !current;
@@ -5684,6 +5765,71 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         writeLocale(button,active && current ? launchAction : 'Играть');
       }
     }
+    function createProfileCover(version,showVersion = false) {
+      const cover = document.createElement('div');
+      cover.className = 'profile-cover';
+      const thumbnail = versionTiles.find(tile => tile.dataset.version === version)?.querySelector('img');
+      if (thumbnail) {
+        const image = new Image();
+        image.alt = '';
+        image.decoding = 'async';
+        image.loading = 'lazy';
+        image.addEventListener('error',() => { image.src = thumbnail.src; },{once:true});
+        image.src = thumbnail.dataset.backdrop || thumbnail.src;
+        cover.append(image);
+      } else {
+        cover.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg>';
+      }
+      if (showVersion) {
+        const label = document.createElement('span');
+        if (version) label.textContent = 'Minecraft '+version;
+        else writeLocale(label,'Версия не определена');
+        cover.append(label);
+      }
+      return cover;
+    }
+    function profileLoaderLabel(profile) {
+      return profile.loader === 'fabric' ? 'Fabric' : profile.loader;
+    }
+    function profileById(id) {
+      return importedProfiles.find(profile => profile.id === id);
+    }
+    function renderProfileDetail(id) {
+      const profile = profileById(id);
+      writeLocale($('profile-detail-heading'),profile ? '{0}' : 'Сборка не найдена',profile?.name);
+      $('profile-detail-actions').hidden = $('profile-detail-content').hidden = !profile;
+      if (!profile) {
+        $('profile-detail-status').hidden = true;
+        return;
+      }
+      $('profile-detail-art').replaceChildren(createProfileCover(profile.version));
+      writeLocale($('profile-detail-version'),profile.version ? '{0}' : 'Версия не определена',profile.version);
+      const loader = $('profile-detail-loader');
+      loader.textContent = profileLoaderLabel(profile) || '';
+      loader.parentElement.hidden = !loader.textContent;
+      const source = $('profile-detail-source');
+      source.textContent = profile.launcher || '';
+      source.parentElement.hidden = !source.textContent;
+      const play = $('profile-detail-play');
+      play.dataset.launchProfile = profile.id;
+      play.hidden = !profile.playable;
+      $('profile-detail-unavailable').hidden = profile.playable;
+      syncProfileLaunchButtons();
+      syncProfileDetailStatus();
+    }
+    $('profile-detail-play').addEventListener('click',event => {
+      const profile = profileById(pageHistory[historyIndex].profileId);
+      if (profile?.playable) void launchGame(profile,event.currentTarget);
+    });
+    $('profile-detail-folder').addEventListener('click',() => {
+      const profile = profileById(pageHistory[historyIndex].profileId);
+      if (profile) void openImportedFolder(profile);
+    });
+    $('profile-detail-back').addEventListener('click',() => {
+      const previous = pageHistory[historyIndex - 1];
+      if (previous?.page === 'profiles' && previous.profileId === null) stepHistory(-1);
+      else navigate('profiles');
+    });
     function filterProfiles() {
       const query = $('profiles-search').value.trim().toLocaleLowerCase(launcherLanguage);
       const cards = $('profiles-list').children;
@@ -5701,30 +5847,19 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         const card = document.createElement('article');
         card.className = 'profile-card';
         card.dataset.searchText = [profile.name,profile.version,profile.launcher,profile.loader].filter(Boolean).join(' ');
-        const cover = document.createElement('div');
-        cover.className = 'profile-cover';
-        const thumbnail = versionTiles.find(tile => tile.dataset.version === profile.version)?.querySelector('img');
-        if (thumbnail) {
-          const image = new Image();
-          image.alt = '';
-          image.decoding = 'async';
-          image.loading = 'lazy';
-          image.addEventListener('error',() => { image.src = thumbnail.src; },{once:true});
-          image.src = thumbnail.dataset.backdrop || thumbnail.src;
-          cover.append(image);
-        } else {
-          cover.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg>';
-        }
-        const version = document.createElement('span');
-        if (profile.version) version.textContent = 'Minecraft '+profile.version;
-        else writeLocale(version,'Версия не определена');
-        cover.append(version);
+        const cover = createProfileCover(profile.version,true);
         const info = document.createElement('div');
         info.className = 'profile-identity';
         const name = document.createElement('h3');
-        name.textContent = profile.name;
+        const open = document.createElement('button');
+        open.type = 'button';
+        open.className = 'profile-open';
+        open.dataset.openProfile = profile.id;
+        open.textContent = profile.name;
+        open.addEventListener('click',() => navigate('profiles',profile.id));
+        name.append(open);
         const details = document.createElement('small');
-        details.textContent = [profile.loader === 'fabric' ? 'Fabric' : profile.loader,profile.launcher].filter(Boolean).join(' · ');
+        details.textContent = [profileLoaderLabel(profile),profile.launcher].filter(Boolean).join(' · ');
         info.append(name,details);
         const actions = document.createElement('div');
         actions.className = 'profiles-actions';
@@ -5751,14 +5886,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }));
       filterProfiles();
       syncProfileLaunchButtons();
+      const {profileId} = pageHistory[historyIndex];
+      if (profileId !== null) renderProfileDetail(profileId);
     }
     $('profiles-search').addEventListener('input',filterProfiles);
     function openImportedFolder(profile) {
       return window.__TAURI__?.core.invoke('open_instance_folder',{gameVersion:profile.version,instanceId:profile.id}).catch(error => {
-        const status = $('profiles-status');
-        status.hidden = false;
-        status.setAttribute('data-error','');
-        status.textContent = translateApiMessage(String(error));
+        const [message,...values] = apiMessageParts(String(error));
+        writeProfileStatus(message,true,profile.id,...values);
       });
     }
     async function loadImportedProfiles() {
@@ -5791,17 +5926,38 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     const createProfileVersion = $('create-profile-version');
     const createProfileName = $('create-profile-name');
     const createProfileSubmit = $('create-profile-submit');
+    const createProfileDismiss = [$('create-profile-cancel'),$('create-profile-close')];
     createProfileVersion.replaceChildren(...Array.from(playableVersions,version => new Option(version,version)));
     createSettingDropdown(createProfileVersion);
+    const createProfileDropdown = settingDropdowns.get(createProfileVersion);
+    async function renderCreateProfileCover() {
+      const version = createProfileVersion.value;
+      const cover = createProfileCover(version);
+      const image = cover.querySelector('img');
+      if (image) {
+        image.loading = 'eager';
+        await image.decode().catch(() => {});
+      }
+      if (createProfileVersion.value === version) $('create-profile-art').replaceChildren(cover);
+    }
+    createProfileVersion.addEventListener('change',renderCreateProfileCover);
+    function setCreateProfilePending(pending) {
+      createProfileVersion.disabled = createProfileSubmit.disabled = pending;
+      createProfileName.readOnly = pending;
+      for (const button of createProfileDismiss) button.disabled = pending;
+      createProfileDropdown.sync();
+      writeLocale(createProfileSubmit,pending ? 'Создаём…' : 'Создать');
+    }
     $('profiles-create').addEventListener('click',() => {
       createProfileForm.reset();
       createProfileVersion.value = playableVersions.has(selectedVersion) ? selectedVersion : defaultVersion;
-      settingDropdowns.get(createProfileVersion).sync();
+      createProfileDropdown.sync();
+      void renderCreateProfileCover();
       $('create-profile-status').hidden = true;
       createProfileDialog.showModal();
       createProfileName.focus();
     });
-    $('create-profile-cancel').addEventListener('click',() => createProfileDialog.close());
+    for (const button of createProfileDismiss) button.addEventListener('click',() => createProfileDialog.close());
     createProfileDialog.addEventListener('cancel',event => {
       if (createProfileSubmit.disabled) event.preventDefault();
     });
@@ -5816,7 +5972,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         return;
       }
       if (!window.__TAURI__) return;
-      createProfileSubmit.disabled = $('create-profile-cancel').disabled = true;
+      status.hidden = true;
+      setCreateProfilePending(true);
       try {
         const profile = await window.__TAURI__.core.invoke('create_profile',{name,version:createProfileVersion.value});
         if (!importedProfiles.some(item => item.id === profile.id)) importedProfiles.push(profile);
@@ -5828,7 +5985,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         writeLocale(status,'Не удалось создать сборку');
         status.hidden = false;
       } finally {
-        createProfileSubmit.disabled = $('create-profile-cancel').disabled = false;
+        setCreateProfilePending(false);
       }
     });
 
