@@ -356,25 +356,26 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .wardrobe { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(310px,1fr); align-items: start; gap: clamp(14px,2cqw,24px) }
     #wardrobe-heading { margin: 0 0 20px; font-size: clamp(28px,3.5cqw,38px); letter-spacing: -.045em; line-height: 1.12 }
     .wardrobe-catalog { container: wardrobe-catalog / inline-size }
-    .wardrobe-filters { display: flex; gap: 4px 15px; padding: 0 0 10px; margin-bottom: 12px; border-bottom: 1px solid var(--border) }
-    .wardrobe-filters .button { position: relative; min-height: 34px; padding: 0 10px; border-color: transparent; border-radius: 6px; background: none; color: var(--muted); font-weight: 600 }
-    .wardrobe-filters .button + .button::before {
-      content: ''; position: absolute; inset-inline-start: -9px; top: 50%; width: 1px; height: 14px;
-      transform: translateY(-50%); background: color-mix(in srgb,var(--muted) 40%,transparent); pointer-events: none;
+    .segmented-tabs {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
+      width: fit-content; max-width: 100%; margin: 0 auto 18px; padding: 4px;
+      border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
     }
+    .segmented-tabs button {
+      padding: 0 8px; min-width: clamp(76px,12cqw,104px); min-height: 34px; border: 1px solid transparent; border-radius: 6px;
+      background: transparent; color: var(--side-muted); font-size: 13px; font-weight: 600; white-space: nowrap;
+      transition: background-color .15s,color .15s,border-color .15s;
+    }
+    .segmented-tabs button:hover { background: var(--side-hover); color: var(--text) }
+    .segmented-tabs button:is([aria-selected="true"],[aria-pressed="true"]) { border-color: var(--border); background: var(--selected-bg); color: var(--selected-text) }
+    .wardrobe-filters { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); width: 100%; margin: 0 0 12px }
+    .wardrobe-filters button { min-width: 0; padding-inline: 4px; white-space: normal; overflow-wrap: anywhere }
     @container wardrobe-catalog (max-width: 470px) {
-      .wardrobe-filters { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)) }
-      .wardrobe-filters .button { padding-inline: 4px; white-space: normal }
-    }
-    @container wardrobe-catalog (250px < width <= 470px) {
-      .wardrobe-filters .button:nth-child(4)::before { content: none }
+      .wardrobe-filters { grid-template-columns: repeat(3,minmax(0,1fr)) }
     }
     @container wardrobe-catalog (max-width: 250px) {
       .wardrobe-filters { grid-template-columns: repeat(2,minmax(0,1fr)) }
-      .wardrobe-filters .button:nth-child(odd)::before { content: none }
     }
-    .wardrobe-filters .button:hover { color: var(--text); background: var(--control-bg) }
-    .wardrobe-filters .button[aria-pressed="true"] { color: var(--selected-text); background: var(--selected-bg) }
     .wardrobe-items { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px }
     .wardrobe-tile {
       position: relative; min-width: 0; display: grid; grid-template-rows: auto 1fr;
@@ -1425,12 +1426,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <h2 id="wardrobe-heading" tabindex="-1">Косметика</h2>
         <div class="wardrobe">
           <section class="wardrobe-catalog" aria-label="Косметика">
-            <div class="wardrobe-filters" id="wardrobe-filters" role="group" aria-label="Тип вещи">
-              <button class="button" type="button" data-cosmetic-filter="all" aria-pressed="true">Все</button>
-              <button class="button" type="button" data-cosmetic-filter="wearables" aria-pressed="false">Аксессуары</button>
-              <button class="button" type="button" data-cosmetic-filter="pet" aria-pressed="false">Питомцы</button>
-              <button class="button" type="button" data-cosmetic-filter="dance" aria-pressed="false">Эмоции</button>
-              <button class="button" type="button" data-cosmetic-filter="equipped" aria-pressed="false">Надето</button>
+            <div class="segmented-tabs wardrobe-filters" id="wardrobe-filters" role="group" aria-label="Тип вещи">
+              <button type="button" data-cosmetic-filter="all" aria-pressed="true">Все</button>
+              <button type="button" data-cosmetic-filter="wearables" aria-pressed="false">Аксессуары</button>
+              <button type="button" data-cosmetic-filter="pet" aria-pressed="false">Питомцы</button>
+              <button type="button" data-cosmetic-filter="dance" aria-pressed="false">Эмоции</button>
+              <button type="button" data-cosmetic-filter="equipped" aria-pressed="false">Надето</button>
             </div>
             <div class="wardrobe-items" id="wardrobe-items"></div>
             <p class="wardrobe-empty" id="wardrobe-empty" role="status" hidden></p>
