@@ -3312,7 +3312,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     const wardrobeCanvas = $('wardrobe-preview'), homeCanvas = $('home-cosmetic-preview');
     const cosmeticIcons = new Map();
     let wardrobeView, homeView, iconPreview, iconRequest, skinRequest, defaultCosmeticSkin;
-    let cosmeticFrame = 0, wardrobeYaw = -.55, wardrobePitch = .16, wardrobeZoom = 1, wardrobeDrag;
+    const wardrobeFrontYaw = -.55, wardrobeBackYaw = Math.PI - .22;
+    let cosmeticFrame = 0, wardrobeYaw = wardrobeFrontYaw, wardrobePitch = .16, wardrobeZoom = 1;
+    let wardrobeDrag, wardrobeTurn;
     let wardrobeScene, homeScene;
 
     function previewSkin() {
@@ -3398,11 +3400,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         view.draw({yaw:angle,pitch,slots,pet,time,zoom,home:canvas===homeCanvas});
         return !reducedMotion.matches && Boolean(pet?.idle || slots.dance);
       };
-      const animateWardrobe = wardrobeScene?.view && !$('page-cosmetics').hidden &&
-        draw(wardrobeScene,wardrobeYaw,wardrobePitch,wardrobeZoom);
+      const drawWardrobe = wardrobeScene?.view && !$('page-cosmetics').hidden;
+      if (drawWardrobe && wardrobeTurn) advanceWardrobeTurn(now);
+      const animateWardrobe = drawWardrobe && draw(wardrobeScene,wardrobeYaw,wardrobePitch,wardrobeZoom);
       const animateHome = homeScene?.view && !$('page-play').hidden && !homeCanvas.hidden &&
         draw(homeScene,yaw*Math.PI/180,.16);
-      if (animateWardrobe || animateHome) queueCosmeticFrame();
+      if (animateWardrobe || animateHome || (drawWardrobe && wardrobeTurn)) queueCosmeticFrame();
     }
 
     function updateCosmeticPreviews() {
@@ -3467,13 +3470,38 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
     }
 
-    function setWardrobeAngle(angle,pitch = wardrobePitch) {
-      wardrobeYaw = angle;
-      wardrobePitch = Math.max(-.55,Math.min(.68,pitch));
+    function setWardrobeAngle(angle,pitch = wardrobePitch,animate = false) {
+      const targetPitch = Math.max(-.55,Math.min(.68,pitch));
+      if (animate && settings.motion && !reducedMotion.matches && (angle !== wardrobeYaw || targetPitch !== wardrobePitch)) {
+        const difference = angle - wardrobeYaw;
+        wardrobeTurn = {angle,pitch:targetPitch,fromYaw:wardrobeYaw,fromPitch:wardrobePitch,
+          travel:Math.atan2(Math.sin(difference),Math.cos(difference)),startedAt:null};
+      } else {
+        wardrobeTurn = null;
+        wardrobeYaw = angle;
+        wardrobePitch = targetPitch;
+      }
       writeLocale($('wardrobe-turn'),Math.cos(angle)<0 ? 'Спереди' : 'Со спины');
       queueCosmeticFrame();
     }
-    $('wardrobe-turn').addEventListener('click',() => setWardrobeAngle(Math.cos(wardrobeYaw)<0 ? -.55 : 2.59,.22));
+    function advanceWardrobeTurn(now) {
+      const turn = wardrobeTurn;
+      turn.startedAt ??= now;
+      const progress = settings.motion && !reducedMotion.matches ? Math.min(1,(now - turn.startedAt) / 360) : 1;
+      if (progress === 1) {
+        wardrobeYaw = turn.angle;
+        wardrobePitch = turn.pitch;
+        wardrobeTurn = null;
+        return;
+      }
+      const eased = progress * progress * (3 - 2 * progress);
+      wardrobeYaw = turn.fromYaw + turn.travel * eased;
+      wardrobePitch = turn.fromPitch + (turn.pitch - turn.fromPitch) * eased;
+    }
+    function showWardrobeSide(back) {
+      setWardrobeAngle(back ? wardrobeBackYaw : wardrobeFrontYaw,back ? .22 : .16,true);
+    }
+    $('wardrobe-turn').addEventListener('click',() => showWardrobeSide(Math.cos(wardrobeTurn?.angle ?? wardrobeYaw) >= 0));
     const zoomOut = $('wardrobe-zoom-out'), zoomIn = $('wardrobe-zoom-in');
     function zoomWardrobe(factor) {
       wardrobeZoom = Math.max(.75,Math.min(2.6,wardrobeZoom*factor));
@@ -3491,6 +3519,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     },{passive:false});
     wardrobeCanvas.addEventListener('pointerdown',event => {
       if (event.button!==0 || wardrobeDrag) return;
+      if (wardrobeTurn) setWardrobeAngle(wardrobeYaw);
       wardrobeDrag = {id:event.pointerId,x:event.clientX,y:event.clientY,yaw:wardrobeYaw,pitch:wardrobePitch};
       wardrobeCanvas.setPointerCapture(event.pointerId);
       wardrobeCanvas.setAttribute('data-dragging','');
@@ -3622,7 +3651,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       const tile = event.target.closest('[data-cosmetic]');
       if (!tile) return;
       const item = wardrobeItems.find(([id]) => id === tile.dataset.cosmetic);
-      if (item[1] === 'wings' && wardrobeSelected?.[1] !== 'wings' && Math.cos(wardrobeYaw) >= 0) setWardrobeAngle(Math.PI - .22,.22);
+      if (item[1] !== wardrobeSelected?.[1]) showWardrobeSide(item[1] === 'wings');
       wardrobeSelected = item;
       renderWardrobe();
       const detail = wardrobeCanvas.closest('.wardrobe-detail');
