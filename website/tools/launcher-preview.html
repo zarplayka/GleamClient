@@ -188,13 +188,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       min-height: var(--content-height); padding: var(--workspace-inset) var(--workspace-inset) clamp(26px,6dvh,64px);
     }
     .home-board {
-      display: grid; width: min(100%,1180px); gap: 8px 18px; padding: 16px 20px 12px;
-      grid-template-columns: minmax(0,1fr) minmax(186px,.95fr) minmax(0,1fr) minmax(166px,.72fr);
+      display: grid; width: min(100%,1296px); gap: 8px 18px; padding: 16px 20px 16px;
+      grid-template-columns: minmax(0,1fr) minmax(186px,.95fr) minmax(0,1fr) minmax(clamp(290px,31cqw,370px),1.38fr);
       grid-template-rows: max-content minmax(0,1fr);
       border: 1px solid var(--border); border-radius: 15px; background: var(--home-surface);
       box-shadow: 0 16px 32px #0b0b1230;
     }
-    .home-board:has(.skin-stage[data-geared]) { grid-template-columns: minmax(0,1fr) minmax(186px,.95fr) minmax(0,1fr) minmax(182px,.83fr) }
     .launch-column { grid-area: 1 / 2; min-width: 0; text-align: center }
     .version-shelf {
       display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px;
@@ -253,6 +252,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       min-width: 0; gap: 8px; padding-left: 14px; border-left: 1px solid var(--border); text-align: center;
     }
     .cosmetics h2 { margin: 0 0 5px; font-size: 14px; letter-spacing: 0 }
+    .home-preview { position: relative; width: 100%; min-width: 0 }
+    .home-zoom { position: absolute; top: 4px; right: 4px; display: flex; gap: 4px }
+    .home-zoom .button { width: 29px; min-height: 29px; padding: 0; border-radius: 6px; font-size: 16px }
+    .home-loadout { width: 100%; min-width: 0 }
+    .equipped-items { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 0; padding: 0; list-style: none }
+    .equipped-items li {
+      display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px 1px 3px;
+      min-height: 24px; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--side-card); color: var(--text); font-size: 11px;
+    }
+    .equipped-items img { width: 24px; height: 20px; object-fit: contain }
     #page-friends { width:min(100%,1270px);padding:30px clamp(16px,3vw,34px) 45px }
     .friends-layout { display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:22px;align-items:start }
     .friends-heading { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:26px }
@@ -356,26 +366,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .wardrobe { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(310px,1fr); align-items: start; gap: clamp(14px,2cqw,24px) }
     #wardrobe-heading { margin: 0 0 20px; font-size: clamp(28px,3.5cqw,38px); letter-spacing: -.045em; line-height: 1.12 }
     .wardrobe-catalog { container: wardrobe-catalog / inline-size }
-    .segmented-tabs {
-      display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
-      width: fit-content; max-width: 100%; margin: 0 auto 18px; padding: 4px;
-      border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
-    }
-    .segmented-tabs button {
-      padding: 0 8px; min-width: clamp(76px,12cqw,104px); min-height: 34px; border: 1px solid transparent; border-radius: 6px;
-      background: transparent; color: var(--side-muted); font-size: 13px; font-weight: 600; white-space: nowrap;
-      transition: background-color .15s,color .15s,border-color .15s;
-    }
-    .segmented-tabs button:hover { background: var(--side-hover); color: var(--text) }
-    .segmented-tabs button:is([aria-selected="true"],[aria-pressed="true"]) { border-color: var(--border); background: var(--selected-bg); color: var(--selected-text) }
-    .wardrobe-filters { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); width: 100%; margin: 0 0 12px }
-    .wardrobe-filters button { min-width: 0; padding-inline: 4px; white-space: normal; overflow-wrap: anywhere }
-    @container wardrobe-catalog (max-width: 470px) {
-      .wardrobe-filters { grid-template-columns: repeat(3,minmax(0,1fr)) }
-    }
-    @container wardrobe-catalog (max-width: 250px) {
-      .wardrobe-filters { grid-template-columns: repeat(2,minmax(0,1fr)) }
-    }
     .wardrobe-items { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px }
     .wardrobe-tile {
       position: relative; min-width: 0; display: grid; grid-template-rows: auto 1fr;
@@ -446,23 +436,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .text-button:hover { color: var(--accent) }
     .text-button .icon { width: 13px; height: 13px }
     .news ul { margin: 0; padding: 0; list-style: none }
-    .news-entry { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; padding: 6px 0; border: 0; background: none; text-align: left }
+    .news-entry { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; padding: 4px 0; border: 0; background: none; text-align: left }
+    .news li + li { border-top: 1px solid var(--border) }
     .news-entry:hover strong { color: var(--accent) }
     .release-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--side-subtle); font-size: 12px; font-variant-numeric: tabular-nums }
     .news-entry .release-meta { flex: none }
     .release-version { padding: 2px 7px; border-radius: 5px; background: #a9b2ef20; color: var(--selected-text); font-weight: 700 }
     .skin-stage {
-      --unit: clamp(6px,.82dvh,8.5px); --yaw: -29deg;
-      position: relative; flex: none;
-      width: calc(19 * var(--unit)); height: calc(33 * var(--unit)); margin: 0;
+      --unit: clamp(6px,.95dvh,9px); --yaw: -29deg;
+      position: relative; width: 100%; height: clamp(238px,35dvh,326px); margin: 0; overflow: clip;
       touch-action: pan-y; cursor: grab; user-select: none;
     }
     .skin-stage[data-dragging] { cursor: grabbing }
-    .skin-stage[data-geared] { width: min(100%,224px) }
     .skin-shadow { position: absolute; width: 72%; height: 7%; left: 15%; bottom: 4%; border-radius: 50%; background: #100d1399; filter: blur(10px) }
     .model {
-      position: absolute; left: 50%; bottom: 2%; width: calc(16 * var(--unit)); height: calc(32 * var(--unit));
-      transform: translateX(-50%) rotateX(-8deg) rotateY(var(--yaw)); transform-style: preserve-3d;
+      position: absolute; left: 50%; bottom: 50%; width: calc(16 * var(--unit)); height: calc(32 * var(--unit));
+      transform: translate(-50%,50%) rotateX(-8deg) rotateY(var(--yaw)) scale(var(--skin-zoom,1)); transform-style: preserve-3d;
       transition: transform .3s var(--ease);
     }
     .skin-stage[data-dragging] .model { transition: none }
@@ -482,6 +471,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     .secondary-page { align-self: start; justify-self: center; width: min(100%,calc(984px + 2 * var(--workspace-inset))); padding: 30px var(--workspace-inset) 32px }
     .release-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px }
+    #launcher-update-status[data-error] { color: var(--error-text) }
     .activity-title { margin-bottom: 18px }
     #activity-heading { margin: 0; font-size: clamp(28px,3.5cqw,38px); letter-spacing: -.045em; line-height: 1.12 }
     .activity-live { display: inline-flex; align-items: center; gap: 7px; padding: 6px 9px; border-radius: 6px; background: var(--selected-bg); color: var(--selected-text); font-size: 12px; font-weight: 650 }
@@ -589,10 +579,28 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .release-card p { max-width: 67ch; margin: 6px 0 8px; color: var(--muted); line-height: 1.55 }
     .release-card .text-button { padding-left: 0; font-weight: 700 }
     .settings-page { width: min(100%,calc(804px + 2 * var(--workspace-inset))) }
-    .settings-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 24px }
+    .settings-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 18px }
     .settings-header h2 { font-size: 26px }
-    .settings-header p { margin: 7px 0 0; color: var(--side-muted); font-size: 13px; line-height: 1.45 }
-    .settings-group + .settings-group { margin-top: 25px }
+    .segmented-tabs {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
+      width: fit-content; max-width: 100%; margin: 0 auto 18px; padding: 4px;
+      border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
+    }
+    .segmented-tabs button {
+      padding: 0 8px; min-width: clamp(76px,12cqw,104px); min-height: 34px; border: 1px solid transparent; border-radius: 6px;
+      background: transparent; color: var(--side-muted); font-size: 13px; font-weight: 600; white-space: nowrap;
+      transition: background-color .15s,color .15s,border-color .15s;
+    }
+    .segmented-tabs button:hover { background: var(--side-hover); color: var(--text) }
+    .segmented-tabs button:is([aria-selected="true"],[aria-pressed="true"]) { border-color: var(--border); background: var(--selected-bg); color: var(--selected-text) }
+    .wardrobe-filters { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); width: 100%; margin: 0 0 12px }
+    .wardrobe-filters button { min-width: 0; padding-inline: 4px; white-space: normal; overflow-wrap: anywhere }
+    @container wardrobe-catalog (max-width: 470px) {
+      .wardrobe-filters { grid-template-columns: repeat(3,minmax(0,1fr)) }
+    }
+    @container wardrobe-catalog (max-width: 250px) {
+      .wardrobe-filters { grid-template-columns: repeat(2,minmax(0,1fr)) }
+    }
     .settings-account-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 13px }
     .settings-account-row + .settings-account-row, #settings-minecraft-list .settings-account-row, .settings-account-footer { border-top: 1px solid var(--side-rule) }
     .settings-account-row .account-copy { display: grid; gap: 2px; flex: 1; min-width: 0 }
@@ -605,13 +613,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .settings-account-row .settings-account-remove { flex: none; width: 29px; min-height: 29px; padding: 5px }
     .settings-account-row .settings-account-remove:hover { color: var(--error-text) }
     .settings-account-footer { padding: 9px 13px }
-    .settings-account-panel + .settings-account-panel { margin-top: 10px }
-    .settings-group h3 { margin: 0 0 10px; font-size: 13px }
+    .settings-group > .settings-panel + .settings-panel { margin-top: 10px }
     .launcher-update-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; margin-bottom: 8px }
-    .launcher-update-header h3 { margin: 0 }
-    .launcher-update-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px }
-    .launcher-update-header .text-button { min-height: 28px; padding: 4px 6px; border-radius: 5px }
-    .launcher-update-header .text-button:disabled { cursor: default; opacity: .6; color: var(--muted) }
+    .launcher-update-header h3 { margin: 0; color: var(--side-muted); font-size: 13px; font-weight: 600 }
+    .launcher-update-setting .button { justify-self: end; white-space: normal }
     .settings-panel { border: 1px solid var(--border); border-radius: 16px; background: var(--panel); transition: background-color .2s,border-color .2s }
     .setting { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; align-items: center; min-height: 62px; padding: 12px 19px }
     .setting + .setting { border-top: 1px solid var(--border) }
@@ -799,7 +804,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       --sidebar-default: 216px;
       --sidebar: clamp(160px,var(--sidebar-preferred,var(--sidebar-default)),min(340px,30vw));
       --sidebar-delta: max(-16px,calc(var(--sidebar) - 216px));
-      --sidebar-space: var(--sidebar);
       --sidebar-motion: .24s var(--ease);
       --topbar-height: 48px;
       --content-height: calc(100dvh - var(--topbar-height));
@@ -814,11 +818,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       --on-fill: #3c58e8;
       --ink: #1c2031;
       --workspace-inset: clamp(19px,2vw,33px);
-      grid-template-columns: var(--sidebar-space) minmax(0,1fr);
+      grid-template-columns: var(--sidebar) minmax(0,1fr);
       grid-template-rows: var(--topbar-height) minmax(0,1fr);
       transition: grid-template-columns var(--sidebar-motion);
     }
-    .launcher[data-sidebar-collapsed] { --sidebar-space: 0px }
+    .launcher[data-sidebar-compact] { --sidebar: 51px }
     :root[data-theme="light"] {
       color-scheme: light;
       --text: #202333;
@@ -848,7 +852,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       --side-subtle: #5d6679;
       --accent: #3b54cf;
     }
-    .backdrop { left: var(--sidebar-space); background: #2a3030; transition: left var(--sidebar-motion) }
+    .backdrop { left: var(--sidebar); background: #2a3030; transition: left var(--sidebar-motion) }
     .launcher[data-sidebar-resizing],.launcher[data-sidebar-resizing] :is(.backdrop,.sidebar) { transition: none }
     .launcher[data-sidebar-resizing] { cursor: col-resize; user-select: none }
     .launcher:has(.home[hidden]) { background: var(--page-bg) }
@@ -860,8 +864,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     .title-navigation { display: flex; flex: none; align-items: center; gap: 1px }
     .header-activity { display: flex; flex: none; align-items: center; gap: 3px; margin-left: auto }
+    .header-update { flex: none; margin-right: 5px }
+    .header-update .button { min-height: 30px; padding-inline: 9px; border-radius: 6px; font-size: 12px }
+    .header-update .button span { overflow: hidden; text-overflow: ellipsis }
     :is(.title-navigation,.header-activity) > button { position: relative; display: grid; place-items: center; width: 29px; height: 30px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--side-muted); transition: background-color .15s,color .15s }
     :is(.title-navigation,.header-activity) > button:hover:enabled,.header-activity > button:has(+ :popover-open) { background: var(--hover-tint); color: var(--text) }
+    .header-activity > button[aria-current="page"] { background: var(--side-card); color: var(--accent) }
+    .launcher[data-auth-required] #updates-toggle { display: none }
     .title-navigation button:disabled { opacity: .35 }
     :is(.title-navigation,.header-activity) .icon { width: 15px; height: 15px }
     .activity-dot { position: absolute; top: 4px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px #18191c; animation: page-in .18s var(--ease) both }
@@ -902,13 +911,19 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .window-button.close:hover:enabled { background: #c42b1c; color: #fff }
     .window-button .icon { width: 14px; height: 14px }
     .window-status { position: absolute; top: 100%; right: 8px; margin: 6px 0 0; padding: 8px 10px; border: 1px solid var(--side-rule); border-radius: 6px; background: var(--frame); font-size: 12px }
+    #launcher-update-feedback { right: min(146px,10vw); max-width: min(310px,calc(90vw - 12px)) }
     .sidebar {
       position: sticky; top: var(--topbar-height); align-self: start; min-height: var(--content-height); z-index: 2;
       display: flex; flex-direction: column; width: var(--sidebar); padding: 11px 11px 0;
       background: var(--frame); border-right: 1px solid var(--border); color: var(--side-text);
-      transition: transform var(--sidebar-motion),width var(--sidebar-motion);
+      transition: width var(--sidebar-motion);
     }
-    .launcher[data-sidebar-collapsed] .sidebar { transform: translateX(-100%) }
+    .launcher[data-sidebar-compact] .sidebar { padding: 9px 6px 0 }
+    .launcher[data-sidebar-compact] :is(.nav-label,.account .account-copy,.account > .icon) { display: none }
+    .launcher[data-sidebar-compact] .nav-item { justify-content: center; min-height: 37px; padding: 0 }
+    .launcher[data-sidebar-compact] .nav-item .icon { width: 17px; height: 17px }
+    .launcher[data-sidebar-compact] .account { justify-content: center; padding-inline: 0 }
+    .launcher[data-sidebar-compact] .account-bar { flex-direction: column }
     .sidebar-resize { position: absolute; z-index: 2; inset: 0 -4px 0 auto; width: 8px; cursor: col-resize; touch-action: none }
     .sidebar-resize::after {
       content: ""; position: absolute; inset: 50% 3px auto; height: 24px; border-radius: 2px;
@@ -1233,33 +1248,32 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       .catalog-byline { display: none }
     }
     .secondary-page h2:focus { outline: none }
-    .settings-group h3 { color: var(--side-muted); font-weight: 600 }
     @container (max-width: 980px) {
-      .home-board,.home-board:has(.skin-stage[data-geared]) { grid-template-columns: minmax(0,1fr) minmax(186px,.95fr) minmax(0,1fr); gap: 8px 14px; padding-inline: 14px }
+      .home-board { grid-template-columns: minmax(0,1fr) minmax(168px,.95fr) minmax(0,1.25fr); gap: 8px 14px; padding-inline: 14px }
       .version-shelf { gap: 6px }
       .version-tile { padding: 5px; border-radius: 8px }
       .news { grid-area: 2 / 1 / 3 / 3 }
       .cosmetics { grid-area: 2 / 3; padding: 10px 0 0; border: 0; border-top: 1px solid var(--border) }
-      .skin-stage { --unit: 6px }
+      .skin-stage { --unit: 6px; height: clamp(205px,29dvh,266px) }
     }
     @container (max-width: 640px) {
       .home { justify-content: flex-start }
-      .home-board,.home-board:has(.skin-stage[data-geared]) { grid-template-columns: repeat(2,minmax(0,1fr)) }
+      .home-board { grid-template-columns: repeat(2,minmax(0,1fr)) }
       .version-legacy { grid-area: 1 / 1 }
       .version-modern { grid-area: 1 / 2 }
       .launch-column { grid-area: 2 / 1 / 3 / 3; width: min(100%,340px); justify-self: center }
       .news { grid-area: 3 / 1 / 4 / 3 }
-      .cosmetics { grid-area: 4 / 1 / 5 / 3; flex-direction: row; justify-content: flex-start; gap: 14px; text-align: left }
-      .skin-stage { --unit: 5.5px }
-      .skin-stage[data-geared] { width: min(58%,224px) }
+      .cosmetics { grid-area: 4 / 1 / 5 / 3; display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: 14px; text-align: left }
+      .equipped-items { justify-content: flex-start }
     }
     @container (max-width: 400px) {
-      .home-board,.home-board:has(.skin-stage[data-geared]) { grid-template-columns: minmax(0,1fr) }
+      .home-board { grid-template-columns: minmax(0,1fr) }
       .version-legacy,.version-modern { justify-self: center }
       .version-modern { grid-area: 2 / 1 }
       .launch-column { grid-area: 3 / 1 }
       .news { grid-area: 4 / 1 }
-      .cosmetics { grid-area: 5 / 1 }
+      .cosmetics { grid-area: 5 / 1; display: flex; text-align: center }
+      .equipped-items { justify-content: center }
       .news-entry { display: grid; gap: 4px }
     }
     @media(max-width:950px) { .launcher { --sidebar-default: 185px } }
@@ -1267,20 +1281,32 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       .launcher { --sidebar-default: 160px }
     }
     @media(max-width:690px) {
-      .launcher { --sidebar: 51px; --workspace-inset: 12px }
-      .sidebar { padding: 9px 6px 0 }
+      .launcher { --workspace-inset: 12px }
       .topbar { padding-left: 9px }
-      .nav-label,.account-copy,.account > .icon,.sidebar-resize { display: none }
-      .account { justify-content: center; padding-inline: 0 }
-      .account-bar { flex-direction: column }
-      .sidebar .side-nav .nav-item { justify-content: center; min-height: 37px; padding: 0 }
-      .sidebar .side-nav .nav-item .icon { width: 17px; height: 17px }
       .home { padding-bottom: 16px }
       .release-card { grid-template-columns: minmax(0,1fr); gap: 9px; padding: 14px }
       .release-card .release-meta { flex-direction: row; align-items: center }
     }
     @media(max-width:500px) { .header-panel { right: 8px } }
-    @media(max-width:420px) { .topbar { gap: 6px } .window-button { width: 32px } }
+    @media(max-width:500px) {
+      .topbar:has(.header-update:not([hidden])) .brand span,
+      .topbar:has(.header-update:not([hidden])) .header-download-status,
+      .header-update .button .icon { display: none }
+      .header-update .button { max-width: 25vw; padding-inline: 7px }
+    }
+    @media(max-width:420px) {
+      .topbar { --compact-toolbar-button: clamp(20px,6.6vw,26px); gap: 3px; padding-left: 5px }
+      .header-activity { gap: 2px }
+      .header-update { margin-right: 0 }
+      :is(.title-navigation,.header-activity) > button,.window-button { width: var(--compact-toolbar-button) }
+      .header-activity > #downloads-toggle[data-active] {
+        display: grid; width: var(--compact-toolbar-button); padding: 0;
+      }
+      .header-download-status { display: none }
+      .download-count {
+        position: absolute; top: 1px; right: 0; min-width: 11px; height: 11px; padding-inline: 2px; font-size: 8px;
+      }
+    }
     @media(max-width:360px) { .brand span { display: none } }
     .launcher[data-motion="off"],.launcher[data-motion="off"] *, .launcher[data-motion="off"] *::before, .launcher[data-motion="off"] *::after { animation: none !important; transition: none !important }
     @media(prefers-reduced-motion:no-preference) {
@@ -1348,6 +1374,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <button id="page-forward" type="button" aria-label="Вперёд" title="Вперёд" disabled><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
       </div>
       <div class="header-activity" role="group" aria-label="Активность лаунчера">
+        <div class="header-update" id="header-update" hidden>
+          <button class="button primary" id="launcher-update-action" type="button">
+            <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+            <span>Обновить</span>
+          </button>
+          <p class="window-status" id="launcher-update-feedback" role="status" hidden></p>
+        </div>
+        <button id="updates-toggle" type="button" data-page="updates" aria-controls="page-updates" aria-label="История обновлений" title="История обновлений"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg></button>
         <button id="notifications-toggle" type="button" popovertarget="notifications-panel" aria-label="Уведомления" title="Уведомления"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg><span class="activity-dot" id="notification-dot" aria-hidden="true" hidden></span></button>
         <section class="header-panel" id="notifications-panel" popover aria-labelledby="notifications-heading">
           <h2 id="notifications-heading">Уведомления</h2>
@@ -1402,7 +1436,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <button type="button" class="nav-item" data-page="catalog" aria-controls="page-catalog" aria-label="Моды" title="Моды"><svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg><span class="nav-label">Моды</span></button>
         <button type="button" class="nav-item" data-page="cosmetics" aria-controls="page-cosmetics" aria-label="Косметика" title="Косметика"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 4 6l-2 5 4 2 1-2v9h10v-9l1 2 4-2-2-5-5-2a3 3 0 0 1-6 0Z"/></svg><span class="nav-label">Косметика</span></button>
         <button type="button" class="nav-item" data-page="friends" aria-controls="page-friends" aria-label="Друзья" title="Друзья"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-4M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zm4-4a4 4 0 0 1 0 8"/></svg><span class="nav-label">Друзья</span></button>
-        <button type="button" class="nav-item" data-page="updates" aria-controls="page-updates" aria-label="Обновления" title="Обновления"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg><span class="nav-label">Обновления</span></button>
         <button type="button" class="nav-item" data-page="activity" aria-controls="page-activity" aria-label="Активность" title="Активность"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19v-6m7 6V5m7 14v-9"/></svg><span class="nav-label">Активность</span></button>
       </nav>
       <footer class="account-area">
@@ -1477,7 +1510,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </div>
         </dialog>
       </footer>
-      <div class="sidebar-resize" id="sidebar-resize" role="separator" tabindex="0" aria-label="Ширина бокового меню" aria-controls="launcher-sidebar" aria-orientation="vertical" aria-valuemin="160" aria-valuemax="340" aria-valuenow="216" title="Потяни, чтобы изменить ширину"></div>
+      <div class="sidebar-resize" id="sidebar-resize" role="separator" tabindex="0" aria-label="Ширина бокового меню" aria-controls="launcher-sidebar" aria-orientation="vertical" aria-valuemin="51" aria-valuemax="340" aria-valuenow="216" title="Потяни, чтобы изменить ширину"></div>
     </aside>
     <div class="workspace">
       <section id="page-play" class="page home" aria-labelledby="play-heading">
@@ -1509,15 +1542,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <ul id="recent-releases"></ul>
           </section>
           <section class="cosmetics" aria-labelledby="cosmetics-heading">
-            <figure class="skin-stage" id="skin-stage" tabindex="0" aria-label="Персонаж Minecraft. Для поворота потяни мышью или используй стрелки">
-              <div class="skin-shadow" aria-hidden="true"></div>
-              <div class="model" id="skin-model" aria-hidden="true"></div>
-              <canvas id="home-cosmetic-preview" aria-hidden="true" hidden></canvas>
-            </figure>
-            <div>
+            <div class="home-preview">
+              <figure class="skin-stage" id="skin-stage" tabindex="0" aria-label="Поверни персонажа мышью или стрелками. Приближай колёсиком или кнопками">
+                <div class="skin-shadow" aria-hidden="true"></div>
+                <div class="model" id="skin-model" aria-hidden="true"></div>
+                <canvas id="home-cosmetic-preview" aria-hidden="true" hidden></canvas>
+              </figure>
+              <div class="home-zoom">
+                <button id="home-zoom-out" class="button" type="button" aria-label="Отдалить" title="Отдалить">−</button>
+                <button id="home-zoom-in" class="button" type="button" aria-label="Приблизить" title="Приблизить">+</button>
+              </div>
+            </div>
+            <div class="home-loadout">
               <p id="minecraft-name" hidden></p>
               <h2 id="cosmetics-heading"><button class="text-button" id="open-cosmetics" type="button">Косметика<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></h2>
               <p id="cosmetics-summary">Ничего не надето</p>
+              <ul class="equipped-items" id="home-equipped" aria-label="Твоя экипировка" hidden></ul>
             </div>
           </section>
         </div>
@@ -1790,6 +1830,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+          <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-046">
+            <span class="release-meta"><span class="release-version">0.1.46</span><time datetime="2026-11-16">16.11.2026</time></span>
+            <div>
+              <h3 id="release-launcher-046">Новые профили, косметика и активность</h3>
+              <p>Открой сборку, чтобы посмотреть файлы и управлять модами. В косметике обновилась примерочная, а в активности появился календарь на 16 недель.</p>
+            </div>
+          </article>
           <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-045">
             <span class="release-meta"><span class="release-version">0.1.45</span><time datetime="2026-11-15">15.11.2026</time></span>
             <div>
@@ -2023,14 +2070,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       </section>
       <section id="page-settings" class="page secondary-page settings-page" aria-labelledby="settings-heading" hidden>
         <header class="settings-header">
-          <div>
-            <h2 id="settings-heading" tabindex="-1">Настройки</h2>
-            <p>Память, файлы модов и оформление лаунчера</p>
-          </div>
+          <h2 id="settings-heading" tabindex="-1">Настройки</h2>
           <button class="text-button button-link" type="button" id="reset-settings"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg>Сбросить настройки</button>
         </header>
-        <section class="settings-group" aria-labelledby="settings-account-heading">
-          <h3 id="settings-account-heading">Аккаунт</h3>
+        <div class="segmented-tabs" id="settings-tabs" role="tablist" aria-labelledby="settings-heading">
+          <button id="settings-tab-account" type="button" role="tab" aria-controls="settings-section-account" aria-selected="true">Аккаунт</button>
+          <button id="settings-tab-game" type="button" role="tab" aria-controls="settings-section-game" aria-selected="false" tabindex="-1">Игра</button>
+          <button id="settings-tab-storage" type="button" role="tab" aria-controls="settings-section-storage" aria-selected="false" tabindex="-1">Хранилище</button>
+          <button id="settings-tab-interface" type="button" role="tab" aria-controls="settings-section-interface" aria-selected="false" tabindex="-1">Интерфейс</button>
+          <button id="settings-tab-launcher" type="button" role="tab" aria-controls="settings-section-launcher" aria-selected="false" tabindex="-1">Лаунчер</button>
+        </div>
+        <section class="settings-group" id="settings-section-account" role="tabpanel" aria-labelledby="settings-tab-account" tabindex="0">
           <div class="settings-panel settings-account-panel">
             <div class="settings-account-row">
               <span class="avatar gleam-avatar" id="settings-gleam-avatar" aria-hidden="true"><span></span><img alt="" hidden></span>
@@ -2051,8 +2101,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <div class="settings-account-footer"><button class="text-button" id="settings-minecraft-add" type="button" disabled><svg class="icon" aria-hidden="true"><use href="#i-user-plus"/></svg><span>Добавить аккаунт Minecraft</span></button></div>
           </div>
         </section>
-        <section class="settings-group" aria-labelledby="memory-settings-heading">
-          <h3 id="memory-settings-heading">Память</h3>
+        <section class="settings-group" id="settings-section-game" role="tabpanel" aria-labelledby="settings-tab-game" tabindex="0" hidden>
           <div class="settings-panel">
           <div class="setting memory-setting">
             <div class="setting-caption"><label class="setting-label" for="memory">Оперативная память</label><small id="memory-hint">Лимит памяти для Minecraft</small><small id="memory-total" hidden></small></div>
@@ -2064,9 +2113,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             </div>
           </div>
           </div>
-        </section>
-        <section class="settings-group" aria-labelledby="game-settings-heading">
-          <h3 id="game-settings-heading">Игра</h3>
           <div class="settings-panel">
           <div class="setting">
             <div class="setting-caption">
@@ -2107,14 +2153,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <div class="setting setting-jvm">
             <div class="setting-caption">
               <label class="setting-label" for="jvm-arguments">Аргументы JVM</label>
-              <small id="jvm-arguments-hint">Дополнительные параметры Java. Память задаётся в разделе «Память»</small>
+              <small id="jvm-arguments-hint">Дополнительные параметры запуска Java</small>
             </div>
             <textarea id="jvm-arguments" class="jvm-arguments" maxlength="4096" spellcheck="false" placeholder="-XX:+UseG1GC" aria-describedby="jvm-arguments-hint"></textarea>
           </div>
           </div>
         </section>
-        <section class="settings-group" aria-labelledby="storage-settings-heading">
-          <h3 id="storage-settings-heading">Хранилище</h3>
+        <section class="settings-group" id="settings-section-storage" role="tabpanel" aria-labelledby="settings-tab-storage" tabindex="0" hidden>
           <div class="settings-panel">
             <div class="setting storage-summary">
               <div class="setting-caption">
@@ -2135,8 +2180,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             </div>
           </template>
         </section>
-        <section class="settings-group" aria-labelledby="appearance-heading">
-          <h3 id="appearance-heading">Оформление</h3>
+        <section class="settings-group" id="settings-section-interface" role="tabpanel" aria-labelledby="settings-tab-interface" tabindex="0" hidden>
           <div class="settings-panel">
             <div class="setting setting-choice">
               <strong class="setting-label" id="theme-label">Тема</strong>
@@ -2163,11 +2207,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
               </div>
               <label class="switch motion-switch"><input id="motion-setting" type="checkbox" role="switch" aria-describedby="motion-hint"><span class="switch-track"><span class="switch-thumb"></span></span></label>
             </div>
-          </div>
-        </section>
-        <section class="settings-group" aria-labelledby="sound-settings-heading">
-          <h3 id="sound-settings-heading">Поведение</h3>
-          <div class="settings-panel">
             <div class="setting">
               <div class="setting-caption">
                 <label class="setting-label" for="sound-setting">Звуки интерфейса</label>
@@ -2175,44 +2214,38 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
               </div>
               <label class="switch"><input id="sound-setting" type="checkbox" role="switch" checked><span class="switch-track"><span class="switch-thumb"></span></span></label>
             </div>
-          </div>
-        </section>
-        <section class="settings-group" aria-labelledby="launcher-update-heading">
-          <header class="launcher-update-header">
-            <h3 id="launcher-update-heading">Обновления лаунчера</h3>
-            <div class="launcher-update-actions">
-              <button class="text-button" id="launcher-apply-update" type="button" hidden>Обновить и перезапустить</button>
-              <button class="text-button" id="launcher-check-update" type="button">
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5"/></svg>
-                <span>Проверить сейчас</span>
-              </button>
-            </div>
-          </header>
-          <div class="settings-panel">
             <div class="setting">
               <div class="setting-caption">
-                <label class="setting-label" for="launcher-auto-update">Обновлять автоматически</label>
-                <small>Проверяет и устанавливает обновления при запуске лаунчера</small>
-                <small id="launcher-update-status" role="status" hidden></small>
-              </div>
-              <label class="switch"><input id="launcher-auto-update" type="checkbox" role="switch" checked><span class="switch-track"><span class="switch-thumb"></span></span></label>
-            </div>
-          </div>
-        </section>
-        <section class="settings-group" aria-labelledby="notification-settings-heading">
-          <h3 id="notification-settings-heading">Уведомления</h3>
-          <div class="settings-panel">
-            <div class="setting">
-              <div class="setting-caption">
-                <label class="setting-label" for="installation-notices">Успешная установка</label>
+                <label class="setting-label" for="installation-notices">Уведомления об установке</label>
                 <small>Сообщает в шапке, когда установка завершилась</small>
               </div>
               <label class="switch"><input id="installation-notices" type="checkbox" role="switch" checked><span class="switch-track"><span class="switch-thumb"></span></span></label>
             </div>
           </div>
         </section>
-        <section class="settings-group" aria-labelledby="links-settings-heading">
-          <h3 id="links-settings-heading">О программе</h3>
+        <section class="settings-group" id="settings-section-launcher" role="tabpanel" aria-labelledby="settings-tab-launcher" tabindex="0" hidden>
+          <header class="launcher-update-header">
+            <h3 id="launcher-update-heading">Обновления лаунчера</h3>
+          </header>
+          <div class="settings-panel">
+            <div class="setting launcher-update-setting">
+              <div class="setting-caption">
+                <strong class="setting-label" id="launcher-update-version" hidden></strong>
+                <small id="launcher-update-status" role="status" hidden></small>
+              </div>
+              <button class="button" id="launcher-check-update" type="button">
+                <svg class="icon" aria-hidden="true"><use href="#i-history"/></svg>
+                <span>Проверить обновления</span>
+              </button>
+            </div>
+            <div class="setting">
+              <div class="setting-caption">
+                <label class="setting-label" for="launcher-auto-update">Обновлять автоматически</label>
+                <small>Устанавливает обновления при запуске лаунчера</small>
+              </div>
+              <label class="switch"><input id="launcher-auto-update" type="checkbox" role="switch" checked><span class="switch-track"><span class="switch-thumb"></span></span></label>
+            </div>
+          </div>
           <div class="settings-panel">
             <div class="setting setting-community">
               <div class="setting-caption">
@@ -2239,7 +2272,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
   <script>
     'use strict';
     const $ = id => document.getElementById(id);
-    const nav = [...document.querySelectorAll('.sidebar [data-page]')];
+    const nav = [...document.querySelectorAll('.launcher button[data-page][aria-controls]')];
     const activityPage = $('page-activity');
     const activityCalendarWeeks = 16;
     $('activity-calendar-layout').style.setProperty('--weeks',activityCalendarWeeks);
@@ -2258,6 +2291,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     const launcher = document.querySelector('.launcher');
     const sidebar = $('launcher-sidebar');
     const sidebarResize = $('sidebar-resize');
+    const sidebarToggle = $('sidebar-toggle');
+    const narrowSidebar = matchMedia('(max-width: 690px)');
+    const sidebarCompactWidth = 51;
     const sidebarMinWidth = 160;
     const sidebarMaxWidth = 340;
     const notificationsPanel = $('notifications-panel');
@@ -2270,7 +2306,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     const systemTheme = matchMedia('(prefers-color-scheme: dark)');
     const appearanceChoices = {theme:$('theme-setting'), language:$('language-setting')};
     const defaults = {memory:null, windowMode:'windowed', motion:true, installationNotices:true,
-      theme:'auto', language:'auto', sounds:true, sidebarWidth:null, autoUpdate:true,
+      theme:'auto', language:'auto', sounds:true, sidebarWidth:null, sidebarCompact:null, autoUpdate:true,
       gameWidth:1280, gameHeight:720, fabricLoader:'auto', installOptimizers:false, jvmArguments:''};
     const memory = $('memory');
     const memoryCustom = $('memory-custom');
@@ -2331,7 +2367,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           theme: themeChoices.includes(saved.theme) ? saved.theme : defaults.theme,
           language: localeChoices.includes(saved.language) ? saved.language : defaults.language,
           sounds: saved.sounds !== false,
-          sidebarWidth: Number.isInteger(saved.sidebarWidth) && saved.sidebarWidth >= sidebarMinWidth && saved.sidebarWidth <= sidebarMaxWidth ? saved.sidebarWidth : defaults.sidebarWidth
+          sidebarWidth: Number.isInteger(saved.sidebarWidth) && saved.sidebarWidth >= sidebarMinWidth && saved.sidebarWidth <= sidebarMaxWidth ? saved.sidebarWidth : defaults.sidebarWidth,
+          sidebarCompact: typeof saved.sidebarCompact === 'boolean' ? saved.sidebarCompact : defaults.sidebarCompact
         };
       } catch {
         return {...defaults};
@@ -2395,12 +2432,15 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Свой объём памяти':['Custom memory limit','Eigene Speichergrenze','Límite de memoria personalizado'],
       'ГБ':['GB','GB','GB'],
       'Обновления лаунчера':['Launcher updates','Launcher-Updates','Actualizaciones del lanzador'],
-      'Проверить сейчас':['Check now','Jetzt prüfen','Buscar ahora'],
+      'Проверить обновления':['Check for updates','Nach Updates suchen','Buscar actualizaciones'],
+      'Установлена версия {0}':['Installed version {0}','Installierte Version {0}','Versión instalada {0}'],
       'Обновлять автоматически':['Update automatically','Automatisch aktualisieren','Actualizar automáticamente'],
-      'Проверяет и устанавливает обновления при запуске лаунчера':['Checks for and installs updates when the launcher starts','Sucht und installiert Updates beim Start des Launchers','Busca e instala actualizaciones al iniciar el lanzador'],
+      'Устанавливает обновления при запуске лаунчера':['Installs updates when the launcher starts','Installiert Updates beim Start des Launchers','Instala actualizaciones al iniciar el lanzador'],
       'Проверяем обновления…':['Checking for updates…','Suche nach Updates…','Buscando actualizaciones…'],
       'Доступна версия {0}':['Version {0} is available','Version {0} ist verfügbar','La versión {0} está disponible'],
-      'Обновить и перезапустить':['Update and restart','Aktualisieren und neu starten','Actualizar y reiniciar'],
+      'Обновить':['Update','Aktualisieren','Actualizar'],
+      'Обновить до {0} и перезапустить':['Update to {0} and restart','Auf {0} aktualisieren und neu starten','Actualizar a {0} y reiniciar'],
+      'Обновление · {0}%':['Updating · {0}%','Update · {0}%','Actualizando · {0}%'],
       'Перезапустить':['Restart','Neu starten','Reiniciar'],
       'Перезапускаем лаунчер…':['Restarting the launcher…','Launcher wird neu gestartet…','Reiniciando el lanzador…'],
       'Закрой Minecraft, чтобы перезапустить лаунчер':['Close Minecraft to restart the launcher','Schließe Minecraft, um den Launcher neu zu starten','Cierra Minecraft para reiniciar el lanzador'],
@@ -2523,7 +2563,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Открываем Gleam Launcher':['Opening Gleam Launcher','Gleam Launcher wird geöffnet','Abriendo Gleam Launcher'],
       'Навигация':['Navigation','Navigation','Navegación'],
       'Свернуть боковое меню':['Collapse sidebar','Seitenleiste einklappen','Contraer barra lateral'],
-      'Показать боковое меню':['Show sidebar','Seitenleiste anzeigen','Mostrar barra lateral'],
+      'Развернуть боковое меню':['Expand sidebar','Seitenleiste ausklappen','Expandir barra lateral'],
       'Назад':['Back','Zurück','Atrás'],
       'Вперёд':['Forward','Vorwärts','Adelante'],
       'Активность лаунчера':['Launcher activity','Launcher-Aktivität','Actividad del lanzador'],
@@ -2545,6 +2585,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Главная':['Home','Startseite','Inicio'],
       'Моды':['Mods','Mods','Mods'],
       'Обновления':['Updates','Updates','Actualizaciones'],
+      'История обновлений':['Update history','Update-Verlauf','Historial de actualizaciones'],
       'Настройки':['Settings','Einstellungen','Ajustes'],
       'Аккаунт Minecraft':['Minecraft account','Minecraft-Konto','Cuenta de Minecraft'],
       'Ширина бокового меню':['Sidebar width','Breite der Seitenleiste','Ancho de la barra lateral'],
@@ -2676,6 +2717,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Крупная 3D-модель со скином и экипировкой, отдельная карточка мира и профиль под приглашением.':['A larger 3D model with skin and cosmetics, a world card, and a profile link below the invitation.','Ein größeres 3D-Modell mit Skin und Kosmetik, eine Weltkarte und ein Profillink unter der Einladung.','Un modelo 3D más grande con aspecto y cosméticos, una tarjeta del mundo y un enlace al perfil bajo la invitación.'],
       'Профиль друга':['Friend profile','Freundesprofil','Perfil del amigo'],
       'Профили друзей':['Friend profiles','Freundesprofile','Perfiles de amigos'],
+      'Новые профили, косметика и активность':['New profiles, cosmetics and activity','Neue Profile, Kosmetik und Aktivität','Nuevos perfiles, cosméticos y actividad'],
+      'Открой сборку, чтобы посмотреть файлы и управлять модами. В косметике обновилась примерочная, а в активности появился календарь на 16 недель.':['Open an instance to see its files and manage mods. The fitting room has been updated, and Activity now shows a 16-week calendar.','Öffne eine Instanz, um ihre Dateien anzuzeigen und Mods zu verwalten. Die Anprobe wurde überarbeitet, und die Aktivität zeigt jetzt einen Kalender für 16 Wochen.','Abre una instancia para consultar sus archivos y gestionar mods. Se renovó el probador y Actividad ahora muestra un calendario de 16 semanas.'],
       'Прямое подключение к друзьям по UDP':['Direct UDP connections to friends','Direkte UDP-Verbindungen zu Freunden','Conexión UDP directa con amigos'],
       'GleamClient 0.2.14 проверяет UDP и TCP. Если связь не установилась, можно повторить попытку из текущего мира.':['GleamClient 0.2.14 tries UDP and TCP. If it cannot connect, you can retry from your current world.','GleamClient 0.2.14 prüft UDP und TCP. Falls die Verbindung scheitert, kannst du es in deiner aktuellen Welt erneut versuchen.','GleamClient 0.2.14 prueba UDP y TCP. Si falla la conexión, puedes reintentar desde tu mundo actual.'],
       'Подтверждение входа в мир друга':['Confirm joining a friend’s world','Beitritt zur Welt eines Freundes bestätigen','Confirmar la entrada al mundo de un amigo'],
@@ -2822,7 +2865,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'В меню видны аватар и статус аккаунта. Свои публикации можно редактировать в каталоге конфигов.':['The menu shows your avatar and account status. Edit your own posts in the config catalog.','Das Menü zeigt Avatar und Kontostatus. Eigene Veröffentlichungen lassen sich im Konfigurationskatalog bearbeiten.','El menú muestra tu avatar y estado de cuenta. Edita tus publicaciones en el catálogo de configuraciones.'],
       'Визуальные пресеты и библиотека конфигов':['Visual presets and config library','Grafikvoreinstellungen und Konfigurationsbibliothek','Preajustes visuales y biblioteca de configuraciones'],
       'Добавлены публикация и скачивание конфигов, отдельный раздел точек пути, отражения Mirage и обновлённое управление в баскетболе и футболе.':['Added config publishing and downloads, a waypoints section, Mirage reflections and updated basketball and football controls.','Neu sind das Veröffentlichen und Laden von Konfigurationen, ein Wegpunktbereich, Mirage-Reflexionen und eine überarbeitete Basketball- und Fußballsteuerung.','Se añadieron publicación y descarga de configuraciones, una sección de puntos de ruta, reflejos Mirage y nuevos controles de baloncesto y fútbol.'],
-      'Память, файлы модов и оформление лаунчера':['Memory, mod files and launcher appearance','Arbeitsspeicher, Mod-Dateien und Launcher-Design','Memoria, archivos de mods y apariencia'],
       'Сбросить настройки':['Reset settings','Einstellungen zurücksetzen','Restablecer ajustes'],
       'Память':['Memory','Arbeitsspeicher','Memoria'],
       'Оперативная память':['Allocated memory','Zugewiesener Arbeitsspeicher','Memoria asignada'],
@@ -2844,13 +2886,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Загружаем версии Fabric Loader…':['Loading Fabric Loader versions…','Fabric-Loader-Versionen werden geladen…','Cargando versiones de Fabric Loader…'],
       'Не удалось загрузить список версий Fabric Loader':['Could not load Fabric Loader versions','Fabric-Loader-Versionen konnten nicht geladen werden','No se pudo cargar la lista de versiones de Fabric Loader'],
       'Аргументы JVM':['JVM arguments','JVM-Argumente','Argumentos de JVM'],
-      'Дополнительные параметры Java. Память задаётся в разделе «Память»':['Additional Java options. Set RAM in the Memory section','Weitere Java-Optionen. RAM wird im Bereich Arbeitsspeicher eingestellt','Opciones adicionales de Java. Ajusta la RAM en la sección Memoria'],
+      'Дополнительные параметры запуска Java':['Additional Java launch options','Weitere Startoptionen für Java','Opciones adicionales de inicio de Java'],
       'Дополнительные аргументы JVM заданы':['Additional JVM arguments are set','Zusätzliche JVM-Argumente sind gesetzt','Se han definido argumentos adicionales de JVM'],
       'Хранилище':['Storage','Speicher','Almacenamiento'],
       'Всего занято':['Total storage used','Speicher insgesamt belegt','Espacio total ocupado'],
       'Открыть папку Minecraft {0}':['Open Minecraft {0} folder','Ordner für Minecraft {0} öffnen','Abrir la carpeta de Minecraft {0}'],
       'Открыть папку':['Open folder','Ordner öffnen','Abrir carpeta'],
-      'Оформление':['Appearance','Darstellung','Apariencia'],
+      'Интерфейс':['Interface','Oberfläche','Interfaz'],
       'Меньше анимаций':['Reduce motion','Animationen reduzieren','Reducir animaciones'],
       'Отключает анимации интерфейса':['Turns off interface animations','Deaktiviert Animationen der Oberfläche','Desactiva las animaciones de la interfaz'],
       'Тема':['Theme','Design','Tema'],
@@ -2858,12 +2900,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Тёмная':['Dark','Dunkel','Oscuro'],
       'Светлая':['Light','Hell','Claro'],
       'Язык':['Language','Sprache','Idioma'],
-      'Поведение':['Behavior','Verhalten','Comportamiento'],
       'Звуки интерфейса':['Interface sounds','Oberflächentöne','Sonidos de interfaz'],
       'Тихий отклик на нажатия, завершение установки и ошибки':['Soft sounds for clicks, completed installs and errors','Leise Töne bei Klicks, abgeschlossenen Installationen und Fehlern','Sonidos suaves al pulsar, completar instalaciones y detectar errores'],
-      'Успешная установка':['Successful installation','Erfolgreiche Installation','Instalación completada'],
+      'Уведомления об установке':['Installation notifications','Installationsmeldungen','Avisos de instalación'],
       'Сообщает в шапке, когда установка завершилась':['Notifies you in the header when installation finishes','Zeigt nach der Installation eine Meldung in der Kopfzeile','Muestra un aviso en la barra superior al terminar la instalación'],
-      'О программе':['About','Über den Launcher','Acerca de'],
+      'Лаунчер':['Launcher','Launcher','Lanzador'],
       'Сообщество':['Community','Community','Comunidad'],
       'Новости и помощь':['News and help','Neuigkeiten und Hilfe','Noticias y ayuda'],
       'Сайт':['Website','Website','Sitio web'],
@@ -3258,21 +3299,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       event.preventDefault();
       rotateSkin(yaw + (event.key === 'ArrowLeft' ? -14 : 14));
     });
-    const sidebarToggle = $('sidebar-toggle');
     const pageBack = $('page-back');
     const pageForward = $('page-forward');
     const pageHistory = [{page:'play',profileId:null}];
     let historyIndex = 0;
 
-    function setSidebarCollapsed(collapsed) {
-      if (collapsed) closeAccount();
-      sidebar.inert = collapsed;
-      launcher.toggleAttribute('data-sidebar-collapsed',collapsed);
-      const label = collapsed ? 'Показать боковое меню' : 'Свернуть боковое меню';
-      sidebarToggle.setAttribute('aria-expanded',String(!collapsed));
-      writeLabel(sidebarToggle,label);
+    function sidebarIsCompact() {
+      return settings.sidebarCompact ?? narrowSidebar.matches;
     }
-    sidebarToggle.addEventListener('click', () => setSidebarCollapsed(!sidebar.inert));
+    sidebarToggle.addEventListener('click', () => {
+      setSidebarCompact(!sidebarIsCompact());
+      saveSettings();
+    });
 
     function availableSidebarWidth() {
       return Math.max(sidebarMinWidth, Math.min(sidebarMaxWidth, Math.floor(innerWidth * .3)));
@@ -3283,23 +3321,40 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     function renderSidebarWidth() {
       if (settings.sidebarWidth === null) launcher.style.removeProperty('--sidebar-preferred');
       else launcher.style.setProperty('--sidebar-preferred', settings.sidebarWidth + 'px');
+      const compact = sidebarIsCompact();
+      launcher.toggleAttribute('data-sidebar-compact',compact);
+      sidebarToggle.setAttribute('aria-expanded',String(!compact));
+      writeLabel(sidebarToggle,compact ? 'Развернуть боковое меню' : 'Свернуть боковое меню');
       syncSidebarHandle();
     }
     function syncSidebarHandle() {
       const limit = availableSidebarWidth();
       sidebarResize.setAttribute('aria-valuemax', limit);
-      sidebarResize.setAttribute('aria-valuenow', Math.min(limit, preferredSidebarWidth()));
+      sidebarResize.setAttribute('aria-valuenow', sidebarIsCompact() ? sidebarCompactWidth : Math.min(limit, preferredSidebarWidth()));
     }
-    function resizeSidebar(width) {
-      settings.sidebarWidth = Math.max(sidebarMinWidth, Math.min(availableSidebarWidth(), Math.round(width)));
+    function setSidebarCompact(compact) {
+      if (compact !== sidebarIsCompact()) {
+        if (compact) closeAccount();
+        settings.sidebarCompact = compact;
+      }
       renderSidebarWidth();
     }
+    function resizeSidebar(width) {
+      const compact = width < (sidebarCompactWidth + sidebarMinWidth) / 2;
+      if (compact) {
+        if (sidebarDrag) settings.sidebarWidth = sidebarDrag.preferred;
+      } else {
+        settings.sidebarWidth = Math.max(sidebarMinWidth, Math.min(availableSidebarWidth(), Math.round(width)));
+      }
+      setSidebarCompact(compact);
+    }
+    narrowSidebar.addEventListener('change',renderSidebarWidth);
     window.addEventListener('resize', syncSidebarHandle);
     let sidebarDrag = null;
     sidebarResize.addEventListener('pointerdown', event => {
       if (!event.isPrimary || event.button !== 0) return;
       event.preventDefault();
-      sidebarDrag = {id:event.pointerId, x:event.clientX, width:sidebar.getBoundingClientRect().width};
+      sidebarDrag = {id:event.pointerId, x:event.clientX, width:sidebar.getBoundingClientRect().width, preferred:settings.sidebarWidth};
       sidebarResize.setPointerCapture(event.pointerId);
       launcher.setAttribute('data-sidebar-resizing','');
     });
@@ -3314,8 +3369,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       saveSettings();
     });
     sidebarResize.addEventListener('keydown', event => {
-      const width = Math.min(availableSidebarWidth(), preferredSidebarWidth());
-      const steps = {ArrowLeft:width - 12, ArrowRight:width + 12, Home:sidebarMinWidth, End:availableSidebarWidth()};
+      const width = Number(sidebarResize.getAttribute('aria-valuenow'));
+      const steps = {ArrowLeft:width <= sidebarMinWidth ? sidebarCompactWidth : Math.max(sidebarMinWidth,width - 12),
+        ArrowRight:Math.max(sidebarMinWidth,width + 12), Home:sidebarCompactWidth, End:availableSidebarWidth()};
       if (!Object.hasOwn(steps,event.key)) return;
       event.preventDefault();
       resizeSidebar(steps[event.key]);
@@ -3579,10 +3635,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         renderActivity();
         loadActivity();
       }
-      if (page === 'settings') {
-        loadInstanceStorage();
-        loadFabricLoaders();
-      }
+      if (page === 'settings') refreshSettingsSection();
     }
 
     const wardrobeItems = [
@@ -3598,8 +3651,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     let wardrobeEpoch = 0;
     const wardrobeList = $('wardrobe-items'), wardrobeEquip = $('wardrobe-equip');
     const wardrobeCanvas = $('wardrobe-preview'), homeCanvas = $('home-cosmetic-preview');
-    const cosmeticIcons = new Map();
-    let wardrobeView, homeView, iconPreview, iconRequest, skinRequest, defaultCosmeticSkin;
+    const homeEquipped = $('home-equipped'), homeEmpty = $('cosmetics-summary');
+    const cosmeticIcons = new Map(), cosmeticIconJobs = new Map();
+    let wardrobeView, homeView, iconPreview, skinRequest, defaultCosmeticSkin, homeLoadoutKey;
+    let homeZoom = 1;
     const wardrobeFrontYaw = -.55, wardrobeBackYaw = Math.PI - .22;
     let cosmeticFrame = 0, wardrobeYaw = wardrobeFrontYaw, wardrobePitch = .16, wardrobeZoom = 1;
     let wardrobeDrag, wardrobeTurn;
@@ -3615,20 +3670,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       return skinRequest;
     }
 
-    async function loadCosmeticIcons() {
-      if (iconRequest) return iconRequest;
-      iconRequest = (async () => {
-        if (!iconPreview) {
-          const canvas = document.createElement('canvas');
-          canvas.width = 200; canvas.height = 160;
-          iconPreview = new GleamCosmeticPreview(canvas,true);
-        }
-        const skin = await previewSkin();
-        iconPreview.setSkin(skin.image,skin.slim,skin.headLayer);
-        const jobs = wardrobeItems.map(async ([id,slot]) => {
-          if (cosmeticIcons.has(id)) return;
+    function loadCosmeticIcons(items = wardrobeItems) {
+      return Promise.all(items.map(([id,slot]) => {
+        if (cosmeticIcons.has(id)) return;
+        if (cosmeticIconJobs.has(id)) return cosmeticIconJobs.get(id);
+        const job = (async () => {
+          if (!iconPreview) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 200; canvas.height = 160;
+            iconPreview = new GleamCosmeticPreview(canvas,true);
+          }
           const pet = slot==='pet' ? await iconPreview.loadPet(id) : null;
           if (slot==='wings' || slot==='dance') await iconPreview.loadGeometry();
+          if (slot==='dance') {
+            const skin = await previewSkin();
+            iconPreview.setSkin(skin.image,skin.slim,skin.headLayer);
+          }
           iconPreview.draw({
             yaw:slot==='wings' ? 2.90 : -.57,
             pitch:slot==='halo' ? .58 : .31,
@@ -3641,10 +3698,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           cosmeticIcons.set(id,thumbnail);
           const image = wardrobeList.querySelector('[data-cosmetic="'+id+'"] img');
           if (image) image.src = thumbnail;
-        });
-        return Promise.all(jobs);
-      })().catch(error=>{ iconRequest = null; console.error(error); });
-      return iconRequest;
+        })().catch(error=>console.error(error)).finally(()=>cosmeticIconJobs.delete(id));
+        cosmeticIconJobs.set(id,job);
+        return job;
+      }));
     }
 
     function cropCosmeticIcon(source) {
@@ -3692,7 +3749,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (drawWardrobe && wardrobeTurn) advanceWardrobeTurn(now);
       const animateWardrobe = drawWardrobe && draw(wardrobeScene,wardrobeYaw,wardrobePitch,wardrobeZoom);
       const animateHome = homeScene?.view && !$('page-play').hidden && !homeCanvas.hidden &&
-        draw(homeScene,yaw*Math.PI/180,.16);
+        draw(homeScene,yaw*Math.PI/180,.16,homeZoom);
       if (animateWardrobe || animateHome || (drawWardrobe && wardrobeTurn)) queueCosmeticFrame();
     }
 
@@ -3722,7 +3779,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           pending.view = view;
           pending.pet = pet;
           if (canvas===homeCanvas) {
-            skinStage.toggleAttribute('data-geared',true);
             homeCanvas.hidden = false;
             skinModel.hidden = true;
           } else {
@@ -3754,7 +3810,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         homeScene = null;
         homeCanvas.hidden = true;
         skinModel.hidden = false;
-        skinStage.removeAttribute('data-geared');
       }
     }
 
@@ -3790,21 +3845,35 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       setWardrobeAngle(back ? wardrobeBackYaw : wardrobeFrontYaw,back ? .22 : .16,true);
     }
     $('wardrobe-turn').addEventListener('click',() => showWardrobeSide(Math.cos(wardrobeTurn?.angle ?? wardrobeYaw) >= 0));
-    const zoomOut = $('wardrobe-zoom-out'), zoomIn = $('wardrobe-zoom-in');
-    function zoomWardrobe(factor) {
-      wardrobeZoom = Math.max(.75,Math.min(2.6,wardrobeZoom*factor));
-      zoomOut.disabled = wardrobeZoom===.75;
-      zoomIn.disabled = wardrobeZoom===2.6;
-      queueCosmeticFrame();
+    function bindPreviewZoom(stage,prefix,min,max,update) {
+      const out = $(prefix+'-zoom-out'), inside = $(prefix+'-zoom-in');
+      let zoom = 1;
+      function change(factor) {
+        zoom = Math.max(min,Math.min(max,zoom*factor));
+        out.disabled = zoom===min;
+        inside.disabled = zoom===max;
+        update(zoom);
+        queueCosmeticFrame();
+      }
+      out.addEventListener('click',() => change(1/1.18));
+      inside.addEventListener('click',() => change(1.18));
+      stage.addEventListener('wheel',event => {
+        if (event.ctrlKey || event.deltaY===0) return;
+        event.preventDefault();
+        const pixels = event.deltaY * (event.deltaMode===1 ? 16 : event.deltaMode===2 ? 120 : 1);
+        change(Math.exp(Math.max(-120,Math.min(120,-pixels))*.0018));
+      },{passive:false});
+      stage.addEventListener('keydown',event => {
+        if (!['+','=','-'].includes(event.key)) return;
+        event.preventDefault();
+        change(event.key==='-' ? 1/1.18 : 1.18);
+      });
     }
-    zoomOut.addEventListener('click',() => zoomWardrobe(1/1.18));
-    zoomIn.addEventListener('click',() => zoomWardrobe(1.18));
-    wardrobeCanvas.addEventListener('wheel',event => {
-      if (event.ctrlKey || event.deltaY===0) return;
-      event.preventDefault();
-      const pixels = event.deltaY * (event.deltaMode===1 ? 16 : event.deltaMode===2 ? 120 : 1);
-      zoomWardrobe(Math.exp(Math.max(-120,Math.min(120,-pixels))*.0018));
-    },{passive:false});
+    bindPreviewZoom(wardrobeCanvas,'wardrobe',.75,2.6,zoom => { wardrobeZoom = zoom; });
+    bindPreviewZoom(skinStage,'home',.68,2.2,zoom => {
+      homeZoom = zoom;
+      skinStage.style.setProperty('--skin-zoom',zoom);
+    });
     wardrobeCanvas.addEventListener('pointerdown',event => {
       if (event.button!==0 || wardrobeDrag) return;
       if (wardrobeTurn) setWardrobeAngle(wardrobeYaw);
@@ -3822,11 +3891,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       wardrobeCanvas.removeAttribute('data-dragging');
     });
     wardrobeCanvas.addEventListener('keydown',event => {
-      if (['+','=','-'].includes(event.key)) {
-        event.preventDefault();
-        zoomWardrobe(event.key==='-' ? 1/1.18 : 1.18);
-        return;
-      }
       if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return;
       event.preventDefault();
       const step = .22;
@@ -3846,9 +3910,35 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       return wardrobeItems.filter(([,slot]) => wardrobeFilter === 'all' || wardrobeFilter === slot
         || (wardrobeFilter === 'wearables' && slot !== 'dance' && slot !== 'pet'));
     }
+    function renderHomeLoadout(items) {
+      const key = items.map(([id]) => id).join(',');
+      if (homeLoadoutKey === key) return;
+      homeLoadoutKey = key;
+      homeEmpty.hidden = items.length > 0;
+      homeEquipped.hidden = !items.length;
+      homeEquipped.replaceChildren(...items.map(([id,,label]) => {
+        const row = document.createElement('li');
+        const art = document.createElement('img');
+        art.alt = '';
+        art.dataset.item = id;
+        art.hidden = true;
+        const name = document.createElement('span');
+        writeLocale(name,label);
+        row.append(art,name);
+        return row;
+      }));
+      if (!items.length) return;
+      void loadCosmeticIcons(items).then(() => {
+        for (const art of homeEquipped.querySelectorAll('img')) {
+          const src = cosmeticIcons.get(art.dataset.item);
+          if (src) { art.src = src; art.hidden = false; }
+        }
+      });
+    }
     function renderWardrobe() {
-      const equipped = wardrobeSlots ? wardrobeItems.filter(wardrobeWearing).length : 0;
-      writeLocale($('cosmetics-summary'),equipped ? 'Надето · {0}' : 'Ничего не надето',equipped);
+      const worn = wardrobeSlots ? wardrobeItems.filter(wardrobeWearing) : [];
+      const equipped = worn.length;
+      renderHomeLoadout(worn);
       if ($('page-cosmetics').hidden) {
         updateCosmeticPreviews();
         return;
@@ -3877,7 +3967,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           button.append(visual,name);
           return button;
         }));
-        void loadCosmeticIcons();
+        void loadCosmeticIcons(visibleItems);
       }
       const empty = $('wardrobe-empty');
       empty.hidden = visibleItems.length > 0;
@@ -3985,16 +4075,48 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     pageBack.addEventListener('click', () => stepHistory(-1));
     pageForward.addEventListener('click', () => stepHistory(1));
     for (const button of nav) button.addEventListener('click', () => navigate(button.dataset.page));
-    $('quick-settings').addEventListener('click', () => {
+
+    const settingsTabs = [...$('settings-tabs').querySelectorAll('[role="tab"]')];
+    let settingsTab = settingsTabs[0];
+    function refreshSettingsSection() {
+      if (settingsTab.id === 'settings-tab-storage') void loadInstanceStorage();
+      if (settingsTab.id === 'settings-tab-game') void loadFabricLoaders();
+    }
+    function selectSettingsTab(tab) {
+      if (tab === settingsTab) return;
+      settingsTab.setAttribute('aria-selected','false');
+      settingsTab.tabIndex = -1;
+      $(settingsTab.getAttribute('aria-controls')).hidden = true;
+      settingsTab = tab;
+      tab.setAttribute('aria-selected','true');
+      tab.tabIndex = 0;
+      $(tab.getAttribute('aria-controls')).hidden = false;
+      if (!$('page-settings').hidden) refreshSettingsSection();
+    }
+    for (const [index,tab] of settingsTabs.entries()) {
+      tab.addEventListener('click', () => selectSettingsTab(tab));
+      tab.addEventListener('keydown', event => {
+        const total = settingsTabs.length;
+        const next = {ArrowLeft:(index+total-1)%total,ArrowRight:(index+1)%total,Home:0,End:total-1}[event.key];
+        if (next === undefined) return;
+        event.preventDefault();
+        selectSettingsTab(settingsTabs[next]);
+        settingsTabs[next].focus();
+      });
+    }
+    function openSettingsTab(id) {
+      const tab = $(id);
+      selectSettingsTab(tab);
       navigate('settings');
-      $('settings-heading').focus();
-    });
+      tab.focus({preventScroll:true});
+    }
+    $('quick-settings').addEventListener('click', () => openSettingsTab('settings-tab-game'));
     $('news-shortcut').addEventListener('click', () => {
       navigate('updates');
       $('updates-heading').focus();
     });
     const recentReleases = $('recent-releases');
-    for (const card of [...document.querySelectorAll('.release-card')].slice(0, 3)) {
+    for (const card of [...document.querySelectorAll('.release-card')].slice(0, 6)) {
       const item = document.createElement('li');
       const button = document.createElement('button');
       const title = document.createElement('strong');
@@ -4028,30 +4150,46 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }).catch(() => {});
     windowMode.addEventListener('change', () => changeSettings({windowMode:windowMode.value}));
     $('install-optimizers').addEventListener('change',event => changeSettings({installOptimizers:event.target.checked}));
-    const updateButton = $('launcher-check-update');
-    const applyUpdateButton = $('launcher-apply-update');
+    const headerUpdate = $('header-update'), updateButton = $('launcher-update-action');
+    const updateCheck = $('launcher-check-update'), updateFeedback = $('launcher-update-feedback');
     let updateRequest;
     let availableUpdate;
     let readyUpdate;
     let restarting = false;
-    function updateStatus(source, ...values) {
+    let updatePercent = 0, updateFeedbackTimer;
+    function updateStatus(source, values = [], error = false) {
       for (const id of ['launcher-update-status','startup-update']) {
         const status = $(id);
         if (!status) continue;
         status.hidden = !source;
+        status.toggleAttribute('data-error',error);
         if (source) writeLocale(status,source,...values);
       }
     }
     function renderUpdateActions() {
       const busy = Boolean(updateRequest || restarting);
-      updateButton.disabled = !window.__TAURI__ || busy;
-      applyUpdateButton.hidden = !(availableUpdate || readyUpdate);
-      applyUpdateButton.disabled = busy;
-      writeLocale(applyUpdateButton,readyUpdate ? 'Перезапустить' : 'Обновить и перезапустить');
+      updateCheck.disabled = !window.__TAURI__ || busy;
+      headerUpdate.hidden = !(availableUpdate || readyUpdate || updateRequest?.installing);
+      updateButton.disabled = busy;
+      const label = restarting ? 'Перезапускаем лаунчер…' : updateRequest?.installing ? 'Обновление · {0}%'
+        : readyUpdate ? 'Перезапустить' : 'Обновить';
+      updateButton.querySelector('use').setAttribute('href',readyUpdate ? '#i-history' : '#i-download');
+      writeLocale(updateButton.querySelector('span'),label,updatePercent);
+      if (availableUpdate && !busy) writeLabel(updateButton,'Обновить до {0} и перезапустить',availableUpdate);
+      else writeLabel(updateButton,label,updatePercent);
+    }
+    function updateFailure(source, fromHeader) {
+      updateStatus(source,[],true);
+      if (!fromHeader) return;
+      clearTimeout(updateFeedbackTimer);
+      writeLocale(updateFeedback,source);
+      updateFeedback.hidden = false;
+      updateFeedbackTimer = setTimeout(() => { updateFeedback.hidden = true; },7000);
     }
     async function restartLauncherUpdate() {
       if (restarting || !readyUpdate) return;
       restarting = true;
+      updateFeedback.hidden = true;
       renderUpdateActions();
       updateStatus('Перезапускаем лаунчер…');
       try {
@@ -4060,19 +4198,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       } catch (error) {
         restarting = false;
         renderUpdateActions();
-        updateStatus(String(error) === 'game_busy'
+        updateFailure(String(error) === 'game_busy'
           ? 'Закрой Minecraft, чтобы перезапустить лаунчер'
-          : 'Не удалось перезапустить лаунчер');
+          : 'Не удалось перезапустить лаунчер',true);
       }
     }
     async function checkLauncherUpdate({startup = false, requested} = {}) {
       if (!window.__TAURI__ || updateRequest || restarting || (startup && !settings.autoUpdate)) return;
       updateRequest = {installing:false};
+      updateFeedback.hidden = true;
       renderUpdateActions();
       let restart = false;
       const install = version => {
         updateRequest.installing = true;
-        updateStatus('Загрузка обновления · {0}%',0);
+        updatePercent = 0;
+        renderUpdateActions();
+        updateStatus('Загрузка обновления · {0}%',[0]);
         return window.__TAURI__.core.invoke('install_launcher_update',{requested:version});
       };
       try {
@@ -4085,25 +4226,24 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
         if (result.status === 'installed') {
           availableUpdate = undefined;
-          updateStatus('Версия {0} готова к запуску',result.version);
+          updateStatus('Версия {0} готова к запуску',[result.version]);
           readyUpdate = result.version;
           restart = startup || updateRequest.installing;
         } else if (result.status === 'available') {
+          readyUpdate = undefined;
           availableUpdate = result.version;
-          updateStatus('Доступна версия {0}',result.version);
+          updateStatus('Доступна версия {0}',[result.version]);
         } else {
           availableUpdate = undefined;
           readyUpdate = undefined;
-          updateStatus(result.status === 'current'
-            ? (startup ? '' : 'Установлена актуальная версия')
-            : 'Канал обновлений пока недоступен');
+          const current = result.status === 'current';
+          updateStatus(current ? 'Установлена актуальная версия' : 'Канал обновлений пока недоступен',[],!current);
+          if (startup && current) $('startup-update').hidden = true;
         }
       } catch (error) {
-        if (String(error) === 'cancelled') {
-          updateStatus('');
-        }
-        else if (String(error) === 'verification') updateStatus('Не удалось проверить подпись или целостность обновления');
-        else updateStatus(updateRequest.installing ? 'Не удалось обновить лаунчер' : 'Не удалось проверить обновления');
+        if (String(error) === 'cancelled') updateStatus('');
+        else if (String(error) === 'verification') updateFailure('Не удалось проверить подпись или целостность обновления',Boolean(requested));
+        else updateFailure(updateRequest.installing ? 'Не удалось обновить лаунчер' : 'Не удалось проверить обновления',Boolean(requested));
       } finally {
         updateRequest = undefined;
         renderUpdateActions();
@@ -4114,14 +4254,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       changeSettings({autoUpdate:event.target.checked});
     });
     renderUpdateActions();
-    updateButton.addEventListener('click', () => checkLauncherUpdate());
-    applyUpdateButton.addEventListener('click', () => {
+    updateCheck.addEventListener('click', () => void checkLauncherUpdate());
+    updateButton.addEventListener('click', () => {
       if (readyUpdate) void restartLauncherUpdate();
       else if (availableUpdate) void checkLauncherUpdate({requested:availableUpdate});
     });
     if (window.__TAURI__) {
       window.__TAURI__.event.listen('launcher-update-progress',({payload}) => {
-        if (updateRequest?.installing) updateStatus('Загрузка обновления · {0}%',payload);
+        if (!updateRequest?.installing) return;
+        updatePercent = payload;
+        renderUpdateActions();
+        updateStatus('Загрузка обновления · {0}%',[updatePercent]);
       }).catch(() => {});
     }
     for (const [key,input] of Object.entries(gameDimensions)) input.addEventListener('change', () => {
@@ -4370,7 +4513,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       const previous = launcherLanguage;
       applyLocale();
       if (animate && launcherLanguage !== previous && settings.motion && !reducedMotion.matches) {
-        const labels = document.querySelectorAll('.side-nav .nav-label, #page-settings .settings-header h2, #page-settings .settings-header p, #page-settings .settings-group h3, #page-settings .setting-label, #page-settings .setting-caption small');
+        const labels = document.querySelectorAll('.side-nav .nav-label, .settings-header h2, #settings-tabs button, #page-settings .setting-label, #page-settings .setting-caption small');
         for (const label of labels) {
           for (const animation of label.getAnimations()) {
             if (animation.id === 'locale-reveal') animation.cancel();
@@ -4482,8 +4625,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     account.addEventListener('click', () => accountPop.inert ? showAccount() : closeAccount());
     function openAccountSettings() {
       closeAccount();
-      navigate('settings');
-      $('settings-heading').focus();
+      openSettingsTab('settings-tab-account');
     }
     $('account-menu-settings').addEventListener('click',openAccountSettings);
     const copyTimers = new WeakMap();
@@ -5070,7 +5212,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         return;
       }
       if (!signedIn) {
-        if (sidebar.inert) setSidebarCollapsed(false);
         showAccount();
         $('account-action').focus();
         return;
@@ -5845,7 +5986,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       } finally {
         catalogJob = null;
         renderDownloads();
-        if (!$('page-settings').hidden) loadInstanceStorage();
+        if (!$('settings-section-storage').closest('[hidden]')) void loadInstanceStorage();
         if (!$('page-catalog').hidden) {
           renderCatalogProjects();
           loadCatalog();
@@ -6503,6 +6644,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       $('account-plus').hidden = data.plus_active !== false;
       $('account-pop-version').textContent = data.launcher_version ? 'Gleam Launcher v'+data.launcher_version : '';
       $('account-pop-version').hidden = !data.launcher_version;
+      const installedVersion = $('launcher-update-version');
+      installedVersion.hidden = !data.launcher_version;
+      if (data.launcher_version) writeLocale(installedVersion,'Установлена версия {0}',data.launcher_version);
       const role = {admin:'Admin',owner:'Owner',media:'Media'}[data.user.role];
       $('account-pop-role').textContent = role ? role + ' · ' : '';
       $('account-pop-role').hidden = !role;
@@ -6617,7 +6761,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     });
     showGleamLogin('restore');
     showStartup().then(revealed => {
-      if (revealed) return restoreGleamLogin();
+      if (!revealed) return;
+      if (!settings.autoUpdate) void checkLauncherUpdate();
+      return restoreGleamLogin();
     }).catch(() => {});
   </script>
 </body>

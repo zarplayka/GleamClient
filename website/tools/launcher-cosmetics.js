@@ -326,7 +326,8 @@
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
       const widthUnits = icon==='angel'||icon==='dragon' ? 5.55 : icon==='halo'||icon==='hat' ? 1.37
         : !player && pet ? (pet.rigid ? 1.15 : 1.30)
-        : slots.wings ? (portrait ? (slots.wings === 'dragon' ? 4.7 : 4.45) : 5.45)
+        : slots.wings ? (portrait ? (slots.wings === 'dragon' ? 4.7 : 4.45)
+          : home ? (slots.wings === 'dragon' ? 4.45 : 4.22) : 5.45)
         : pet ? (home ? 2.04 : 2.70) : (home ? 1.23 : 1.46);
       const heightUnits = !player ? (icon==='angel'||icon==='dragon' ? 2.5 : widthUnits*.82)
         : home ? (slots.hat ? 2.60 : slots.halo || slots.wings ? 2.36 : 2.09) : (slots.hat ? 2.68 : 2.46);
@@ -335,7 +336,7 @@
         : !player && pet ? (pet.rigid ? -.12 : -.28) : slots.hat || portrait && slots.wings ? -1.14
         : home && slots.halo ? -1.04 : -.96;
       const centerX = player && pet && !slots.wings ? (home ? -.42 : -.25) : 0;
-      const centerZ = portrait && slots.wings ? .72 : 0;
+      const centerZ = slots.wings ? (portrait ? .72 : home ? 1.1 : 0) : 0;
       this.view = multiply(scale(2*ratio/width,-2*ratio/height,.19),
         multiply(rotateX(pitch),multiply(rotateY(yaw),translate(-centerX,-centerY,-centerZ))));
       if (player && this.skin) this.drawPlayer(Boolean(slots.dance),time);
