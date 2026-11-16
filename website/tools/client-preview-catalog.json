@@ -1,0 +1,2116 @@
+{
+  "iconOrder": [
+    "mirage",
+    "wings",
+    "halo",
+    "skin_layers",
+    "item_scroller",
+    "emotes",
+    "zoom",
+    "chat_filter",
+    "chat_animation",
+    "chat_highlight",
+    "waypoints",
+    "death_point",
+    "target_esp",
+    "china_head",
+    "jump_circle",
+    "breadcrumbs",
+    "projectile_trail",
+    "damage_indicators",
+    "motion_blur",
+    "block_highlight",
+    "item_physics",
+    "hit_particles",
+    "aspect",
+    "media_player",
+    "hud",
+    "discord",
+    "full_bright",
+    "world_particles",
+    "football",
+    "basketball",
+    "animations",
+    "enchant_glint",
+    "inventory_hud",
+    "self_tag",
+    "armor_indicator",
+    "lock_slot",
+    "pvp_safe",
+    "keystrokes",
+    "no_animations",
+    "saturation",
+    "chat_history",
+    "chat_time",
+    "custom_time",
+    "item_scaling",
+    "small_shield",
+    "view_model",
+    "no_particles",
+    "no_weather",
+    "no_fire",
+    "world_changer",
+    "health_tags",
+    "protect_name",
+    "fake_prefix",
+    "hit_box",
+    "hit_color",
+    "hit_sound",
+    "crosshair",
+    "better_near",
+    "rainbow",
+    "kill_effects",
+    "ragdoll",
+    "fresh_animations"
+  ],
+  "catalog": [
+    {
+      "id": "TARGET_ESP",
+      "name": "TargetEsp",
+      "description": "Эффект на цели под прицелом",
+      "category": "COMBAT",
+      "icon": "target_esp.png",
+      "settings": [
+        {
+          "kind": "value",
+          "label": "Текстура",
+          "choices": [],
+          "value": "—"
+        },
+        {
+          "kind": "color",
+          "label": "Цвет цепи",
+          "value": "#F5F5FF"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "HIT_BOX",
+      "name": "HitBox",
+      "description": "Перекрашивает хитбоксы (F3+B)",
+      "category": "COMBAT",
+      "icon": "hit_box.png",
+      "settings": [
+        {
+          "kind": "color",
+          "label": "Цвет хитбоксов",
+          "value": "#FF7C00"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "HIT_COLOR",
+      "name": "HitColor",
+      "description": "Заливка хитбокса при ударе",
+      "category": "COMBAT",
+      "icon": "hit_color.png",
+      "settings": [
+        {
+          "kind": "color",
+          "label": "Цвет заливки",
+          "value": "#EF4444"
+        },
+        {
+          "kind": "slider",
+          "label": "Прозрачность",
+          "min": 5,
+          "max": 100,
+          "value": 45,
+          "step": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "HIT_SOUND",
+      "name": "HitSound",
+      "description": "Звук подтверждённого попадания",
+      "category": "COMBAT",
+      "icon": "hit_sound.png",
+      "settings": [
+        {
+          "kind": "value",
+          "label": "Звук",
+          "choices": [],
+          "value": "—"
+        },
+        {
+          "kind": "slider",
+          "label": "Громкость",
+          "min": 0,
+          "max": 100,
+          "value": 70,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Высота звука",
+          "min": 0.5,
+          "max": 2,
+          "value": 1
+        },
+        {
+          "kind": "toggle",
+          "label": "Варьировать высоту",
+          "value": false
+        },
+        {
+          "kind": "toggle",
+          "label": "Только по игрокам",
+          "value": false
+        },
+        {
+          "kind": "button",
+          "label": "Проверка звука",
+          "caption": "Прослушать"
+        },
+        {
+          "kind": "button",
+          "label": "Свои звуки (.wav, .aiff, .au)",
+          "caption": "Папка"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "BETTER_NEAR",
+      "name": "BetterNear",
+      "description": "Игроки рядом: ник, дистанция, стрелка",
+      "category": "COMBAT",
+      "icon": "better_near.png",
+      "settings": [
+        {
+          "kind": "slider",
+          "label": "Радиус",
+          "min": 10,
+          "max": 200,
+          "value": 50,
+          "step": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "ARMOR_INDICATOR",
+      "name": "ArmorIndicator",
+      "description": "Броня игроков над головой",
+      "category": "COMBAT",
+      "icon": "armor_indicator.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "HIT_PARTICLES",
+      "name": "HitParticles",
+      "description": "Искры при ударе",
+      "category": "COMBAT",
+      "icon": "hit_particles.png",
+      "settings": [
+        {
+          "kind": "color",
+          "label": "Цвет частиц",
+          "value": "#FF7C00"
+        },
+        {
+          "kind": "slider",
+          "label": "Количество",
+          "min": 1,
+          "max": 64,
+          "value": 16,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Размер",
+          "min": 0.03,
+          "max": 0.3,
+          "value": 0.1
+        },
+        {
+          "kind": "choice",
+          "label": "Форма",
+          "choices": [
+            "Искра",
+            "Ромб",
+            "Круг"
+          ],
+          "value": 0
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "KILL_EFFECTS",
+      "name": "KillEffect",
+      "description": "Объёмные эффекты и звуки после убийства",
+      "category": "COMBAT",
+      "icon": "kill_effects.png",
+      "settings": [
+        {
+          "kind": "choice",
+          "label": "Эффект",
+          "choices": [
+            "Призрак",
+            "Надгробие",
+            "Дождь мечей",
+            "Раскол кристалла",
+            "Чёрная дыра",
+            "Ангельские крылья",
+            "Кристальная тюрьма",
+            "Душа дракона"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "choice",
+          "label": "Цели",
+          "choices": [
+            "Только игроки",
+            "Все сущности",
+            "Только мобы"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "slider",
+          "label": "Высота на игроках",
+          "min": 0,
+          "max": 2,
+          "value": 0.5
+        },
+        {
+          "kind": "slider",
+          "label": "Размер",
+          "min": 0.5,
+          "max": 2,
+          "value": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Скорость анимации",
+          "min": 0.5,
+          "max": 2,
+          "value": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Частицы",
+          "min": 0,
+          "max": 1,
+          "value": 0.65
+        },
+        {
+          "kind": "slider",
+          "label": "Дальность",
+          "min": 16,
+          "max": 128,
+          "value": 64,
+          "step": 1
+        },
+        {
+          "kind": "choice",
+          "label": "Качество",
+          "choices": [
+            "Низкое",
+            "Среднее",
+            "Высокое"
+          ],
+          "value": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Лимит эффектов",
+          "min": 1,
+          "max": 8,
+          "value": 4
+        },
+        {
+          "kind": "slider",
+          "label": "Громкость",
+          "min": 0,
+          "max": 100,
+          "value": 60,
+          "step": 1
+        },
+        {
+          "kind": "button",
+          "label": "Предпросмотр",
+          "caption": "Показать"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "RAGDOLL",
+      "name": "Ragdoll",
+      "description": "Игрок падает после убийства и уходит под землю",
+      "category": "COMBAT",
+      "icon": "ragdoll.png",
+      "settings": [
+        {
+          "kind": "slider",
+          "label": "Перед погружением",
+          "min": 0,
+          "max": 10,
+          "value": 2.5,
+          "step": 1
+        },
+        {
+          "kind": "button",
+          "label": "Предпросмотр",
+          "caption": "Показать"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "DAMAGE_INDICATORS",
+      "name": "DamageIndicators",
+      "description": "Числа урона и лечения над целями",
+      "category": "COMBAT",
+      "icon": "damage_indicators.png",
+      "settings": [
+        {
+          "kind": "toggle",
+          "label": "Только свои удары",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Показывать лечение",
+          "value": true
+        },
+        {
+          "kind": "slider",
+          "label": "Время на экране",
+          "min": 0.5,
+          "max": 5,
+          "value": 1.5
+        },
+        {
+          "kind": "slider",
+          "label": "Размер чисел",
+          "min": 0.5,
+          "max": 2,
+          "value": 1
+        },
+        {
+          "kind": "color",
+          "label": "Малый урон",
+          "value": "#FFFFFF"
+        },
+        {
+          "kind": "color",
+          "label": "Большой урон",
+          "value": "#FF4936"
+        },
+        {
+          "kind": "slider",
+          "label": "Большой урон от",
+          "min": 1,
+          "max": 40,
+          "value": 10,
+          "step": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "PVP_SAFE",
+      "name": "PvpSafe",
+      "description": "Предупреждает о выходе во время боя",
+      "category": "COMBAT",
+      "icon": "pvp_safe.png",
+      "settings": [
+        {
+          "kind": "slider",
+          "label": "Время после удара",
+          "min": 1,
+          "max": 300,
+          "value": 30,
+          "step": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "FRESH_ANIMATIONS",
+      "name": "Fresh Animations",
+      "description": "Выразительные взмахи рук и более живой шаг",
+      "category": "PLAYER",
+      "icon": "fresh_animations.png",
+      "settings": [
+        {
+          "kind": "choice",
+          "label": "Походка",
+          "choices": [
+            "Размашистая",
+            "Ветряк",
+            "Пингвин",
+            "Робот"
+          ],
+          "value": 0
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "SKIN_LAYERS",
+      "name": "3D Skin Layers",
+      "description": "Объёмный внешний слой скина",
+      "category": "PLAYER",
+      "icon": "skin_layers.png",
+      "settings": [
+        {
+          "kind": "value",
+          "label": "Обработчик скина",
+          "value": "—"
+        },
+        {
+          "kind": "slider",
+          "label": "Толщина слоя",
+          "min": 0.1,
+          "max": 1.5,
+          "value": 0.5
+        },
+        {
+          "kind": "slider",
+          "label": "Дальность объёмных слоёв",
+          "min": 4,
+          "max": 32,
+          "value": 12,
+          "step": 1
+        },
+        {
+          "kind": "toggle",
+          "label": "Рука от первого лица",
+          "value": true
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "ITEM_SCROLLER",
+      "name": "Item Scroller",
+      "description": "Перенос предметов колесом мыши",
+      "category": "PLAYER",
+      "icon": "item_scroller.png",
+      "settings": [
+        {
+          "kind": "value",
+          "label": "Обработчик переноса",
+          "value": "—"
+        },
+        {
+          "kind": "value",
+          "label": "Колесо вниз / вверх",
+          "value": "—"
+        },
+        {
+          "kind": "toggle",
+          "label": "Shift — переносить стек",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Ctrl — все такие предметы",
+          "value": true
+        },
+        {
+          "kind": "slider",
+          "label": "Стеков за действие",
+          "min": 1,
+          "max": 16,
+          "value": 8,
+          "step": 1
+        },
+        {
+          "kind": "toggle",
+          "label": "Обратная прокрутка",
+          "value": false
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "EMOTES",
+      "name": "Танцы",
+      "description": "Синхронные танцы для пользователей Orion",
+      "category": "cosmetics",
+      "icon": "emotes.png",
+      "settings": [
+        {
+          "kind": "keybind",
+          "label": "Колесо танцев",
+          "value": "—"
+        },
+        {
+          "kind": "value",
+          "label": "Управление танцами",
+          "value": "—"
+        },
+        {
+          "kind": "button",
+          "label": "Текущий танец",
+          "caption": "Остановить"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "WINGS",
+      "name": "Wings",
+      "description": "Объёмные крылья для пользователей Orion",
+      "category": "cosmetics",
+      "icon": "wings.png",
+      "settings": [
+        {
+          "kind": "choice",
+          "label": "Вид крыльев",
+          "choices": [
+            "Ангельские",
+            "Драконьи"
+          ],
+          "value": 0
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "HALO",
+      "name": "Halo",
+      "description": "Золотой нимб для пользователей Orion",
+      "category": "cosmetics",
+      "icon": "halo.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "CHINA_HEAD",
+      "name": "ChinaHead",
+      "description": "Рисует шляпу над головой",
+      "category": "cosmetics",
+      "icon": "china_head.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "ASPECT",
+      "name": "Aspect",
+      "description": "Растягивает обзор (stretch)",
+      "category": "PLAYER",
+      "icon": "aspect.png",
+      "settings": [
+        {
+          "kind": "slider",
+          "label": "Растяжение",
+          "min": 0.05,
+          "max": 2,
+          "value": 1.25
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "PROTECT_NAME",
+      "name": "ProtectName",
+      "description": "Прячет ваш ник за псевдонимом",
+      "category": "PLAYER",
+      "icon": "protect_name.png",
+      "settings": [
+        {
+          "kind": "text",
+          "label": "Ник",
+          "value": "Player"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "FAKE_PREFIX",
+      "name": "FakePrefix",
+      "description": "Заменяет ваш донат-префикс",
+      "category": "PLAYER",
+      "icon": "fake_prefix.png",
+      "settings": [
+        {
+          "kind": "text",
+          "label": "Префикс / JSON",
+          "value": "{\\\"text\\\":\\\"ORION \\\",\\\"color\\\":\\\"#FF7C00\\\",\\\"bold\\\":true}"
+        },
+        {
+          "kind": "text",
+          "label": "Доп. ники через запятую",
+          "value": ""
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "LOCK_SLOT",
+      "name": "LockSlot",
+      "description": "Защищает выбранные слоты",
+      "category": "PLAYER",
+      "icon": "lock_slot.png",
+      "settings": [
+        {
+          "kind": "keybind",
+          "label": "Клавиша блокировки",
+          "value": "—"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "SELF_TAG",
+      "name": "SelfTag",
+      "description": "Ник над вами в третьем лице",
+      "category": "PLAYER",
+      "icon": "self_tag.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "JUMP_CIRCLE",
+      "name": "JumpCircle",
+      "description": "Кольцо на земле при прыжке",
+      "category": "MOVEMENT",
+      "icon": "jump_circle.png",
+      "settings": [
+        {
+          "kind": "color",
+          "label": "Цвет кольца",
+          "value": "#FF7C00"
+        },
+        {
+          "kind": "slider",
+          "label": "Размер",
+          "min": 0.25,
+          "max": 3,
+          "value": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "BREADCRUMBS",
+      "name": "Breadcrumbs",
+      "description": "Светящийся след за игроком",
+      "category": "MOVEMENT",
+      "icon": "breadcrumbs.png",
+      "settings": [
+        {
+          "kind": "toggle",
+          "label": "Акцентный цвет",
+          "value": true
+        },
+        {
+          "kind": "color",
+          "label": "Свой цвет",
+          "value": "#FF7C00"
+        },
+        {
+          "kind": "slider",
+          "label": "Длина",
+          "min": 0.5,
+          "max": 8,
+          "value": 3
+        },
+        {
+          "kind": "slider",
+          "label": "Толщина",
+          "min": 0.02,
+          "max": 0.3,
+          "value": 0.08
+        },
+        {
+          "kind": "slider",
+          "label": "Непрозрачность",
+          "min": 5,
+          "max": 100,
+          "value": 80,
+          "step": 1
+        },
+        {
+          "kind": "toggle",
+          "label": "Свечение",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Сквозь блоки",
+          "value": false
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "ZOOM",
+      "name": "Zoom",
+      "description": "Управляемое приближение камеры",
+      "category": "RENDER",
+      "icon": "zoom.png",
+      "settings": [
+        {
+          "kind": "slider",
+          "label": "Приближение",
+          "min": 1.5,
+          "max": 12,
+          "value": 4
+        },
+        {
+          "kind": "keybind",
+          "label": "Клавиша приближения",
+          "value": "—"
+        },
+        {
+          "kind": "toggle",
+          "label": "Переключение по нажатию",
+          "value": false
+        },
+        {
+          "kind": "value",
+          "label": "Переход приближения",
+          "choices": [],
+          "value": "—"
+        },
+        {
+          "kind": "slider",
+          "label": "Время приближения",
+          "min": 0,
+          "max": 3,
+          "value": 1
+        },
+        {
+          "kind": "value",
+          "label": "Переход отдаления",
+          "choices": [],
+          "value": "—"
+        },
+        {
+          "kind": "slider",
+          "label": "Время отдаления",
+          "min": 0,
+          "max": 3,
+          "value": 0.5
+        },
+        {
+          "kind": "toggle",
+          "label": "Приближение колесом",
+          "value": true
+        },
+        {
+          "kind": "slider",
+          "label": "Множитель за шаг",
+          "min": 1.05,
+          "max": 3,
+          "value": 1.5
+        },
+        {
+          "kind": "slider",
+          "label": "Количество шагов",
+          "min": 1,
+          "max": 20,
+          "value": 10,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Плавность колеса",
+          "min": 0,
+          "max": 1,
+          "value": 0.7
+        },
+        {
+          "kind": "toggle",
+          "label": "Запоминать шаги колеса",
+          "value": false
+        },
+        {
+          "kind": "slider",
+          "label": "Снижение чувствительности",
+          "min": 0,
+          "max": 1,
+          "value": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Кинематографическая камера",
+          "min": 0,
+          "max": 1,
+          "value": 0
+        },
+        {
+          "kind": "toggle",
+          "label": "Уменьшать покачивание",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Приближать руку",
+          "value": true
+        },
+        {
+          "kind": "value",
+          "label": "Подзорная труба",
+          "choices": [],
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Клавиша второго зума",
+          "value": "—"
+        },
+        {
+          "kind": "slider",
+          "label": "Приближение второго зума",
+          "min": 1.5,
+          "max": 12,
+          "value": 4
+        },
+        {
+          "kind": "slider",
+          "label": "Время второго приближения",
+          "min": 0,
+          "max": 15,
+          "value": 10,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Время второго отдаления",
+          "min": 0,
+          "max": 5,
+          "value": 1
+        },
+        {
+          "kind": "toggle",
+          "label": "Скрывать HUD при втором зуме",
+          "value": true
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "RAINBOW",
+      "name": "RainbowColor",
+      "description": "Все цвета переливаются радугой",
+      "category": "RENDER",
+      "icon": "rainbow.png",
+      "settings": [
+        {
+          "kind": "slider",
+          "label": "Скорость",
+          "min": 1,
+          "max": 10,
+          "value": 3
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "CROSSHAIR",
+      "name": "Crosshair",
+      "description": "Свой прицел: рисуется в редакторе",
+      "category": "RENDER",
+      "icon": "crosshair.png",
+      "settings": [
+        {
+          "kind": "color",
+          "label": "Цвет прицела",
+          "value": "#F5F5FF"
+        },
+        {
+          "kind": "button",
+          "label": "Прицел",
+          "caption": "Редактор"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "FULL_BRIGHT",
+      "name": "FullBright",
+      "description": "Повышает яркость мира",
+      "category": "RENDER",
+      "icon": "full_bright.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "HUD",
+      "name": "HUD",
+      "description": "Отображает интерфейс клиента",
+      "category": "RENDER",
+      "icon": "hud.png",
+      "settings": [
+        {
+          "kind": "choice",
+          "label": "Водяной знак",
+          "choices": [
+            "Обычный",
+            "Glass"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "choice",
+          "label": "Клавиши",
+          "choices": [
+            "Обычный",
+            "Glass"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "choice",
+          "label": "Инвентарь",
+          "choices": [
+            "Обычный",
+            "Glass"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "choice",
+          "label": "Игроки рядом",
+          "choices": [
+            "Обычный",
+            "Glass"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "choice",
+          "label": "Медиаплеер",
+          "choices": [
+            "Обычный",
+            "Glass"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "choice",
+          "label": "Баскетбол",
+          "choices": [
+            "Обычный",
+            "Glass"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "choice",
+          "label": "Футбол",
+          "choices": [
+            "Обычный",
+            "Glass"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "choice",
+          "label": "Скорборд",
+          "choices": [
+            "Обычный",
+            "Glass"
+          ],
+          "value": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Масштаб",
+          "min": 0.5,
+          "max": 4,
+          "value": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "KEYSTROKES",
+      "name": "Keystrokes",
+      "description": "Показывает нажатые клавиши",
+      "category": "RENDER",
+      "icon": "keystrokes.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "INVENTORY_HUD",
+      "name": "InventoryHUD",
+      "description": "Содержимое инвентаря на экране",
+      "category": "RENDER",
+      "icon": "inventory_hud.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "SATURATION",
+      "name": "Saturation",
+      "description": "Показывает насыщение и эффект еды",
+      "category": "RENDER",
+      "icon": "saturation.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "NO_ANIMATIONS",
+      "name": "NoAnimations",
+      "description": "Фиксирует позы других игроков",
+      "category": "RENDER",
+      "icon": "no_animations.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "HEALTH_TAGS",
+      "name": "Health Indicator",
+      "description": "Показывает сердечки игроков",
+      "category": "RENDER",
+      "icon": "health_tags.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "NO_FIRE",
+      "name": "NoFire",
+      "description": "Убирает огонь с экрана полностью",
+      "category": "RENDER",
+      "icon": "no_fire.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "NO_PARTICLES",
+      "name": "NoParticles",
+      "description": "Скрывает лишние частицы",
+      "category": "RENDER",
+      "icon": "no_particles.png",
+      "settings": [
+        {
+          "kind": "toggle",
+          "label": "Убирать взрывы",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Убирать фоновые",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Убирать боевые",
+          "value": false
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "ANIMATIONS",
+      "name": "Animations",
+      "description": "Плавность хотбара и инвентаря",
+      "category": "RENDER",
+      "icon": "animations.png",
+      "settings": [
+        {
+          "kind": "slider",
+          "label": "Плавность",
+          "min": 50,
+          "max": 600,
+          "value": 180,
+          "step": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "ITEM_SCALING",
+      "name": "ItemScaling",
+      "description": "Размер предмета в руке",
+      "category": "RENDER",
+      "icon": "item_scaling.png",
+      "settings": [
+        {
+          "kind": "slider",
+          "label": "Масштаб предмета",
+          "min": 0.2,
+          "max": 2,
+          "value": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "SMALL_SHIELD",
+      "name": "SmallShield",
+      "description": "Уменьшает щит",
+      "category": "RENDER",
+      "icon": "small_shield.png",
+      "settings": [
+        {
+          "kind": "slider",
+          "label": "Размер щита",
+          "min": 0.2,
+          "max": 1,
+          "value": 0.65
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "ENCHANT_GLINT",
+      "name": "EnchantGlint",
+      "description": "Переливание зачарованных вещей",
+      "category": "RENDER",
+      "icon": "enchant_glint.png",
+      "settings": [
+        {
+          "kind": "choice",
+          "label": "Эффект",
+          "choices": [
+            "Orion",
+            "Выкл",
+            "Azure",
+            "Rose",
+            "Gold"
+          ],
+          "value": 0
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "VIEW_MODEL",
+      "name": "ViewModel",
+      "description": "Положение рук",
+      "category": "RENDER",
+      "icon": "view_model.png",
+      "settings": [
+        {
+          "kind": "slider",
+          "label": "Положение X",
+          "min": -1,
+          "max": 1,
+          "value": 0
+        },
+        {
+          "kind": "slider",
+          "label": "Положение Y",
+          "min": -1,
+          "max": 1,
+          "value": 0
+        },
+        {
+          "kind": "slider",
+          "label": "Положение Z",
+          "min": -1,
+          "max": 1,
+          "value": 0
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "WAYPOINTS",
+      "name": "Waypoints",
+      "description": "Метки мира и управление ими",
+      "category": "WORLD",
+      "icon": "waypoints.png",
+      "settings": [
+        {
+          "kind": "toggle",
+          "label": "Указатели за экраном",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Координаты меток",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Раскрывать при наведении",
+          "value": true
+        },
+        {
+          "kind": "slider",
+          "label": "Меток на экране",
+          "min": 1,
+          "max": 64,
+          "value": 24,
+          "step": 1
+        },
+        {
+          "kind": "keybind",
+          "label": "Клавиша быстрой метки",
+          "value": "—"
+        },
+        {
+          "kind": "text",
+          "label": "Имя быстрой метки",
+          "value": "Метка"
+        },
+        {
+          "kind": "color",
+          "label": "Цвет быстрой метки",
+          "value": "#FF9B38"
+        },
+        {
+          "kind": "toggle",
+          "label": "Открывать редактор после создания",
+          "value": false
+        },
+        {
+          "kind": "value",
+          "label": "Статус",
+          "value": "—"
+        },
+        {
+          "kind": "value",
+          "label": "Сохранённые метки",
+          "choices": [],
+          "value": "—"
+        },
+        {
+          "kind": "text",
+          "label": "Название",
+          "value": ""
+        },
+        {
+          "kind": "text",
+          "label": "Координата X",
+          "value": ""
+        },
+        {
+          "kind": "text",
+          "label": "Координата Y",
+          "value": ""
+        },
+        {
+          "kind": "text",
+          "label": "Координата Z",
+          "value": ""
+        },
+        {
+          "kind": "color",
+          "label": "Цвет метки",
+          "value": "#7c91e9"
+        },
+        {
+          "kind": "button",
+          "label": "Ваши координаты",
+          "caption": "Взять"
+        },
+        {
+          "kind": "button",
+          "label": "Новая метка",
+          "caption": "Добавить"
+        },
+        {
+          "kind": "button",
+          "label": "Выбранная метка",
+          "caption": "Сохранить"
+        },
+        {
+          "kind": "button",
+          "label": "Удалить метку",
+          "caption": "Удалить"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "DEATH_POINT",
+      "name": "DeathPoint",
+      "description": "Метка последнего места смерти",
+      "category": "WORLD",
+      "icon": "death_point.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "NO_WEATHER",
+      "name": "NoWeather",
+      "description": "Отключает дождь и снег",
+      "category": "WORLD",
+      "icon": "no_weather.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "WORLD_CHANGER",
+      "name": "WorldChanger",
+      "description": "Меняет цвет неба и тумана",
+      "category": "WORLD",
+      "icon": "world_changer.png",
+      "settings": [
+        {
+          "kind": "color",
+          "label": "Цвет неба",
+          "value": "#64D9FF"
+        },
+        {
+          "kind": "color",
+          "label": "Цвет тумана",
+          "value": "#14111F"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "CUSTOM_TIME",
+      "name": "CustomTime",
+      "description": "Свое время суток",
+      "category": "WORLD",
+      "icon": "custom_time.png",
+      "settings": [
+        {
+          "kind": "choice",
+          "label": "Пресет времени",
+          "choices": [
+            "Рассвет",
+            "День",
+            "Закат",
+            "Ночь",
+            "Лунная ночь",
+            "Своё"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "slider",
+          "label": "Время суток",
+          "min": 0,
+          "max": 23999,
+          "value": 6000,
+          "step": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "WORLD_PARTICLES",
+      "name": "WorldParticles",
+      "description": "Добавляет частицы в мире",
+      "category": "WORLD",
+      "icon": "world_particles.png",
+      "settings": [
+        {
+          "kind": "color",
+          "label": "Цвет частиц",
+          "value": "#FF7C00"
+        },
+        {
+          "kind": "slider",
+          "label": "Количество",
+          "min": 1,
+          "max": 2500,
+          "value": 180,
+          "step": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "PROJECTILE_TRAIL",
+      "name": "ProjectileTrail",
+      "description": "След стрел, перлов и трезубцев",
+      "category": "WORLD",
+      "icon": "projectile_trail.png",
+      "settings": [
+        {
+          "kind": "color",
+          "label": "Цвет следа",
+          "value": "#FF7C00"
+        },
+        {
+          "kind": "slider",
+          "label": "Длина",
+          "min": 0.25,
+          "max": 5,
+          "value": 2
+        },
+        {
+          "kind": "toggle",
+          "label": "Свечение",
+          "value": true
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "BLOCK_HIGHLIGHT",
+      "name": "BlockHighlight",
+      "description": "Плавный контур блока",
+      "category": "WORLD",
+      "icon": "block_highlight.png",
+      "settings": [
+        {
+          "kind": "color",
+          "label": "Цвет контура",
+          "value": "#FF7C00"
+        },
+        {
+          "kind": "slider",
+          "label": "Скорость перехода",
+          "min": 1,
+          "max": 40,
+          "value": 18,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Скорость появления",
+          "min": 1,
+          "max": 40,
+          "value": 12,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Толщина контура",
+          "min": 0.5,
+          "max": 5,
+          "value": 1.6
+        },
+        {
+          "kind": "slider",
+          "label": "Непрозрачность",
+          "min": 5,
+          "max": 100,
+          "value": 92,
+          "step": 1
+        },
+        {
+          "kind": "toggle",
+          "label": "Свечение",
+          "value": true
+        },
+        {
+          "kind": "slider",
+          "label": "Ширина свечения",
+          "min": 1,
+          "max": 16,
+          "value": 6,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Яркость свечения",
+          "min": 0,
+          "max": 100,
+          "value": 14,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Отступ от блока",
+          "min": 0,
+          "max": 0.1,
+          "value": 0.003
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "ITEM_PHYSICS",
+      "name": "ItemPhysics",
+      "description": "Предметы лежат на земле",
+      "category": "WORLD",
+      "icon": "item_physics.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "CHAT_FILTER",
+      "name": "ChatFilter",
+      "description": "Скрывает сообщения по словам",
+      "category": "MISC",
+      "icon": "chat_filter.png",
+      "settings": [
+        {
+          "kind": "text",
+          "label": "Слова через запятую",
+          "value": ""
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "CHAT_HIGHLIGHT",
+      "name": "ChatHighlight",
+      "description": "Подсвечивает слова в чате",
+      "category": "MISC",
+      "icon": "chat_highlight.png",
+      "settings": [
+        {
+          "kind": "text",
+          "label": "Слова через запятую",
+          "value": ""
+        },
+        {
+          "kind": "color",
+          "label": "Цвет",
+          "value": "#FFB34D"
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "BASKETBALL",
+      "name": "Basketball",
+      "description": "Клиентский баскетбол",
+      "category": "MISC",
+      "icon": "basketball.png",
+      "settings": [
+        {
+          "kind": "choice",
+          "label": "Формат матча",
+          "choices": [
+            "1×1",
+            "2×2"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "button",
+          "label": "Арена вокруг тебя",
+          "caption": "Создать матч"
+        },
+        {
+          "kind": "text",
+          "label": "Код приглашения",
+          "value": ""
+        },
+        {
+          "kind": "button",
+          "label": "Войти по коду",
+          "caption": "Войти в матч"
+        },
+        {
+          "kind": "value",
+          "label": "Комната",
+          "value": "—"
+        },
+        {
+          "kind": "value",
+          "label": "Статус матча",
+          "value": "—"
+        },
+        {
+          "kind": "button",
+          "label": "Пригласить друзей",
+          "caption": "Копировать код"
+        },
+        {
+          "kind": "button",
+          "label": "Подтвердить готовность",
+          "caption": "Готов"
+        },
+        {
+          "kind": "button",
+          "label": "Выйти из комнаты",
+          "caption": "Выйти"
+        },
+        {
+          "kind": "keybind",
+          "label": "Установить кольцо",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Взять или создать мяч",
+          "value": "—"
+        },
+        {
+          "kind": "value",
+          "label": "Зарядить бросок",
+          "value": "—"
+        },
+        {
+          "kind": "value",
+          "label": "Пас",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Переместить кольцо",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Удалить кольцо",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Повернуть кольцо влево",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Повернуть кольцо вправо",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Подобрать мяч",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Сбросить счёт клавишей",
+          "value": "—"
+        },
+        {
+          "kind": "value",
+          "label": "Колец в этом мире",
+          "value": "—"
+        },
+        {
+          "kind": "button",
+          "label": "Снять все кольца здесь",
+          "caption": "Снять кольца"
+        },
+        {
+          "kind": "button",
+          "label": "Обнулить счёт",
+          "caption": "Обнулить счёт"
+        },
+        {
+          "kind": "button",
+          "label": "Убрать мяч",
+          "caption": "Убрать мяч"
+        },
+        {
+          "kind": "button",
+          "label": "Настройки баскетбола",
+          "caption": "Сбросить настройки"
+        },
+        {
+          "kind": "slider",
+          "label": "Сила броска",
+          "min": 0.3,
+          "max": 2,
+          "value": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Скорость зарядки",
+          "min": 0.3,
+          "max": 3,
+          "value": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Сила паса",
+          "min": 6,
+          "max": 30,
+          "value": 13,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Вращение мяча",
+          "min": 0,
+          "max": 3,
+          "value": 1
+        },
+        {
+          "kind": "toggle",
+          "label": "Показывать дугу",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Ловить самому",
+          "value": true
+        },
+        {
+          "kind": "slider",
+          "label": "Сила отскока",
+          "min": 0.1,
+          "max": 2,
+          "value": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Гравитация",
+          "min": 2,
+          "max": 25,
+          "value": 9.81,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Скорость дриблинга",
+          "min": 0.3,
+          "max": 2,
+          "value": 1
+        },
+        {
+          "kind": "toggle",
+          "label": "Ведение при ходьбе",
+          "value": true
+        },
+        {
+          "kind": "slider",
+          "label": "Размер мяча",
+          "min": 0.5,
+          "max": 1.5,
+          "value": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Громкость",
+          "min": 0,
+          "max": 1,
+          "value": 0.7
+        },
+        {
+          "kind": "toggle",
+          "label": "Показывать HUD",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Показывать руки",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Разметка площадки",
+          "value": true
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "FOOTBALL",
+      "name": "Football",
+      "description": "Клиентский футбол",
+      "category": "MISC",
+      "icon": "football.png",
+      "settings": [
+        {
+          "kind": "choice",
+          "label": "Формат матча",
+          "choices": [
+            "1×1",
+            "2×2"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "button",
+          "label": "Арена вокруг тебя",
+          "caption": "Создать матч"
+        },
+        {
+          "kind": "text",
+          "label": "Код приглашения",
+          "value": ""
+        },
+        {
+          "kind": "button",
+          "label": "Войти по коду",
+          "caption": "Войти в матч"
+        },
+        {
+          "kind": "value",
+          "label": "Комната",
+          "value": "—"
+        },
+        {
+          "kind": "value",
+          "label": "Статус матча",
+          "value": "—"
+        },
+        {
+          "kind": "button",
+          "label": "Пригласить друзей",
+          "caption": "Копировать код"
+        },
+        {
+          "kind": "button",
+          "label": "Подтвердить готовность",
+          "caption": "Готов"
+        },
+        {
+          "kind": "button",
+          "label": "Выйти из комнаты",
+          "caption": "Выйти"
+        },
+        {
+          "kind": "keybind",
+          "label": "Установить ворота",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Создать или вернуть мяч",
+          "value": "—"
+        },
+        {
+          "kind": "value",
+          "label": "Быстрый удар",
+          "value": "—"
+        },
+        {
+          "kind": "value",
+          "label": "Зарядить удар",
+          "value": "—"
+        },
+        {
+          "kind": "value",
+          "label": "Подкрутить мяч",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Переместить ворота",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Удалить ворота",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Поворот ворот влево",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Поворот ворот вправо",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Переключить вратаря",
+          "value": "—"
+        },
+        {
+          "kind": "keybind",
+          "label": "Переключить пенальти",
+          "value": "—"
+        },
+        {
+          "kind": "slider",
+          "label": "Размер ворот",
+          "min": 0.5,
+          "max": 2,
+          "value": 1
+        },
+        {
+          "kind": "choice",
+          "label": "Сложность вратаря",
+          "choices": [
+            "Easy",
+            "Normal",
+            "Hard"
+          ],
+          "value": 1
+        },
+        {
+          "kind": "toggle",
+          "label": "Вратарь",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Пенальти",
+          "value": false
+        },
+        {
+          "kind": "slider",
+          "label": "Сила удара",
+          "min": 0.3,
+          "max": 2,
+          "value": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Скорость зарядки",
+          "min": 0.3,
+          "max": 3,
+          "value": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "DISCORD",
+      "name": "Discord",
+      "description": "Показывает статус в Discord",
+      "category": "MISC",
+      "icon": "discord.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "CHAT_ANIMATION",
+      "name": "ChatAnimation",
+      "description": "Анимирует сообщения и поле ввода",
+      "category": "MISC",
+      "icon": "chat_animation.png",
+      "settings": [
+        {
+          "kind": "toggle",
+          "label": "Сдвиг сообщений",
+          "value": true
+        },
+        {
+          "kind": "toggle",
+          "label": "Плавное появление текста",
+          "value": true
+        },
+        {
+          "kind": "slider",
+          "label": "Время анимации сообщений",
+          "min": 10,
+          "max": 800,
+          "value": 150,
+          "step": 1
+        },
+        {
+          "kind": "toggle",
+          "label": "Анимация поля ввода",
+          "value": true
+        },
+        {
+          "kind": "slider",
+          "label": "Время анимации поля ввода",
+          "min": 10,
+          "max": 800,
+          "value": 170,
+          "step": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "CHAT_TIME",
+      "name": "ChatTime",
+      "description": "Время перед сообщениями",
+      "category": "MISC",
+      "icon": "chat_time.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "CHAT_HISTORY",
+      "name": "ChatHistory",
+      "description": "Сохраняет чат при переподключении",
+      "category": "MISC",
+      "icon": "chat_history.png",
+      "settings": [],
+      "configurable": false
+    },
+    {
+      "id": "MEDIA_PLAYER",
+      "name": "MediaPlayer",
+      "description": "Виджет проигрываемой музыки",
+      "category": "MISC",
+      "icon": "media_player.png",
+      "settings": [
+        {
+          "kind": "choice",
+          "label": "Позиция",
+          "choices": [
+            "TOP_LEFT",
+            "TOP_RIGHT"
+          ],
+          "value": 0
+        },
+        {
+          "kind": "choice",
+          "label": "Анимация",
+          "choices": [
+            "Вкл",
+            "Выкл"
+          ],
+          "value": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "MIRAGE",
+      "name": "Mirage",
+      "description": "Мягкие отражения и выразительный свет",
+      "category": "MISC",
+      "icon": "mirage.png",
+      "settings": [
+        {
+          "kind": "value",
+          "label": "Отражения",
+          "value": "—"
+        },
+        {
+          "kind": "choice",
+          "label": "Качество",
+          "choices": [
+            "Лёгкое",
+            "Высокое",
+            "Максимум"
+          ],
+          "value": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Сила отражений",
+          "min": 0,
+          "max": 40,
+          "value": 20,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Матовость",
+          "min": 0,
+          "max": 100,
+          "value": 50,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Мягкое свечение",
+          "min": 0,
+          "max": 35,
+          "value": 17.5,
+          "step": 1
+        },
+        {
+          "kind": "slider",
+          "label": "Цветокоррекция",
+          "min": 0,
+          "max": 100,
+          "value": 50,
+          "step": 1
+        }
+      ],
+      "configurable": true
+    },
+    {
+      "id": "MOTION_BLUR",
+      "name": "MotionBlur",
+      "description": "Размытие при движении камеры",
+      "category": "MISC",
+      "icon": "motion_blur.png",
+      "settings": [
+        {
+          "kind": "slider",
+          "label": "Сила",
+          "min": 0,
+          "max": 1,
+          "value": 0.5
+        }
+      ],
+      "configurable": true
+    }
+  ]
+}

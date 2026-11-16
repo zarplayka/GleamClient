@@ -10,6 +10,18 @@
 
 Откройте http://localhost:4173. Для проверки JavaScript: `node --check website/app.js`.
 
+## Предпросмотр игрового интерфейса
+
+Запустите `node website/tools/client-preview.cjs` и откройте `http://127.0.0.1:4176/`.
+В браузере доступны ClickGUI, главное меню, заставка, музыкальный HUD и клавиши. Изменения игровых HTML, CSS, JS, шрифтов и текстур применяются при сохранении файла. При занятом порте задайте `GLEAM_CLIENT_PREVIEW_PORT`.
+
+- ClickGUI — `src/main/resources/assets/orion-client/html/menu/`
+- Главное меню и заставка — `src/main/resources/assets/orion-client/html/title-menu.html`
+- Музыкальный HUD — `src/main/resources/assets/orion-client/html/hud-island/`
+- Виджеты и их тема — `src/main/resources/assets/orion-client/html/hud-widgets.html` и `hud-theme.css` рядом с ним
+
+Браузер использует демонстрационные настройки модулей из `tools/client-preview-catalog.json`, локальные примеры аккаунта, конфигов и переписки, а в примерочной показывает изображения из игровых атласов. Игровые действия и 3D-рендер проверяйте в Minecraft. Предпросмотр слушает только `127.0.0.1`.
+
 ## Содержимое
 
 - `index.html` — страница, функции клиента, установка и вопросы

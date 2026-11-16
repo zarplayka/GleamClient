@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GleamClient · Предпросмотр</title>
+  <style>
+    @font-face { font-family: Gleam; src: url('/clickgui/assets/orion-medium.ttf') }
+    * { box-sizing: border-box }
+    body { margin: 0; height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); background: #15151a; color: #edecf3; font: 14px Gleam, system-ui, sans-serif }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 10px 16px; background: #1a1a1f; border-bottom: 1px solid #32323a }
+    .identity { display: flex; gap: 8px; align-items: center; white-space: nowrap }
+    .identity img { width: 23px; height: 23px }
+    .identity span { color: #a8a7b6 }
+    nav { display: flex; gap: 4px; flex-wrap: wrap }
+    a, button { border: 1px solid transparent; border-radius: 6px; padding: 7px 10px; color: #bcbac8; font: inherit; background: transparent; text-decoration: none; cursor: pointer }
+    a:hover, button:hover { color: #fff; background: #292934 }
+    a[aria-current] { color: #e8e9ff; border-color: #474a64; background: #30334b }
+    :focus-visible { outline: 2px solid #a9b4ff; outline-offset: 2px }
+    iframe { display: block; width: 100%; height: 100%; border: 0; background: #18191c }
+  </style>
+  <script defer src="/client-preview.js"></script>
+</head>
+<body data-preview-hub>
+  <header>
+    <div class="identity"><img src="/clickgui/assets/orion-badge.png" alt=""><strong>GleamClient</strong><span>Предпросмотр</span></div>
+    <nav aria-label="Экраны клиента">
+      <a href="#clickgui" data-preview="clickgui">ClickGUI</a>
+      <a href="#title" data-preview="title">Главное меню</a>
+      <a href="#splash" data-preview="splash">Заставка</a>
+      <a href="#hud" data-preview="hud">HUD</a>
+      <a href="#widgets" data-preview="widgets">Виджеты</a>
+    </nav>
+    <button type="button" id="reload-preview" title="Файлы обновляются при сохранении">Обновить просмотр</button>
+  </header>
+  <iframe id="screen" title="Предпросмотр ClickGUI"></iframe>
+</body>
+</html>
