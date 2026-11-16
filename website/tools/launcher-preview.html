@@ -483,54 +483,67 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .secondary-page { align-self: start; justify-self: center; width: min(100%,calc(984px + 2 * var(--workspace-inset))); padding: 30px var(--workspace-inset) 32px }
     .release-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px }
     .activity-title { margin-bottom: 18px }
-    .activity-live { display: inline-flex; align-items: center; gap: 7px; color: var(--accent); font-size: 12px; font-weight: 700 }
-    .activity-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor }
+    #activity-heading { margin: 0; font-size: clamp(28px,3.5cqw,38px); letter-spacing: -.045em; line-height: 1.12 }
+    .activity-live { display: inline-flex; align-items: center; gap: 7px; padding: 6px 9px; border-radius: 6px; background: var(--selected-bg); color: var(--selected-text); font-size: 12px; font-weight: 650 }
+    .activity-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor }
     .activity-stats {
-      display: grid; grid-template-columns: minmax(0,1.35fr) repeat(3,minmax(0,1fr)); padding: 0;
-      margin: 0 0 16px; border: 1px solid var(--side-rule); border-radius: 12px; background: var(--panel); overflow: hidden;
+      display: grid; grid-template-columns: minmax(0,1.25fr) repeat(2,minmax(0,1fr)); padding: 0;
+      margin: 0 0 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); overflow: hidden;
     }
-    .activity-stat { display: grid; align-content: center; gap: 8px; min-height: 92px; padding: 14px 17px }
-    .activity-stat + .activity-stat { border-inline-start: 1px solid var(--side-rule) }
-    .activity-stat-primary { background: color-mix(in srgb,var(--accent) 10%,var(--panel)) }
+    .activity-stat { display: grid; align-content: center; gap: 7px; min-height: 80px; padding: 12px clamp(9px,1.7cqw,20px) }
+    .activity-stat + .activity-stat { border-inline-start: 1px solid var(--border) }
+    .activity-stat-primary { background: color-mix(in srgb,var(--selected-bg) 54%,var(--panel)) }
     .activity-stat dt, .activity-meta { color: var(--muted); font-size: 12px }
-    .activity-stat dd { margin: 0; font-size: clamp(16px,1.7vw,24px); font-weight: 700; letter-spacing: -.035em; font-variant-numeric: tabular-nums }
-    .activity-stat-primary dd { color: var(--accent); font-size: clamp(22px,2.6vw,34px); line-height: 1.05 }
-    .activity-grid { display: grid; gap: 14px; align-items: start }
-    .activity-panel { min-width: 0; padding: 19px; border: 1px solid var(--side-rule); border-radius: 12px; background: var(--panel) }
-    .activity-panel h3 { margin: 0; font-size: 16px }
-    .activity-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px }
-    .activity-range { display: flex; gap: 3px; padding: 2px; border: 1px solid var(--side-rule); border-radius: 7px; background: var(--control-bg) }
-    .activity-range button, .activity-clear {
-      padding: 5px 8px; color: var(--muted); border: 1px solid transparent; border-radius: 5px; background: transparent;
+    .activity-stat dd { margin: 0; font-size: clamp(16px,2.3cqw,25px); line-height: 1.12; font-weight: 700; letter-spacing: -.035em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
+    .activity-stat-primary dd { color: var(--selected-text) }
+    .activity-grid { display: grid; grid-template-columns: minmax(0,1.75fr) minmax(280px,1fr); gap: 14px }
+    .activity-panel { min-width: 0; padding: clamp(12px,1.9cqw,20px); border: 1px solid var(--border); border-radius: 12px; background: var(--panel) }
+    .activity-panel h3 { margin: 0; font-size: 16px; letter-spacing: -.015em }
+    .activity-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px }
+    .activity-period { margin: 6px 0 0; font-size: clamp(23px,3cqw,32px); font-weight: 700; line-height: 1.05; letter-spacing: -.04em; font-variant-numeric: tabular-nums }
+    .activity-range.segmented-tabs { margin: 0; padding: 3px; border-radius: 8px }
+    .activity-range.segmented-tabs button { min-width: 0; min-height: 29px; padding: 0 8px; font-size: 12px }
+    .activity-plot {
+      --plot-height: clamp(126px,19dvh,166px);
+      display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 10px; margin-top: 20px;
     }
-    .activity-range button[aria-pressed="true"], .activity-range button:hover, .activity-clear:hover {
-      color: var(--text); border-color: var(--side-rule); background: var(--side-hover);
+    .activity-axis {
+      display: grid; grid-template-rows: repeat(3,1fr) 0; align-items: start; height: var(--plot-height);
+      color: var(--muted); text-align: right; font-size: 10px; font-variant-numeric: tabular-nums; line-height: 1;
     }
-    .activity-chart { display: grid; grid-template-columns: repeat(var(--days,7),minmax(0,1fr)); height: 157px; gap: 4px }
+    .activity-axis span { transform: translateY(-50%) }
+    .activity-chart { position: relative; display: grid; grid-template-columns: repeat(var(--days,7),minmax(0,1fr)); gap: 3px }
+    .activity-chart::before {
+      content: ''; position: absolute; inset: 0 0 auto; height: var(--plot-height); pointer-events: none;
+      border-bottom: 1px solid var(--border); background: linear-gradient(var(--border) 1px,transparent 1px) 0 0 / 100% calc(100% / 3);
+    }
     .activity-day {
-      display: grid; grid-template-rows: minmax(0,1fr) 15px; justify-items: center; align-items: end;
-      gap: 8px; min-width: 0; padding: 0; border: 0; border-radius: 4px; background: transparent;
-      color: var(--muted); font: inherit; font-size: 10px;
+      display: grid; grid-template-rows: var(--plot-height) 15px; justify-items: center; align-items: end;
+      gap: 5px; min-width: 0; padding: 0 0 4px; border: 0; border-radius: 4px; background: transparent;
+      color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums;
     }
-    .activity-day:hover, .activity-day[aria-pressed="true"] { background: var(--side-hover); color: var(--text) }
-    .activity-bar {
-      width: min(100%,30px); height: max(2px, var(--bar)); border-radius: 4px 4px 1px 1px;
-      background: var(--side-rule);
-    }
-    .activity-day[data-played] .activity-bar { background: linear-gradient(0deg,color-mix(in srgb,var(--accent) 45%,var(--panel)),var(--accent)) }
+    .activity-day:hover, .activity-day[aria-pressed="true"] { background: var(--hover-tint); color: var(--text) }
+    .activity-bar { width: min(72%,38px); height: max(2px,var(--bar)); border-radius: 4px 4px 1px 1px; background: var(--border) }
+    .activity-day[data-played] .activity-bar { background: color-mix(in srgb,var(--accent) 73%,var(--panel)) }
     .activity-day[aria-pressed="true"] .activity-bar { background: var(--accent) }
-    .activity-chart { background: repeating-linear-gradient(to top, transparent 0 26px, var(--side-rule) 26px 27px) 0 0 / 100% calc(100% - 23px) no-repeat }
-    .activity-calendar { display: grid; grid-template-columns: repeat(12,minmax(0,1fr)); grid-template-rows: repeat(7,minmax(0,1fr)); grid-auto-flow: column; gap: 5px; max-width: 271px }
-    .activity-calendar-layout { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px }
-    .activity-calendar-layout .activity-calendar { flex: 1 1 215px }
-    .activity-key { display: flex; align-items: center; gap: 4px; white-space: nowrap }
-    .activity-key i { width: 10px; height: 10px; border-radius: 2px; background: color-mix(in srgb,var(--accent) var(--heat,0%),var(--side-rule)) }
+    .activity-day[data-today] > :last-child { color: var(--selected-text); font-weight: 700 }
+    .activity-calendar-layout { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 7px 9px; max-width: 354px; margin: 14px auto 0 }
+    .activity-calendar,.activity-months { display: grid; grid-template-columns: repeat(12,minmax(0,1fr)); gap: 4px }
+    .activity-months { grid-column: 2; min-height: 14px }
+    .activity-months span { white-space: nowrap }
+    .activity-months [data-end] { justify-self: end }
+    .activity-weekdays { display: grid; grid-template-rows: repeat(7,1fr); gap: 4px; align-items: center }
+    .activity-months,.activity-weekdays { color: var(--muted); font-size: 10px; line-height: 1 }
+    .activity-calendar { grid-template-rows: repeat(7,minmax(0,1fr)); grid-auto-flow: column }
+    .activity-key { grid-column: 2; display: flex; align-items: center; justify-content: end; gap: 4px; margin-top: 4px; white-space: nowrap }
+    .activity-key i { width: 10px; height: 10px; border-radius: 2px; background: color-mix(in srgb,var(--accent) var(--heat,0%),var(--control-bg)) }
     .activity-key i:nth-of-type(2) { --heat: 35% }
     .activity-key i:nth-of-type(3) { --heat: 65% }
     .activity-key i:nth-of-type(4) { --heat: 100% }
-    .activity-cell { min-width: 0; aspect-ratio: 1; padding: 0; border: 0; border-radius: 3px; background: var(--side-rule) }
-    .activity-cell[data-played] { background: color-mix(in srgb,var(--accent) var(--heat),var(--side-rule)) }
-    .activity-cell:hover, .activity-cell[aria-pressed="true"] { outline: 1px solid var(--accent); outline-offset: 1px }
+    .activity-cell { min-width: 0; aspect-ratio: 1; padding: 0; border: 0; border-radius: 3px; background: var(--control-bg) }
+    .activity-cell[data-played] { background: color-mix(in srgb,var(--accent) var(--heat),var(--control-bg)) }
+    .activity-cell[data-today] { box-shadow: inset 0 0 0 1px var(--selected-text) }
+    .activity-cell:hover, .activity-cell[aria-pressed="true"] { outline: 1px solid var(--accent); outline-offset: 1px; z-index: 1 }
     [data-activity-tip] { position: relative }
     [data-activity-tip]:is(:hover,:focus-visible)::after {
       content: attr(data-activity-tip) / ""; position: absolute; z-index: 2; pointer-events: none;
@@ -538,25 +551,36 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       color: var(--text); background: var(--panel); border: 1px solid var(--side-rule);
       border-radius: 7px; box-shadow: 0 4px 16px #0003; font-size: 12px;
     }
-    .activity-detail { min-height: 17px; margin: 10px 0 0 }
+    .activity-day:nth-child(-n+2)::after,.activity-calendar > :nth-child(-n+14)::after { left: 0; transform: none }
+    .activity-day:nth-last-child(-n+2)::after,.activity-calendar > :nth-child(n+71)::after { left: auto; right: 0; transform: none }
+    .activity-detail { min-height: 16px; margin: 7px 0 0 }
+    .activity-archive { grid-column: 1 / -1 }
     .activity-sessions { list-style: none; padding: 0; margin: 0 }
-    .activity-session { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 11px 0 }
-    .activity-session + .activity-session { border-top: 1px solid var(--side-rule) }
-    .activity-session strong, .activity-session small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-    .activity-session small { margin-top: 3px; color: var(--muted); font-size: 11px }
-    .activity-session output { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums }
-    .activity-session[data-live] { background: color-mix(in srgb,var(--accent) 12%,transparent); border-radius: 6px; padding-inline: 8px }
-    .activity-session[data-live] output { color: var(--accent) }
-    .activity-note { color: var(--muted); margin: 12px 0 4px; line-height: 1.5 }
-    @media (min-width: 1130px) {
-      .activity-grid { grid-template-columns: minmax(0,1.55fr) minmax(240px,1fr) }
-      .activity-archive { grid-column: 2; grid-row: 1 / span 2; min-height: 280px }
+    .activity-session,.activity-session-headings { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr) minmax(90px,.6fr); align-items: center; gap: 5px 12px; padding: 10px }
+    .activity-session-headings { color: var(--muted); background: var(--home-surface); border-radius: 5px; font-size: 11px }
+    .activity-session + .activity-session { border-top: 1px solid var(--border) }
+    .activity-session strong, .activity-session small { display: block; overflow-wrap: anywhere }
+    .activity-session strong { font-size: 13px; font-weight: 650 }
+    .activity-session small,.activity-session time { color: var(--muted); font-size: 12px }
+    .activity-session small { margin-top: 3px }
+    .activity-session output,.activity-session-headings > :last-child { justify-self: end; text-align: end }
+    .activity-session output { font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums }
+    .activity-session[data-live] { background: color-mix(in srgb,var(--selected-bg) 45%,var(--panel)); border-radius: 5px }
+    .activity-session[data-live] output { color: var(--selected-text) }
+    .activity-note { color: var(--muted); margin: 10px 0 3px; line-height: 1.5 }
+    .activity-note[data-error] { color: var(--error-text) }
+    #activity-more { margin-top: 10px }
+    @container workspace (max-width: 780px) {
+      .activity-grid { grid-template-columns: minmax(0,1fr) }
+      .activity-calendar-layout { margin-inline: 0 }
     }
-    @media (max-width: 760px) {
-      .activity-stats { grid-template-columns: repeat(2,minmax(0,1fr)) }
-      .activity-stat:nth-child(3) { border-inline-start: 0 }
-      .activity-stat:nth-child(n+3) { border-top: 1px solid var(--side-rule) }
+    @container workspace (max-width: 450px) {
+      .activity-stat dt,.activity-meta { font-size: 11px }
       .activity-chart { gap: 2px }
+      .activity-session-headings { display: none }
+      .activity-session { grid-template-columns: minmax(0,1fr) auto }
+      .activity-session time { grid-column: 1; grid-row: 2 }
+      .activity-session output { grid-column: 2; grid-row: 1 / span 2 }
     }
     .release-feed { display: grid; gap: 10px }
     .release-card { display: grid; grid-template-columns: 124px minmax(0,1fr); gap: 20px; padding: 19px 22px; border: 1px solid var(--border); border-radius: 15px; background: var(--panel) }
@@ -1556,34 +1580,42 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <header class="release-top activity-title"><h2 id="activity-heading" tabindex="-1">Активность</h2><span id="activity-live" class="activity-live" hidden>Игра идёт</span></header>
         <dl class="activity-stats">
           <div class="activity-stat activity-stat-primary"><dt>Всего в игре</dt><dd id="activity-total">—</dd></div>
-          <div class="activity-stat"><dt>За выбранный период</dt><dd id="activity-period">—</dd></div>
           <div class="activity-stat"><dt>Серия дней</dt><dd id="activity-streak">—</dd></div>
           <div class="activity-stat"><dt>Самая долгая сессия</dt><dd id="activity-longest">—</dd></div>
         </dl>
         <div class="activity-grid">
-          <section class="activity-panel">
+          <section class="activity-panel" aria-labelledby="activity-chart-heading">
             <header class="activity-head">
-              <h3>Время по дням</h3>
-              <div class="activity-range" aria-label="Период">
+              <div>
+                <h3 id="activity-chart-heading">Время по дням</h3>
+                <p class="activity-period" id="activity-period">—</p>
+              </div>
+              <div class="segmented-tabs activity-range" role="group" aria-label="Период">
                 <button type="button" data-range="7" aria-pressed="true">7 дней</button>
                 <button type="button" data-range="30" aria-pressed="false">30 дней</button>
               </div>
             </header>
-            <div id="activity-chart" class="activity-chart"></div>
-            <p class="activity-detail activity-meta" id="activity-chart-detail"></p>
+            <div class="activity-plot">
+              <div class="activity-axis" id="activity-axis" aria-hidden="true"></div>
+              <div id="activity-chart" class="activity-chart"></div>
+            </div>
+            <p class="activity-detail activity-meta" id="activity-chart-detail" aria-live="polite"></p>
           </section>
-          <section class="activity-panel">
-            <header class="activity-head"><h3>Календарь</h3><span class="activity-meta">12 недель</span></header>
+          <section class="activity-panel" aria-labelledby="activity-calendar-heading">
+            <header class="activity-head"><h3 id="activity-calendar-heading">Календарь</h3><span class="activity-meta">12 недель</span></header>
             <div class="activity-calendar-layout">
+              <div class="activity-months" id="activity-months" aria-hidden="true"></div>
+              <div class="activity-weekdays" id="activity-weekdays" aria-hidden="true"></div>
               <div class="activity-calendar" id="activity-calendar"></div>
               <span class="activity-meta activity-key"><span>Меньше</span><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i><span>Больше</span></span>
             </div>
           </section>
-          <section class="activity-panel activity-archive">
-            <header class="activity-head"><h3 id="activity-sessions-heading">Сессии</h3><button class="activity-clear" type="button" id="activity-clear" hidden>Сбросить дату</button></header>
+          <section class="activity-panel activity-archive" aria-labelledby="activity-sessions-heading">
+            <header class="activity-head"><h3 id="activity-sessions-heading">Сессии</h3><button class="button" type="button" id="activity-clear" hidden>Сбросить дату</button></header>
             <p class="activity-note" id="activity-note" role="status"></p>
+            <div class="activity-session-headings" id="activity-session-headings" aria-hidden="true" hidden><span>Игрок</span><span>Начало</span><span>Длительность</span></div>
             <ol class="activity-sessions" id="activity-sessions"></ol>
-            <button class="activity-clear" type="button" id="activity-more" hidden>Показать ещё</button>
+            <button class="button" type="button" id="activity-more" hidden>Показать ещё</button>
           </section>
         </div>
       </section>
@@ -2228,6 +2260,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Больше':['More','Mehr','Más'],
       'Сессии':['Sessions','Sitzungen','Sesiones'],
       'Сессии · {0}':['Sessions · {0}','Sitzungen · {0}','Sesiones · {0}'],
+      'Игрок':['Player','Spieler','Jugador'],
+      'Начало':['Started','Beginn','Inicio'],
+      'Длительность':['Duration','Dauer','Duración'],
       'Сбросить дату':['Clear date','Datum zurücksetzen','Quitar fecha'],
       'Показать ещё':['Show more','Mehr anzeigen','Mostrar más'],
       'Игра идёт':['Playing now','Spiel läuft','Jugando ahora'],
@@ -3135,6 +3170,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
       const dateFormat = new Intl.DateTimeFormat(launcherLanguage,{day:'numeric',month:'long'});
       const shortFormat = new Intl.DateTimeFormat(launcherLanguage,{weekday:'short'});
+      const monthFormat = new Intl.DateTimeFormat(launcherLanguage,{month:'short'});
       const timeFormat = new Intl.DateTimeFormat(launcherLanguage,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
       const activeDay = document.activeElement.closest('[data-activity-day]');
       const activeGroup = activeDay?.parentElement;
@@ -3148,30 +3184,58 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         button.setAttribute('aria-label',button.dataset.activityTip);
         button.setAttribute('aria-pressed',day === activityDate);
         button.toggleAttribute('data-played',byDay.has(day));
+        button.toggleAttribute('data-today',day === today);
         return button;
       };
 
       const chart = $('activity-chart');
       const days = Array.from({length:activityRange},(_,index) => activityDay(since,index));
-      const max = Math.max(1,...days.map(day => byDay.get(day) || 0));
+      const peak = Math.max(0,...days.map(day => byDay.get(day) || 0));
+      const targetStep = peak / 180000;
+      const stepMinutes = [5,10,15,20,30,45,60,90,120,180].find(step => step >= targetStep) ?? Math.ceil(targetStep / 60) * 60;
+      const stepMs = stepMinutes * 60000;
+      $('activity-axis').replaceChildren(...[3,2,1,0].map(tick => {
+        const label = document.createElement('span');
+        label.textContent = activityDuration(tick * stepMs);
+        return label;
+      }));
       chart.style.setProperty('--days',activityRange);
       chart.replaceChildren(...days.map((day,index) => {
         const button = dayButton(day,'activity-day');
         const bar = document.createElement('span');
         bar.className = 'activity-bar';
-        bar.style.setProperty('--bar',100 * (byDay.get(day) || 0) / max + '%');
+        bar.style.setProperty('--bar',100 * (byDay.get(day) || 0) / (3 * stepMs) + '%');
         const label = document.createElement('span');
         if (activityRange === 7) label.textContent = shortFormat.format(day);
         else if (index % 6 === 0 || index === days.length - 1) label.textContent = new Date(day).getDate();
         button.append(bar,label);
         return button;
       }));
-      $('activity-chart-detail').textContent = activityDate === null
+      const detail = $('activity-chart-detail');
+      const detailText = activityDate === null
         ? translated('Выбери день на графике или в календаре') : dateLabel(activityDate);
+      if (detail.textContent !== detailText) detail.textContent = detailText;
 
       const monday = activityDay(today,-(new Date(today).getDay() + 6) % 7);
+      const firstCalendarDay = activityDay(monday,-77);
+      const weeks = Array.from({length:12},(_,index) => new Date(Math.min(today,activityDay(firstCalendarDay,index * 7 + 6))));
+      $('activity-months').replaceChildren(...weeks.flatMap((week,index) => {
+        const month = week.getMonth();
+        if (index === 0 ? month !== weeks[1].getMonth() : month === weeks[index - 1].getMonth()) return [];
+        const label = document.createElement('span');
+        label.textContent = monthFormat.format(week);
+        label.style.gridColumn = index + 1;
+        label.toggleAttribute('data-end',index === weeks.length - 1);
+        return [label];
+      }));
+      $('activity-weekdays').replaceChildren(...[0,2,4].map(index => {
+        const label = document.createElement('span');
+        label.textContent = shortFormat.format(activityDay(monday,index));
+        label.style.gridRow = index + 1;
+        return label;
+      }));
       $('activity-calendar').replaceChildren(...Array.from({length:84},(_,index) => {
-        const day = activityDay(monday,index - 77);
+        const day = activityDay(firstCalendarDay,index);
         if (day > today) return document.createElement('span');
         const cell = dayButton(day,'activity-cell');
         const minutes = (byDay.get(day) || 0) / 60000;
@@ -3180,10 +3244,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }));
       if (activeDay) activeGroup.querySelector('[data-activity-day="' + activeDay.dataset.activityDay + '"]')?.focus({preventScroll:true});
 
-      const sessions = [...playSessions].reverse().filter(session => activityDate === null ||
-        session.startedAt < activityDay(activityDate,1) && (session.endedAt ?? now) > activityDate);
+      const sessions = playSessions.filter(session => activityDate === null ||
+        session.startedAt < activityDay(activityDate,1) && (session.endedAt ?? now) > activityDate)
+        .sort((left,right) => right.startedAt - left.startedAt);
       const note = $('activity-note');
       note.hidden = !!sessions.length && !activityError;
+      note.toggleAttribute('data-error',activityError);
       note.textContent = activityError ? translated('Не удалось прочитать историю игр')
         : !activityLoaded ? translated('Загружаем историю…')
         : activityDate === null ? translated('Здесь появятся сессии после первого запуска игры')
@@ -3192,6 +3258,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         : translated('Сессии · {0}',dateFormat.format(activityDate));
       $('activity-clear').hidden = activityDate === null;
       $('activity-more').hidden = sessions.length <= activityLimit;
+      $('activity-session-headings').hidden = !sessions.length;
       $('activity-sessions').replaceChildren(...sessions.slice(0,activityLimit).map(session => {
         const row = document.createElement('li');
         row.className = 'activity-session';
@@ -3200,13 +3267,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         const identity = document.createElement('div');
         const name = document.createElement('strong');
         name.textContent = session.player;
-        const date = document.createElement('small');
-        date.textContent = live ? translated('Игра идёт') : timeFormat.format(session.startedAt) + ' · ' + session.version;
+        const version = document.createElement('small');
+        version.textContent = live ? translated('Игра идёт') + ' · ' + session.version : session.version;
+        const started = document.createElement('time');
+        started.dateTime = new Date(session.startedAt).toISOString();
+        started.textContent = timeFormat.format(session.startedAt);
         const duration = document.createElement('output');
         duration.textContent = activityDuration((session.endedAt ?? now) - session.startedAt,live);
         if (live) duration.dataset.startedAt = session.startedAt;
-        identity.append(name,date);
-        row.append(identity,duration);
+        identity.append(name,version);
+        row.append(identity,started,duration);
         return row;
       }));
     }
