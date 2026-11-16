@@ -1016,16 +1016,33 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profile-import-mods { display: flex; gap: 8px; align-items: center; margin-bottom: 16px }
     .profile-import-location { display: flex; gap: 6px; margin-bottom: 10px }
     .profile-import-location input { flex: 1; min-width: 0; color: var(--text); background: var(--control-bg); border: 1px solid var(--side-rule); border-radius: 7px; padding: 0 9px }
-    .profiles-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px }
+    .profiles-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px }
+    #profiles-heading { margin: 0; font-size: clamp(28px,3.5cqw,38px); line-height: 1.12; letter-spacing: -.045em }
     .profiles-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
     .profiles-header .profiles-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: stretch; max-width: 100% }
-    .profiles-header .button { min-height: 40px; padding: 7px 12px; font-size: 13px; line-height: 1.2; justify-content: center; text-align: center }
-    .profiles-list { display: grid; gap: 8px; margin-top: 18px }
-    .profile-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px }
-    .profile-card h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere }
-    .profile-card small,.profiles-empty { color: var(--side-muted) }
-    .profile-card small { display: block; margin-top: 4px }
-    .profile-card .settings-folder { width: 35px; height: 35px; padding: 0 }
+    .profiles-header .button { min-height: 40px; padding: 7px 12px; border-radius: 7px; font-size: 13px; line-height: 1.2; text-align: center; white-space: normal }
+    .profiles-search { display: flex; align-items: center; gap: 9px; max-width: 360px; min-height: 40px; margin-bottom: 14px; padding: 0 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--muted) }
+    .profiles-search:focus-within { border-color: var(--focus-stroke) }
+    .profiles-search .icon { width: 15px; height: 15px }
+    .profiles-search input { width: 100%; min-width: 0; min-height: 38px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text) }
+    .profiles-search input::placeholder { color: var(--muted) }
+    .profiles-list { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,290px),1fr)); gap: 13px }
+    .profile-card { display: grid; grid-template-rows: auto 1fr auto; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--panel) }
+    .profile-cover { position: relative; isolation: isolate; height: clamp(102px,12cqw,141px); overflow: hidden; background: var(--control-bg) }
+    .profile-cover img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 54% }
+    .profile-cover:has(img)::after { content: ''; position: absolute; inset: auto 0 0; height: 60%; z-index: 0; background: linear-gradient(transparent,#12131db3); pointer-events: none }
+    .profile-cover > span { position: absolute; z-index: 1; inset: auto auto 10px 12px; padding: 4px 7px; border-radius: 5px; background: #161820dc; color: #fff; font-size: 11px; font-weight: 650 }
+    .profile-cover > .icon { position: absolute; inset: 50% auto auto 50%; width: 29px; height: 29px; transform: translate(-50%,-50%); color: var(--muted) }
+    .profile-identity { padding: 13px 13px 11px }
+    .profile-card h3 { margin: 0; font-size: 16px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere }
+    .profile-card small { display: block; margin-top: 5px; color: var(--muted); overflow-wrap: anywhere }
+    .profile-card .profiles-actions { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px; padding: 9px 12px; border-top: 1px solid var(--border) }
+    .profile-card .button { min-height: 35px; border-radius: 6px; font-size: 13px }
+    .profile-card .settings-folder { width: 35px; padding: 0 }
+    .profile-unavailable { color: var(--muted); font-size: 12px }
+    .profiles-empty { margin: 0; padding: 22px 16px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); text-align: center }
+    #profiles-status { margin: 0 0 12px; color: var(--muted); font-size: 13px }
+    #profiles-status[data-error] { color: var(--error-text) }
     .profile-form { display: grid; gap: 12px }
     .profile-field { display: grid; gap: 6px; color: var(--text); font-size: 13px }
     .profile-form input,.profile-form select,.catalog-target select { min-width: 0; padding: 7px 10px; border: 1px solid var(--side-rule); border-radius: 8px; background: var(--control-bg); color: var(--text); font: inherit }
@@ -1492,8 +1509,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <button class="button primary" id="profiles-create" type="button">Создать сборку</button>
           </div>
         </header>
-        <p class="profiles-empty" id="profiles-empty">Создай сборку или перенеси профиль из другого лаунчера</p>
+        <div class="profiles-search" id="profiles-search-box" role="search" hidden>
+          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+          <input type="search" id="profiles-search" placeholder="Поиск профилей" aria-label="Поиск профилей" autocomplete="off">
+        </div>
         <p id="profiles-status" role="status" hidden></p>
+        <p class="profiles-empty" id="profiles-empty">Создай сборку или перенеси профиль из другого лаунчера</p>
+        <p class="profiles-empty" id="profiles-no-results" role="status" hidden>По запросу профилей не найдено</p>
         <div id="profiles-list" class="profiles-list"></div>
       </section>
       <dialog class="minecraft-dialog" id="create-profile-dialog" aria-labelledby="create-profile-heading">
@@ -2600,6 +2622,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Ищем профили…':['Finding profiles…','Profile werden gesucht…','Buscando perfiles…'],
       'Копируем профили…':['Copying profiles…','Profile werden kopiert…','Copiando perfiles…'],
       'Профили не найдены':['No profiles found','Keine Profile gefunden','No se encontraron perfiles'],
+      'Поиск профилей':['Search profiles','Profile suchen','Buscar perfiles'],
+      'По запросу профилей не найдено':['No profiles match your search','Keine Profile entsprechen der Suche','Ningún perfil coincide con la búsqueda'],
       'Не удалось перенести: {0}':['Could not import: {0}','Import fehlgeschlagen: {0}','No se pudo importar: {0}'],
       'Не удалось прочитать профили':['Could not read profiles','Profile konnten nicht gelesen werden','No se pudieron leer los perfiles'],
       'Уже перенесён':['Already imported','Bereits importiert','Ya importado'],
@@ -2648,6 +2672,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Хранилище':['Storage','Speicher','Almacenamiento'],
       'Всего занято':['Total storage used','Speicher insgesamt belegt','Espacio total ocupado'],
       'Открыть папку Minecraft {0}':['Open Minecraft {0} folder','Ordner für Minecraft {0} öffnen','Abrir la carpeta de Minecraft {0}'],
+      'Открыть папку':['Open folder','Ordner öffnen','Abrir carpeta'],
       'Оформление':['Appearance','Darstellung','Apariencia'],
       'Меньше анимаций':['Reduce motion','Animationen reduzieren','Reducir animaciones'],
       'Отключает анимации интерфейса':['Turns off interface animations','Deaktiviert Animationen der Oberfläche','Desactiva las animaciones de la interfaz'],
@@ -4699,6 +4724,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (launchedProfileId) {
         const status = $('profiles-status');
         writeLocale(status,title);
+        status.toggleAttribute('data-error',error);
         status.hidden = false;
       }
     }
@@ -5645,28 +5671,60 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     function showProfilesError(message) {
       const status = $('profiles-status');
       writeLocale(status,message);
+      status.setAttribute('data-error','');
       status.hidden = false;
+      $('profiles-empty').hidden = true;
     }
     function syncProfileLaunchButtons() {
       for (const button of $('profiles-list').querySelectorAll('[data-launch-profile]')) {
         const active = running || launchPending;
         const current = button.dataset.launchProfile === launchedProfileId;
         button.disabled = active && !current;
+        button.toggleAttribute('data-close-game',running && current);
         writeLocale(button,active && current ? launchAction : 'Играть');
       }
     }
+    function filterProfiles() {
+      const query = $('profiles-search').value.trim().toLocaleLowerCase(launcherLanguage);
+      const cards = $('profiles-list').children;
+      let matches = 0;
+      for (const card of cards) {
+        card.hidden = !card.dataset.searchText.toLocaleLowerCase(launcherLanguage).includes(query);
+        if (!card.hidden) matches++;
+      }
+      $('profiles-no-results').hidden = !cards.length || matches > 0;
+    }
     function renderProfiles() {
       $('profiles-empty').hidden = importedProfiles.length > 0;
+      $('profiles-search-box').hidden = importedProfiles.length === 0;
       $('profiles-list').replaceChildren(...importedProfiles.map(profile => {
         const card = document.createElement('article');
-        card.className = 'settings-panel profile-card';
+        card.className = 'profile-card';
+        card.dataset.searchText = [profile.name,profile.version,profile.launcher,profile.loader].filter(Boolean).join(' ');
+        const cover = document.createElement('div');
+        cover.className = 'profile-cover';
+        const thumbnail = versionTiles.find(tile => tile.dataset.version === profile.version)?.querySelector('img');
+        if (thumbnail) {
+          const image = new Image();
+          image.alt = '';
+          image.decoding = 'async';
+          image.loading = 'lazy';
+          image.addEventListener('error',() => { image.src = thumbnail.src; },{once:true});
+          image.src = thumbnail.dataset.backdrop || thumbnail.src;
+          cover.append(image);
+        } else {
+          cover.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg>';
+        }
+        const version = document.createElement('span');
+        if (profile.version) version.textContent = 'Minecraft '+profile.version;
+        else writeLocale(version,'Версия не определена');
+        cover.append(version);
         const info = document.createElement('div');
+        info.className = 'profile-identity';
         const name = document.createElement('h3');
         name.textContent = profile.name;
         const details = document.createElement('small');
-        details.textContent = [profile.version ? 'Minecraft '+profile.version : translated('Версия не определена'),
-          profile.launcher === 'Gleam Launcher' ? 'Fabric' : profile.launcher,
-          !profile.playable && translated('Запуск недоступен')].filter(Boolean).join(' · ');
+        details.textContent = [profile.loader === 'fabric' ? 'Fabric' : profile.loader,profile.launcher].filter(Boolean).join(' · ');
         info.append(name,details);
         const actions = document.createElement('div');
         actions.className = 'profiles-actions';
@@ -5674,7 +5732,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         writeLabel(folder,'Открыть папку');
         folder.disabled = false;
         folder.addEventListener('click',() => openImportedFolder(profile));
-        actions.append(folder);
         if (profile.playable) {
           const play = document.createElement('button');
           play.type = 'button';
@@ -5682,16 +5739,25 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           play.dataset.launchProfile = profile.id;
           play.addEventListener('click',() => launchGame(profile,play));
           actions.append(play);
+        } else {
+          const unavailable = document.createElement('span');
+          unavailable.className = 'profile-unavailable';
+          writeLocale(unavailable,'Запуск недоступен');
+          actions.append(unavailable);
         }
-        card.append(info,actions);
+        actions.append(folder);
+        card.append(cover,info,actions);
         return card;
       }));
+      filterProfiles();
       syncProfileLaunchButtons();
     }
+    $('profiles-search').addEventListener('input',filterProfiles);
     function openImportedFolder(profile) {
       return window.__TAURI__?.core.invoke('open_instance_folder',{gameVersion:profile.version,instanceId:profile.id}).catch(error => {
         const status = $('profiles-status');
         status.hidden = false;
+        status.setAttribute('data-error','');
         status.textContent = translateApiMessage(String(error));
       });
     }
@@ -5754,6 +5820,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       try {
         const profile = await window.__TAURI__.core.invoke('create_profile',{name,version:createProfileVersion.value});
         if (!importedProfiles.some(item => item.id === profile.id)) importedProfiles.push(profile);
+        $('profiles-search').value = '';
         renderProfiles();
         syncCatalogProfiles();
         createProfileDialog.close();
@@ -5883,6 +5950,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           input.dataset.imported = 'true';
           input.checked = false;
         }
+        if (result.imported.length) $('profiles-search').value = '';
         await loadImportedProfiles();
         await loadActivity();
         if (result.failed.length) importMessage('Не удалось перенести: {0}',result.failed.join(', '));
