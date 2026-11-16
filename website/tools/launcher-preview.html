@@ -1047,18 +1047,90 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profiles-empty { margin: 0; padding: 22px 16px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); text-align: center }
     #profiles-status,#profile-detail-status { margin: 0 0 12px; color: var(--muted); font-size: 13px }
     #profiles-status[data-error],#profile-detail-status[data-error] { color: var(--error-text) }
-    #profile-detail-back { margin-bottom: 14px; padding-left: 0 }
+    #page-profiles:has(#profile-detail:not([hidden])) { width: 100%; padding: 10px 12px 12px }
+    #profile-detail {
+      --profile-surface: var(--panel); --profile-list: var(--home-surface); --profile-control: var(--control-bg);
+      --profile-line: var(--border); --profile-muted: var(--muted); --profile-text: var(--text); --profile-blue: var(--on-fill);
+    }
+    :root[data-theme="dark"] #profile-detail {
+      --profile-surface: #20201f; --profile-list: #262625; --profile-control: #262625;
+      --profile-line: #30302e; --profile-muted: #a4a39e; --profile-text: #efefeb; --profile-blue: #397ff1;
+      --selected-bg: #292928; --selected-text: #efefeb;
+    }
     #profile-detail-back .icon { transform: rotate(180deg) }
-    .profile-detail-header { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 15px }
-    #profile-detail-heading { margin: 0; font-size: clamp(26px,3.5cqw,38px); line-height: 1.12; letter-spacing: -.045em; overflow-wrap: anywhere }
-    .profile-detail-header .profiles-actions { max-width: 100% }
-    .profile-detail-header .button { min-height: 39px; border-radius: 7px; font-size: 13px }
-    .profile-detail-panel { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--panel) }
-    .profile-detail-panel .profile-cover { height: clamp(155px,24cqw,280px) }
-    .profile-detail-specs { display: flex; flex-wrap: wrap; gap: 13px 28px; margin: 0; padding: 15px 18px; border-top: 1px solid var(--border) }
-    .profile-detail-specs > div { min-width: 0; max-width: 100% }
-    .profile-detail-specs dt { margin-bottom: 4px; color: var(--muted); font-size: 12px }
-    .profile-detail-specs dd { margin: 0; overflow-wrap: anywhere; font-weight: 650 }
+    .profile-detail-header { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 14px; padding: 19px 24px 15px }
+    .profile-detail-identity { display: flex; align-items: center; flex: 1 1 275px; min-width: 0; gap: 15px }
+    .profile-detail-identity > div:last-child { min-width: 0 }
+    #profile-detail-art { flex: none }
+    #profile-detail-art .profile-cover { width: 68px; height: 68px; border-radius: 12px; background: var(--profile-control) }
+    #profile-detail-art .profile-cover::after { display: none }
+    #profile-detail-heading { margin: 0 0 5px; color: var(--profile-text); font-size: clamp(21px,2.6cqw,26px); font-weight: 600; line-height: 1.15; letter-spacing: -.025em; overflow-wrap: anywhere }
+    .profile-detail-header .profiles-actions { max-width: 100%; gap: 7px }
+    .profile-detail-header .button { min-height: 38px; border-radius: 7px; font-size: 13px; font-weight: 600 }
+    #profile-detail .button:not(.primary) { border-color: var(--profile-line); background: var(--profile-control); color: var(--profile-muted) }
+    #profile-detail .button:not(.primary):hover:enabled { color: var(--profile-text); border-color: var(--focus-stroke) }
+    #profile-detail .button.primary:not([data-close-game]) { background: var(--profile-blue); color: #fff }
+    #profile-detail .button.primary:not([data-close-game]):hover:enabled { background: color-mix(in srgb,var(--profile-blue) 86%,white) }
+    .profile-detail-header .profile-icon-button { width: 36px; min-height: 36px; padding: 0 }
+    .profile-detail-header .icon { width: 14px; height: 14px }
+    #profile-detail-play { min-width: 146px }
+    .profile-detail-panel { display: flex; flex-direction: column; min-height: calc(var(--content-height) - 22px); border: 1px solid var(--profile-line); border-radius: 13px; background: var(--profile-surface) }
+    .profile-detail-specs { display: flex; flex-wrap: wrap; gap: 4px 6px; color: var(--profile-muted); font-size: 12px; overflow-wrap: anywhere }
+    .profile-detail-specs > span + span::before { content: '·'; margin-inline-end: 6px }
+    #profile-detail-activity { margin: 5px 0 0; color: var(--profile-muted); font-size: 12px }
+    #profile-detail-status { margin: 0 24px 11px }
+    #profile-detail-content { display: flex; flex-direction: column; flex: 1 }
+    .profile-detail-tabs { display: flex; gap: 17px; overflow: auto; padding: 0 24px; border-bottom: 1px solid var(--profile-line) }
+    .profile-detail-tabs button { display: inline-flex; align-items: center; gap: 6px; min-height: 37px; padding: 0 1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--profile-muted); font-size: 12px; white-space: nowrap }
+    .profile-detail-tabs button .icon,.profile-content-kinds .icon { width: 13px; height: 13px }
+    .profile-detail-tabs button:hover { color: var(--profile-text) }
+    .profile-detail-tabs button[aria-pressed="true"] { border-color: var(--profile-text); color: var(--profile-text); font-weight: 600 }
+    .profile-detail-tabs button:focus-visible { outline-offset: -2px }
+    .profile-content { display: flex; flex-direction: column; flex: 1; min-width: 0; padding: 14px 24px 22px }
+    .profile-content-tools { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px }
+    .profile-content-kinds.segmented-tabs { margin: 0; justify-content: flex-start; border-color: var(--profile-line); background: var(--profile-surface) }
+    .profile-content-kinds.segmented-tabs button { display: inline-flex; align-items: center; gap: 5px; min-width: 0; min-height: 27px; padding-inline: 8px; color: var(--profile-muted); font-size: 12px }
+    .profile-content-kinds.segmented-tabs button[aria-pressed="true"] { border-color: var(--profile-line); color: var(--profile-text) }
+    #profile-find-mods { flex: 0 0 auto; margin-left: auto }
+    #profile-find-mods .icon { width: 13px; height: 13px }
+    .profile-content-query,.profile-content-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px }
+    .profile-content-query { flex: 1 1 290px }
+    .profile-content-query .profiles-search { flex: 1 1 190px; min-height: 34px; margin: 0; border-color: var(--profile-line); background: var(--profile-surface); color: var(--profile-muted) }
+    .profile-content-query .profiles-search:focus-within { border-color: var(--focus-stroke) }
+    .profile-content-query input { min-height: 32px; font-size: 13px }
+    .profile-content-query .setting-dropdown { min-width: 100px }
+    .profile-content-query .dropdown-trigger { border-color: var(--profile-line); background: var(--profile-control); color: var(--profile-text) }
+    .profile-content-actions { margin-left: auto }
+    .profile-content-actions .button,#profile-find-mods { min-height: 34px; border-radius: 6px; font-size: 12px }
+    .profile-content-actions button { width: 34px; padding: 0 }
+    .profile-content-actions .icon { width: 15px; height: 15px }
+    #profile-content-count { color: var(--profile-muted); font-size: 12px }
+    .profile-content-list { flex: 1; min-height: 195px; border: 1px solid var(--profile-line); border-radius: 10px; background: var(--profile-list) }
+    #profile-content-entries { margin: 0; padding: 0; list-style: none }
+    .profile-entry { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 12px; min-height: 71px; padding: 9px 12px }
+    .profile-entry + .profile-entry { border-top: 1px solid var(--profile-line) }
+    .profile-entry-icon { display: grid; width: 38px; height: 38px; place-items: center; overflow: hidden; border-radius: 8px; background: var(--profile-control); color: var(--profile-muted) }
+    .profile-entry-icon .icon { width: 17px; height: 17px }
+    .profile-entry-icon img { width: 100%; height: 100%; object-fit: contain }
+    .profile-entry-copy { min-width: 0 }
+    .profile-entry strong,.profile-entry small { display: block; overflow-wrap: anywhere }
+    .profile-entry strong { color: var(--profile-text); font-size: 13px; font-weight: 600 }
+    .profile-entry small { margin-top: 3px; color: var(--profile-muted); font-size: 12px }
+    .profile-entry .profile-entry-meta { color: color-mix(in srgb,var(--profile-muted) 80%,var(--profile-list)); font-size: 11px }
+    .profile-entry .switch input:checked + .switch-track { background: color-mix(in srgb,var(--profile-blue) 68%,var(--profile-list)) }
+    .profile-entry .switch:has(input:disabled) { opacity: .65; cursor: default }
+    #profile-content-note { margin: 0; padding: 16px 13px; color: var(--profile-muted); font-size: 13px }
+    #profile-content-note[data-error] { color: var(--error-text) }
+    @container workspace (max-width: 560px) {
+      #page-profiles:has(#profile-detail:not([hidden])) { padding-inline: 7px }
+      .profile-detail-header,.profile-content { padding: 11px }
+      .profile-detail-tabs { padding-inline: 10px; gap: 10px }
+      #profile-detail-status { margin-inline: 11px }
+      #profile-detail-art .profile-cover { width: 53px; height: 53px }
+      #profile-detail-play { min-width: 112px }
+      .profile-entry { grid-template-columns: 32px minmax(0,1fr) auto; gap: 8px; padding: 9px }
+      .profile-entry-icon { width: 32px; height: 32px }
+    }
     #create-profile-dialog { width: min(460px,calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; overflow: auto; border-color: var(--border) }
     #create-profile-dialog > header { margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--border) }
     .profile-form { display: grid; gap: 13px; padding: 15px 16px 16px }
@@ -1547,23 +1619,61 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <div id="profiles-list" class="profiles-list"></div>
         </div>
         <div id="profile-detail" hidden>
-          <button class="text-button" id="profile-detail-back" type="button"><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg><span>К профилям</span></button>
-          <header class="profile-detail-header">
-            <h2 id="profile-detail-heading" tabindex="-1"></h2>
-            <div class="profiles-actions" id="profile-detail-actions">
-              <span class="profile-unavailable" id="profile-detail-unavailable" hidden>Запуск недоступен</span>
-              <button class="button" id="profile-detail-folder" type="button"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><span>Открыть папку</span></button>
-              <button class="button primary" id="profile-detail-play" type="button">Играть</button>
+          <div class="profile-detail-panel">
+            <header class="profile-detail-header">
+              <div class="profile-detail-identity">
+                <div id="profile-detail-art" aria-hidden="true"></div>
+                <div>
+                  <h2 id="profile-detail-heading" tabindex="-1"></h2>
+                  <div class="profile-detail-specs" id="profile-detail-specs">
+                    <span id="profile-detail-version"></span><span id="profile-detail-loader" hidden></span><span id="profile-detail-source" hidden></span><span id="profile-detail-mods" hidden></span>
+                  </div>
+                  <p id="profile-detail-activity" hidden></p>
+                </div>
+              </div>
+              <div class="profiles-actions" id="profile-detail-actions">
+                <button class="button profile-icon-button" id="profile-detail-back" type="button" aria-label="К профилям" title="К профилям"><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+                <span class="profile-unavailable" id="profile-detail-unavailable" hidden>Запуск недоступен</span>
+                <button class="button profile-icon-button" id="profile-detail-folder" type="button" aria-label="Открыть папку" title="Открыть папку"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg></button>
+                <button class="button primary" id="profile-detail-play" type="button"><svg class="icon" aria-hidden="true"><use href="#i-play" data-launch-icon/></svg><span data-launch-label>Играть</span></button>
+              </div>
+            </header>
+            <p id="profile-detail-status" role="status" hidden></p>
+            <div id="profile-detail-content">
+              <div class="profile-detail-tabs" role="group" aria-label="Разделы сборки" id="profile-content-tabs">
+                <button type="button" data-profile-section="content" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg><span>Содержимое</span></button>
+                <button type="button" data-profile-section="worlds" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg><span>Миры</span></button>
+                <button type="button" data-profile-section="servers" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-display"/></svg><span>Серверы</span></button>
+                <button type="button" data-profile-section="logs" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg><span>Логи</span></button>
+              </div>
+              <div class="profile-content">
+                <div class="profile-content-tools" id="profile-content-types">
+                  <div class="segmented-tabs profile-content-kinds" role="group" aria-label="Тип содержимого" id="profile-content-kinds">
+                    <button type="button" data-profile-kind="mods" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg><span>Моды</span><span id="profile-mods-tab-count" aria-hidden="true" hidden></span></button>
+                    <button type="button" data-profile-kind="shaders" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-sun"/></svg><span>Шейдеры</span></button>
+                    <button type="button" data-profile-kind="resourcepacks" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><span>Ресурспаки</span></button>
+                  </div>
+                  <button class="button primary" id="profile-find-mods" type="button"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span>Найти моды</span></button>
+                </div>
+                <div class="profile-content-tools">
+                  <div class="profile-content-query">
+                    <div class="profiles-search" role="search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="profile-content-search" placeholder="Поиск в разделе" aria-label="Поиск в разделе" autocomplete="off"></div>
+                    <select id="profile-content-filter" aria-label="Состояние модов">
+                      <option value="all">Все</option><option value="enabled">Включённые</option><option value="disabled">Выключенные</option>
+                    </select>
+                  </div>
+                  <div class="profile-content-actions">
+                    <span id="profile-content-count" hidden></span>
+                    <button class="button" id="profile-content-refresh" type="button" aria-label="Обновить список" title="Обновить список"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg></button>
+                    <button class="button" id="profile-content-folder" type="button" aria-label="Открыть папку" title="Открыть папку"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg></button>
+                  </div>
+                </div>
+                <div class="profile-content-list" id="profile-content-list" aria-busy="false">
+                  <p id="profile-content-note" role="status"></p>
+                  <ul id="profile-content-entries"></ul>
+                </div>
+              </div>
             </div>
-          </header>
-          <p id="profile-detail-status" role="status" hidden></p>
-          <div class="profile-detail-panel" id="profile-detail-content">
-            <div id="profile-detail-art"></div>
-            <dl class="profile-detail-specs">
-              <div><dt>Версия Minecraft</dt><dd id="profile-detail-version"></dd></div>
-              <div hidden><dt>Загрузчик модов</dt><dd id="profile-detail-loader"></dd></div>
-              <div hidden><dt>Источник профиля</dt><dd id="profile-detail-source"></dd></div>
-            </dl>
           </div>
         </div>
       </section>
@@ -2679,6 +2789,35 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Загрузчик модов':['Mod loader','Mod-Loader','Cargador de mods'],
       'Источник профиля':['Profile source','Profilquelle','Origen del perfil'],
       'Создаём…':['Creating…','Wird erstellt…','Creando…'],
+      'Разделы сборки':['Instance sections','Instanzbereiche','Secciones de la instancia'],
+      'Содержимое':['Content','Inhalt','Contenido'],
+      'Миры':['Worlds','Welten','Mundos'],
+      'Серверы':['Servers','Server','Servidores'],
+      'Логи':['Logs','Protokolle','Registros'],
+      'Тип содержимого':['Content type','Inhaltstyp','Tipo de contenido'],
+      'Шейдеры':['Shaders','Shader','Shaders'],
+      'Ресурспаки':['Resource packs','Ressourcenpakete','Paquetes de recursos'],
+      'Найти моды':['Find mods','Mods finden','Buscar mods'],
+      'Поиск в разделе':['Search this section','Abschnitt durchsuchen','Buscar en la sección'],
+      'Состояние модов':['Mod state','Mod-Status','Estado de los mods'],
+      'Включённые':['Enabled','Aktiviert','Activados'],
+      'Выключенные':['Disabled','Deaktiviert','Desactivados'],
+      'Обновить список':['Refresh list','Liste aktualisieren','Actualizar lista'],
+      'Модов: {0} · {1}':['Mods: {0} · {1}','Mods: {0} · {1}','Mods: {0} · {1}'],
+      'Включено {0} из {1}':['{0} of {1} enabled','{0} von {1} aktiviert','{0} de {1} activados'],
+      'В игре {0}':['Played for {0}','{0} gespielt','Tiempo jugado {0}'],
+      'Управляется лаунчером':['Managed by the launcher','Vom Launcher verwaltet','Gestionado por el launcher'],
+      'Мод {0}':['Mod {0}','Mod {0}','Mod {0}'],
+      'В этом разделе пока ничего нет':['Nothing in this section yet','Dieser Abschnitt ist noch leer','Esta sección aún está vacía'],
+      'По запросу ничего не найдено':['No results found','Keine Ergebnisse gefunden','No se encontraron resultados'],
+      'Не удалось прочитать содержимое сборки':['Could not read instance content','Instanzinhalt konnte nicht gelesen werden','No se pudo leer el contenido de la instancia'],
+      'Не удалось изменить мод':['Could not change the mod state','Mod-Status konnte nicht geändert werden','No se pudo cambiar el estado del mod'],
+      'Закрой Minecraft или дождись завершения установки':['Close Minecraft or wait for installation to finish','Schließe Minecraft oder warte auf das Ende der Installation','Cierra Minecraft o espera a que termine la instalación'],
+      'Файл мода не найден':['Mod file not found','Mod-Datei nicht gefunden','No se encontró el archivo del mod'],
+      'Не удалось открыть файл или папку':['Could not open the file or folder','Datei oder Ordner konnte nicht geöffnet werden','No se pudo abrir el archivo o la carpeta'],
+      'Не удалось открыть папку':['Could not open the folder','Ordner konnte nicht geöffnet werden','No se pudo abrir la carpeta'],
+      'Не удалось открыть файл':['Could not open the file','Datei konnte nicht geöffnet werden','No se pudo abrir el archivo'],
+      'Открыть файл':['Open file','Datei öffnen','Abrir archivo'],
       'Не удалось перенести: {0}':['Could not import: {0}','Import fehlgeschlagen: {0}','No se pudo importar: {0}'],
       'Не удалось прочитать профили':['Could not read profiles','Profile konnten nicht gelesen werden','No se pudieron leer los perfiles'],
       'Уже перенесён':['Already imported','Bereits importiert','Ya importado'],
@@ -3443,6 +3582,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         $('page-profiles').setAttribute('aria-labelledby',detail ? 'profile-detail-heading' : 'profiles-heading');
         if (detail) {
           renderProfileDetail(profileId);
+          if (profileById(profileId)) void loadProfileContent(profileId,profileContent.id === profileId ? profileContent.kind : 'mods');
           $('profile-detail-heading').focus({preventScroll:true});
         } else if (previous.page === 'profiles' && previous.profileId !== null) {
           const opener = $('profiles-list').querySelector(`[data-open-profile="${CSS.escape(previous.profileId)}"]`);
@@ -4259,6 +4399,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       renderDownloads();
       renderInstanceStorage();
       if (!activityPage.hidden) renderActivity();
+      const {profileId} = pageHistory[historyIndex];
+      if (profileId !== null) {
+        renderProfileActivity(profileById(profileId));
+        renderProfileEntries();
+      }
     }
 
     function formatStorageSize(bytes) {
@@ -5762,8 +5907,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         const current = button.dataset.launchProfile === launchedProfileId;
         button.disabled = active && !current;
         button.toggleAttribute('data-close-game',running && current);
-        writeLocale(button,active && current ? launchAction : 'Играть');
+        writeLocale(button.querySelector('[data-launch-label]') || button,active && current ? launchAction : 'Играть');
+        button.querySelector('[data-launch-icon]')?.setAttribute('href',active && current ? '#i-stop' : '#i-play');
       }
+      syncProfileModSwitches();
     }
     function createProfileCover(version,showVersion = false) {
       const cover = document.createElement('div');
@@ -5794,26 +5941,212 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     function profileById(id) {
       return importedProfiles.find(profile => profile.id === id);
     }
+    const profileContent = {id:null,kind:'mods',entries:[],summary:null,request:0,loading:false,error:'',toggling:false};
+    const profileContentFilter = $('profile-content-filter');
+    const profileContentSearch = $('profile-content-search');
+    createSettingDropdown(profileContentFilter);
+    function syncProfileModSwitches() {
+      for (const control of $('profile-content-entries').querySelectorAll('input')) {
+        control.disabled = control.hasAttribute('data-managed') || profileContent.toggling || running || launchPending;
+      }
+    }
+    function renderProfileEntries() {
+      const state = profileContent;
+      const mods = state.kind === 'mods';
+      const count = $('profile-content-count');
+      const summary = $('profile-detail-mods');
+      summary.hidden = !state.summary;
+      if (state.summary) writeLocale(summary,'Модов: {0} · {1}',state.summary.count,formatStorageSize(state.summary.bytes));
+      const tabCount = $('profile-mods-tab-count');
+      tabCount.hidden = !state.summary;
+      if (state.summary) tabCount.textContent = new Intl.NumberFormat(launcherLanguage).format(state.summary.count);
+      count.hidden = !mods || state.loading || Boolean(state.error);
+      if (!count.hidden) writeLocale(count,'Включено {0} из {1}',state.entries.filter(entry => entry.enabled).length,state.entries.length);
+      const query = profileContentSearch.value.trim().toLocaleLowerCase(launcherLanguage);
+      const filter = profileContentFilter.value;
+      const entries = state.entries.filter(entry => (!mods || filter === 'all' || entry.enabled === (filter === 'enabled')) &&
+        [entry.name,entry.fileName,entry.description].some(value => value && value.toLocaleLowerCase(launcherLanguage).includes(query)));
+      const note = $('profile-content-note');
+      const message = state.error || (state.loading ? 'Загрузка…' : !state.entries.length ? 'В этом разделе пока ничего нет' : !entries.length ? 'По запросу ничего не найдено' : '');
+      note.hidden = !message;
+      note.toggleAttribute('data-error',Boolean(state.error));
+      writeLocale(note,message);
+      const list = $('profile-content-list');
+      list.setAttribute('aria-busy',String(state.loading));
+      $('profile-content-refresh').disabled = state.loading || state.toggling;
+      $('profile-content-entries').replaceChildren(...entries.map(entry => {
+        const row = document.createElement('li');
+        row.className = 'profile-entry';
+        const icon = document.createElement('span');
+        icon.className = 'profile-entry-icon';
+        if (entry.icon?.startsWith('data:image/png;base64,')) {
+          const image = new Image();
+          image.alt = '';
+          image.src = entry.icon;
+          icon.append(image);
+        } else {
+          icon.innerHTML = state.kind === 'worlds' ? '<svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>'
+            : state.kind === 'logs' ? '<svg class="icon" aria-hidden="true"><use href="#i-history"/></svg>'
+            : '<svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg>';
+        }
+        const copy = document.createElement('div');
+        copy.className = 'profile-entry-copy';
+        const name = document.createElement('strong');
+        name.textContent = entry.name;
+        copy.append(name);
+        if (entry.description) {
+          const description = document.createElement('small');
+          description.textContent = entry.description;
+          copy.append(description);
+        }
+        const metaParts = [entry.version,entry.fileName !== entry.name && entry.fileName,entry.bytes > 0 && formatStorageSize(entry.bytes),entry.managed && translated('Управляется лаунчером')].filter(Boolean);
+        if (metaParts.length) {
+          const meta = document.createElement('small');
+          meta.className = 'profile-entry-meta';
+          meta.textContent = metaParts.join(' · ');
+          copy.append(meta);
+        }
+        row.append(icon,copy);
+        if (mods) {
+          const control = document.createElement('label');
+          control.className = 'switch';
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.setAttribute('role','switch');
+          input.checked = entry.enabled;
+          input.toggleAttribute('data-managed',entry.managed);
+          writeLabel(input,'Мод {0}',entry.name);
+          input.addEventListener('change',() => void toggleProfileMod(entry,input.checked));
+          control.append(input);
+          control.insertAdjacentHTML('beforeend','<span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>');
+          row.append(control);
+        } else if (state.kind === 'worlds' || state.kind === 'logs') {
+          const open = document.createElement('button');
+          open.type = 'button';
+          open.className = 'button';
+          writeLocale(open,state.kind === 'worlds' ? 'Открыть папку' : 'Открыть файл');
+          open.addEventListener('click',() => void openProfileContent(entry.fileName));
+          row.append(open);
+        }
+        return row;
+      }));
+      syncProfileModSwitches();
+    }
+    async function loadProfileContent(profileId,kind = profileContent.kind) {
+      const state = profileContent;
+      if (state.id !== profileId) {
+        state.summary = null;
+        profileContentFilter.value = 'all';
+        settingDropdowns.get(profileContentFilter).sync();
+      }
+      if (state.id !== profileId || state.kind !== kind) profileContentSearch.value = '';
+      const request = ++state.request;
+      Object.assign(state,{id:profileId,kind,entries:[],loading:true,error:''});
+      const section = ['mods','shaders','resourcepacks'].includes(kind) ? 'content' : kind;
+      for (const button of $('profile-content-tabs').children) button.setAttribute('aria-pressed',String(button.dataset.profileSection === section));
+      for (const button of $('profile-content-kinds').children) button.setAttribute('aria-pressed',String(button.dataset.profileKind === kind));
+      $('profile-content-types').hidden = section !== 'content';
+      $('profile-find-mods').hidden = kind !== 'mods' || !profileById(profileId)?.playable;
+      $('profile-content-folder').hidden = kind === 'servers';
+      profileContentFilter.closest('.setting-dropdown').hidden = kind !== 'mods';
+      renderProfileEntries();
+      try {
+        const entries = await window.__TAURI__.core.invoke('profile_content',{profileId,kind});
+        if (state.request !== request) return;
+        state.entries = entries;
+        if (kind === 'mods') state.summary = {count:entries.length,bytes:entries.reduce((sum,entry) => sum + entry.bytes,0)};
+      } catch (error) {
+        if (state.request === request) state.error = String(error.message || error);
+      } finally {
+        if (state.request === request) {
+          state.loading = false;
+          renderProfileEntries();
+        }
+      }
+    }
+    async function toggleProfileMod(entry,enabled) {
+      const state = profileContent;
+      const profileId = state.id;
+      if (state.toggling || running || launchPending) return;
+      state.toggling = true;
+      $('profile-content-refresh').disabled = true;
+      syncProfileModSwitches();
+      try {
+        await window.__TAURI__.core.invoke('profile_toggle_mod',{profileId,file:entry.fileName,enabled});
+        catalogCache.clear();
+        catalogState.key = '';
+        if (pageHistory[historyIndex].profileId === profileId && state.kind === 'mods') await loadProfileContent(profileId);
+      } catch (error) {
+        writeProfileStatus(String(error.message || error),true,profileId);
+      } finally {
+        state.toggling = false;
+        renderProfileEntries();
+      }
+    }
+    async function openProfileContent(file = null) {
+      const {id:profileId,kind} = profileContent;
+      try {
+        await window.__TAURI__.core.invoke('open_profile_content',{profileId,kind,file});
+      } catch (error) {
+        writeProfileStatus(String(error.message || error),true,profileId);
+      }
+    }
+    $('profile-content-tabs').addEventListener('click',event => {
+      const section = event.target.closest('[data-profile-section]')?.dataset.profileSection;
+      if (section && event.target.closest('button').getAttribute('aria-pressed') !== 'true') {
+        void loadProfileContent(profileContent.id,section === 'content' ? 'mods' : section);
+      }
+    });
+    $('profile-content-kinds').addEventListener('click',event => {
+      const kind = event.target.closest('[data-profile-kind]')?.dataset.profileKind;
+      if (kind && kind !== profileContent.kind) void loadProfileContent(profileContent.id,kind);
+    });
+    profileContentSearch.addEventListener('input',renderProfileEntries);
+    profileContentFilter.addEventListener('change',renderProfileEntries);
+    $('profile-content-refresh').addEventListener('click',() => void loadProfileContent(profileContent.id));
+    $('profile-content-folder').addEventListener('click',() => void openProfileContent());
+    $('profile-find-mods').addEventListener('click',() => {
+      const profile = profileById(pageHistory[historyIndex].profileId);
+      if (!profile?.playable) return;
+      catalogState.version = profile.version;
+      catalogState.offset = 0;
+      catalogState.key = '';
+      syncCatalogProfiles();
+      const select = $('catalog-profile');
+      select.value = profile.id;
+      settingDropdowns.get(select).sync();
+      syncCatalogFilters();
+      navigate('catalog');
+    });
+    function renderProfileActivity(profile) {
+      const activity = $('profile-detail-activity');
+      activity.hidden = !profile?.lastPlayed && !profile?.totalMs;
+      if (activity.hidden) return;
+      activity.textContent = [profile.lastPlayed && translated('Последняя игра: {0}',new Intl.DateTimeFormat(launcherLanguage).format(profile.lastPlayed)),
+        profile.totalMs && translated('В игре {0}',activityDuration(profile.totalMs))].filter(Boolean).join(' · ');
+    }
     function renderProfileDetail(id) {
       const profile = profileById(id);
       writeLocale($('profile-detail-heading'),profile ? '{0}' : 'Сборка не найдена',profile?.name);
-      $('profile-detail-actions').hidden = $('profile-detail-content').hidden = !profile;
+      $('profile-detail-content').hidden = $('profile-detail-folder').hidden = !profile;
+      $('profile-detail-play').hidden = !profile?.playable;
+      $('profile-detail-unavailable').hidden = !profile || profile.playable;
+      $('profile-detail-art').hidden = $('profile-detail-specs').hidden = !profile;
+      renderProfileActivity(profile);
       if (!profile) {
         $('profile-detail-status').hidden = true;
         return;
       }
       $('profile-detail-art').replaceChildren(createProfileCover(profile.version));
-      writeLocale($('profile-detail-version'),profile.version ? '{0}' : 'Версия не определена',profile.version);
+      writeLocale($('profile-detail-version'),profile.version ? 'Minecraft {0}' : 'Версия не определена',profile.version);
       const loader = $('profile-detail-loader');
       loader.textContent = profileLoaderLabel(profile) || '';
-      loader.parentElement.hidden = !loader.textContent;
+      loader.hidden = !loader.textContent;
       const source = $('profile-detail-source');
       source.textContent = profile.launcher || '';
-      source.parentElement.hidden = !source.textContent;
+      source.hidden = !source.textContent;
       const play = $('profile-detail-play');
       play.dataset.launchProfile = profile.id;
-      play.hidden = !profile.playable;
-      $('profile-detail-unavailable').hidden = profile.playable;
       syncProfileLaunchButtons();
       syncProfileDetailStatus();
     }

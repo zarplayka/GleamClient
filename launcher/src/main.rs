@@ -6,6 +6,7 @@ mod auth;
 mod catalog;
 mod game;
 mod minecraft;
+mod profile_content;
 mod profile_import;
 mod settings_sync;
 mod updater;
@@ -151,6 +152,9 @@ fn main() {
             game::launch_minecraft,
             game::minecraft_running,
             game::minecraft_activity,
+            profile_content::profile_content,
+            profile_content::profile_toggle_mod,
+            profile_content::open_profile_content,
             profile_import::discover_profiles,
             profile_import::imported_profiles,
             profile_import::create_profile,

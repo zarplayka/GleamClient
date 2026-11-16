@@ -296,19 +296,20 @@ pub async fn open_instance_folder(
     };
     tauri::async_runtime::spawn_blocking(move || {
         fs::create_dir_all(&folder).map_err(|_| "Не удалось создать папку версии")?;
-        let opener = match std::env::consts::OS {
-            "windows" => "explorer.exe",
-            "macos" => "open",
-            _ => "xdg-open",
-        };
-        std::process::Command::new(opener)
-            .arg(folder)
-            .spawn()
-            .map(|_| ())
-            .map_err(|_| "Не удалось открыть папку версии".to_string())
+        open_local_path(&folder).map_err(|_| "Не удалось открыть папку версии".to_string())
     })
     .await
     .map_err(|_| "Не удалось открыть папку версии".to_string())?
+}
+
+pub(crate) fn open_local_path(path: &Path) -> Result<(), String> {
+    let opener = match std::env::consts::OS {
+        "windows" => "explorer.exe",
+        "macos" => "open",
+        _ => "xdg-open",
+    };
+    std::process::Command::new(opener).arg(path).spawn().map(|_| ())
+        .map_err(|_| "Не удалось открыть файл или папку".to_string())
 }
 
 const COMMON_MODS: [(&str, &str, &str); 5] = [
@@ -324,20 +325,34 @@ pub(crate) fn common_mod_id(project: &str) -> Option<&'static str> {
 }
 
 pub(crate) fn installed_common_mods(instance: &Path) -> Vec<(&'static str, PathBuf)> {
+    common_mods(instance, false)
+}
+
+pub(crate) fn disabled_common_mods(instance: &Path) -> Vec<(&'static str, PathBuf)> {
+    common_mods(instance, true)
+}
+
+pub(crate) fn fabric_mod_metadata(path: &Path) -> Option<Value> {
+    let mut jar = zip::ZipArchive::new(fs::File::open(path).ok()?).ok()?;
+    let metadata = jar.by_name("fabric.mod.json").ok()?;
+    if metadata.size() > 256 * 1024 {
+        return None;
+    }
+    serde_json::from_reader(metadata.take(256 * 1024 + 1)).ok()
+}
+
+fn common_mods(instance: &Path, disabled: bool) -> Vec<(&'static str, PathBuf)> {
     let Ok(entries) = fs::read_dir(instance.join("mods")) else {
         return Vec::new();
     };
     entries.flatten().filter_map(|entry| {
         let path = entry.path();
-        if !path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("jar")) || !path.is_file() {
+        let name = path.file_name()?.to_str()?;
+        let jar_name = if disabled { name.strip_suffix(".disabled")? } else { name };
+        if !Path::new(jar_name).extension().is_some_and(|extension| extension.eq_ignore_ascii_case("jar")) || !path.is_file() {
             return None;
         }
-        let mut jar = zip::ZipArchive::new(fs::File::open(&path).ok()?).ok()?;
-        let metadata = jar.by_name("fabric.mod.json").ok()?;
-        if metadata.size() > 256 * 1024 {
-            return None;
-        }
-        let metadata: Value = serde_json::from_reader(metadata.take(256 * 1024 + 1)).ok()?;
+        let metadata = fabric_mod_metadata(&path)?;
         let id = COMMON_MODS.iter().find(|entry| metadata["id"] == entry.0)?.0;
         Some((id, path))
     }).collect()
@@ -345,7 +360,7 @@ pub(crate) fn installed_common_mods(instance: &Path) -> Vec<(&'static str, PathB
 
 fn installed_projects(instance: &Path) -> HashSet<String> {
     let mut installed = HashSet::new();
-    for (id, _) in installed_common_mods(instance) {
+    for (id, _) in installed_common_mods(instance).into_iter().chain(disabled_common_mods(instance)) {
         if let Some((_, modrinth, curseforge)) = COMMON_MODS.iter().find(|entry| entry.0 == id) {
             installed.insert(format!("modrinth:{modrinth}"));
             installed.insert(format!("curseforge:{curseforge}"));
@@ -362,7 +377,8 @@ fn installed_projects(instance: &Path) -> HashSet<String> {
             if !receipt.files.is_empty()
                 && receipt.files.iter().all(|file| {
                     safe_filename(&file.name).is_ok()
-                        && instance.join("mods").join(&file.name).is_file()
+                        && (instance.join("mods").join(&file.name).is_file()
+                            || instance.join("mods").join(format!("{}.disabled", file.name)).is_file())
                 })
             {
                 installed.extend(receipt.projects);

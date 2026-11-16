@@ -831,6 +831,7 @@ impl Installer<'_> {
             let _ = fs::remove_file(directory.join("zakoopt-2.1.2+26.3.jar"));
         }
         let installed = crate::catalog::installed_common_mods(game_dir);
+        let disabled = crate::catalog::disabled_common_mods(game_dir);
         let mods = game_dir.join("mods");
         fs::create_dir_all(&mods).map_err(io_error)?;
         let fabric = mods.join("gleam-fabric-api.jar");
@@ -846,7 +847,8 @@ impl Installer<'_> {
             let project = baseline.0.split('/').next().unwrap();
             let id = crate::catalog::common_mod_id(project).ok_or("game_metadata")?;
             let target = mods.join(format!("gleam-optimizer-{id}.jar"));
-            if install_optimizers && !external_mod(&installed, id, &target) {
+            if install_optimizers && !disabled.iter().any(|(disabled_id, _)| *disabled_id == id)
+                && !external_mod(&installed, id, &target) {
                 selected.push((baseline, target));
             } else {
                 remove_managed_mod(&installed, id, &target)?;
