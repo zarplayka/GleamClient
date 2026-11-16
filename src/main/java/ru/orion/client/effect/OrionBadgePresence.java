@@ -78,7 +78,7 @@ public final class OrionBadgePresence {
 
     public static void sendEmote(int id) {
         Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.isLocalServer()) return;
+        if (multiplayerConnection(client) == null) return;
         UUID uuid = client.player.getUUID();
         String name = client.getUser().getName();
         long currentGeneration = generation;
@@ -98,8 +98,13 @@ public final class OrionBadgePresence {
     }
     public static void requestRefresh() { refreshRequested.set(true); }
 
+    private static ClientPacketListener multiplayerConnection(Minecraft client) {
+        var server = client.getSingleplayerServer();
+        return client.player != null && (server == null || server.isPublished()) ? client.getConnection() : null;
+    }
+
     private static void tick(Minecraft client) {
-        ClientPacketListener current = client.player == null || client.isLocalServer() ? null : client.getConnection();
+        ClientPacketListener current = multiplayerConnection(client);
         if (connection != current) {
             connection = current;
             generation++;
