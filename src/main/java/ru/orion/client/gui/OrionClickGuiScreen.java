@@ -30,6 +30,7 @@ import ru.orion.client.config.OrionConfigLibrary;
 import ru.orion.client.config.OrionAccounts;
 import ru.orion.client.config.OrionVisualPresets.Profile;
 import ru.orion.client.hud.OrionGlassCompositor;
+import ru.orion.client.hud.OrionHitDistanceHud;
 import ru.orion.client.effect.OrionHitSound;
 import ru.orion.client.effect.OrionSkinLayers;
 import ru.orion.client.effect.OrionItemScroller;
@@ -3398,7 +3399,7 @@ public final class OrionClickGuiScreen extends Screen {
 
     private boolean hasSettings(Action action) {
         return switch (action) {
-            case RAGDOLL, FRESH_ANIMATIONS -> true;
+            case RAGDOLL, FRESH_ANIMATIONS, NAMETAGS, FREE_LOOK, HIT_DISTANCE, CLEAN_WATER -> true;
             case SKIN_LAYERS, ITEM_SCROLLER, EMOTES, CHAT_ANIMATION, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
                  FAKE_PREFIX, HEALTH_TAGS, ARMOR_INDICATOR,
                  HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW -> true;
@@ -3516,6 +3517,20 @@ public final class OrionClickGuiScreen extends Screen {
                     new ButtonSetting("Выбранная метка", "Сохранить", () -> saveWaypoint(true)),
                     new ButtonSetting("Удалить метку", "Удалить", this::deleteWaypoint)
             };
+            case CLEAN_WATER -> new Setting[]{
+                    new SliderSetting("Непрозрачность текстуры воды", OrionConfig.MIN_CLEAN_WATER_OPACITY, 100,
+                            () -> (float) config.getCleanWaterOpacity(), config::setCleanWaterOpacity, "%", true),
+                    new ToggleSetting("Убрать подводный туман", config::isCleanWaterClearFog, config::setCleanWaterClearFog)
+            };
+            case NAMETAGS -> new Setting[]{
+                    new ToggleSetting("Фон ника", config::isNametagsBackground, config::setNametagsBackground),
+                    new ToggleSetting("Тень текста", config::isNametagsShadow, config::setNametagsShadow)
+            };
+            case FREE_LOOK -> new Setting[]{
+                    new KeybindSetting("Клавиша обзора", OrionKeybinds::getFreeLookKey),
+                    new ToggleSetting("Переключение по нажатию", config::isFreeLookToggle, config::setFreeLookToggle)
+            };
+            case HIT_DISTANCE -> new Setting[]{hudStyleSetting("Оформление", OrionHitDistanceHud.ID)};
             case ZOOM -> new Setting[]{
                     new SliderSetting("Приближение", 1.5F, 12F, config::getZoomFactor, config::setZoomFactor, "x"),
                     new KeybindSetting("Клавиша приближения", OrionKeybinds::getZoomKey),
@@ -7081,6 +7096,10 @@ public final class OrionClickGuiScreen extends Screen {
             case WINGS -> configManager.setWingsEnabled(!config.isWingsEnabled());
             case HALO -> configManager.setHaloEnabled(!config.isHaloEnabled());
             case ZOOM -> configManager.setZoomEnabled(!config.isZoomEnabled());
+            case CLEAN_WATER -> configManager.setCleanWaterEnabled(!config.isCleanWaterEnabled());
+            case NAMETAGS -> configManager.setNametagsEnabled(!config.isNametagsEnabled());
+            case FREE_LOOK -> configManager.setFreeLookEnabled(!config.isFreeLookEnabled());
+            case HIT_DISTANCE -> configManager.setHitDistanceEnabled(!config.isHitDistanceEnabled());
             case CHAT_FILTER -> configManager.setChatFilterEnabled(!config.isChatFilterEnabled());
             case CHAT_ANIMATION -> { config.setChatAnimationEnabled(!config.isChatAnimationEnabled()); configManager.save(); }
             case CHAT_HIGHLIGHT -> configManager.setChatHighlightEnabled(!config.isChatHighlightEnabled());
@@ -7153,6 +7172,10 @@ public final class OrionClickGuiScreen extends Screen {
             case WINGS -> config.isWingsEnabled();
             case HALO -> config.isHaloEnabled();
             case ZOOM -> config.isZoomEnabled();
+            case CLEAN_WATER -> config.isCleanWaterEnabled();
+            case NAMETAGS -> config.isNametagsEnabled();
+            case FREE_LOOK -> config.isFreeLookEnabled();
+            case HIT_DISTANCE -> config.isHitDistanceEnabled();
             case CHAT_FILTER -> config.isChatFilterEnabled();
             case CHAT_ANIMATION -> config.isChatAnimationEnabled();
             case CHAT_HIGHLIGHT -> config.isChatHighlightEnabled();
@@ -7682,7 +7705,8 @@ public final class OrionClickGuiScreen extends Screen {
     private enum Action {
         MIRAGE, WINGS, HALO, SKIN_LAYERS, ITEM_SCROLLER, EMOTES, ZOOM, CHAT_FILTER, CHAT_ANIMATION, CHAT_HIGHLIGHT, WAYPOINTS, DEATH_POINT, TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, ITEM_PHYSICS, HIT_PARTICLES, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
         WORLD_PARTICLES, FOOTBALL, BASKETBALL, ANIMATIONS, ENCHANT_GLINT, INVENTORY_HUD, SELF_TAG, ARMOR_INDICATOR, LOCK_SLOT, PVP_SAFE, KEYSTROKES, NO_ANIMATIONS, SATURATION, CHAT_HISTORY, CHAT_TIME, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, NO_PARTICLES, NO_WEATHER, NO_FIRE, WORLD_CHANGER, HEALTH_TAGS, PROTECT_NAME, FAKE_PREFIX,
-        HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW, KILL_EFFECTS, RAGDOLL, FRESH_ANIMATIONS;
+        HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW, KILL_EFFECTS, RAGDOLL, FRESH_ANIMATIONS,
+        NAMETAGS, FREE_LOOK, HIT_DISTANCE, CLEAN_WATER;
 
         private static final Action[] VALUES = values();
     }
@@ -7721,11 +7745,14 @@ public final class OrionClickGuiScreen extends Screen {
         };
         private static final ModuleRow[] RENDER = {
                 new ModuleRow("Zoom", "Управляемое приближение камеры", Icon.EYE, Action.ZOOM),
+                new ModuleRow("FreeLook", "Поворачивает камеру независимо от игрока", Icon.EYE, Action.FREE_LOOK),
+                new ModuleRow("Nametags", "Настраивает фон и тень надписей над головой", Icon.PLAYER, Action.NAMETAGS),
                 new ModuleRow("RainbowColor", "Все цвета переливаются радугой", Icon.SUN, Action.RAINBOW),
                 new ModuleRow("Crosshair", "Свой прицел: рисуется в редакторе", Icon.CROSSHAIR, Action.CROSSHAIR),
                 new ModuleRow("FullBright", "Повышает яркость мира", Icon.SUN, Action.FULL_BRIGHT),
                 new ModuleRow("HUD", "Отображает интерфейс клиента", Icon.MONITOR, Action.HUD),
                 new ModuleRow("Keystrokes", "Показывает нажатые клавиши", Icon.GRID, Action.KEYSTROKES),
+                new ModuleRow("HitDistance", "Дистанция последнего полученного удара", Icon.CROSSHAIR, Action.HIT_DISTANCE),
                 new ModuleRow("InventoryHUD", "Содержимое инвентаря на экране", Icon.GRID, Action.INVENTORY_HUD),
                 new ModuleRow("Saturation", "Показывает насыщение и эффект еды", Icon.SUN, Action.SATURATION),
                 new ModuleRow("NoAnimations", "Фиксирует позы других игроков", Icon.PLAYER, Action.NO_ANIMATIONS),
@@ -7741,6 +7768,7 @@ public final class OrionClickGuiScreen extends Screen {
         private static final ModuleRow[] WORLD = {
                 new ModuleRow("Waypoints", "Метки мира и управление ими", Icon.RINGS, Action.WAYPOINTS),
                 new ModuleRow("DeathPoint", "Метка последнего места смерти", Icon.RINGS, Action.DEATH_POINT),
+                new ModuleRow("Cleanwater", "Прозрачность воды применяется после закрытия меню", Icon.EYE, Action.CLEAN_WATER),
                 new ModuleRow("NoWeather", "Отключает дождь и снег", Icon.CUBE, Action.NO_WEATHER),
                 new ModuleRow("WorldChanger", "Меняет цвет неба и тумана", Icon.EYE, Action.WORLD_CHANGER),
                 new ModuleRow("CustomTime", "Свое время суток", Icon.SUN, Action.CUSTOM_TIME),

@@ -15,5 +15,7 @@ public abstract class OrionHitSoundPacketMixin {
     private void orion$confirmedHit(ClientboundDamageEventPacket packet, CallbackInfo callback) {
         var sound = OrionClient.getHitSoundOrNull();
         if (sound != null) sound.onDamage(packet);
+        var distance = OrionClient.getHitDistanceHudOrNull();
+        if (distance != null) distance.onDamage(packet);
     }
 }

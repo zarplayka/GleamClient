@@ -1,4 +1,13 @@
 {
+  "Непрозрачность текстуры воды": "Deckkraft der Wassertextur",
+  "Убрать подводный туман": "Unterwassernebel entfernen",
+  "Прозрачность воды применяется после закрытия меню": "Die Wasserdeckkraft wird nach dem Schließen des Menüs übernommen",
+  "Фон ника": "Namenshintergrund",
+  "Тень текста": "Textschatten",
+  "Клавиша обзора": "FreeLook-Taste",
+  "Поворачивает камеру независимо от игрока": "Dreht die Kamera unabhängig vom Spieler",
+  "Настраивает фон и тень надписей над головой": "Ändert Hintergrund und Schatten der Namensschilder",
+  "Дистанция последнего полученного удара": "Distanz des letzten erlittenen Nahkampftreffers",
   "Устройства чата": "Chat-Geräte",
   "Подключить новый ПК": "Neuen PC verbinden",
   "Подключение нового ПК": "Neuen PC verbinden",

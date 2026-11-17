@@ -3,6 +3,7 @@ package ru.orion.client.config;
 import ru.orion.client.effect.OrionEmotes;
 
 public final class OrionConfig {
+    public static final int MIN_CLEAN_WATER_OPACITY = 45;
     private GleamLyricsSettings animatedLyrics = new GleamLyricsSettings();
 
     public GleamLyricsSettings getAnimatedLyrics() {
@@ -262,6 +263,17 @@ public final class OrionConfig {
     private GlintPreset[] savedGlints = new GlintPreset[GLINT_SLOTS];
     private boolean inventoryHudEnabled = false;
     private boolean selfTagEnabled = false;
+    private boolean nametagsEnabled;
+    private boolean cleanWaterEnabled;
+    private int cleanWaterOpacity = 65;
+    private boolean cleanWaterClearFog = true;
+    private boolean nametagsBackground = true;
+    private boolean nametagsShadow = true;
+    private boolean freeLookEnabled;
+    private boolean freeLookToggle;
+    private boolean hitDistanceEnabled;
+    private int hitDistanceX = -1;
+    private int hitDistanceY = -1;
     private boolean armorIndicatorEnabled = false;
     private IndicatorOptions armorIndicatorOptions = new IndicatorOptions(false);
     private boolean lockSlotEnabled = false;
@@ -687,6 +699,30 @@ public final class OrionConfig {
     public void setInventoryHudEnabled(boolean value) { inventoryHudEnabled = value; }
     public boolean isSelfTagEnabled() { return selfTagEnabled; }
     public void setSelfTagEnabled(boolean value) { selfTagEnabled = value; }
+    public boolean isCleanWaterEnabled() { return cleanWaterEnabled; }
+    public void setCleanWaterEnabled(boolean value) { cleanWaterEnabled = value; }
+    public int getCleanWaterOpacity() { return cleanWaterOpacity; }
+    public void setCleanWaterOpacity(float value) {
+        cleanWaterOpacity = Math.round(finiteClamp(value, MIN_CLEAN_WATER_OPACITY, 100F, 65F));
+    }
+    public boolean isCleanWaterClearFog() { return cleanWaterClearFog; }
+    public void setCleanWaterClearFog(boolean value) { cleanWaterClearFog = value; }
+    public boolean isNametagsEnabled() { return nametagsEnabled; }
+    public void setNametagsEnabled(boolean value) { nametagsEnabled = value; }
+    public boolean isNametagsBackground() { return nametagsBackground; }
+    public void setNametagsBackground(boolean value) { nametagsBackground = value; }
+    public boolean isNametagsShadow() { return nametagsShadow; }
+    public void setNametagsShadow(boolean value) { nametagsShadow = value; }
+    public boolean isFreeLookEnabled() { return freeLookEnabled; }
+    public void setFreeLookEnabled(boolean value) { freeLookEnabled = value; }
+    public boolean isFreeLookToggle() { return freeLookToggle; }
+    public void setFreeLookToggle(boolean value) { freeLookToggle = value; }
+    public boolean isHitDistanceEnabled() { return hitDistanceEnabled; }
+    public void setHitDistanceEnabled(boolean value) { hitDistanceEnabled = value; }
+    public int getHitDistanceX() { return hitDistanceX; }
+    public void setHitDistanceX(int value) { hitDistanceX = Math.max(-1, value); }
+    public int getHitDistanceY() { return hitDistanceY; }
+    public void setHitDistanceY(int value) { hitDistanceY = Math.max(-1, value); }
     public boolean isArmorIndicatorEnabled() { return armorIndicatorEnabled; }
     public void setArmorIndicatorEnabled(boolean value) { armorIndicatorEnabled = value; }
     public IndicatorOptions getArmorIndicatorOptions() { return armorIndicatorOptions; }
@@ -1479,6 +1515,9 @@ public final class OrionConfig {
         setSkinLayersDistance(skinLayersDistance);
         setItemScrollerLimit(itemScrollerLimit);
         setZoomFactor(zoomFactor);
+        setCleanWaterOpacity(cleanWaterOpacity);
+        setHitDistanceX(hitDistanceX);
+        setHitDistanceY(hitDistanceY);
         setZoomInTime(zoomInTime);
         setZoomOutTime(zoomOutTime);
         setZoomScrollStep(zoomScrollStep);

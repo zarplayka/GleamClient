@@ -15,6 +15,8 @@ import ru.orion.client.hud.OrionFoodSync;
 import ru.orion.client.hud.OrionFoodTooltip;
 import ru.orion.client.discord.OrionDiscordPresenceService;
 import ru.orion.client.effect.OrionBreadcrumbs;
+import ru.orion.client.effect.OrionCleanWater;
+import ru.orion.client.effect.OrionFreeLook;
 import ru.orion.client.effect.OrionChatHistory;
 import ru.orion.client.effect.OrionSelfTag;
 import ru.orion.client.effect.OrionArmorIndicator;
@@ -34,6 +36,7 @@ import ru.orion.client.effect.OrionTargetEsp;
 import ru.orion.client.effect.OrionWorldParticles;
 import ru.orion.client.hud.OrionBetterNearHud;
 import ru.orion.client.hud.OrionCustomCrosshair;
+import ru.orion.client.hud.OrionHitDistanceHud;
 import ru.orion.client.hud.OrionStatusHud;
 import ru.orion.client.hud.OrionHotbarLocks;
 import ru.orion.client.hud.OrionInventoryHud;
@@ -63,6 +66,7 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionHotbarLocks hotbarLocks = new OrionHotbarLocks(configManager);
     private final OrionInventoryHud inventoryHud = new OrionInventoryHud(configManager);
     private final OrionStatusHud statusHud = new OrionStatusHud(configManager);
+    private final OrionHitDistanceHud hitDistanceHud = new OrionHitDistanceHud(configManager);
     private final OrionKeybinds keybinds = new OrionKeybinds(configManager);
     private final OrionDiscordPresenceService discordPresenceService = new OrionDiscordPresenceService(configManager);
     private final OrionJumpCircleEffect jumpCircleEffect = new OrionJumpCircleEffect(configManager);
@@ -100,6 +104,7 @@ public final class OrionClient implements ClientModInitializer {
 
         OrionClickGuiScreen.prepareInBackground();
         configManager.load();
+        OrionCleanWater.register(configManager.getConfig());
         configManager.getConfigLibrary().catalog(0);
         basketball.register();
         football.register();
@@ -109,9 +114,11 @@ public final class OrionClient implements ClientModInitializer {
         waypoints.register();
         ru.orion.client.effect.OrionBadgePresence.register();
         statusHud.register();
+        hitDistanceHud.register();
         hotbarLocks.register();
         inventoryHud.register();
         keybinds.register();
+        OrionFreeLook.register();
         ru.orion.client.effect.OrionEmotes.register();
         OrionFoodSync.register();
         OrionFoodTooltip.register();
@@ -154,6 +161,10 @@ public final class OrionClient implements ClientModInitializer {
     }
 
     /** Safe accessor for mixins/early callers; returns null before init instead of throwing. */
+    public static OrionHitDistanceHud getHitDistanceHudOrNull() {
+        return instance == null ? null : instance.hitDistanceHud;
+    }
+
     public static OrionConfig getConfigOrNull() {
         OrionClient current = instance;
         return current == null ? null : current.configManager.getConfig();

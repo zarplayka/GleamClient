@@ -1,4 +1,13 @@
 {
+  "Непрозрачность текстуры воды": "Water texture opacity",
+  "Убрать подводный туман": "Clear underwater fog",
+  "Прозрачность воды применяется после закрытия меню": "Water opacity updates when you close this menu",
+  "Фон ника": "Name background",
+  "Тень текста": "Text shadow",
+  "Клавиша обзора": "FreeLook key",
+  "Поворачивает камеру независимо от игрока": "Rotates the camera independently of the player",
+  "Настраивает фон и тень надписей над головой": "Adjusts the background and shadow of overhead labels",
+  "Дистанция последнего полученного удара": "Distance of the last melee hit you took",
   "Устройства чата": "Chat devices",
   "Подключить новый ПК": "Link a new PC",
   "Подключение нового ПК": "Link a new PC",
