@@ -244,6 +244,7 @@ pub struct LaunchOptions {
     #[serde(default)]
     install_optimizers: bool,
     world_invite: Option<String>,
+    server_address: Option<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -1369,6 +1370,9 @@ impl Installation {
         if options.fullscreen {
             java.arg("--fullscreen");
         }
+        if let Some(address) = &options.server_address {
+            java.arg("--quickPlayMultiplayer").arg(address);
+        }
         Ok(java)
     }
 }
@@ -1757,6 +1761,8 @@ pub async fn launch_minecraft(
         || !(320..=8192).contains(&options.width)
         || !(240..=8192).contains(&options.height)
         || options.jvm_arguments.len() > 16384
+        || options.server_address.as_ref().is_some_and(|address|
+            options.world_invite.is_some() || crate::profile_content::server_address(address).is_none())
         || options.world_invite.as_ref().is_some_and(|id| id.len() != 32
             || !id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-'))
         || (options.fabric_loader != "auto" && !valid_loader(&options.fabric_loader))

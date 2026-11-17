@@ -153,6 +153,7 @@ fn main() {
             game::minecraft_running,
             game::minecraft_activity,
             profile_content::profile_content,
+            profile_content::profile_server_status,
             profile_content::profile_toggle_mod,
             profile_content::open_profile_content,
             profile_import::discover_profiles,

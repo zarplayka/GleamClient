@@ -64,8 +64,53 @@ struct InstalledFile {
     sha512: String,
 }
 
+#[derive(Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CatalogKind {
+    #[default]
+    Mods,
+    Resourcepacks,
+    Shaders,
+}
+
+impl CatalogKind {
+    fn folder(self) -> &'static str {
+        match self {
+            Self::Mods => "mods",
+            Self::Resourcepacks => "resourcepacks",
+            Self::Shaders => "shaderpacks",
+        }
+    }
+
+    fn project_type(self) -> &'static str {
+        match self {
+            Self::Mods => "mod",
+            Self::Resourcepacks => "resourcepack",
+            Self::Shaders => "shader",
+        }
+    }
+
+    fn loader(self) -> &'static str {
+        match self {
+            Self::Mods => "fabric",
+            Self::Resourcepacks => "minecraft",
+            Self::Shaders => "iris",
+        }
+    }
+
+    fn curse_class(self) -> &'static str {
+        match self {
+            Self::Mods => "6",
+            Self::Resourcepacks => "12",
+            Self::Shaders => "6552",
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize)]
 struct Receipt {
+    #[serde(default)]
+    kind: CatalogKind,
     projects: Vec<String>,
     files: Vec<InstalledFile>,
 }
@@ -358,12 +403,14 @@ fn common_mods(instance: &Path, disabled: bool) -> Vec<(&'static str, PathBuf)> 
     }).collect()
 }
 
-fn installed_projects(instance: &Path) -> HashSet<String> {
+fn installed_projects(instance: &Path, kind: CatalogKind) -> HashSet<String> {
     let mut installed = HashSet::new();
-    for (id, _) in installed_common_mods(instance).into_iter().chain(disabled_common_mods(instance)) {
-        if let Some((_, modrinth, curseforge)) = COMMON_MODS.iter().find(|entry| entry.0 == id) {
-            installed.insert(format!("modrinth:{modrinth}"));
-            installed.insert(format!("curseforge:{curseforge}"));
+    if kind == CatalogKind::Mods {
+        for (id, _) in installed_common_mods(instance).into_iter().chain(disabled_common_mods(instance)) {
+            if let Some((_, modrinth, curseforge)) = COMMON_MODS.iter().find(|entry| entry.0 == id) {
+                installed.insert(format!("modrinth:{modrinth}"));
+                installed.insert(format!("curseforge:{curseforge}"));
+            }
         }
     }
     let Ok(entries) = fs::read_dir(instance.join("catalog")) else {
@@ -374,11 +421,13 @@ fn installed_projects(instance: &Path) -> HashSet<String> {
             .ok()
             .and_then(|bytes| serde_json::from_slice::<Receipt>(&bytes).ok());
         if let Some(receipt) = receipt {
-            if !receipt.files.is_empty()
+            let folder = instance.join(kind.folder());
+            if receipt.kind == kind && !receipt.files.is_empty()
                 && receipt.files.iter().all(|file| {
-                    safe_filename(&file.name).is_ok()
-                        && (instance.join("mods").join(&file.name).is_file()
-                            || instance.join("mods").join(format!("{}.disabled", file.name)).is_file())
+                    safe_filename(&file.name, kind).is_ok()
+                        && (folder.join(&file.name).is_file()
+                            || (kind == CatalogKind::Mods
+                                && folder.join(format!("{}.disabled", file.name)).is_file()))
                 })
             {
                 installed.extend(receipt.projects);
@@ -399,7 +448,7 @@ fn renamed_optimizer_is_installed_in_both_catalogs() {
     jar.start_file("fabric.mod.json", zip::write::SimpleFileOptions::default()).unwrap();
     jar.write_all(br#"{"id":"sodium"}"#).unwrap();
     jar.finish().unwrap();
-    let installed = installed_projects(profile.path());
+    let installed = installed_projects(profile.path(), CatalogKind::Mods);
     assert!(installed.contains("modrinth:AANobbMI"));
     assert!(installed.contains("curseforge:394468"));
 }
@@ -415,9 +464,11 @@ pub async fn catalog_search(
     sort: String,
     offset: u32,
     category: Option<String>,
+    kind: Option<CatalogKind>,
 ) -> Result<Page, String> {
+    let kind = kind.unwrap_or_default();
     validate(&provider, &game_version)?;
-    let category = category.unwrap_or_default();
+    let category = if kind == CatalogKind::Mods { category.unwrap_or_default() } else { String::new() };
     let curse_category = match category.as_str() {
         "" => "0",
         "optimization" => "6814",
@@ -439,19 +490,21 @@ pub async fn catalog_search(
     let catalog = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let client = catalog.client.as_ref().as_ref().map_err(Clone::clone)?;
-        let installed = installed_projects(&crate::profile_import::instance(&app, &game_version, instance_id.as_deref())?);
+        let installed = installed_projects(
+            &crate::profile_import::instance(&app, &game_version, instance_id.as_deref())?, kind);
         let mut projects = Vec::new();
         let total;
         if provider == "modrinth" {
             let mut facets = vec![
-                vec!["project_type:mod".to_string()],
-                vec!["categories:fabric".to_string()],
+                vec![format!("project_type:{}", kind.project_type())],
                 vec![format!("versions:{game_version}")],
-                vec![
-                    "client_side:required".to_string(),
-                    "client_side:optional".to_string(),
-                ],
             ];
+            if kind == CatalogKind::Mods {
+                facets.push(vec!["categories:fabric".into()]);
+                facets.push(vec!["client_side:required".into(), "client_side:optional".into()]);
+            } else if kind == CatalogKind::Shaders {
+                facets.push(vec!["categories:iris".into()]);
+            }
             if !category.is_empty() {
                 facets.push(vec![format!("categories:{category}")]);
             }
@@ -468,7 +521,7 @@ pub async fn catalog_search(
                 validate_id(&provider, &id)?;
                 projects.push(Project {
                     installed: installed.contains(&format!("{provider}:{id}")),
-                    url: format!("https://modrinth.com/mod/{id}"),
+                    url: format!("https://modrinth.com/{}/{id}", kind.project_type()),
                     id,
                     title: text(hit, "title"),
                     description: text(hit, "description"),
@@ -485,8 +538,7 @@ pub async fn catalog_search(
             };
             let mut request = api(client, &app, &provider, "mods/search")?.query(&[
                 ("gameId", "432"),
-                ("classId", "6"),
-                ("modLoaderType", "4"),
+                ("classId", kind.curse_class()),
                 ("gameVersion", &game_version),
                 ("searchFilter", query.trim()),
                 ("sortField", order),
@@ -494,6 +546,9 @@ pub async fn catalog_search(
                 ("index", &offset.to_string()),
                 ("pageSize", &PAGE_SIZE.to_string()),
             ]);
+            if kind == CatalogKind::Mods {
+                request = request.query(&[("modLoaderType", "4")]);
+            }
             if !category.is_empty() {
                 request = request.query(&[("categoryId", curse_category)]);
             }
@@ -531,10 +586,11 @@ pub async fn catalog_search(
     .map_err(|_| "Не удалось выполнить поиск модов".to_string())?
 }
 
-fn safe_filename(name: &str) -> Result<(), String> {
+fn safe_filename(name: &str, kind: CatalogKind) -> Result<(), String> {
     if name.is_empty()
         || name.len() > 180
-        || !name.ends_with(".jar")
+        || !Path::new(name).extension().is_some_and(|extension|
+            extension.eq_ignore_ascii_case(if kind == CatalogKind::Mods { "jar" } else { "zip" }))
         || name
             .chars()
             .any(|ch| ch.is_control() || "\\/:*?\"<>|".contains(ch))
@@ -555,6 +611,7 @@ fn resolve(
     provider: &str,
     version: &str,
     root: &str,
+    kind: CatalogKind,
 ) -> Result<Vec<Artifact>, String> {
     let mut queue = vec![(root.to_string(), None::<String>)];
     let mut resolved = BTreeMap::new();
@@ -579,7 +636,7 @@ fn resolve(
             } else {
                 let versions = json_response(
                     api(client, app, provider, &format!("project/{project}/version"))?.query(&[
-                        ("loaders", json!(["fabric"]).to_string()),
+                        ("loaders", json!([kind.loader()]).to_string()),
                         ("game_versions", json!([version]).to_string()),
                         ("include_changelog", "false".into()),
                     ]),
@@ -588,7 +645,7 @@ fn resolve(
                     .as_array()
                     .and_then(|items| items.first())
                     .cloned()
-                    .ok_or("Для этой версии Minecraft нет совместимого Fabric-файла")?
+                    .ok_or("Для этой версии Minecraft нет совместимого файла")?
             };
             if text(&release, "project_id") != project
                 || !release["game_versions"]
@@ -596,11 +653,9 @@ fn resolve(
                     .is_some_and(|items| items.iter().any(|v| v == version))
                 || !release["loaders"]
                     .as_array()
-                    .is_some_and(|items| items.iter().any(|v| v == "fabric"))
+                    .is_some_and(|items| items.iter().any(|v| v == kind.loader()))
             {
-                return Err(
-                    "Зависимость не поддерживает выбранную версию Minecraft и Fabric".into(),
-                );
+                return Err("Файл или зависимость несовместимы с выбранной сборкой".into());
             }
             file_id = text(&release, "id");
             let files = release["files"].as_array().ok_or("В релизе нет файлов")?;
@@ -635,19 +690,25 @@ fn resolve(
                 }
             }
         } else {
-            let response = json_response(
-                api(client, app, provider, &format!("mods/{project}/files"))?.query(&[
-                    ("gameVersion", version),
-                    ("modLoaderType", "4"),
-                    ("pageSize", "1"),
-                ]),
-            )?;
+            if kind != CatalogKind::Mods {
+                let project = json_response(api(client, app, provider, &format!("mods/{project}"))?)?;
+                if project["data"]["classId"].as_u64().map(|id| id.to_string()).as_deref() != Some(kind.curse_class()) {
+                    return Err("Файл относится к другому разделу каталога".into());
+                }
+            }
+            let mut request = api(client, app, provider, &format!("mods/{project}/files"))?
+                .query(&[("gameVersion", version), ("pageSize", "1")]);
+            if kind == CatalogKind::Mods {
+                request = request.query(&[("modLoaderType", "4")]);
+            }
+            let response = json_response(request)?;
             let artifact = response["data"]
                 .as_array()
                 .and_then(|items| items.first())
-                .ok_or("Для этой версии Minecraft нет совместимого Fabric-файла")?;
+                .ok_or("Для этой версии Minecraft нет совместимого файла")?;
             if !artifact["gameVersions"].as_array().is_some_and(|items| {
-                items.iter().any(|v| v == version) && items.iter().any(|v| v == "Fabric")
+                items.iter().any(|v| v == version)
+                    && (kind != CatalogKind::Mods || items.iter().any(|v| v == "Fabric"))
             }) {
                 return Err("Файл не поддерживает выбранную версию Minecraft и Fabric".into());
             }
@@ -693,7 +754,7 @@ fn resolve(
                 }
             }
         }
-        safe_filename(&file.name)?;
+        safe_filename(&file.name, kind)?;
         let url = reqwest::Url::parse(&file.url).map_err(|_| "Некорректный адрес файла")?;
         let host = url.host_str().unwrap_or_default();
         let allowed = if provider == "modrinth" {
@@ -839,6 +900,48 @@ pub struct Installation {
     pub directory: String,
 }
 
+fn validate_pack(path: &Path, kind: CatalogKind) -> Result<(), String> {
+    let file = fs::File::open(path).map_err(io_error)?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|_| "Каталог вернул нечитаемый архив")?;
+    let compatible = match kind {
+        CatalogKind::Resourcepacks => zip.by_name("pack.mcmeta").is_ok_and(|file| file.is_file()),
+        CatalogKind::Shaders => zip.file_names().any(|name| {
+            let relative = name.strip_prefix("shaders/").or_else(||
+                name.split_once('/').and_then(|(_, path)| path.strip_prefix("shaders/")));
+            relative.is_some_and(|file| !file.is_empty() && !file.ends_with('/'))
+        }),
+        CatalogKind::Mods => false,
+    };
+    if compatible { Ok(()) } else { Err("Архив не подходит для выбранного раздела каталога".into()) }
+}
+
+#[cfg(test)]
+#[test]
+fn catalog_pack_receipts_use_their_own_folder() {
+    let root = tempfile::tempdir().unwrap();
+    let folder = root.path().join("resourcepacks");
+    let records = root.path().join("catalog");
+    fs::create_dir(&folder).unwrap();
+    fs::create_dir(&records).unwrap();
+    let file = folder.join("texture.zip");
+    let mut archive = zip::ZipWriter::new(fs::File::create(&file).unwrap());
+    archive.start_file("pack.mcmeta", zip::write::SimpleFileOptions::default()).unwrap();
+    archive.write_all(b"{}").unwrap();
+    archive.finish().unwrap();
+    assert!(validate_pack(&file, CatalogKind::Resourcepacks).is_ok());
+    assert!(validate_pack(&file, CatalogKind::Shaders).is_err());
+    let record = Receipt {
+        kind: CatalogKind::Resourcepacks,
+        projects: vec!["modrinth:texture".into()],
+        files: vec![InstalledFile { name: "texture.zip".into(), sha512: String::new() }],
+    };
+    fs::write(records.join("modrinth-texture.json"), serde_json::to_vec(&record).unwrap()).unwrap();
+    assert!(installed_projects(root.path(), CatalogKind::Resourcepacks).contains("modrinth:texture"));
+    assert!(!installed_projects(root.path(), CatalogKind::Mods).contains("modrinth:texture"));
+    fs::remove_file(file).unwrap();
+    assert!(installed_projects(root.path(), CatalogKind::Resourcepacks).is_empty());
+}
+
 #[tauri::command]
 pub async fn catalog_install(
     app: tauri::AppHandle,
@@ -847,7 +950,9 @@ pub async fn catalog_install(
     game_version: String,
     instance_id: Option<String>,
     project: String,
+    kind: Option<CatalogKind>,
 ) -> Result<Installation, String> {
+    let kind = kind.unwrap_or_default();
     validate(&provider, &game_version)?;
     validate_id(&provider, &project)?;
     let catalog = state.inner().clone();
@@ -868,7 +973,18 @@ pub async fn catalog_install(
         instance_lock
             .try_lock()
             .map_err(|_| "В другом окне лаунчера уже идёт установка для этой версии")?;
-        let mods = instance.join("mods");
+        #[cfg(windows)]
+        if kind == CatalogKind::Mods {
+            crate::game::check_storage_idle(&instance)
+                .map_err(|_| "Закрой Minecraft, чтобы установить моды")?;
+        }
+        let destination_folder = instance.join(kind.folder());
+        if fs::symlink_metadata(&destination_folder).is_ok()
+            && !crate::profile_content::metadata(&destination_folder)
+                .is_ok_and(|info| info.is_some_and(|info| info.is_dir()))
+        {
+            return Err("Папка содержимого сборки недоступна".into());
+        }
         let receipts = instance.join("catalog");
         let receipt_file = receipts.join(format!("{provider}-{project}.json"));
         emit_progress(
@@ -880,16 +996,16 @@ pub async fn catalog_install(
             0,
             0,
         );
-        let installed = installed_projects(&instance);
+        let installed = installed_projects(&instance, kind);
         if installed.contains(&format!("{provider}:{project}")) {
             return Ok(Installation {
                 count: 0,
-                directory: mods.to_string_lossy().into(),
+                directory: destination_folder.to_string_lossy().into(),
             });
         }
-        let mut artifacts = resolve(client, &app, &provider, &game_version, &project)?;
+        let mut artifacts = resolve(client, &app, &provider, &game_version, &project, kind)?;
         // A dependency already present in mods must not be installed a second time.
-        let common = installed_common_mods(&instance);
+        let common = if kind == CatalogKind::Mods { installed_common_mods(&instance) } else { Vec::new() };
         artifacts.retain(|file| {
             file.project == project || !COMMON_MODS.iter().any(|(id, modrinth, curseforge)| {
                 let project_id = if provider == "modrinth" { modrinth } else { curseforge };
@@ -899,7 +1015,7 @@ pub async fn catalog_install(
         if artifacts.iter().map(|file| file.size).sum::<u64>() > 512 * 1024 * 1024 {
             return Err("Слишком большой набор зависимостей".into());
         }
-        fs::create_dir_all(&mods).map_err(io_error)?;
+        fs::create_dir_all(&destination_folder).map_err(io_error)?;
         fs::create_dir_all(&receipts).map_err(io_error)?;
         let stage = tempfile::tempdir_in(&instance).map_err(io_error)?;
         let mut files = Vec::new();
@@ -915,11 +1031,11 @@ pub async fn catalog_install(
                 (index * 90 / artifact_count) as u32,
                 0,
             );
-            if !mods.join(&artifact.name).exists() {
-                for entry in fs::read_dir(&mods).map_err(io_error)? {
+            if !destination_folder.join(&artifact.name).exists() {
+                for entry in fs::read_dir(&destination_folder).map_err(io_error)? {
                     let entry = entry.map_err(io_error)?;
                     let name = entry.file_name().to_string_lossy().into_owned();
-                    if safe_filename(&name).is_ok()
+                    if safe_filename(&name, kind).is_ok()
                         && entry.metadata().map_err(io_error)?.len() == artifact.size
                         && file_hash(&entry.path(), artifact.algorithm)?
                             .eq_ignore_ascii_case(&artifact.hash)
@@ -932,15 +1048,15 @@ pub async fn catalog_install(
             if !names.insert(artifact.name.clone()) {
                 return Err("Зависимости используют одинаковые имена файлов".into());
             }
-            let destination = mods.join(&artifact.name);
+            let destination = destination_folder.join(&artifact.name);
             if destination.exists() {
                 if fs::metadata(&destination).map_err(io_error)?.len() != artifact.size
                     || !file_hash(&destination, artifact.algorithm)?
                         .eq_ignore_ascii_case(&artifact.hash)
                 {
                     return Err(format!(
-                        "В папке mods уже есть другой файл {}",
-                        artifact.name
+                        "В папке {} уже есть другой файл {}",
+                        kind.folder(), artifact.name
                     ));
                 }
             } else {
@@ -968,12 +1084,16 @@ pub async fn catalog_install(
             } else {
                 stage.path().join(&artifact.name)
             };
+            if kind != CatalogKind::Mods {
+                validate_pack(&source, kind)?;
+            }
             files.push(InstalledFile {
                 name: artifact.name.clone(),
                 sha512: file_hash(&source, "sha512")?,
             });
         }
         let receipt = Receipt {
+            kind,
             projects: artifacts
                 .iter()
                 .map(|file| format!("{provider}:{}", file.project))
@@ -994,7 +1114,7 @@ pub async fn catalog_install(
             for artifact in &artifacts {
                 let source = stage.path().join(&artifact.name);
                 if source.exists() {
-                    let destination = mods.join(&artifact.name);
+                    let destination = destination_folder.join(&artifact.name);
                     // Hard links publish a complete file and fail if another file already exists.
                     fs::hard_link(source, &destination).map_err(io_error)?;
                     written.push(destination);
@@ -1030,7 +1150,7 @@ pub async fn catalog_install(
         );
         Ok(Installation {
             count: artifacts.len(),
-            directory: mods.to_string_lossy().into(),
+            directory: destination_folder.to_string_lossy().into(),
         })
     })
     .await

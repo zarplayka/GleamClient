@@ -4,8 +4,10 @@ use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    io::{self, Read},
+    io::{self, Read, Write},
+    net::{IpAddr, TcpStream, ToSocketAddrs},
     path::{Component, Path, PathBuf},
+    time::{Duration, Instant},
 };
 
 const READ_ERROR: &str = "Не удалось прочитать содержимое сборки";
@@ -49,7 +51,7 @@ pub struct Entry {
     icon: Option<String>,
 }
 
-fn metadata(path: &Path) -> io::Result<Option<fs::Metadata>> {
+pub(crate) fn metadata(path: &Path) -> io::Result<Option<fs::Metadata>> {
     match fs::symlink_metadata(path) {
         Ok(value) => {
             if value.is_symlink() {
@@ -382,6 +384,273 @@ fn server_entries(instance: &Path) -> io::Result<Vec<Entry>> {
         .then(|| parse_servers(&input))
         .flatten()
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, READ_ERROR))
+}
+
+pub(crate) fn server_address(address: &str) -> Option<(&str, u16)> {
+    fn port(value: &str) -> Option<u16> {
+        value.parse::<u16>().ok().filter(|&port| port != 0)
+    }
+    if address.is_empty() || address.len() > 255 || address.trim() != address {
+        return None;
+    }
+    if let Some(address) = address.strip_prefix('[') {
+        let (host, suffix) = address.split_once(']')?;
+        host.parse::<std::net::Ipv6Addr>().ok()?;
+        return Some((host, if suffix.is_empty() { 25565 } else { port(suffix.strip_prefix(':')?)? }));
+    }
+    if address.parse::<IpAddr>().is_ok() {
+        return Some((address, 25565));
+    }
+    let (host, port) = match address.split_once(':') {
+        Some((host, suffix)) => (host, port(suffix)?),
+        None => (address, 25565),
+    };
+    let valid = host.trim_end_matches('.').split('.').all(|label| {
+        !label.is_empty() && label.len() <= 63
+            && label.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    });
+    valid.then_some((host, port))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerStatus {
+    ping_ms: u64,
+    motd: String,
+    version: String,
+    online: Option<u64>,
+    max: Option<u64>,
+    icon: Option<String>,
+}
+
+fn varint(output: &mut Vec<u8>, mut value: u32) {
+    while value >= 128 {
+        output.push(value as u8 | 0x80);
+        value >>= 7;
+    }
+    output.push(value as u8);
+}
+
+fn read_varint(input: &mut impl Read) -> io::Result<u32> {
+    let mut value = 0;
+    for shift in [0, 7, 14, 21, 28] {
+        let mut byte = [0];
+        input.read_exact(&mut byte)?;
+        if shift == 28 && byte[0] > 15 {
+            break;
+        }
+        value |= u32::from(byte[0] & 0x7f) << shift;
+        if byte[0] & 0x80 == 0 {
+            return Ok(value);
+        }
+    }
+    Err(io::ErrorKind::InvalidData.into())
+}
+
+fn plain_server_text(value: &serde_json::Value, output: &mut String, depth: u8) {
+    if depth > 12 || output.len() > 2048 {
+        return;
+    }
+    if let Some(text) = value.as_str() {
+        let mut chars = text.chars();
+        while let Some(ch) = chars.next() {
+            if ch == '§' {
+                chars.next();
+            } else if !ch.is_control() || ch == '\n' {
+                output.push(ch);
+                if output.len() > 2048 { break; }
+            }
+        }
+    } else if let Some(parts) = value.as_array() {
+        for part in parts {
+            plain_server_text(part, output, depth + 1);
+        }
+    } else if value.is_object() {
+        plain_server_text(&value["text"], output, depth + 1);
+        plain_server_text(&value["extra"], output, depth + 1);
+    }
+}
+
+struct StatusReader<'a>(&'a mut TcpStream, Instant);
+
+impl Read for StatusReader<'_> {
+    fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+        let remaining = self.1.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        self.0.set_read_timeout(Some(remaining))?;
+        self.0.read(bytes)
+    }
+}
+
+#[cfg(windows)]
+fn server_srv(host: &str) -> Option<(String, u16)> {
+    use std::ffi::c_void;
+    use std::ptr;
+
+    const SRV: u16 = 33;
+    #[repr(C)]
+    struct Record {
+        next: *mut Record,
+        name: *mut u16,
+        kind: u16,
+        data_length: u16,
+        flags: u32,
+        ttl: u32,
+        reserved: u32,
+    }
+    #[repr(C)]
+    struct SrvRecord {
+        header: Record,
+        target: *const u16,
+        priority: u16,
+        weight: u16,
+        port: u16,
+        pad: u16,
+    }
+    #[link(name = "dnsapi")]
+    extern "system" {
+        fn DnsQuery_W(name: *const u16, kind: u16, flags: u32, extra: *mut c_void,
+                      records: *mut *mut Record, reserved: *mut *mut c_void) -> u32;
+        fn DnsFree(records: *mut c_void, free_type: i32);
+    }
+
+    let query: Vec<_> = format!("_minecraft._tcp.{host}").encode_utf16().chain([0]).collect();
+    let mut records = ptr::null_mut();
+    let mut best = None;
+    // DNSAPI owns the linked list and the NUL-terminated wide strings until DnsFree.
+    unsafe {
+        let status = DnsQuery_W(query.as_ptr(), SRV, 0, ptr::null_mut(), &mut records, ptr::null_mut());
+        let mut current = records;
+        while status == 0 && !current.is_null() {
+            let record = &*current;
+            let srv = current.cast::<SrvRecord>();
+            current = record.next;
+            if record.kind != SRV || usize::from(record.data_length) < std::mem::size_of::<SrvRecord>() - std::mem::size_of::<Record>() {
+                continue;
+            }
+            let record = &*srv;
+            if record.target.is_null() || record.port == 0 {
+                continue;
+            }
+            let order = (record.priority, std::cmp::Reverse(record.weight));
+            if best.as_ref().is_none_or(|(previous, _)| order < *previous) {
+                let length = (0..=255).find(|&index| *record.target.add(index) == 0);
+                if let Some(length) = length {
+                    let target = String::from_utf16_lossy(std::slice::from_raw_parts(record.target, length));
+                    if server_address(&target).is_some() {
+                        best = Some((order, (target, record.port)));
+                    }
+                }
+            }
+        }
+        if !records.is_null() {
+            DnsFree(records.cast(), 1); // DnsFreeRecordList
+        }
+    }
+    best.map(|(_, target)| target)
+}
+
+fn server_status(address: &str) -> Option<ServerStatus> {
+    let (host, port) = server_address(address)?;
+    #[cfg(windows)]
+    let srv = (port == 25565 && host.parse::<IpAddr>().is_err()).then(|| server_srv(host)).flatten();
+    #[cfg(not(windows))]
+    let srv: Option<(String, u16)> = None;
+    let endpoint = srv.as_ref().map_or((host, port), |(target, port)| (target.as_str(), *port));
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs(3);
+    let mut connection = endpoint.to_socket_addrs().ok()?.take(6).find_map(|address| {
+        let remaining = deadline.checked_duration_since(Instant::now())?;
+        TcpStream::connect_timeout(&address, remaining.min(Duration::from_millis(800))).ok()
+    })?;
+    connection.set_write_timeout(Some(Duration::from_secs(1))).ok()?;
+    let mut handshake = vec![0];
+    // -1 requests a status response independent of the selected profile's protocol version.
+    varint(&mut handshake, u32::MAX);
+    varint(&mut handshake, host.len() as u32);
+    handshake.extend(host.as_bytes());
+    handshake.extend(port.to_be_bytes());
+    handshake.push(1);
+    let mut request = Vec::new();
+    varint(&mut request, handshake.len() as u32);
+    request.extend(handshake);
+    request.extend([1, 0]);
+    connection.write_all(&request).ok()?;
+    let mut reader = StatusReader(&mut connection, deadline);
+    let size = read_varint(&mut reader).ok()? as usize;
+    if !(2..=128 * 1024).contains(&size) { return None; }
+    let mut packet = vec![0; size];
+    reader.read_exact(&mut packet).ok()?;
+    let mut payload = packet.as_slice();
+    if read_varint(&mut payload).ok()? != 0 { return None; }
+    if read_varint(&mut payload).ok()? as usize != payload.len() { return None; }
+    let reply: serde_json::Value = serde_json::from_slice(payload).ok()?;
+    if !reply.is_object() { return None; }
+    let mut ping = started.elapsed();
+    let sent = Instant::now();
+    let ping_packet = [9, 1, 0, 0, 0, 0, 0, 0, 0, 1];
+    if connection.write_all(&ping_packet).is_ok() {
+        let mut pong = [0; 10];
+        if StatusReader(&mut connection, deadline.min(sent + Duration::from_millis(700)))
+            .read_exact(&mut pong).is_ok() && pong == ping_packet
+        {
+            ping = sent.elapsed();
+        }
+    }
+    let mut motd = String::new();
+    plain_server_text(&reply["description"], &mut motd, 0);
+    let icon = reply["favicon"].as_str().filter(|icon| {
+        icon.len() <= 98_304 && icon.starts_with("data:image/png;base64,iVBORw0KGgo")
+    }).map(str::to_owned);
+    Some(ServerStatus {
+        ping_ms: (ping.as_millis() as u64).max(1),
+        motd: motd.trim().into(),
+        version: reply["version"]["name"].as_str().unwrap_or_default().chars().take(160).collect(),
+        online: reply["players"]["online"].as_u64(),
+        max: reply["players"]["max"].as_u64(),
+        icon,
+    })
+}
+
+#[tauri::command]
+pub async fn profile_server_status(address: String) -> Option<ServerStatus> {
+    tauri::async_runtime::spawn_blocking(move || server_status(&address)).await.ok().flatten()
+}
+
+#[cfg(test)]
+#[test]
+fn status_and_latency_are_read_from_the_minecraft_server() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap().to_string();
+    let worker = std::thread::spawn(move || {
+        let (mut client, _) = listener.accept().unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        let handshake_size = read_varint(&mut client).unwrap() as usize;
+        let mut handshake_and_request = vec![0; handshake_size + 2];
+        client.read_exact(&mut handshake_and_request).unwrap();
+        assert_eq!(handshake_and_request[handshake_size..], [1, 0]);
+        let status = br#"{"version":{"name":"Velocity"},"players":{"online":19,"max":100},"description":{"text":"Welcome ","extra":[{"text":"to Gleam"}]}}"#;
+        let mut payload = vec![0];
+        varint(&mut payload, status.len() as u32);
+        payload.extend(status);
+        let mut response = Vec::new();
+        varint(&mut response, payload.len() as u32);
+        response.extend(payload);
+        client.write_all(&response).unwrap();
+        let mut ping = [0; 10];
+        client.read_exact(&mut ping).unwrap();
+        client.write_all(&ping).unwrap();
+    });
+    let status = server_status(&address).unwrap();
+    worker.join().unwrap();
+    assert_eq!(status.motd, "Welcome to Gleam");
+    assert_eq!(status.version, "Velocity");
+    assert_eq!((status.online, status.max), (Some(19), Some(100)));
+    assert!(status.ping_ms >= 1);
+    assert_eq!(server_address("[::1]:25566"), Some(("::1", 25566)));
+    assert!(server_address("https://example.com").is_none());
 }
 
 #[tauri::command]
