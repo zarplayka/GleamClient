@@ -309,7 +309,12 @@ public final class OrionConfig {
         hudElementGlass = values == null ? new java.util.HashMap<>() : new java.util.HashMap<>(values);
     }
     public boolean isHudElementGlass(String id) {
-        return hudElementGlass == null || !Boolean.FALSE.equals(hudElementGlass.get(id));
+        if (hudElementGlass == null) return true;
+        Boolean glass = hudElementGlass.get(id);
+        if (glass == null && ru.orion.client.hud.OrionHitDistanceHud.ID.equals(id)) {
+            glass = hudElementGlass.get("hud_better_near");
+        }
+        return !Boolean.FALSE.equals(glass);
     }
     public void setHudElementGlass(String id, boolean glass) {
         if (hudElementGlass == null) hudElementGlass = new java.util.HashMap<>();

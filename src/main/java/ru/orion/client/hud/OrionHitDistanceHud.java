@@ -18,8 +18,8 @@ import java.util.Locale;
 
 public final class OrionHitDistanceHud {
     public static final String ID = "hit_distance";
-    private static final int WIDTH = 110;
-    private static final int HEIGHT = 21;
+    private static final int WIDTH = 116;
+    private static final int HEIGHT = 35;
 
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView(ID);
@@ -53,7 +53,7 @@ public final class OrionHitDistanceHud {
 
         // The packet identifies the attacker but does not carry the server's hit position.
         double distance = Math.sqrt(client.player.getBoundingBox().distanceToSqr(attacker.getEyePosition()));
-        lastDistance = String.format(Locale.ROOT, "%.2f m", distance);
+        lastDistance = String.format(Locale.ROOT, "%.2f", distance);
         victim = client.player;
         level = client.level;
     }
@@ -77,9 +77,12 @@ public final class OrionHitDistanceHud {
         String value = lastDistance == null ? "—" : lastDistance;
         if (!value.equals(shownDistance)) {
             scene = new OrionHudView.Scene(WIDTH, HEIGHT);
-            scene.panel(0, 0, WIDTH, HEIGHT, 5);
-            scene.label("HitDistance", 7, 0, 58, HEIGHT, 8.5F, "var(--muted)", "left", false);
-            scene.label(value, 65, 0, 38, HEIGHT, 9F, "var(--text)", "right", true);
+            scene.panel(0, 0, WIDTH, HEIGHT, 7);
+            scene.icon("M3 10h14M3 7v6m14-6v6M6 8v4m8-4v4", 7, 5, 11, "var(--accent)", false);
+            scene.label("HitDistance", 21, 2, 88, 17, 8.5F, "var(--text)", "left", true);
+            scene.divider(7, 19, WIDTH - 14);
+            scene.label(value, 8, 21, WIDTH - 27, 12, 8F, "var(--text)", "right", true);
+            if (lastDistance != null) scene.label("m", WIDTH - 16, 21, 8, 12, 6.5F, "var(--muted)", "left", false);
             shownDistance = value;
         }
 
@@ -89,12 +92,22 @@ public final class OrionHitDistanceHud {
         int h = Math.max(1, Math.round(HEIGHT * fit));
         int x = Math.clamp(config.getHitDistanceX() < 0 ? context.guiWidth() - w - 8 : config.getHitDistanceX(),
                 0, context.guiWidth() - w);
-        int y = Math.clamp(config.getHitDistanceY() < 0 ? context.guiHeight() / 2 + 30 : config.getHitDistanceY(),
+        int y = Math.clamp(config.getHitDistanceY() < 0 ? 22 : config.getHitDistanceY(),
                 0, context.guiHeight() - h);
-        var position = drag.update(context, x, y, w, h, manager, (nx, ny) -> {
-            config.setHitDistanceX(nx);
-            config.setHitDistanceY(ny);
+        var available = drag.available(context, x, y, w, h);
+        if (available == null) {
+            drag.cancel(manager);
+            return;
+        }
+        var requested = drag.update(context, available.x(), available.y(), w, h, manager, (nx, ny) -> {
+            var safe = drag.available(context, nx, ny, w, h);
+            if (safe == null) return;
+            config.setHitDistanceX(safe.x());
+            config.setHitDistanceY(safe.y());
         });
+        var position = drag.available(context, requested.x(), requested.y(), w, h);
+        if (position == null) position = available;
+        drag.trackPosition(position, w, h);
         view.draw(context, scene, position.x(), position.y(), w, h);
     }
 }

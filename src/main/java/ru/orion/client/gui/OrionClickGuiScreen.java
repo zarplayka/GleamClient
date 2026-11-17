@@ -7768,7 +7768,7 @@ public final class OrionClickGuiScreen extends Screen {
         private static final ModuleRow[] WORLD = {
                 new ModuleRow("Waypoints", "Метки мира и управление ими", Icon.RINGS, Action.WAYPOINTS),
                 new ModuleRow("DeathPoint", "Метка последнего места смерти", Icon.RINGS, Action.DEATH_POINT),
-                new ModuleRow("Cleanwater", "Прозрачность воды применяется после закрытия меню", Icon.EYE, Action.CLEAN_WATER),
+                new ModuleRow("Cleanwater", "Меняет прозрачность воды и убирает подводный туман", Icon.EYE, Action.CLEAN_WATER),
                 new ModuleRow("NoWeather", "Отключает дождь и снег", Icon.CUBE, Action.NO_WEATHER),
                 new ModuleRow("WorldChanger", "Меняет цвет неба и тумана", Icon.EYE, Action.WORLD_CHANGER),
                 new ModuleRow("CustomTime", "Свое время суток", Icon.SUN, Action.CUSTOM_TIME),

@@ -29,6 +29,7 @@ public final class OrionScoreboardGlass {
 
     public void endFrame() {
         if (!drawn) {
+            OrionHudDrag.forget("scoreboard");
             release();
         }
     }
@@ -51,19 +52,21 @@ public final class OrionScoreboardGlass {
     }
 
     public void header(GuiGraphicsExtractor context, int x0, int y0, int x1, int y1, int color) {
-        if (!active) {
-            context.fill(x0, y0, x1, y1, color);
-            return;
-        }
         headerX0 = x0;
         headerY0 = y0;
         headerX1 = x1;
         headerY1 = y1;
         headerColor = color;
+        if (!active) context.fill(x0, y0, x1, y1, color);
     }
 
     public void body(GuiGraphicsExtractor context, int x0, int y0, int x1, int y1, int color) {
         if (!active) {
+            int left = Math.min(headerX0, x0);
+            int top = Math.min(headerY0, y0);
+            OrionHudDrag.observe("scoreboard", left, top, Math.max(headerX1, x1) - left, Math.max(headerY1, y1) - top);
+            drawn = true;
+            release();
             context.fill(x0, y0, x1, y1, color);
             return;
         }
@@ -78,6 +81,7 @@ public final class OrionScoreboardGlass {
             context.fill(x0, y0, x1, y1, color);
             return;
         }
+        OrionHudDrag.observe("scoreboard", left - PAD_X, top, width, height);
         if (scene == null || width != cachedWidth || height != cachedHeight) {
             scene = new OrionHudView.Scene(width, height);
             scene.panel(0, 0, width, height, PANEL_ARC / 2);

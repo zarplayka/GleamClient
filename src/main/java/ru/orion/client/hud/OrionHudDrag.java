@@ -11,6 +11,7 @@ import net.minecraft.util.Mth;
 import ru.orion.client.config.OrionConfigManager;
 
 import java.util.function.BiConsumer;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -25,9 +26,14 @@ public final class OrionHudDrag {
     private static final OrionHudView HANDLE = new OrionHudView("hud_resize_handles");
     private static OrionHudDrag owner;
     private static final Map<OrionHudDrag, Bounds> REGIONS = new LinkedHashMap<>();
+    private static final Map<String, Bounds> FIXED_REGIONS = new LinkedHashMap<>();
     private record Bounds(int x, int y, int w, int h, long seen) {
         boolean contains(double mx, double my) {
             return System.nanoTime() - seen < 500_000_000L && mx >= x && mx <= x+w && my >= y && my <= y+h;
+        }
+        boolean overlaps(int left, int top, int width, int height, int gap) {
+            return left < x + w + gap && x - gap < left + width
+                    && top < y + h + gap && y - gap < top + height;
         }
     }
     private boolean wasDown, dragging, moved, justDragged, resizing;
@@ -35,6 +41,51 @@ public final class OrionHudDrag {
     private int initialWidth, initialHeight, anchorX, anchorY;
     private float initialScale;
     public record Position(int x,int y) { }
+
+    public static void observe(String id, int x, int y, int width, int height) {
+        if (width > 0 && height > 0) FIXED_REGIONS.put(id, new Bounds(x, y, width, height, System.nanoTime()));
+    }
+
+    public static void forget(String id) { FIXED_REGIONS.remove(id); }
+
+    Position available(GuiGraphicsExtractor context, int x, int y, int width, int height) {
+        long now = System.nanoTime();
+        var occupied = new ArrayList<Bounds>();
+        for (var entry : REGIONS.entrySet()) {
+            if (entry.getKey() != this && now - entry.getValue().seen < 500_000_000L) occupied.add(entry.getValue());
+        }
+        for (var bounds : FIXED_REGIONS.values()) {
+            if (now - bounds.seen < 500_000_000L) occupied.add(bounds);
+        }
+        int gap = 4;
+        if (occupied.stream().noneMatch(b -> b.overlaps(x, y, width, height, gap))) return new Position(x, y);
+        int maxX = context.guiWidth() - width, maxY = context.guiHeight() - height;
+        var xs = new ArrayList<>(java.util.List.of(x, 0, maxX));
+        var ys = new ArrayList<>(java.util.List.of(y, 0, maxY));
+        for (var bounds : occupied) {
+            xs.add(Math.clamp(bounds.x - width - gap, 0, maxX));
+            xs.add(Math.clamp(bounds.x + bounds.w + gap, 0, maxX));
+            ys.add(Math.clamp(bounds.y - height - gap, 0, maxY));
+            ys.add(Math.clamp(bounds.y + bounds.h + gap, 0, maxY));
+        }
+        Position nearest = null;
+        int shortest = Integer.MAX_VALUE;
+        for (int left : xs) {
+            for (int top : ys) {
+                int distance = Math.abs(left - x) + Math.abs(top - y);
+                if (distance >= shortest) continue;
+                if (occupied.stream().noneMatch(b -> b.overlaps(left, top, width, height, gap))) {
+                    nearest = new Position(left, top);
+                    shortest = distance;
+                }
+            }
+        }
+        return nearest;
+    }
+
+    void trackPosition(Position position, int width, int height) {
+        REGIONS.put(this, new Bounds(position.x, position.y, width, height, System.nanoTime()));
+    }
     public Position update(GuiGraphicsExtractor context,int x,int y,int w,int h,OrionConfigManager manager,BiConsumer<Integer,Integer> setPosition) {
         return update(context, x, y, w, h, manager, setPosition, true);
     }

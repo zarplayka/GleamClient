@@ -23,6 +23,7 @@ import ru.orion.client.effect.OrionNameProtect;
 import ru.orion.client.gui.OrionClickGuiScreen;
 import ru.orion.client.gui.OrionGuiLanguage;
 import ru.orion.client.gui.OrionLumenView;
+import ru.orion.client.hud.OrionHudDrag;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -170,6 +171,11 @@ public final class OrionMediaPlayerHud {
             renderedAt = System.nanoTime();
         }
         receive();
+        if (bounds != null) {
+            float scale = window.getGuiScale();
+            OrionHudDrag.observe("island", (int) (bounds.x / scale), (int) (bounds.y / scale),
+                    (int) Math.ceil(bounds.width / scale), (int) Math.ceil(bounds.height / scale));
+        }
     }
 
     private JsonObject labels() {
@@ -230,6 +236,8 @@ public final class OrionMediaPlayerHud {
             case "TOP_RIGHT" -> screenWidth - scaledWidth - 5;
             default -> (screenWidth - scaledWidth) / 2;
         };
+        OrionHudDrag.observe("island", Math.clamp(x, 0, Math.max(0, screenWidth - scaledWidth)), 0,
+                scaledWidth, (int) Math.ceil((track.isBlank() ? 17 : 30) * scale));
         var pose = graphics.pose();
         pose.pushMatrix();
         try {
@@ -316,6 +324,7 @@ public final class OrionMediaPlayerHud {
     }
 
     private void dispose() {
+        OrionHudDrag.forget("island");
         view.dispose();
         previous = null;
         bounds = null;

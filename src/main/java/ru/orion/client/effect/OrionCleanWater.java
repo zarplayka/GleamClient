@@ -1,38 +1,21 @@
 package ru.orion.client.effect;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.resources.Identifier;
-import org.slf4j.LoggerFactory;
-import ru.orion.client.GleamMinecraft;
 import ru.orion.client.OrionClient;
-import ru.orion.client.config.OrionConfig;
-import ru.orion.client.gui.OrionClickGuiScreen;
 
-import java.util.concurrent.CompletableFuture;
+import java.util.List;
 
 public final class OrionCleanWater {
-    private static volatile int textureOpacity = 100;
-    private static CompletableFuture<Void> reload;
+    public static final List<Identifier> SPRITES = List.of(
+            Identifier.withDefaultNamespace("block/water_still"),
+            Identifier.withDefaultNamespace("block/water_flow"),
+            Identifier.withDefaultNamespace("block/water_overlay"));
 
     private OrionCleanWater() {}
 
-    public static void register(OrionConfig config) {
-        textureOpacity = effectiveOpacity(config);
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            int desired = effectiveOpacity(OrionClient.getConfigOrNull());
-            if (desired == textureOpacity || GleamMinecraft.screen(client) instanceof OrionClickGuiScreen
-                    || GleamMinecraft.overlay(client) != null || reload != null && !reload.isDone()) return;
-            textureOpacity = desired;
-            reload = client.reloadResourcePacks();
-            reload.exceptionally(error -> {
-                LoggerFactory.getLogger(OrionClient.MOD_ID).warn("Could not reload Cleanwater textures", error);
-                return null;
-            });
-        });
-    }
-
-    private static int effectiveOpacity(OrionConfig config) {
+    public static int opacity() {
+        var config = OrionClient.getConfigOrNull();
         return config != null && config.isCleanWaterEnabled() ? config.getCleanWaterOpacity() : 100;
     }
 
@@ -41,19 +24,30 @@ public final class OrionCleanWater {
         return config != null && config.isCleanWaterEnabled() && config.isCleanWaterClearFog();
     }
 
-    public static void adjustSprite(Identifier id, NativeImage image) {
-        int opacity = textureOpacity;
-        if (opacity == 100 || !id.getNamespace().equals("minecraft")) return;
-        switch (id.getPath()) {
-            case "block/water_still", "block/water_flow", "block/water_overlay" -> {
-                for (int y = 0; y < image.getHeight(); y++) {
-                    for (int x = 0; x < image.getWidth(); x++) {
-                        int pixel = image.getPixel(x, y);
-                        int alpha = pixel >>> 24;
-                        if (alpha == 0) continue;
-                        int adjusted = Math.max(1, (alpha * opacity + 50) / 100);
-                        image.setPixel(x, y, (pixel & 0xFFFFFF) | (adjusted << 24));
-                    }
+    public static byte[][] captureAlpha(NativeImage[] mipmaps) {
+        byte[][] original = new byte[mipmaps.length][];
+        for (int mip = 0; mip < mipmaps.length; mip++) {
+            NativeImage frame = mipmaps[mip];
+            byte[] alpha = new byte[frame.getWidth() * frame.getHeight()];
+            for (int y = 0, index = 0; y < frame.getHeight(); y++) {
+                for (int x = 0; x < frame.getWidth(); x++) {
+                    alpha[index++] = (byte) (frame.getPixel(x, y) >>> 24);
+                }
+            }
+            original[mip] = alpha;
+        }
+        return original;
+    }
+
+    public static void adjustAlpha(NativeImage[] mipmaps, byte[][] original, int opacity) {
+        for (int mip = 0; mip < mipmaps.length; mip++) {
+            NativeImage frame = mipmaps[mip];
+            byte[] alpha = original[mip];
+            for (int y = 0, index = 0; y < frame.getHeight(); y++) {
+                for (int x = 0; x < frame.getWidth(); x++) {
+                    int base = Byte.toUnsignedInt(alpha[index++]);
+                    int adjusted = base == 0 ? 0 : Math.max(1, (base * opacity + 50) / 100);
+                    frame.setPixel(x, y, (frame.getPixel(x, y) & 0xFFFFFF) | (adjusted << 24));
                 }
             }
         }

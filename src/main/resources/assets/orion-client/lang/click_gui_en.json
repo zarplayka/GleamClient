@@ -1,7 +1,7 @@
 {
   "Непрозрачность текстуры воды": "Water texture opacity",
   "Убрать подводный туман": "Clear underwater fog",
-  "Прозрачность воды применяется после закрытия меню": "Water opacity updates when you close this menu",
+  "Меняет прозрачность воды и убирает подводный туман": "Adjusts water opacity and clears underwater fog",
   "Фон ника": "Name background",
   "Тень текста": "Text shadow",
   "Клавиша обзора": "FreeLook key",

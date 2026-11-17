@@ -15,7 +15,6 @@ import ru.orion.client.hud.OrionFoodSync;
 import ru.orion.client.hud.OrionFoodTooltip;
 import ru.orion.client.discord.OrionDiscordPresenceService;
 import ru.orion.client.effect.OrionBreadcrumbs;
-import ru.orion.client.effect.OrionCleanWater;
 import ru.orion.client.effect.OrionFreeLook;
 import ru.orion.client.effect.OrionChatHistory;
 import ru.orion.client.effect.OrionSelfTag;
@@ -104,7 +103,6 @@ public final class OrionClient implements ClientModInitializer {
 
         OrionClickGuiScreen.prepareInBackground();
         configManager.load();
-        OrionCleanWater.register(configManager.getConfig());
         configManager.getConfigLibrary().catalog(0);
         basketball.register();
         football.register();
@@ -114,7 +112,6 @@ public final class OrionClient implements ClientModInitializer {
         waypoints.register();
         ru.orion.client.effect.OrionBadgePresence.register();
         statusHud.register();
-        hitDistanceHud.register();
         hotbarLocks.register();
         inventoryHud.register();
         keybinds.register();
@@ -148,6 +145,7 @@ public final class OrionClient implements ClientModInitializer {
         hitSound.register();
         customCrosshair.register();
         betterNearHud.register();
+        hitDistanceHud.register();
         fakeBanCommand.register();
         ru.orion.client.hud.OrionHudDrag.registerOverlay();
     }
