@@ -1,6 +1,6 @@
 {
   "productName": "Gleam Launcher Setup",
-  "version": "0.1.53",
+  "version": "0.1.54",
   "identifier": "xyz.gleamclient.setup",
   "build": {
     "frontendDist": "../../build/gleam-installer/ui"

@@ -31,8 +31,18 @@ public abstract class GleamLegacyFogMixin {
         color.lerp(tint, config.getWorldChangerFogStrength()/100F);
     }
     @Inject(method="setupFog", at=@At(value="INVOKE", target="Lcom/mojang/blaze3d/systems/RenderSystem;getDevice()Lcom/mojang/blaze3d/systems/GpuDevice;"))
-    private void gleam$distance(CallbackInfoReturnable<Vector4f> callback, @com.llamalad7.mixinextras.sugar.Local FogData fog) {
+    private void gleam$distance(Camera camera, int distance, net.minecraft.client.DeltaTracker ticks, float darken,
+                                ClientLevel level, CallbackInfoReturnable<Vector4f> callback,
+                                @com.llamalad7.mixinextras.sugar.Local FogData fog) {
         var config = OrionClient.getConfigOrNull();
+        FogType fluid = camera.entity().isInWater() ? FogType.WATER : camera.getFluidInCamera();
+        if ((fluid == FogType.NONE || fluid == FogType.ATMOSPHERIC)
+                && (!(camera.entity() instanceof LivingEntity living)
+                || !living.hasEffect(MobEffects.BLINDNESS) && !living.hasEffect(MobEffects.DARKNESS))
+                && ru.orion.client.effect.OrionNoRender.hides(config, ru.orion.client.effect.OrionNoRender.Option.FOG)) {
+            fog.environmentalStart = fog.environmentalEnd = fog.skyEnd = fog.cloudEnd = Float.MAX_VALUE;
+            return;
+        }
         if (config == null || !config.isWorldChangerEnabled() || !config.isWorldChangerFogEnabled()) return;
         int configured = config.getWorldChangerFogDistance();
         if (configured > 0 && fog.renderDistanceEnd > 1F) {

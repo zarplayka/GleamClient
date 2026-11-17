@@ -17,7 +17,8 @@ public abstract class ClientExplosionParticlesMixin {
     private void orion$hideExplosionDebris(Vec3 center, float radius, int blockCount,
                                            WeightedList<ExplosionParticleInfo> particles, CallbackInfo callback) {
         var config = OrionClient.getConfigOrNull();
-        if (config != null && config.isNoParticlesEnabled() && config.isNoParticlesExplosions()) {
+        if ((config != null && config.isNoParticlesEnabled() && config.isNoParticlesExplosions())
+                || ru.orion.client.effect.OrionNoRender.hides(config, ru.orion.client.effect.OrionNoRender.Option.PARTICLE_EXPLOSION)) {
             callback.cancel();
         }
     }

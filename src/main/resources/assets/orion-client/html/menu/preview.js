@@ -23,6 +23,7 @@ const paths = {
   download:'<path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/>',
   layers:'<path d="m3 8 9-5 9 5-9 5-9-5Zm0 4 9 5 9-5M3 16l9 5 9-5"/>',
   monitor:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',
+  speaker:'<path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12"/>',
   target:'<circle cx="12" cy="12" r="7"/><path d="M12 2v5m0 10v5M2 12h5m10 0h5"/>',
   paw:'<circle cx="5" cy="10" r="1.6"/><circle cx="9" cy="5.5" r="1.6"/><circle cx="15" cy="5.5" r="1.6"/><circle cx="19" cy="10" r="1.6"/><path d="M12 11c-2 0-3.5 2-5.2 3.6C4.2 17 6 21 9.3 19.5l2.7-1.2 2.7 1.2c3.3 1.5 5.1-2.5 2.5-4.9C15.5 13 14 11 12 11Z"/>',
   movement:'<path d="m7 17 10-10M8 7h9v9M3 13l5-5m3 13 5-5"/>',
@@ -63,6 +64,7 @@ const moduleGroups = {
   FOOTBALL:[[0,'Сетевой матч'],[9,'Как играть'],[14,'Поле'],[20,'Правила игры'],[24,'Удар']],
   HEALTH_TAGS:[[0,'Внешний вид'],[4,'Кого показывать']],
   ARMOR_INDICATOR:[[0,'Внешний вид'],[4,'Кого показывать']],
+  NO_RENDER:[[0,'Мир и погода'],[7,'Частицы'],[9,'Сущности'],[22,'Камера и наложения'],[34,'Ванильный интерфейс'],[40,'Фильтры по ID']],
   ENCHANT_GLINT:[[0,'Редактор переливания'],[6,'Сохранённые переливания']],
   WORLD_CHANGER:[[0,'Небо'],[6,'Туман'],[11,'Облака'],[14,'Пресеты атмосферы']]
 };
@@ -380,7 +382,8 @@ function controlRow(row, module, index, embedded = false) {
   const id = 'field-' + index, saved = state.values.get(module.id + ':' + index) ?? row.value;
   if (row.kind === 'toggle') return settingToggle(id,row.label,saved,'data-setting-toggle="' + index + '"');
   let control;
-  const attrs = ' id="' + id + '" data-setting="' + index + '"';
+  const attrs = ' id="' + id + '" data-setting="' + index + '"'
+    + (row.sound ? ' data-sound="' + text(row.sound) + '"' : '');
   switch (row.kind) {
     case 'slider': control = '<span class="range">' + rangeControl(attrs,row.min,row.max,row.step || '.01',saved,row.suffix)
       + '<output for="' + id + '">' + saved + text(row.suffix ?? '') + '</output></span>'; break;
@@ -391,6 +394,13 @@ function controlRow(row, module, index, embedded = false) {
     case 'keybind': control = '<button type="button" class="button" id="' + id + '" data-keybind="' + index + '">' + text(saved === '—' ? t('Назначить') : saved) + '</button>'; break;
     case 'button': control = '<button class="button" type="button" data-setting-button="' + index + '">' + text(row.caption) + '</button>'; break;
     default: control = '<small id="' + id + '">' + text(saved) + '</small>';
+  }
+  if (row.sound) {
+    const subtitle = row.sound === 'minecraft:' + row.label ? '' : '<small>' + text(row.sound) + '</small>';
+    return '<div class="setting-row sound-setting-row"><button type="button" class="button sound-preview-button" data-sound-preview="'
+      + index + '" data-sound="' + text(row.sound) + '" aria-label="' + text(t('Прослушать') + ' ' + row.label) + '" title="'
+      + text(t('Прослушать')) + '">' + icon('speaker') + '</button><label for="' + id + '" title="' + text(row.sound) + '">'
+      + '<span>' + text(row.label) + '</span>' + subtitle + '</label>' + control + '</div>';
   }
   return '<div class="setting-row' + (row.kind === 'choice' ? ' choice-row' : '')
     + '"><label for="' + id + '">' + text(row.label) + '</label>' + control + '</div>';
@@ -431,10 +441,20 @@ function worldPreview(module) {
     + '<path class="world-preview-near" fill="currentColor" d="M0 105 70 93 126 102 195 91 259 102 328 93 390 103 466 86 533 99 589 89 640 95V126H0Z"/>'
     + '</svg></div></div>';
 }
+function soundSettingsRows(rows,module) {
+  const controls = rows.slice(0,2).map((row,index) => controlRow(row,module,index)).join('');
+  if (!rows[2]) return controls;
+  const pages = rows.flatMap((row,index) => row.kind === 'button' ? [{row,index}] : []);
+  const nav = '<div class="sound-pagination"><small>' + text(rows[2].label) + ' <b id="field-2">' + text(rows[2].value)
+    + '</b></small>' + (pages.length ? '<span>' + text(pages[0].row.label) + '</span>' : '')
+    + pages.map(({row,index}) => '<button type="button" class="button" data-setting-button="' + index
+      + '">' + text(row.caption) + '</button>').join('') + '</div>';
+  return controls + nav + rows.slice(3).map((row,i) => row.kind === 'button' ? '' : controlRow(row,module,i+3)).join('');
+}
 function renderModule() {
   const module = byId.get(state.module);
   const enabled = state.enabled.has(module.id);
-  const groups = (moduleGroups[module.id] || [[0,t('Настройки модуля')]]).map(([start,title],i,all) => ({
+  const groups = (moduleGroups[module.id] || [[0,module.id === 'SOUND_SETTINGS' ? 'Звуки Minecraft' : t('Настройки модуля')]]).map(([start,title],i,all) => ({
     start, title, rows:module.settings.slice(start,all[i+1]?.[0] ?? module.settings.length)
   })).filter(group => group.rows.length);
   const contents = groups.length > 1 ? '<nav class="settings-toc" aria-label="' + text(t('На этой странице')) + '"><span>' + text(t('На этой странице')) + '</span>'
@@ -452,7 +472,8 @@ function renderModule() {
       + '<div class="sheet">'
       + (module.id === 'ENCHANT_GLINT' && start === 0 ? glintPreview(module) : '')
       + (module.id === 'WORLD_CHANGER' && start === 0 ? worldPreview(module) : '')
-      + rows.map((row,j) => controlRow(row,module,start+j)).join('') + '</div></section>').join('')
+      + (module.id === 'SOUND_SETTINGS' ? soundSettingsRows(rows,module)
+        : rows.map((row,j) => controlRow(row,module,start+j)).join('')) + '</div></section>').join('')
     + '</div></div>';
 }
 function renderProfile() {

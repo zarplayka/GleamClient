@@ -66,6 +66,7 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionInventoryHud inventoryHud = new OrionInventoryHud(configManager);
     private final OrionStatusHud statusHud = new OrionStatusHud(configManager);
     private final OrionHitDistanceHud hitDistanceHud = new OrionHitDistanceHud(configManager);
+    private final ru.orion.client.hud.OrionTargetHud targetHud = new ru.orion.client.hud.OrionTargetHud(configManager);
     private final OrionKeybinds keybinds = new OrionKeybinds(configManager);
     private final OrionDiscordPresenceService discordPresenceService = new OrionDiscordPresenceService(configManager);
     private final OrionJumpCircleEffect jumpCircleEffect = new OrionJumpCircleEffect(configManager);
@@ -146,6 +147,8 @@ public final class OrionClient implements ClientModInitializer {
         customCrosshair.register();
         betterNearHud.register();
         hitDistanceHud.register();
+        new ru.orion.client.hud.OrionPotionsHud(configManager).register();
+        targetHud.register();
         fakeBanCommand.register();
         ru.orion.client.hud.OrionHudDrag.registerOverlay();
     }
@@ -156,6 +159,10 @@ public final class OrionClient implements ClientModInitializer {
         }
 
         return instance;
+    }
+
+    public static ru.orion.client.hud.OrionTargetHud getTargetHudOrNull() {
+        return instance == null ? null : instance.targetHud;
     }
 
     /** Safe accessor for mixins/early callers; returns null before init instead of throwing. */

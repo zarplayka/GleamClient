@@ -86,6 +86,28 @@ public final class OrionHudDrag {
     void trackPosition(Position position, int width, int height) {
         REGIONS.put(this, new Bounds(position.x, position.y, width, height, System.nanoTime()));
     }
+
+    Position placeWidget(GuiGraphicsExtractor context, int width, int height, int defaultX, int defaultY,
+                         OrionConfigManager manager) {
+        var config = manager.getConfig();
+        int savedX = config.getExtraHudPosition(id, 0);
+        int savedY = config.getExtraHudPosition(id, 1);
+        int x = Math.clamp(savedX < 0 ? defaultX : savedX, 0, context.guiWidth() - width);
+        int y = Math.clamp(savedY < 0 ? defaultY : savedY, 0, context.guiHeight() - height);
+        Position available = available(context, x, y, width, height);
+        if (available == null) {
+            cancel(manager);
+            return null;
+        }
+        Position requested = update(context, available.x, available.y, width, height, manager, (nx, ny) -> {
+            Position safe = available(context, nx, ny, width, height);
+            if (safe != null) config.setExtraHudPosition(id, safe.x, safe.y);
+        });
+        Position result = available(context, requested.x, requested.y, width, height);
+        if (result == null) result = available;
+        trackPosition(result, width, height);
+        return result;
+    }
     public Position update(GuiGraphicsExtractor context,int x,int y,int w,int h,OrionConfigManager manager,BiConsumer<Integer,Integer> setPosition) {
         return update(context, x, y, w, h, manager, setPosition, true);
     }

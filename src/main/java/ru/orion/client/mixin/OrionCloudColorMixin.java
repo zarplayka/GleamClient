@@ -11,6 +11,14 @@ import ru.orion.client.effect.OrionWorldChanger;
 @Mixin(CloudRenderer.class)
 public abstract class OrionCloudColorMixin {
     //? if >=26.3 {
+    @org.spongepowered.asm.mixin.injection.Inject(method = {"render", "renderOit"},
+            at = @At("HEAD"), cancellable = true)
+    private void orion$hideClouds(org.spongepowered.asm.mixin.injection.callback.CallbackInfo callback) {
+        if (ru.orion.client.effect.OrionNoRender.hides(ru.orion.client.effect.OrionNoRender.Option.CLOUDS)) callback.cancel();
+    }
+    //?}
+
+    //? if >=26.3 {
     @ModifyVariable(method = "prepare(ILnet/minecraft/client/CloudStatus;FILnet/minecraft/world/phys/Vec3;JF)V",
             at = @At("HEAD"), argsOnly = true, ordinal = 0)
     //?} elif >=26.1 {

@@ -34,6 +34,9 @@ public final class OrionHitDistanceHud {
     private Hit lastHit;
     private Hit shownHit;
     private String shownName;
+    private boolean shownCompact;
+    private int sceneWidth;
+    private int sceneHeight;
     private OrionHudView.Scene scene;
 
     private record Hit(String attacker, String distance) {}
@@ -83,29 +86,21 @@ public final class OrionHitDistanceHud {
             return;
         }
         Hit hit = lastHit;
-        String name = hit == null ? null : OrionNameProtect.replace(hit.attacker());
-        if (scene == null || !Objects.equals(hit, shownHit) || !Objects.equals(name, shownName)) {
-            scene = new OrionHudView.Scene(WIDTH, HEIGHT);
-            scene.panel(0, 0, WIDTH, HEIGHT, 7);
-            scene.icon("M3 10h14M3 7v6m14-6v6M6 8v4m8-4v4", PAD_X, 5, 11, "var(--accent)", false);
-            scene.label("HitDistance", PAD_X + 14, 2, 78, 17, 8.5F, "var(--text)", "left", true);
-            scene.divider(PAD_X, HEADER_HEIGHT - 2, WIDTH - PAD_X * 2);
-            int distanceX = WIDTH - PAD_X - 40;
-            scene.label(name == null ? "—" : name, PAD_X, HEADER_HEIGHT,
-                    distanceX - PAD_X - 3, ROW_HEIGHT - 2, 8F,
-                    hit == null ? "var(--muted)" : "var(--text)", "left", false);
-            if (hit != null) {
-                scene.label(hit.distance(), distanceX, HEADER_HEIGHT, 28, ROW_HEIGHT - 2, 8F, "var(--text)", "right", true);
-                scene.label("m", WIDTH - PAD_X - 10, HEADER_HEIGHT, 7, ROW_HEIGHT - 2, 6.5F, "var(--muted)", "left", false);
-            }
+        boolean compact = config.isHitDistanceCompact();
+        String name = hit == null || compact ? null : OrionNameProtect.replace(hit.attacker());
+        if (scene == null || compact != shownCompact || !Objects.equals(hit, shownHit) || !Objects.equals(name, shownName)) {
+            sceneWidth = compact ? 42 : WIDTH;
+            sceneHeight = compact ? 17 : HEIGHT;
+            scene = compact ? compactScene(hit) : cardScene(hit, name);
             shownHit = hit;
             shownName = name;
+            shownCompact = compact;
         }
 
         float scale = config.getHudScale() * config.getHudElementScale(ID);
-        float fit = OrionHudView.fit(scale, WIDTH, HEIGHT, context.guiWidth(), context.guiHeight());
-        int w = Math.max(1, Math.round(WIDTH * fit));
-        int h = Math.max(1, Math.round(HEIGHT * fit));
+        float fit = OrionHudView.fit(scale, sceneWidth, sceneHeight, context.guiWidth(), context.guiHeight());
+        int w = Math.max(1, Math.round(sceneWidth * fit));
+        int h = Math.max(1, Math.round(sceneHeight * fit));
         int x = Math.clamp(config.getHitDistanceX() < 0 ? context.guiWidth() - w - 8 : config.getHitDistanceX(),
                 0, context.guiWidth() - w);
         int y = Math.clamp(config.getHitDistanceY() < 0 ? 22 : config.getHitDistanceY(),
@@ -125,5 +120,30 @@ public final class OrionHitDistanceHud {
         if (position == null) position = available;
         drag.trackPosition(position, w, h);
         view.draw(context, scene, position.x(), position.y(), w, h);
+    }
+
+    private OrionHudView.Scene compactScene(Hit hit) {
+        var compact = new OrionHudView.Scene(sceneWidth, sceneHeight);
+        String value = hit == null ? "—" : hit.distance();
+        compact.label(value, 1, 1, sceneWidth, sceneHeight, 11F, "#000000b8", "center", true);
+        compact.label(value, 0, 0, sceneWidth, sceneHeight, 11F, "#ffffff", "center", true);
+        return compact;
+    }
+
+    private static OrionHudView.Scene cardScene(Hit hit, String name) {
+            var scene = new OrionHudView.Scene(WIDTH, HEIGHT);
+            scene.panel(0, 0, WIDTH, HEIGHT, 7);
+            scene.icon("M3 10h14M3 7v6m14-6v6M6 8v4m8-4v4", PAD_X, 5, 11, "var(--accent)", false);
+            scene.label("HitDistance", PAD_X + 14, 2, 78, 17, 8.5F, "var(--text)", "left", true);
+            scene.divider(PAD_X, HEADER_HEIGHT - 2, WIDTH - PAD_X * 2);
+            int distanceX = WIDTH - PAD_X - 40;
+            scene.label(name == null ? "—" : name, PAD_X, HEADER_HEIGHT,
+                    distanceX - PAD_X - 3, ROW_HEIGHT - 2, 8F,
+                    hit == null ? "var(--muted)" : "var(--text)", "left", false);
+            if (hit != null) {
+                scene.label(hit.distance(), distanceX, HEADER_HEIGHT, 28, ROW_HEIGHT - 2, 8F, "var(--text)", "right", true);
+                scene.label("m", WIDTH - PAD_X - 10, HEADER_HEIGHT, 7, ROW_HEIGHT - 2, 6.5F, "var(--muted)", "left", false);
+            }
+            return scene;
     }
 }

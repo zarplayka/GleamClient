@@ -11,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import ru.orion.client.OrionClient;
 import ru.orion.client.effect.OrionNoParticles;
+import ru.orion.client.effect.OrionNoRender;
 
 @Mixin(ParticleEngine.class)
 public abstract class ParticleEngineMixin {
@@ -18,18 +19,29 @@ public abstract class ParticleEngineMixin {
             at = @At("HEAD"), cancellable = true)
     private void orion$filterParticle(ParticleOptions options, double x, double y, double z,
                                       double vx, double vy, double vz, CallbackInfoReturnable<Particle> callback) {
-        if (OrionNoParticles.shouldHide(OrionClient.getConfigOrNull(), options)) callback.setReturnValue(null);
+        if (orion$hidden(options)) callback.setReturnValue(null);
     }
 
     @Inject(method = "createTrackingEmitter(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/core/particles/ParticleOptions;)V",
             at = @At("HEAD"), cancellable = true)
     private void orion$filterEmitter(Entity entity, ParticleOptions options, CallbackInfo callback) {
-        if (OrionNoParticles.shouldHide(OrionClient.getConfigOrNull(), options)) callback.cancel();
+        if (orion$hidden(options)) callback.cancel();
     }
 
     @Inject(method = "createTrackingEmitter(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/core/particles/ParticleOptions;I)V",
             at = @At("HEAD"), cancellable = true)
     private void orion$filterTimedEmitter(Entity entity, ParticleOptions options, int duration, CallbackInfo callback) {
-        if (OrionNoParticles.shouldHide(OrionClient.getConfigOrNull(), options)) callback.cancel();
+        if (orion$hidden(options)) callback.cancel();
+    }
+
+    @Inject(method = "extract", at = @At("HEAD"), cancellable = true)
+    private void orion$hideExistingParticles(CallbackInfo callback) {
+        if (OrionNoRender.hides(OrionNoRender.Option.PARTICLES)) callback.cancel();
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private static boolean orion$hidden(ParticleOptions options) {
+        var config = OrionClient.getConfigOrNull();
+        return OrionNoParticles.shouldHide(config, options) || OrionNoRender.hidesParticle(config, options);
     }
 }

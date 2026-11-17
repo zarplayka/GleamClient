@@ -481,10 +481,20 @@ document.addEventListener('click',event => {
     sendGame('look',{key:'accent',value:d.accent});
   }
 },true);
+let soundSearchTimer;
 document.addEventListener('input',event => {
   const field = event.target;
   if (field.id === 'color-popup-hex') {
     if (hexColor.test(field.value)) setPickerValue(field.value,false);
+    return;
+  }
+  if (state.page === 'module' && state.module === 'SOUND_SETTINGS' && field.id === 'field-0') {
+    clearTimeout(soundSearchTimer);
+    const value = field.value;
+    soundSearchTimer = setTimeout(() => {
+      if (state.page === 'module' && state.module === 'SOUND_SETTINGS')
+        sendGame('setting',{id:'SOUND_SETTINGS',index:0,value});
+    },160);
     return;
   }
   if (field.id === 'chat-search') {
@@ -499,7 +509,7 @@ document.addEventListener('input',event => {
     chatDrafts.set(chat.peer,field.value);
   }
   if (field.type === 'range' && field.dataset?.setting !== undefined) {
-    sendGame('setting-preview',{id:state.module,index:Number(field.dataset.setting),value:field.value});
+    sendGame('setting-preview',{id:state.module,index:Number(field.dataset.setting),value:field.value,sound:field.dataset.sound});
   }
   const colorRow = field.closest('.setting-color-row');
   if (colorRow && colorDrag?.row !== colorRow) syncColorPicker(colorRow);
@@ -699,6 +709,11 @@ window.addEventListener('resize',positionColorPicker);
 $('content').addEventListener('scroll',positionColorPicker);
 document.addEventListener('keydown',event => {
   const field = event.target;
+  if (event.key === 'Enter' && state.module === 'SOUND_SETTINGS' && field.id === 'field-0') {
+    field.blur();
+    event.preventDefault();
+    return;
+  }
   if (field.type !== 'range') return;
   const [min,max,step] = rangeLimits(field), value = Number(field.value);
   const next = {ArrowLeft:value - step,ArrowDown:value - step,ArrowRight:value + step,ArrowUp:value + step,
@@ -713,8 +728,9 @@ document.addEventListener('change',event => {
   if (field.id === 'color-popup-hex') {
     if (hexColor.test(field.value)) setPickerValue(field.value,true);
   } else if (field.dataset?.setting !== undefined) {
+    if (state.module === 'SOUND_SETTINGS' && field.id === 'field-0') clearTimeout(soundSearchTimer);
     sendGame('setting',{id:state.module,index:Number(field.dataset.setting),
-      value:field.value});
+      value:field.value,sound:field.dataset.sound});
   } else if (field.id === 'window-scale') {
     sendGame('look',{key:'windowScale',value:field.value});
   } else if (field.id === 'custom-accent' && /^#[0-9a-f]{6}$/i.test(field.value)) {
@@ -722,6 +738,10 @@ document.addEventListener('change',event => {
     applyAccent();
     sendGame('look',{key:'accent',value:field.value});
   }
+});
+document.addEventListener('click',event => {
+  const button = event.target.closest('[data-sound-preview]');
+  if (button) sendGame('sound-preview',{index:Number(button.dataset.soundPreview),sound:button.dataset.sound});
 });
 function submitGameForm(form) {
   if (form.id === 'chat-compose') {
@@ -850,6 +870,7 @@ function syncModuleSettings(module) {
         updateRange(field);
       }
     } else if (setting.kind === 'text' || setting.kind === 'color' && colorDrag?.field !== field) {
+      if (module.id === 'SOUND_SETTINGS' && index === 0 && document.activeElement === field) continue;
       field.value = setting.value;
       if (setting.kind === 'color' && field.value.toUpperCase() !== field.closest('.setting-color-row').pickerValue) {
         syncColorPicker(field.closest('.setting-color-row'));
@@ -1041,6 +1062,9 @@ window.paradox = {
     if (redraw) {
       const contentScroll = $('content').scrollTop;
       const searchFocused = document.activeElement?.id === 'friends-search';
+      const soundField = state.page === 'module' && state.module === 'SOUND_SETTINGS'
+        && document.activeElement?.id === 'field-0' ? document.activeElement : null;
+      const soundDraft = soundField && [soundField.value,soundField.selectionStart,soundField.selectionEnd];
       const scroll = $('content').querySelector('.modules-grid')?.scrollTop ?? 0;
       render(false,!gameReady);
       const grid = $('content').querySelector('.modules-grid');
@@ -1048,6 +1072,12 @@ window.paradox = {
       else if (state.page === 'friends') {
         $('content').scrollTop = contentScroll;
         if (searchFocused) $('friends-search')?.focus({preventScroll:true});
+      } else if (soundDraft) {
+        const input = $('field-0');
+        input.value = soundDraft[0];
+        input.focus({preventScroll:true});
+        if (typeof input.setSelectionRange === 'function' && soundDraft[1] !== null)
+          input.setSelectionRange(soundDraft[1],soundDraft[2]);
       }
     } else if (state.page === 'chat' && (friendsChanged || chatChanged)) patchChat(previousChat,friendsChanged);
     if (titleAccount) {

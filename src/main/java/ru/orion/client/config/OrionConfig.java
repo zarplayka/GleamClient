@@ -274,6 +274,23 @@ public final class OrionConfig {
     private boolean hitDistanceEnabled;
     private int hitDistanceX = -1;
     private int hitDistanceY = -1;
+    private boolean hitDistanceCompact;
+    private boolean potionsEnabled;
+    private boolean potionsHideVanilla = true;
+    private boolean targetHudEnabled;
+    private boolean targetHudWorld;
+    private boolean targetHudAttackOnly;
+    private boolean targetHudPlayersOnly;
+    private boolean targetHudEquipment = true;
+    private boolean targetHudPing = true;
+    private int targetHudHoldSeconds = 3;
+    private boolean soundSettingsEnabled;
+    private java.util.Map<String, Integer> soundVolumes = new java.util.HashMap<>();
+    private boolean noRenderEnabled;
+    private java.util.Set<String> noRenderOptions = new java.util.HashSet<>();
+    private java.util.Set<String> noRenderEntities = new java.util.HashSet<>();
+    private java.util.Set<String> noRenderParticles = new java.util.HashSet<>();
+    private java.util.Map<String, int[]> extraHudPositions = new java.util.HashMap<>();
     private boolean armorIndicatorEnabled = false;
     private IndicatorOptions armorIndicatorOptions = new IndicatorOptions(false);
     private boolean lockSlotEnabled = false;
@@ -728,6 +745,66 @@ public final class OrionConfig {
     public void setHitDistanceX(int value) { hitDistanceX = Math.max(-1, value); }
     public int getHitDistanceY() { return hitDistanceY; }
     public void setHitDistanceY(int value) { hitDistanceY = Math.max(-1, value); }
+    public boolean isHitDistanceCompact() { return hitDistanceCompact; }
+    public void setHitDistanceCompact(boolean value) { hitDistanceCompact = value; }
+    public boolean isPotionsEnabled() { return potionsEnabled; }
+    public void setPotionsEnabled(boolean value) { potionsEnabled = value; }
+    public boolean isPotionsHideVanilla() { return potionsHideVanilla; }
+    public void setPotionsHideVanilla(boolean value) { potionsHideVanilla = value; }
+    public boolean isTargetHudEnabled() { return targetHudEnabled; }
+    public void setTargetHudEnabled(boolean value) { targetHudEnabled = value; }
+    public boolean isTargetHudWorld() { return targetHudWorld; }
+    public void setTargetHudWorld(boolean value) { targetHudWorld = value; }
+    public boolean isTargetHudAttackOnly() { return targetHudAttackOnly; }
+    public void setTargetHudAttackOnly(boolean value) { targetHudAttackOnly = value; }
+    public boolean isTargetHudPlayersOnly() { return targetHudPlayersOnly; }
+    public void setTargetHudPlayersOnly(boolean value) { targetHudPlayersOnly = value; }
+    public boolean isTargetHudEquipment() { return targetHudEquipment; }
+    public void setTargetHudEquipment(boolean value) { targetHudEquipment = value; }
+    public boolean isTargetHudPing() { return targetHudPing; }
+    public void setTargetHudPing(boolean value) { targetHudPing = value; }
+    public int getTargetHudHoldSeconds() { return targetHudHoldSeconds; }
+    public void setTargetHudHoldSeconds(int value) { targetHudHoldSeconds = Math.clamp(value, 0, 10); }
+    public int getExtraHudPosition(String id, int axis) {
+        int[] position = extraHudPositions.get(id);
+        return position == null || position.length != 2 ? -1 : Math.max(-1, position[axis]);
+    }
+    public void setExtraHudPosition(String id, int x, int y) {
+        extraHudPositions.put(id, new int[]{Math.max(0, x), Math.max(0, y)});
+    }
+    public boolean isSoundSettingsEnabled() { return soundSettingsEnabled; }
+    public void setSoundSettingsEnabled(boolean value) { soundSettingsEnabled = value; }
+    public int getSoundVolume(String id) { return soundVolumes.getOrDefault(id, 100); }
+    public boolean hasSoundVolume(String id) { return soundVolumes.containsKey(id); }
+    public void setSoundVolume(String id, int value) {
+        value = Math.clamp(value, 0, 100);
+        if (value == 100) soundVolumes.remove(id);
+        else soundVolumes.put(id, value);
+    }
+    public boolean isNoRenderEnabled() { return noRenderEnabled; }
+    public void setNoRenderEnabled(boolean value) { noRenderEnabled = value; }
+    public boolean hasNoRenderOption(String id) { return noRenderOptions.contains(id); }
+    public void setNoRenderOption(String id, boolean value) {
+        if (value) noRenderOptions.add(id);
+        else noRenderOptions.remove(id);
+    }
+    public boolean hidesRenderType(boolean particle, String id) {
+        return (particle ? noRenderParticles : noRenderEntities).contains(id);
+    }
+    public boolean hasHiddenRenderTypes(boolean particle) {
+        return !(particle ? noRenderParticles : noRenderEntities).isEmpty();
+    }
+    public String getHiddenRenderTypes(boolean particle) {
+        return (particle ? noRenderParticles : noRenderEntities).stream().sorted().collect(java.util.stream.Collectors.joining(", "));
+    }
+    public void setHiddenRenderTypes(boolean particle, String ids) {
+        var target = particle ? noRenderParticles : noRenderEntities;
+        target.clear();
+        for (String value : ids.toLowerCase(java.util.Locale.ROOT).split("[,;\\s]+")) {
+            if (value.matches("(?:[a-z0-9_.-]+:)?[a-z0-9_./-]+"))
+                target.add(value.indexOf(':') < 0 ? "minecraft:" + value : value);
+        }
+    }
     public boolean isArmorIndicatorEnabled() { return armorIndicatorEnabled; }
     public void setArmorIndicatorEnabled(boolean value) { armorIndicatorEnabled = value; }
     public IndicatorOptions getArmorIndicatorOptions() { return armorIndicatorOptions; }
@@ -1523,6 +1600,13 @@ public final class OrionConfig {
         setCleanWaterOpacity(cleanWaterOpacity);
         setHitDistanceX(hitDistanceX);
         setHitDistanceY(hitDistanceY);
+        setTargetHudHoldSeconds(targetHudHoldSeconds);
+        if (extraHudPositions == null) extraHudPositions = new java.util.HashMap<>();
+        if (soundVolumes == null) soundVolumes = new java.util.HashMap<>();
+        soundVolumes.values().removeIf(value -> value == null || value < 0 || value >= 100);
+        if (noRenderOptions == null) noRenderOptions = new java.util.HashSet<>();
+        if (noRenderEntities == null) noRenderEntities = new java.util.HashSet<>();
+        if (noRenderParticles == null) noRenderParticles = new java.util.HashSet<>();
         setZoomInTime(zoomInTime);
         setZoomOutTime(zoomOutTime);
         setZoomScrollStep(zoomScrollStep);
