@@ -13,22 +13,30 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
+import ru.orion.client.effect.OrionNameProtect;
 
 import java.util.Locale;
+import java.util.Objects;
 
 public final class OrionHitDistanceHud {
     public static final String ID = "hit_distance";
-    private static final int WIDTH = 116;
-    private static final int HEIGHT = 35;
+    private static final int WIDTH = 127;
+    private static final int HEADER_HEIGHT = 22;
+    private static final int ROW_HEIGHT = 17;
+    private static final int HEIGHT = HEADER_HEIGHT + ROW_HEIGHT + 5;
+    private static final int PAD_X = 7;
 
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView(ID);
     private final OrionHudDrag drag = new OrionHudDrag(ID);
     private LocalPlayer victim;
     private Level level;
-    private String lastDistance;
-    private String shownDistance;
+    private Hit lastHit;
+    private Hit shownHit;
+    private String shownName;
     private OrionHudView.Scene scene;
+
+    private record Hit(String attacker, String distance) {}
 
     public OrionHitDistanceHud(OrionConfigManager manager) {
         this.manager = manager;
@@ -53,7 +61,7 @@ public final class OrionHitDistanceHud {
 
         // The packet identifies the attacker but does not carry the server's hit position.
         double distance = Math.sqrt(client.player.getBoundingBox().distanceToSqr(attacker.getEyePosition()));
-        lastDistance = String.format(Locale.ROOT, "%.2f", distance);
+        lastHit = new Hit(attacker.getName().getString(), String.format(Locale.ROOT, "%.2f", distance));
         victim = client.player;
         level = client.level;
     }
@@ -61,7 +69,7 @@ public final class OrionHitDistanceHud {
     private void clearHit() {
         victim = null;
         level = null;
-        lastDistance = null;
+        lastHit = null;
     }
 
     private void render(GuiGraphicsExtractor context, DeltaTracker ticks) {
@@ -74,16 +82,24 @@ public final class OrionHitDistanceHud {
             view.dispose();
             return;
         }
-        String value = lastDistance == null ? "—" : lastDistance;
-        if (!value.equals(shownDistance)) {
+        Hit hit = lastHit;
+        String name = hit == null ? null : OrionNameProtect.replace(hit.attacker());
+        if (scene == null || !Objects.equals(hit, shownHit) || !Objects.equals(name, shownName)) {
             scene = new OrionHudView.Scene(WIDTH, HEIGHT);
             scene.panel(0, 0, WIDTH, HEIGHT, 7);
-            scene.icon("M3 10h14M3 7v6m14-6v6M6 8v4m8-4v4", 7, 5, 11, "var(--accent)", false);
-            scene.label("HitDistance", 21, 2, 88, 17, 8.5F, "var(--text)", "left", true);
-            scene.divider(7, 19, WIDTH - 14);
-            scene.label(value, 8, 21, WIDTH - 27, 12, 8F, "var(--text)", "right", true);
-            if (lastDistance != null) scene.label("m", WIDTH - 16, 21, 8, 12, 6.5F, "var(--muted)", "left", false);
-            shownDistance = value;
+            scene.icon("M3 10h14M3 7v6m14-6v6M6 8v4m8-4v4", PAD_X, 5, 11, "var(--accent)", false);
+            scene.label("HitDistance", PAD_X + 14, 2, 78, 17, 8.5F, "var(--text)", "left", true);
+            scene.divider(PAD_X, HEADER_HEIGHT - 2, WIDTH - PAD_X * 2);
+            int distanceX = WIDTH - PAD_X - 40;
+            scene.label(name == null ? "—" : name, PAD_X, HEADER_HEIGHT,
+                    distanceX - PAD_X - 3, ROW_HEIGHT - 2, 8F,
+                    hit == null ? "var(--muted)" : "var(--text)", "left", false);
+            if (hit != null) {
+                scene.label(hit.distance(), distanceX, HEADER_HEIGHT, 28, ROW_HEIGHT - 2, 8F, "var(--text)", "right", true);
+                scene.label("m", WIDTH - PAD_X - 10, HEADER_HEIGHT, 7, ROW_HEIGHT - 2, 6.5F, "var(--muted)", "left", false);
+            }
+            shownHit = hit;
+            shownName = name;
         }
 
         float scale = config.getHudScale() * config.getHudElementScale(ID);
