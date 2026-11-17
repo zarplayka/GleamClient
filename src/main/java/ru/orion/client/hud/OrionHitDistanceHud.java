@@ -1,5 +1,6 @@
 package ru.orion.client.hud;
 
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
@@ -8,9 +9,13 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+
+import java.util.ArrayDeque;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.effect.OrionNameProtect;
@@ -25,12 +30,15 @@ public final class OrionHitDistanceHud {
     private static final int ROW_HEIGHT = 17;
     private static final int HEIGHT = HEADER_HEIGHT + ROW_HEIGHT + 5;
     private static final int PAD_X = 7;
+    private static final long HISTORY_NS = 600_000_000L;
+    private static final int MAX_SAMPLES = 32;
 
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView(ID);
     private final OrionHudDrag drag = new OrionHudDrag(ID);
     private LocalPlayer victim;
     private Level level;
+    private final ArrayDeque<Snapshot> movement = new ArrayDeque<>();
     private Hit lastHit;
     private Hit shownHit;
     private String shownName;
@@ -40,6 +48,7 @@ public final class OrionHitDistanceHud {
     private OrionHudView.Scene scene;
 
     private record Hit(String attacker, String distance) {}
+    private record Snapshot(long time, AABB box) {}
 
     public OrionHitDistanceHud(OrionConfigManager manager) {
         this.manager = manager;
@@ -47,6 +56,7 @@ public final class OrionHitDistanceHud {
 
     public void register() {
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, ID), this::render);
+        ClientTickEvents.END_CLIENT_TICK.register(this::captureMovement);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
             clearHit();
             drag.cancel(manager);
@@ -62,29 +72,92 @@ public final class OrionHitDistanceHud {
         if (!(source.getEntity() instanceof LivingEntity attacker) || source.getDirectEntity() != attacker
                 || attacker == client.player || source.is(DamageTypes.THORNS)) return;
 
-        // The packet identifies the attacker but does not carry the server's hit position.
-        double distance = Math.sqrt(client.player.getBoundingBox().distanceToSqr(attacker.getEyePosition()));
-        lastHit = new Hit(attacker.getName().getString(), String.format(Locale.ROOT, "%.2f", distance));
+        syncWorld(client);
+        long now = System.nanoTime();
+        var connection = client.getConnection();
+        var info = connection == null ? null : connection.getPlayerInfo(victim.getUUID());
+        long roundTrip = info == null ? 0 : Math.clamp(info.getLatency(), 0, 400) * 1_000_000L;
+        var current = new Snapshot(now, victim.getBoundingBox());
+        var hitBox = positionAt(now - roundTrip, current);
+
+        // Remote entities are interpolated for rendering. The position codec stores the latest server snapshot.
+        var eye = attacker.getEyePosition();
+        var from = attacker.position();
+        var tracked = attacker.getPositionCodec().getBase();
+        if (!attacker.isPassenger() && tracked.distanceToSqr(from) < 16D) {
+            eye = eye.add(tracked.subtract(from));
+        }
+        double distance = Math.sqrt(hitBox.distanceToSqr(eye));
+        if (Double.isFinite(distance)) {
+            lastHit = new Hit(attacker.getName().getString(), String.format(Locale.ROOT, "%.1f", distance));
+        }
+    }
+
+    private void captureMovement(Minecraft client) {
+        if (!manager.getConfig().isHitDistanceEnabled() || client.player == null || client.level == null) {
+            clearHit();
+            return;
+        }
+        syncWorld(client);
+        var sample = new Snapshot(System.nanoTime(), victim.getBoundingBox());
+        Snapshot previous = movement.peekLast();
+        if (previous != null && discontinuity(previous, sample)) movement.clear();
+        while (movement.size() >= MAX_SAMPLES || !movement.isEmpty()
+                && sample.time - movement.getFirst().time > HISTORY_NS) movement.removeFirst();
+        movement.addLast(sample);
+    }
+
+    private void syncWorld(Minecraft client) {
+        if (client.player == victim && client.level == level) return;
+        clearHit();
         victim = client.player;
         level = client.level;
+    }
+
+    private AABB positionAt(long estimatedTime, Snapshot current) {
+        Snapshot previous = movement.peekLast();
+        if (previous == null || discontinuity(previous, current)) return current.box;
+        previous = null;
+        for (var sample : movement) {
+            if (sample.time >= estimatedTime) {
+                return previous == null ? sample.box : interpolate(previous, sample, estimatedTime);
+            }
+            previous = sample;
+        }
+        return interpolate(previous, current, estimatedTime);
+    }
+
+    private static boolean discontinuity(Snapshot first, Snapshot next) {
+        return next.time - first.time > 250_000_000L || first.box.getCenter().distanceToSqr(next.box.getCenter()) > 16D;
+    }
+
+    private static AABB interpolate(Snapshot first, Snapshot second, long time) {
+        long span = second.time - first.time;
+        if (span <= 0) return second.box;
+        double fraction = Math.clamp((time - first.time) / (double) span, 0, 1);
+        AABB a = first.box, b = second.box;
+        return new AABB(Mth.lerp(fraction, a.minX, b.minX), Mth.lerp(fraction, a.minY, b.minY),
+                Mth.lerp(fraction, a.minZ, b.minZ), Mth.lerp(fraction, a.maxX, b.maxX),
+                Mth.lerp(fraction, a.maxY, b.maxY), Mth.lerp(fraction, a.maxZ, b.maxZ));
     }
 
     private void clearHit() {
         victim = null;
         level = null;
         lastHit = null;
+        movement.clear();
     }
 
     private void render(GuiGraphicsExtractor context, DeltaTracker ticks) {
         var client = Minecraft.getInstance();
         var config = manager.getConfig();
-        if (client.player != victim || client.level != level) clearHit();
-        if (client.player == null || !config.isHitDistanceEnabled()) {
+        if (client.player == null || client.level == null || !config.isHitDistanceEnabled()) {
             clearHit();
             drag.cancel(manager);
             view.dispose();
             return;
         }
+        syncWorld(client);
         Hit hit = lastHit;
         boolean compact = config.isHitDistanceCompact();
         String name = hit == null || compact ? null : OrionNameProtect.replace(hit.attacker());
@@ -141,7 +214,7 @@ public final class OrionHitDistanceHud {
                     distanceX - PAD_X - 3, ROW_HEIGHT - 2, 8F,
                     hit == null ? "var(--muted)" : "var(--text)", "left", false);
             if (hit != null) {
-                scene.label(hit.distance(), distanceX, HEADER_HEIGHT, 28, ROW_HEIGHT - 2, 8F, "var(--text)", "right", true);
+                scene.label("≈" + hit.distance(), distanceX, HEADER_HEIGHT, 28, ROW_HEIGHT - 2, 8F, "var(--text)", "right", true);
                 scene.label("m", WIDTH - PAD_X - 10, HEADER_HEIGHT, 7, ROW_HEIGHT - 2, 6.5F, "var(--muted)", "left", false);
             }
             return scene;

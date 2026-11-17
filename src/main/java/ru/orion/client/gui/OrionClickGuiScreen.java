@@ -363,24 +363,57 @@ public final class OrionClickGuiScreen extends Screen {
     private Setting[] settingsRows = new Setting[0];
     private String soundQuery = "";
     private SimpleSoundInstance soundPreview;
-    private record SoundPreset(String group, String id, String label, String icon) {}
+    private record SoundPreset(String group, String id, String label, String icon, String... variants) {}
     private static final String EXPLOSION_SOUNDS = "Взрывы и эффекты";
     private static final String HOSTILE_SOUNDS = "Враждебные мобы";
+    private static final String WORLD_SOUNDS = "Погода и окружение";
+    private static final String MACHINE_SOUNDS = "Механизмы и транспорт";
+    private static final String FARM_SOUNDS = "Жители и фермы";
+    private static final String PLAYER_SOUNDS = "Звуки игрока";
     private static final String LOOKUP_SOUNDS = "Другие звуки";
     private static final SoundPreset[] FEATURED_SOUNDS = {
             new SoundPreset(EXPLOSION_SOUNDS, "entity.generic.explode", "Взрыв", "block/tnt_side"),
             new SoundPreset(EXPLOSION_SOUNDS, "entity.tnt.primed", "Активация TNT", "block/tnt_side"),
             new SoundPreset(EXPLOSION_SOUNDS, "entity.firework_rocket.launch", "Запуск фейерверка", "item/firework_rocket"),
-            new SoundPreset(EXPLOSION_SOUNDS, "entity.firework_rocket.blast", "Взрыв фейерверка", "item/firework_rocket"),
-            new SoundPreset(EXPLOSION_SOUNDS, "entity.firework_rocket.large_blast", "Большой взрыв фейерверка", "item/firework_rocket"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.firework_rocket.blast", "Взрыв фейерверка", "item/firework_rocket",
+                    "entity.firework_rocket.blast_far"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.firework_rocket.large_blast", "Большой взрыв фейерверка", "item/firework_rocket",
+                    "entity.firework_rocket.large_blast_far"),
             new SoundPreset(EXPLOSION_SOUNDS, "item.totem.use", "Использование тотема", "item/totem_of_undying"),
             new SoundPreset(EXPLOSION_SOUNDS, "entity.ender_dragon.growl", "Рык дракона Края", "item/dragon_breath"),
             new SoundPreset(EXPLOSION_SOUNDS, "entity.ender_dragon.death", "Смерть дракона Края", "item/dragon_breath"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.wither.spawn", "Появление визера", "item/nether_star"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.warden.sonic_boom", "Звуковая атака хранителя", "block/sculk"),
             new SoundPreset(HOSTILE_SOUNDS, "entity.enderman.scream", "Крик эндермена", "item/ender_pearl"),
             new SoundPreset(HOSTILE_SOUNDS, "entity.enderman.stare", "Взгляд эндермена", "item/ender_pearl"),
             new SoundPreset(HOSTILE_SOUNDS, "entity.ghast.scream", "Крик гаста", "item/ghast_tear"),
             new SoundPreset(HOSTILE_SOUNDS, "entity.ghast.warn", "Предупреждение гаста", "item/ghast_tear"),
-            new SoundPreset(HOSTILE_SOUNDS, "entity.phantom.bite", "Укус фантома", "item/phantom_membrane")
+            new SoundPreset(HOSTILE_SOUNDS, "entity.phantom.bite", "Укус фантома", "item/phantom_membrane"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.zombie.ambient", "Стоны зомби", "item/rotten_flesh"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.skeleton.ambient", "Грохот скелетов", "item/bone"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.slime.squish", "Хлюпанье слизней", "item/slime_ball",
+                    "entity.slime.squish_small"),
+            new SoundPreset(WORLD_SOUNDS, "weather.rain", "Дождь", "item/water_bucket", "weather.rain.above"),
+            new SoundPreset(WORLD_SOUNDS, "entity.lightning_bolt.thunder", "Гром", "item/trident"),
+            new SoundPreset(WORLD_SOUNDS, "block.portal.ambient", "Гул портала в Незер", "block/obsidian"),
+            new SoundPreset(WORLD_SOUNDS, "block.portal.travel", "Переход через портал", "item/flint_and_steel",
+                    "block.portal.trigger"),
+            new SoundPreset(WORLD_SOUNDS, "ambient.cave", "Пещерные звуки", "item/echo_shard"),
+            new SoundPreset(WORLD_SOUNDS, "block.fire.ambient", "Треск огня", "item/fire_charge"),
+            new SoundPreset(WORLD_SOUNDS, "block.lava.ambient", "Бульканье лавы", "item/lava_bucket", "block.lava.pop"),
+            new SoundPreset(MACHINE_SOUNDS, "block.piston.extend", "Поршни", "block/piston_side", "block.piston.contract"),
+            new SoundPreset(MACHINE_SOUNDS, "block.dispenser.dispense", "Раздатчики и выбрасыватели", "block/dispenser_front",
+                    "block.dispenser.fail", "block.dispenser.launch"),
+            new SoundPreset(MACHINE_SOUNDS, "entity.minecart.riding", "Вагонетки", "item/minecart",
+                    "entity.minecart.inside", "entity.minecart.inside.underwater"),
+            new SoundPreset(MACHINE_SOUNDS, "block.bell.use", "Звон колокола", "item/bell"),
+            new SoundPreset(FARM_SOUNDS, "entity.villager.ambient", "Бормотание жителей", "item/emerald"),
+            new SoundPreset(FARM_SOUNDS, "entity.wandering_trader.ambient", "Бормотание странствующего торговца", "item/lead"),
+            new SoundPreset(FARM_SOUNDS, "entity.sheep.ambient", "Блеяние овец", "block/white_wool"),
+            new SoundPreset(FARM_SOUNDS, "entity.bee.loop", "Жужжание пчёл", "item/honeycomb", "entity.bee.loop_aggressive"),
+            new SoundPreset(PLAYER_SOUNDS, "entity.experience_orb.pickup", "Подбор опыта", "item/experience_bottle"),
+            new SoundPreset(PLAYER_SOUNDS, "entity.item.pickup", "Подбор предметов", "item/iron_ingot"),
+            new SoundPreset(PLAYER_SOUNDS, "entity.player.burp", "Отрыжка после еды", "item/cooked_beef")
     };
     private static final String[] CROSSHAIR_PRESET_NAMES = {"Классический", "Точка", "С разрывом", "Кольцо", "Уголки"};
     private static final String[] CROSSHAIR_MODES = {"Custom", "Presets", "Classic"};
@@ -3488,7 +3521,7 @@ public final class OrionClickGuiScreen extends Screen {
         for (var preset : FEATURED_SOUNDS) {
             var id = Identifier.withDefaultNamespace(preset.id);
             if (sounds.getSoundEvent(id) == null) continue;
-            rows.add(soundSlider(config, id, preset.label, preset.group, preset.icon));
+            rows.add(soundSlider(config, id, preset.label, preset.group, preset.icon, preset.variants));
             visible.add(id);
         }
         rows.add(new TextSetting("Поиск по названию или ID", () -> soundQuery, value -> {
@@ -3520,10 +3553,17 @@ public final class OrionClickGuiScreen extends Screen {
         return rows.toArray(Setting[]::new);
     }
 
-    private static SliderSetting soundSlider(OrionConfig config, Identifier id, String label, String section, String icon) {
+    private static SliderSetting soundSlider(OrionConfig config, Identifier id, String label, String section, String icon,
+                                             String... variants) {
         String key = id.toString();
         return new SliderSetting(label, 0, 100, () -> (float) config.getSoundVolume(key),
-                value -> config.setSoundVolume(key, Math.round(value)), "%", true, id, section, icon);
+                value -> {
+                    int volume = Math.round(value);
+                    config.setSoundVolume(key, volume);
+                    for (String variant : variants) {
+                        config.setSoundVolume("minecraft:" + variant, volume);
+                    }
+                }, "%", true, id, section, icon);
     }
 
     static java.util.Set<String> settingIcons() {
@@ -7927,7 +7967,7 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("FullBright", "Повышает яркость мира", Icon.SUN, Action.FULL_BRIGHT),
                 new ModuleRow("HUD", "Отображает интерфейс клиента", Icon.MONITOR, Action.HUD),
                 new ModuleRow("Keystrokes", "Показывает нажатые клавиши", Icon.GRID, Action.KEYSTROKES),
-                new ModuleRow("HitDistance", "Дистанция последнего полученного удара", Icon.CROSSHAIR, Action.HIT_DISTANCE),
+                new ModuleRow("HitDistance", "Оценка дистанции последнего полученного удара", Icon.CROSSHAIR, Action.HIT_DISTANCE),
                 new ModuleRow("Potions", "Иконки, названия и таймеры активных эффектов", Icon.RINGS, Action.POTIONS),
                 new ModuleRow("NoRender", "Скрывает выбранные модели, частицы и наложения", Icon.EYE, Action.NO_RENDER),
                 new ModuleRow("InventoryHUD", "Содержимое инвентаря на экране", Icon.GRID, Action.INVENTORY_HUD),

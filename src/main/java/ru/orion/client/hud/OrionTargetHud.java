@@ -1,41 +1,36 @@
 package ru.orion.client.hud;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.item.ItemStackRenderState;
-import net.minecraft.client.renderer.rendertype.OrionEspRenderTypes;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
+import org.joml.Vector4f;
 import ru.orion.client.GleamMinecraft;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.effect.OrionNameProtect;
-import ru.orion.client.render.GleamPose;
+import ru.orion.client.render.GleamCameraMatrices;
 
 public final class OrionTargetHud {
     public static final String ID = "target_hud";
-    private static final int WIDTH = 154, BODY = 41, EQUIPMENT_ROW = 22, FULL_LIGHT = 0xf000f0;
-    private static final int TRACK_X = 39, TRACK_Y = 31, TRACK_WIDTH = WIDTH - TRACK_X - 8;
+    private static final int WIDTH = 154, EQUIPMENT_ROW = 22, MARGIN = 6;
+    private static final Layout SCREEN = new Layout(41, 9, 24, 39, 31);
+    private static final Layout ATTACHED = new Layout(50, 8, 34, 49, 38);
     private static final int HEALTH = 0xff80d5a4, ABSORPTION = 0xffe8b967;
     private static final EquipmentSlot[] EQUIPMENT = { EquipmentSlot.HEAD, EquipmentSlot.CHEST,
             EquipmentSlot.LEGS, EquipmentSlot.FEET, EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND };
@@ -51,20 +46,25 @@ public final class OrionTargetHud {
     private long barTime;
     private double shownHealth;
     private Readout previous;
+    private Layout previousLayout;
     private OrionHudView.Scene scene;
 
-    private record Readout(String name, String health, String distance, String ping, int fill, int absorption,
-                           boolean portrait, boolean equipment) {
-        int height() { return equipment ? BODY + EQUIPMENT_ROW : BODY; }
+    private record Layout(int body, int faceY, int faceSize, int textX, int barY) {
+        int height(boolean equipment) { return body + (equipment ? EQUIPMENT_ROW : 0); }
+        int barWidth() { return WIDTH - textX - 8; }
     }
+
+    private record Readout(String name, String health, String distance, String ping, int fill, int absorption,
+                           boolean portrait, boolean equipment) {}
+
+    private record Placement(int x, int y, int width, int height) {}
 
     public OrionTargetHud(OrionConfigManager manager) {
         this.manager = manager;
     }
 
     public void register() {
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, ID), this::renderScreen);
-        LevelRenderEvents.COLLECT_SUBMITS.register(this::renderWorld);
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, ID), this::render);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(this::clear));
     }
 
@@ -106,7 +106,7 @@ public final class OrionTargetHud {
         return now - lastSeen <= hold && valid(client, target, config) ? target : null;
     }
 
-    private Readout read(Minecraft client, LivingEntity living, OrionConfig config) {
+    private Readout read(Minecraft client, LivingEntity living, OrionConfig config, Layout layout) {
         float health = living.getHealth(), max = living.getMaxHealth(), absorption = living.getAbsorptionAmount();
         long now = System.nanoTime();
         double ratio = Math.clamp(health / Math.max(1F, max), 0F, 1F);
@@ -115,8 +115,8 @@ public final class OrionTargetHud {
                 : ratio;
         barTime = now;
         barTarget = living;
-        int fill = (int) Math.round(shownHealth * TRACK_WIDTH);
-        int shield = (int) Math.round(Math.clamp(absorption / Math.max(1F, max), 0F, 1F) * TRACK_WIDTH);
+        int fill = (int) Math.round(shownHealth * layout.barWidth());
+        int shield = (int) Math.round(Math.clamp(absorption / Math.max(1F, max), 0F, 1F) * layout.barWidth());
         String healthLabel = Math.round(health) + " / " + Math.round(max) + (absorption > 0 ? " +" + Math.round(absorption) : "");
         double range = Math.sqrt(living.getBoundingBox().distanceToSqr(client.player.getEyePosition()));
         int decimeters = (int) Math.round(range * 10.0);
@@ -136,61 +136,68 @@ public final class OrionTargetHud {
                 fill, shield, living instanceof AbstractClientPlayer, equipped);
     }
 
-    private void renderScreen(GuiGraphicsExtractor graphics, DeltaTracker ticks) {
+    private void render(GuiGraphicsExtractor graphics, DeltaTracker ticks) {
         var client = Minecraft.getInstance();
         var config = manager.getConfig();
         if (!config.isTargetHudEnabled() || client.player == null || client.level == null) {
             clear();
             return;
         }
-        if (config.isTargetHudWorld()) {
-            drag.cancel(manager);
-            view.dispose();
-            return;
-        }
+        boolean attached = config.isTargetHudWorld();
         LivingEntity living = resolve(client, config);
-        if (living == null && GleamMinecraft.screen(client) instanceof ChatScreen) living = client.player;
+        if (!attached && living == null && GleamMinecraft.screen(client) instanceof ChatScreen) living = client.player;
         if (living == null) {
             barTarget = null;
             drag.cancel(manager);
             view.dispose();
             return;
         }
-        Readout data = read(client, living, config);
-        if (!data.equals(previous)) {
-            scene = scene(data);
-            previous = data;
+        Layout layout = attached ? ATTACHED : SCREEN;
+        Readout data = read(client, living, config, layout);
+        int height = layout.height(data.equipment);
+        float scale = config.getHudScale() * config.getHudElementScale(ID);
+        Placement placement;
+        if (attached) {
+            drag.cancel(manager);
+            placement = attachedPlacement(graphics, client, living, ticks, height, scale);
+        } else {
+            float fit = OrionHudView.fit(scale, WIDTH, height, graphics.guiWidth(), graphics.guiHeight());
+            int w = Math.max(1, Math.round(WIDTH * fit)), h = Math.max(1, Math.round(height * fit));
+            var pos = drag.placeWidget(graphics, w, h, (graphics.guiWidth() - w) / 2 + 48,
+                    graphics.guiHeight() / 2 + 25, manager);
+            placement = pos == null ? null : new Placement(pos.x(), pos.y(), w, h);
         }
-        int height = data.height();
-        float scale = OrionHudView.fit(config.getHudScale() * config.getHudElementScale(ID),
-                WIDTH, height, graphics.guiWidth(), graphics.guiHeight());
-        int w = Math.max(1, Math.round(WIDTH * scale)), h = Math.max(1, Math.round(height * scale));
-        var pos = drag.placeWidget(graphics, w, h, (graphics.guiWidth() - w) / 2 + 48,
-                graphics.guiHeight() / 2 + 25, manager);
-        if (pos == null) return;
-        view.draw(graphics, scene, pos.x(), pos.y(), w, h);
+        if (placement == null) return;
+        if (!data.equals(previous) || layout != previousLayout) {
+            scene = scene(data, layout);
+            previous = data;
+            previousLayout = layout;
+        }
+        view.draw(graphics, scene, placement.x, placement.y, placement.width, placement.height);
         graphics.nextStratum();
         var pose = graphics.pose();
         pose.pushMatrix();
         try {
-            pose.translate(pos.x(), pos.y());
-            pose.scale(w / (float) WIDTH, h / (float) height);
+            pose.translate(placement.x, placement.y);
+            pose.scale(placement.width / (float) WIDTH, placement.height / (float) height);
             if (living instanceof AbstractClientPlayer player) {
                 Identifier skin = player.getSkin().body().texturePath();
-                graphics.blit(RenderPipelines.GUI_TEXTURED, skin, 8, 9, 8, 8, 24, 24, 8, 8, 64, 64);
+                graphics.blit(RenderPipelines.GUI_TEXTURED, skin, 8, layout.faceY, 8, 8,
+                        layout.faceSize, layout.faceSize, 8, 8, 64, 64);
                 if (player.isModelPartShown(net.minecraft.world.entity.player.PlayerModelPart.HAT))
-                    graphics.blit(RenderPipelines.GUI_TEXTURED, skin, 8, 9, 40, 8, 24, 24, 8, 8, 64, 64);
+                    graphics.blit(RenderPipelines.GUI_TEXTURED, skin, 8, layout.faceY, 40, 8,
+                            layout.faceSize, layout.faceSize, 8, 8, 64, 64);
             }
             if (data.equipment) for (int i = 0; i < EQUIPMENT.length; i++) {
                 var item = living.getItemBySlot(EQUIPMENT[i]);
                 if (item.isEmpty()) continue;
                 int x = 8 + i * 20;
                 //? if >=26.1 {
-                graphics.item(item, x, BODY + 2);
-                graphics.itemDecorations(client.font, item, x, BODY + 2);
+                graphics.item(item, x, layout.body + 2);
+                graphics.itemDecorations(client.font, item, x, layout.body + 2);
                 //?} else {
-                /*graphics.renderItem(item, x, BODY + 2);
-                graphics.renderItemDecorations(client.font, item, x, BODY + 2);
+                /*graphics.renderItem(item, x, layout.body + 2);
+                graphics.renderItemDecorations(client.font, item, x, layout.body + 2);
                 *///?}
             }
         } finally {
@@ -198,115 +205,106 @@ public final class OrionTargetHud {
         }
     }
 
-    private static OrionHudView.Scene scene(Readout data) {
-        var scene = new OrionHudView.Scene(WIDTH, data.height());
-        scene.panel(0, 0, WIDTH, data.height(), 7);
-        scene.well(7, 8, 26, 26, 4);
-        if (!data.portrait) scene.icon(TARGET_ICON, 12, 13, 16, "var(--accent)", false);
-        scene.label(data.name, TRACK_X, 4, 76, 15, 9, "var(--text)", "left", true);
-        scene.label(data.ping, 115, 4, 31, 15, 7, "var(--muted)", "right", false);
-        scene.label(data.health, TRACK_X, 17, 75, 12, 8, OrionHudView.color(HEALTH), "left", true);
-        scene.label(data.distance, 109, 17, 37, 12, 7.5F, "var(--muted)", "right", false);
-        scene.well(TRACK_X, TRACK_Y, TRACK_WIDTH, 4, 2);
-        if (data.fill > 0) scene.box(TRACK_X, TRACK_Y, data.fill, 4, 2, OrionHudView.color(HEALTH), null);
-        if (data.absorption > 0) scene.box(TRACK_X, TRACK_Y + 5, data.absorption, 2, 1, OrionHudView.color(ABSORPTION), null);
-        if (data.equipment) scene.divider(7, BODY, WIDTH - 14);
+    private static OrionHudView.Scene scene(Readout data, Layout layout) {
+        var scene = new OrionHudView.Scene(WIDTH, layout.height(data.equipment));
+        boolean attached = layout == ATTACHED;
+        if (attached) scene.surface(0, 0, WIDTH, layout.height(data.equipment), 8);
+        else scene.panel(0, 0, WIDTH, layout.height(data.equipment), 7);
+        scene.well(7, layout.faceY - 1, layout.faceSize + 2, layout.faceSize + 2, 4);
+        if (!data.portrait) {
+            int iconSize = attached ? 21 : 16;
+            scene.icon(TARGET_ICON, 8 + (layout.faceSize - iconSize) / 2F,
+                    layout.faceY + (layout.faceSize - iconSize) / 2F, iconSize, "var(--accent)", false);
+        }
+        int nameWidth = (data.ping.isEmpty() ? WIDTH - 8 : 115) - layout.textX;
+        scene.label(data.name, layout.textX, attached ? 6 : 4, nameWidth, 15,
+                attached ? 10 : 9, "var(--text)", "left", true);
+        scene.label(data.ping, 115, attached ? 6 : 4, 31, 15, 7, "var(--muted)", "right", false);
+        int detailsY = attached ? 23 : 17;
+        scene.label(data.health, layout.textX, detailsY, 106 - layout.textX, 12,
+                8, attached ? "var(--text)" : OrionHudView.color(HEALTH), "left", true);
+        scene.label(data.distance, 109, detailsY, 37, 12, 7.5F, "var(--muted)", "right", false);
+        int barHeight = attached ? 5 : 4;
+        scene.well(layout.textX, layout.barY, layout.barWidth(), barHeight, 2);
+        if (data.fill > 0) scene.box(layout.textX, layout.barY, data.fill, barHeight, 2, OrionHudView.color(HEALTH), null);
+        if (data.absorption > 0) scene.box(layout.textX, layout.barY + barHeight + 1, data.absorption,
+                2, 1, OrionHudView.color(ABSORPTION), null);
+        if (data.equipment) scene.divider(7, layout.body, WIDTH - 14);
         return scene;
     }
 
-    private void renderWorld(LevelRenderContext context) {
-        var client = Minecraft.getInstance();
-        var config = manager.getConfig();
-        if (!config.isTargetHudEnabled() || !config.isTargetHudWorld() || client.player == null
-                //? if >=26.2 {
-                || client.level == null || client.gameRenderer.gameRenderState().guiRenderState.isHudHidden) return;
-                //?} else {
-                /*|| client.level == null || client.options.hideGui) return;
-                *///?}
-        LivingEntity living = resolve(client, config);
-        var camera = context.levelState().cameraRenderState;
-        if (living == null || camera == null || !camera.initialized || camera.orientation == null) return;
-        var position = living.getPosition(client.getDeltaTracker().getGameTimeDeltaPartialTick(true));
-        var data = read(client, living, config);
-        var stack = context.poseStack();
-        stack.pushPose();
-        try {
-            stack.translate(position.x - camera.pos.x, position.y - camera.pos.y + living.getBbHeight() * .48, position.z - camera.pos.z);
-            GleamPose.rotate(stack, camera.orientation);
-            float size = .0058F * config.getHudElementScale(ID);
-            // Keep the whole card to the left of the body in camera space.
-            float shoulder = living.getBbWidth() * .64F + .07F;
-            stack.translate(-shoulder, 0, .035F);
-            stack.scale(size, -size, size);
-            stack.translate(-WIDTH, -BODY / 2F, 0);
-            boolean light = config.getClickGuiTheme() == 4;
-            int text = light ? 0xff20232c : 0xfff1f3fc, muted = light ? 0xff464d60 : 0xffacb4cc;
-            int background = light ? 0xf6edf0f9 : 0xf21c1e29;
-            int track = light ? 0xffcdd2e0 : 0xff363a49;
-            int hp = light ? 0xff20794d : HEALTH;
-            var collector = context.submitNodeCollector();
-            collector.submitCustomGeometry(stack, OrionEspRenderTypes.colorQuadsDepthTested(), (pose, vertices) -> {
-                // Inset corners on the depth-tested billboard.
-                quad(pose, vertices, 3, 0, WIDTH - 3, data.height(), 0, background);
-                quad(pose, vertices, 0, 3, 3, data.height() - 3, 0, background);
-                quad(pose, vertices, WIDTH - 3, 3, WIDTH, data.height() - 3, 0, background);
-                quad(pose, vertices, TRACK_X, TRACK_Y, WIDTH - 8, TRACK_Y + 4, .2F, track);
-                if (data.fill > 0) quad(pose, vertices, TRACK_X, TRACK_Y, TRACK_X + data.fill, TRACK_Y + 4, .35F, hp);
-                if (data.absorption > 0) quad(pose, vertices, TRACK_X, TRACK_Y + 5, TRACK_X + data.absorption,
-                        TRACK_Y + 7, .35F, ABSORPTION);
-                if (data.equipment) quad(pose, vertices, 7, BODY, WIDTH - 7, BODY + 1, .2F, track);
-            });
-            if (living instanceof AbstractClientPlayer player) {
-                Identifier skin = player.getSkin().body().texturePath();
-                portrait(context, stack, skin, 8, .25F);
-                if (player.isModelPartShown(net.minecraft.world.entity.player.PlayerModelPart.HAT))
-                    portrait(context, stack, skin, 40, .45F);
-            } else {
-                drawText(context, stack, "◎", 15, 16, muted);
+    private static Placement attachedPlacement(GuiGraphicsExtractor graphics, Minecraft client, LivingEntity living,
+                                                DeltaTracker ticks, int cardHeight, float hudScale) {
+        //? if >=26.2 {
+        if (client.gameRenderer.gameRenderState().guiRenderState.isHudHidden) return null;
+        //?} else {
+        /*if (client.options.hideGui) return null;
+        *///?}
+        var camera = GleamMinecraft.levelState(client).cameraRenderState;
+        if (camera == null || !camera.initialized || camera.pos == null) return null;
+        var projection = GleamCameraMatrices.projection(camera);
+        var view = GleamCameraMatrices.view(camera);
+        if (projection == null || view == null) return null;
+
+        float partial = ticks.getGameTimeDeltaPartialTick(true);
+        Vec3 position = living.getPosition(partial);
+        Vec3 torso = position.add(0, living.getBbHeight() * .46, 0);
+        var matrix = new Matrix4f(projection).mul(view);
+        Vec3 offset = torso.subtract(camera.pos);
+        var projected = new Vector4f((float) offset.x, (float) offset.y, (float) offset.z, 1F).mul(matrix);
+        if (!Float.isFinite(projected.w) || projected.w <= .05F) return null;
+        float centerX = projected.x / projected.w;
+        float centerY = projected.y / projected.w;
+        if (!Float.isFinite(centerX) || !Float.isFinite(centerY)
+                || Math.abs(centerX) > 1F || Math.abs(centerY) > 1F) return null;
+        if (!(client.hitResult instanceof EntityHitResult aimed && aimed.getEntity() == living)
+                && !clearPath(client, living, camera.pos, torso)
+                && !clearPath(client, living, camera.pos, position.add(0, living.getEyeHeight(), 0))) return null;
+
+        // Project the outline at torso height so the card sits outside the model even when the camera turns.
+        float left = centerX, right = centerX;
+        float radius = living.getBbWidth() / 2F;
+        var edge = new Vector4f();
+        for (int x = -1; x <= 1; x += 2) {
+            for (int z = -1; z <= 1; z += 2) {
+                edge.set((float) offset.x + x * radius, (float) offset.y, (float) offset.z + z * radius, 1F).mul(matrix);
+                if (edge.w <= .05F) continue;
+                float ndc = edge.x / edge.w;
+                left = Math.min(left, ndc);
+                right = Math.max(right, ndc);
             }
-            stack.translate(0, 0, .4F);
-            drawText(context, stack, client.font.plainSubstrByWidth(data.name, 74), TRACK_X, 9, text);
-            drawText(context, stack, data.ping, WIDTH - 8 - client.font.width(data.ping), 9, muted);
-            drawText(context, stack, data.health, TRACK_X, 20, hp);
-            drawText(context, stack, data.distance, WIDTH - 8 - client.font.width(data.distance), 20, muted);
-            if (data.equipment) {
-                for (int i = 0; i < EQUIPMENT.length; i++) {
-                    var item = living.getItemBySlot(EQUIPMENT[i]);
-                    if (item.isEmpty()) continue;
-                    var state = new ItemStackRenderState();
-                    client.getItemModelResolver().updateForLiving(state, item, ItemDisplayContext.GUI, living);
-                    stack.pushPose();
-                    stack.translate(16 + i * 20, BODY + 11, 3);
-                    stack.scale(13, -13, 13);
-                    state.submit(stack, collector, FULL_LIGHT, OverlayTexture.NO_OVERLAY, 0);
-                    stack.popPose();
-                }
-            }
-        } finally {
-            stack.popPose();
         }
+
+        int screenWidth = graphics.guiWidth(), screenHeight = graphics.guiHeight();
+        float pixelsPerBlock = screenHeight * .5F * Math.abs(projection.m11()) / projected.w;
+        float perspective = Math.clamp(pixelsPerBlock * 1.25F / WIDTH, .77F, 1.16F);
+        float scale = OrionHudView.fit(hudScale * perspective, WIDTH, cardHeight, screenWidth, screenHeight);
+        float edgeLeft = (left + 1F) * screenWidth / 2F;
+        float edgeRight = (right + 1F) * screenWidth / 2F;
+        float torsoY = (1F - centerY) * screenHeight / 2F;
+        return placeBeside(screenWidth, screenHeight, edgeLeft, edgeRight, torsoY, cardHeight, scale);
     }
 
-    private static void drawText(LevelRenderContext context, PoseStack pose, String text, float x, float y, int color) {
-        if (text.isEmpty()) return;
-        context.submitNodeCollector().submitText(pose, x, y, Component.literal(text).getVisualOrderText(),
-                false, Font.DisplayMode.NORMAL, FULL_LIGHT, color, 0, 0);
+    private static boolean clearPath(Minecraft client, LivingEntity target, Vec3 from, Vec3 to) {
+        return client.level.clip(new ClipContext(from, to, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, target))
+                .getType() == HitResult.Type.MISS;
     }
 
-    private static void quad(PoseStack.Pose pose, VertexConsumer out, float x0, float y0, float x1, float y1, float z, int color) {
-        out.addVertex(pose.pose(), x0, y1, z).setColor(color);
-        out.addVertex(pose.pose(), x1, y1, z).setColor(color);
-        out.addVertex(pose.pose(), x1, y0, z).setColor(color);
-        out.addVertex(pose.pose(), x0, y0, z).setColor(color);
-    }
-
-    private static void portrait(LevelRenderContext context, PoseStack pose, Identifier skin, int left, float z) {
-        context.submitNodeCollector().submitCustomGeometry(pose, RenderTypes.text(skin), (p, out) -> {
-            float u0 = left / 64F, u1 = (left + 8) / 64F, v0 = 8 / 64F, v1 = 16 / 64F;
-            out.addVertex(p.pose(), 8, 33, z).setUv(u0, v1).setLight(FULL_LIGHT).setColor(-1);
-            out.addVertex(p.pose(), 32, 33, z).setUv(u1, v1).setLight(FULL_LIGHT).setColor(-1);
-            out.addVertex(p.pose(), 32, 9, z).setUv(u1, v0).setLight(FULL_LIGHT).setColor(-1);
-            out.addVertex(p.pose(), 8, 9, z).setUv(u0, v0).setLight(FULL_LIGHT).setColor(-1);
-        });
+    private static Placement placeBeside(int screenWidth, int screenHeight, float edgeLeft, float edgeRight,
+                                         float torsoY, int cardHeight, float scale) {
+        int gap = Math.max(4, Math.round(scale * 6F));
+        int leftEnd = (int) Math.floor(edgeLeft) - gap;
+        int rightStart = (int) Math.ceil(edgeRight) + gap;
+        int spaceLeft = leftEnd - MARGIN;
+        int spaceRight = screenWidth - MARGIN - rightStart;
+        int wantedWidth = Math.max(1, Math.round(WIDTH * scale / 4F) * 4);
+        boolean left = spaceLeft >= wantedWidth || spaceRight < wantedWidth && spaceLeft >= spaceRight;
+        int width = Math.min(wantedWidth, left ? spaceLeft : spaceRight);
+        if (width < wantedWidth * .70F) return null;
+        int height = Math.max(1, Math.round(cardHeight * width / (float) WIDTH));
+        if (screenHeight - MARGIN * 2 < height) return null;
+        int y = Math.clamp(Math.round(torsoY - ATTACHED.body * width / (2F * WIDTH)),
+                MARGIN, screenHeight - height - MARGIN);
+        return new Placement(left ? leftEnd - width : rightStart, y, width, height);
     }
 }
