@@ -380,34 +380,41 @@ function controlRow(row, module, index, embedded = false) {
   if (row.kind === 'crosshair') return crosshairEditor(row,module,index);
   if (!embedded && module.id === 'CROSSHAIR' && module.settings[0]?.kind === 'crosshair') return '';
   const id = 'field-' + index, saved = state.values.get(module.id + ':' + index) ?? row.value;
-  if (row.kind === 'toggle') return settingToggle(id,row.label,saved,'data-setting-toggle="' + index + '"');
+  if (row.kind === 'toggle') return settingToggle(id,row.label,saved,'data-setting-toggle="' + index + '"',row.art);
   let control;
   const attrs = ' id="' + id + '" data-setting="' + index + '"'
     + (row.sound ? ' data-sound="' + text(row.sound) + '"' : '');
+  if (row.sound) {
+    const title = row.lookup ? row.sound : row.label;
+    return '<div class="setting-row sound-setting-row"><button type="button" class="sound-preview-button" data-sound-preview="'
+      + index + '" data-sound="' + text(row.sound) + '" aria-label="' + text(t('Прослушать') + ' ' + row.label) + '" title="'
+      + text(t('Прослушать')) + '">' + (row.art ? settingArt(row.art) : icon('speaker')) + '</button>'
+      + '<label for="' + id + '" title="' + text(title) + '">' + text(row.label) + '</label><span class="range">'
+      + '<output for="' + id + '">' + saved + text(row.suffix) + '</output>'
+      + rangeControl(attrs,row.min,row.max,row.step,saved,row.suffix) + '</span></div>';
+  }
   switch (row.kind) {
     case 'slider': control = '<span class="range">' + rangeControl(attrs,row.min,row.max,row.step || '.01',saved,row.suffix)
       + '<output for="' + id + '">' + saved + text(row.suffix ?? '') + '</output></span>'; break;
     case 'choice': control = choiceControl(row,id,index,saved); break;
     case 'color': return colorRow(row,id,attrs,saved);
-    case 'text': control = '<input type="text"' + attrs + (row.maxLength ? ' maxlength="' + row.maxLength + '"' : '')
+    case 'text': control = '<input type="text"' + attrs + (module.id === 'SOUND_SETTINGS' ? ' data-sound-search' : '')
+      + (row.maxLength ? ' maxlength="' + row.maxLength + '"' : '')
       + ' value="' + text(saved) + '" autocomplete="off">'; break;
     case 'keybind': control = '<button type="button" class="button" id="' + id + '" data-keybind="' + index + '">' + text(saved === '—' ? t('Назначить') : saved) + '</button>'; break;
     case 'button': control = '<button class="button" type="button" data-setting-button="' + index + '">' + text(row.caption) + '</button>'; break;
     default: control = '<small id="' + id + '">' + text(saved) + '</small>';
   }
-  if (row.sound) {
-    const subtitle = row.sound === 'minecraft:' + row.label ? '' : '<small>' + text(row.sound) + '</small>';
-    return '<div class="setting-row sound-setting-row"><button type="button" class="button sound-preview-button" data-sound-preview="'
-      + index + '" data-sound="' + text(row.sound) + '" aria-label="' + text(t('Прослушать') + ' ' + row.label) + '" title="'
-      + text(t('Прослушать')) + '">' + icon('speaker') + '</button><label for="' + id + '" title="' + text(row.sound) + '">'
-      + '<span>' + text(row.label) + '</span>' + subtitle + '</label>' + control + '</div>';
-  }
   return '<div class="setting-row' + (row.kind === 'choice' ? ' choice-row' : '')
     + '"><label for="' + id + '">' + text(row.label) + '</label>' + control + '</div>';
 }
-function settingToggle(id,label,checked,attrs) {
-  return '<button type="button" id="' + id + '" class="setting-row setting-toggle-row" role="switch" aria-checked="'
-    + Boolean(checked) + '" ' + attrs + '><span>' + text(label) + '</span>' + toggleMarkup + '</button>';
+function settingArt(art) {
+  return '<img class="setting-art" src="assets/' + text(art) + '.png" alt="">';
+}
+function settingToggle(id,label,checked,attrs,art) {
+  return '<button type="button" id="' + id + '" class="setting-row setting-toggle-row' + (art ? ' has-setting-art' : '')
+    + '" role="switch" aria-checked="' + Boolean(checked) + '" ' + attrs + '>'
+    + (art ? settingArt(art) : '') + '<span class="setting-name">' + text(label) + '</span>' + toggleMarkup + '</button>';
 }
 function colorRow(row,id,attrs,value) {
   return '<div class="setting-row setting-color-row" style="--picker-color:' + text(value) + '">'
@@ -441,20 +448,36 @@ function worldPreview(module) {
     + '<path class="world-preview-near" fill="currentColor" d="M0 105 70 93 126 102 195 91 259 102 328 93 390 103 466 86 533 99 589 89 640 95V126H0Z"/>'
     + '</svg></div></div>';
 }
-function soundSettingsRows(rows,module) {
-  const controls = rows.slice(0,2).map((row,index) => controlRow(row,module,index)).join('');
-  if (!rows[2]) return controls;
-  const pages = rows.flatMap((row,index) => row.kind === 'button' ? [{row,index}] : []);
-  const nav = '<div class="sound-pagination"><small>' + text(rows[2].label) + ' <b id="field-2">' + text(rows[2].value)
-    + '</b></small>' + (pages.length ? '<span>' + text(pages[0].row.label) + '</span>' : '')
-    + pages.map(({row,index}) => '<button type="button" class="button" data-setting-button="' + index
-      + '">' + text(row.caption) + '</button>').join('') + '</div>';
-  return controls + nav + rows.slice(3).map((row,i) => row.kind === 'button' ? '' : controlRow(row,module,i+3)).join('');
+let soundLookupOpen = false;
+let soundPreviewEnabled = false;
+function renderSoundSettings(module,enabled) {
+  const groups = new Map();
+  const lookup = [];
+  module.settings.forEach((row,index) => {
+    const markup = controlRow(row,module,index);
+    if (!row.sound || row.lookup) {
+      lookup.push(markup);
+      return;
+    }
+    groups.set(row.section,(groups.get(row.section) ?? '') + markup);
+  });
+  return '<div class="sound-mixer"><div class="sound-mixer-head"><div class="sound-mixer-title">' + itemArt(module)
+    + '<h1>Sound Settings</h1></div><div class="sound-mixer-actions">'
+    + '<button type="button" class="sound-module-switch" role="switch" aria-checked="' + enabled
+    + '" data-module-toggle="' + module.id + '" aria-label="Sound Settings">' + toggleMarkup + '</button>'
+    + '<button type="button" class="button sound-preview-mode" data-sound-preview-mode aria-pressed="' + soundPreviewEnabled
+    + '">' + icon('speaker') + ' ' + text(t('Предпросмотр')) + '</button></div></div>'
+    + '<div class="sound-mixer-body">' + [...groups].map(([title,rows]) =>
+      '<section class="sound-group"><h2>' + text(title) + '</h2><div class="sound-group-list">' + rows + '</div></section>').join('')
+    + '<div class="sound-lookup"><button type="button" class="sound-lookup-button" data-sound-lookup aria-expanded="'
+    + soundLookupOpen + '" aria-controls="sound-lookup-fields">' + icon('search') + ' ' + text(t('Другие звуки'))
+    + '</button><div id="sound-lookup-fields"' + (soundLookupOpen ? '' : ' hidden') + '>' + lookup.join('') + '</div></div></div></div>';
 }
 function renderModule() {
   const module = byId.get(state.module);
   const enabled = state.enabled.has(module.id);
-  const groups = (moduleGroups[module.id] || [[0,module.id === 'SOUND_SETTINGS' ? 'Звуки Minecraft' : t('Настройки модуля')]]).map(([start,title],i,all) => ({
+  if (module.id === 'SOUND_SETTINGS') return renderSoundSettings(module,enabled);
+  const groups = (moduleGroups[module.id] || [[0,t('Настройки модуля')]]).map(([start,title],i,all) => ({
     start, title, rows:module.settings.slice(start,all[i+1]?.[0] ?? module.settings.length)
   })).filter(group => group.rows.length);
   const contents = groups.length > 1 ? '<nav class="settings-toc" aria-label="' + text(t('На этой странице')) + '"><span>' + text(t('На этой странице')) + '</span>'
@@ -468,12 +491,12 @@ function renderModule() {
     + '<span class="module-state">' + (enabled ? t('Включён') : t('Выключен')) + '</span>' + toggleMarkup + '</button></div>'
     + '<div class="module-settings' + (contents ? ' with-toc' : '') + '">' + contents + '<div class="settings-groups">'
     + groups.map(({start,title,rows},i) => '<section class="settings-group" id="settings-group-' + i + '">'
-      + (module.id === 'CROSSHAIR' ? '' : '<div class="settings-group-title"><h2>' + text(t(title)) + '</h2><span>' + rows.length + '</span></div>')
+      + (module.id === 'CROSSHAIR' ? '' : '<div class="settings-group-title"><h2>' + text(t(title)) + '</h2>'
+        + (module.id === 'NO_RENDER' ? '' : '<span>' + rows.length + '</span>') + '</div>')
       + '<div class="sheet">'
       + (module.id === 'ENCHANT_GLINT' && start === 0 ? glintPreview(module) : '')
       + (module.id === 'WORLD_CHANGER' && start === 0 ? worldPreview(module) : '')
-      + (module.id === 'SOUND_SETTINGS' ? soundSettingsRows(rows,module)
-        : rows.map((row,j) => controlRow(row,module,start+j)).join('')) + '</div></section>').join('')
+      + rows.map((row,j) => controlRow(row,module,start+j)).join('') + '</div></section>').join('')
     + '</div></div>';
 }
 function renderProfile() {

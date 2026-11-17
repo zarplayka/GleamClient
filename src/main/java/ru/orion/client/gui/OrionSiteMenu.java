@@ -7,6 +7,7 @@ import com.paradox.lumen.LumenNative;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.resources.Identifier;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
@@ -279,6 +280,7 @@ final class OrionSiteMenu {
                 menuImages = loaded;
             }
             menuImages.forEach(OrionSiteMenu::registerPng);
+            registerSettingIcons();
             for (Avatar avatar : AVATARS.values()) registerPng(avatar.name(),avatar.png());
             if (document != null) return document;
             // Lumen не применяет селекторы вида :root[data-theme] и :root[data-density].
@@ -320,6 +322,29 @@ final class OrionSiteMenu {
         if (cached == null) return avatar(image);
         registerPng(cached.name(),cached.png());
         return cached.name();
+    }
+
+    private static void registerSettingIcons() {
+        var resources = Minecraft.getInstance().getResourceManager();
+        for (String path : OrionClickGuiScreen.settingIcons()) {
+            var resource = resources.getResource(Identifier.withDefaultNamespace("textures/" + path + ".png"));
+            if (resource.isEmpty()) continue;
+            try (var stream = resource.get().open()) {
+                byte[] data;
+                if (path.equals("entity/player/wide/steve")) {
+                    var skin = ImageIO.read(stream);
+                    if (skin == null || skin.getWidth() < 16 || skin.getHeight() < 16) continue;
+                    int unit = Math.max(1, skin.getWidth() / 8);
+                    if (skin.getHeight() < unit * 2) continue;
+                    data = png(skin.getSubimage(unit, unit, unit, unit));
+                } else {
+                    data = stream.readAllBytes();
+                }
+                registerPng(OrionClickGuiScreen.settingIconName(path), data);
+            } catch (IOException exception) {
+                LoggerFactory.getLogger("GleamClient ClickGUI").debug("Could not load setting icon {}", path, exception);
+            }
+        }
     }
 
     private static byte[] png(BufferedImage image) throws IOException {

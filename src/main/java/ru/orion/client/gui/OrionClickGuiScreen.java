@@ -362,17 +362,25 @@ public final class OrionClickGuiScreen extends Screen {
     private ModuleRow settingsFor;
     private Setting[] settingsRows = new Setting[0];
     private String soundQuery = "";
-    private int soundFilter;
-    private int soundPage;
     private SimpleSoundInstance soundPreview;
-    private static final int SOUNDS_PER_PAGE = 18;
-    private static final String[] SOUND_FILTERS = {"Все", "Изменённые", "Взрывы и эффекты", "Враждебные мобы",
-            "Сущности", "Блоки", "Предметы", "Музыка и пластинки", "Окружение", "Прочие звуки"};
-    private static final String[] FEATURED_SOUNDS = {
-            "entity.generic.explode", "entity.tnt.primed", "entity.firework_rocket.launch",
-            "entity.firework_rocket.blast", "entity.firework_rocket.large_blast", "item.totem.use",
-            "entity.ender_dragon.growl", "entity.ender_dragon.death", "entity.enderman.scream",
-            "entity.enderman.stare", "entity.ghast.scream", "entity.ghast.warn", "entity.phantom.bite"
+    private record SoundPreset(String group, String id, String label, String icon) {}
+    private static final String EXPLOSION_SOUNDS = "Взрывы и эффекты";
+    private static final String HOSTILE_SOUNDS = "Враждебные мобы";
+    private static final String LOOKUP_SOUNDS = "Другие звуки";
+    private static final SoundPreset[] FEATURED_SOUNDS = {
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.generic.explode", "Взрыв", "block/tnt_side"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.tnt.primed", "Активация TNT", "block/tnt_side"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.firework_rocket.launch", "Запуск фейерверка", "item/firework_rocket"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.firework_rocket.blast", "Взрыв фейерверка", "item/firework_rocket"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.firework_rocket.large_blast", "Большой взрыв фейерверка", "item/firework_rocket"),
+            new SoundPreset(EXPLOSION_SOUNDS, "item.totem.use", "Использование тотема", "item/totem_of_undying"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.ender_dragon.growl", "Рык дракона Края", "item/dragon_breath"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.ender_dragon.death", "Смерть дракона Края", "item/dragon_breath"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.enderman.scream", "Крик эндермена", "item/ender_pearl"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.enderman.stare", "Взгляд эндермена", "item/ender_pearl"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.ghast.scream", "Крик гаста", "item/ghast_tear"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.ghast.warn", "Предупреждение гаста", "item/ghast_tear"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.phantom.bite", "Укус фантома", "item/phantom_membrane")
     };
     private static final String[] CROSSHAIR_PRESET_NAMES = {"Классический", "Точка", "С разрывом", "Кольцо", "Уголки"};
     private static final String[] CROSSHAIR_MODES = {"Custom", "Presets", "Classic"};
@@ -1303,6 +1311,7 @@ public final class OrionClickGuiScreen extends Screen {
             case ToggleSetting toggle -> {
                 item.addProperty("kind","toggle");
                 item.addProperty("value",toggle.get.get());
+                if (toggle.icon != null) item.addProperty("art", settingIconName(toggle.icon));
             }
             case SliderSetting slider -> {
                 item.addProperty("kind","slider");
@@ -1311,7 +1320,12 @@ public final class OrionClickGuiScreen extends Screen {
                 item.addProperty("step",slider.integer ? 1 : .01F);
                 item.addProperty("suffix",tr(slider.suffix));
                 item.addProperty("value",slider.get.get());
-                if (slider.sound != null) item.addProperty("sound", slider.sound.toString());
+                if (slider.sound != null) {
+                    item.addProperty("sound", slider.sound.toString());
+                    item.addProperty("section", tr(slider.section));
+                    if (slider.icon != null) item.addProperty("art", settingIconName(slider.icon));
+                    if (LOOKUP_SOUNDS.equals(slider.section)) item.addProperty("lookup", true);
+                }
             }
             case ChoiceSetting choice -> {
                 item.addProperty("kind","choice");
@@ -3469,83 +3483,58 @@ public final class OrionClickGuiScreen extends Screen {
 
     private Setting[] buildSoundSettings(OrionConfig config) {
         var sounds = minecraft.getSoundManager();
-        String query = soundQuery.strip().toLowerCase(Locale.ROOT);
-        var results = sounds.getAvailableSounds().stream()
-                .filter(id -> switch (soundFilter) {
-                    case 1 -> config.hasSoundVolume(id.toString());
-                    case 2 -> featuredSound(id) < 8;
-                    case 3 -> isHostileSound(id);
-                    case 4 -> id.getPath().startsWith("entity.");
-                    case 5 -> id.getPath().startsWith("block.");
-                    case 6 -> id.getPath().startsWith("item.");
-                    case 7 -> id.getPath().startsWith("music.") || id.getPath().startsWith("music_disc.");
-                    case 8 -> id.getPath().startsWith("ambient.") || id.getPath().startsWith("weather.");
-                    case 9 -> !id.getPath().matches("^(entity|block|item|music|music_disc|ambient|weather)\\..*");
-                    default -> true;
-                })
-                .map(id -> {
-                    var sound = sounds.getSoundEvent(id);
-                    var subtitle = sound == null ? null : sound.getSubtitle();
-                    return new SoundRow(id, subtitle == null ? id.getPath() : subtitle.getString());
-                })
-                .filter(row -> query.isEmpty() || row.id.toString().contains(query) || row.name.toLowerCase(Locale.ROOT).contains(query))
-                .sorted(java.util.Comparator.comparingInt((SoundRow row) -> query.isEmpty() ? featuredSound(row.id) : 0)
-                        .thenComparing(row -> row.id.toString()))
-                .toList();
-        int pages = Math.max(1, (results.size() + SOUNDS_PER_PAGE - 1) / SOUNDS_PER_PAGE);
-        soundPage = Math.clamp(soundPage, 0, pages - 1);
         var rows = new ArrayList<Setting>();
+        var visible = new java.util.HashSet<Identifier>();
+        for (var preset : FEATURED_SOUNDS) {
+            var id = Identifier.withDefaultNamespace(preset.id);
+            if (sounds.getSoundEvent(id) == null) continue;
+            rows.add(soundSlider(config, id, preset.label, preset.group, preset.icon));
+            visible.add(id);
+        }
         rows.add(new TextSetting("Поиск по названию или ID", () -> soundQuery, value -> {
             if (!soundQuery.equals(value)) {
                 soundQuery = value;
-                rebuildSoundSettings(0);
+                settingsRows = buildSoundSettings(configManager.getConfig());
+                lastFingerprint = null;
             }
         }, 120));
-        rows.add(new ChoiceSetting("Группа звуков", SOUND_FILTERS, () -> soundFilter, value -> {
-            soundFilter = value;
-            rebuildSoundSettings(0);
-        }));
-        rows.add(new ValueSetting("Найдено звуков", () -> String.valueOf(results.size())));
-        String pageTitle = tr("Страница") + " " + (soundPage + 1) + " / " + pages;
-        if (soundPage > 0) rows.add(new ButtonSetting(pageTitle,
-                "Назад", () -> rebuildSoundSettings(soundPage - 1)));
-        if (soundPage + 1 < pages) rows.add(new ButtonSetting(pageTitle,
-                "Далее", () -> rebuildSoundSettings(soundPage + 1)));
-        if (results.isEmpty()) rows.add(new ValueSetting("Нет подходящих звуков", () -> ""));
-        for (int i = soundPage * SOUNDS_PER_PAGE; i < Math.min(results.size(), (soundPage + 1) * SOUNDS_PER_PAGE); i++) {
-            SoundRow row = results.get(i);
-            String key = row.id.toString();
-            rows.add(new SliderSetting(row.name, 0, 100, () -> (float) config.getSoundVolume(key),
-                    value -> config.setSoundVolume(key, Math.round(value)), "%", true, row.id));
+        String query = soundQuery.strip().toLowerCase(Locale.ROOT);
+        if (query.length() >= 2) {
+            int firstResult = rows.size();
+            sounds.getAvailableSounds().stream().sorted(java.util.Comparator
+                            .comparing((Identifier id) -> !id.toString().equals(query) && !id.getPath().equals(query))
+                            .thenComparing(Identifier::toString))
+                    .filter(id -> !visible.contains(id))
+                    .map(id -> {
+                        var event = sounds.getSoundEvent(id);
+                        var subtitle = event == null ? null : event.getSubtitle();
+                        return new SoundPreset(LOOKUP_SOUNDS, id.toString(), subtitle == null ? id.getPath() : subtitle.getString(), null);
+                    })
+                    .filter(sound -> sound.id.contains(query) || sound.label.toLowerCase(Locale.ROOT).contains(query))
+                    .limit(6)
+                    .forEach(sound -> rows.add(soundSlider(config, Identifier.parse(sound.id), sound.label, sound.group, null)));
+            if (rows.size() == firstResult) {
+                rows.add(new ValueSetting("Нет подходящих звуков", () -> ""));
+            }
         }
         return rows.toArray(Setting[]::new);
     }
 
-    private record SoundRow(Identifier id, String name) {}
-
-    private static int featuredSound(Identifier id) {
-        if (id.getNamespace().equals("minecraft")) {
-            for (int i = 0; i < FEATURED_SOUNDS.length; i++) {
-                if (FEATURED_SOUNDS[i].equals(id.getPath())) return i;
-            }
-        }
-        return FEATURED_SOUNDS.length;
+    private static SliderSetting soundSlider(OrionConfig config, Identifier id, String label, String section, String icon) {
+        String key = id.toString();
+        return new SliderSetting(label, 0, 100, () -> (float) config.getSoundVolume(key),
+                value -> config.setSoundVolume(key, Math.round(value)), "%", true, id, section, icon);
     }
 
-    private static boolean isHostileSound(Identifier id) {
-        String path = id.getPath();
-        if (!path.startsWith("entity.")) return false;
-        int end = path.indexOf('.', 7);
-        if (end <= 7) return false;
-        var key = Identifier.fromNamespaceAndPath(id.getNamespace(), path.substring(7, end));
-        return net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getOptional(key)
-                .filter(type -> type.getCategory() == net.minecraft.world.entity.MobCategory.MONSTER).isPresent();
+    static java.util.Set<String> settingIcons() {
+        var icons = new java.util.LinkedHashSet<String>();
+        for (var sound : FEATURED_SOUNDS) icons.add(sound.icon);
+        for (var option : ru.orion.client.effect.OrionNoRender.Option.values()) icons.add(option.icon);
+        return icons;
     }
 
-    private void rebuildSoundSettings(int page) {
-        soundPage = page;
-        settingsRows = buildSoundSettings(configManager.getConfig());
-        lastFingerprint = null;
+    static String settingIconName(String path) {
+        return "setting-" + path.replace('/', '-');
     }
 
     private void previewSound(Identifier id) {
@@ -3575,7 +3564,7 @@ public final class OrionClickGuiScreen extends Screen {
         var rows = new ArrayList<Setting>();
         for (var option : ru.orion.client.effect.OrionNoRender.Option.values()) {
             rows.add(new ToggleSetting(option.label, () -> config.hasNoRenderOption(option.name()),
-                    value -> config.setNoRenderOption(option.name(), value)));
+                    value -> config.setNoRenderOption(option.name(), value), option.icon));
         }
         rows.add(new TextSetting("ID скрытых сущностей через запятую", () -> config.getHiddenRenderTypes(false),
                 value -> config.setHiddenRenderTypes(false, value), 2048));
@@ -3685,7 +3674,7 @@ public final class OrionClickGuiScreen extends Screen {
                     hudStyleSetting("Оформление", ru.orion.client.hud.OrionPotionsHud.ID)
             };
             case TARGET_HUD -> new Setting[]{
-                    new ChoiceSetting("Расположение", new String[]{"На экране", "Над целью в 3D"},
+                    new ChoiceSetting("Расположение", new String[]{"На экране", "Сбоку от цели в 3D"},
                             () -> config.isTargetHudWorld() ? 1 : 0, value -> config.setTargetHudWorld(value == 1)),
                     new ToggleSetting("Показывать только после атаки", config::isTargetHudAttackOnly, config::setTargetHudAttackOnly),
                     new ToggleSetting("Только игроки", config::isTargetHudPlayersOnly, config::setTargetHudPlayersOnly),
@@ -7866,10 +7855,10 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private record SliderSetting(String label, float min, float max, Supplier<Float> get, Consumer<Float> set,
-                                 String suffix, boolean integer, Identifier sound) implements Setting {
+                                 String suffix, boolean integer, Identifier sound, String section, String icon) implements Setting {
         private SliderSetting(String label, float min, float max, Supplier<Float> get, Consumer<Float> set,
                               String suffix, boolean integer) {
-            this(label, min, max, get, set, suffix, integer, null);
+            this(label, min, max, get, set, suffix, integer, null, null, null);
         }
         private SliderSetting(String label, float min, float max, Supplier<Float> get, Consumer<Float> set,
                               String suffix) {
@@ -7881,7 +7870,10 @@ public final class OrionClickGuiScreen extends Screen {
                                 Consumer<String> set) implements Setting {
     }
 
-    private record ToggleSetting(String label, Supplier<Boolean> get, Consumer<Boolean> set) implements Setting {
+    private record ToggleSetting(String label, Supplier<Boolean> get, Consumer<Boolean> set, String icon) implements Setting {
+        private ToggleSetting(String label, Supplier<Boolean> get, Consumer<Boolean> set) {
+            this(label, get, set, null);
+        }
     }
 
     private enum Action {

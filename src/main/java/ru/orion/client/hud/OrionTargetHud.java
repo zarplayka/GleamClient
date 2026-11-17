@@ -231,11 +231,14 @@ public final class OrionTargetHud {
         var stack = context.poseStack();
         stack.pushPose();
         try {
-            stack.translate(position.x - camera.pos.x, position.y - camera.pos.y + living.getBbHeight() + .46, position.z - camera.pos.z);
+            stack.translate(position.x - camera.pos.x, position.y - camera.pos.y + living.getBbHeight() * .48, position.z - camera.pos.z);
             GleamPose.rotate(stack, camera.orientation);
-            float size = .0065F * config.getHudElementScale(ID);
+            float size = .0058F * config.getHudElementScale(ID);
+            // Keep the whole card to the left of the body in camera space.
+            float shoulder = living.getBbWidth() * .64F + .07F;
+            stack.translate(-shoulder, 0, .035F);
             stack.scale(size, -size, size);
-            stack.translate(-WIDTH / 2F, -data.height(), 0);
+            stack.translate(-WIDTH, -BODY / 2F, 0);
             boolean light = config.getClickGuiTheme() == 4;
             int text = light ? 0xff20232c : 0xfff1f3fc, muted = light ? 0xff464d60 : 0xffacb4cc;
             int background = light ? 0xf6edf0f9 : 0xf21c1e29;
@@ -248,7 +251,7 @@ public final class OrionTargetHud {
                 quad(pose, vertices, 0, 3, 3, data.height() - 3, 0, background);
                 quad(pose, vertices, WIDTH - 3, 3, WIDTH, data.height() - 3, 0, background);
                 quad(pose, vertices, TRACK_X, TRACK_Y, WIDTH - 8, TRACK_Y + 4, .2F, track);
-                if (data.fill > 0) quad(pose, vertices, TRACK_X, TRACK_Y, TRACK_X + data.fill, TRACK_Y + 4, .35F, HEALTH);
+                if (data.fill > 0) quad(pose, vertices, TRACK_X, TRACK_Y, TRACK_X + data.fill, TRACK_Y + 4, .35F, hp);
                 if (data.absorption > 0) quad(pose, vertices, TRACK_X, TRACK_Y + 5, TRACK_X + data.absorption,
                         TRACK_Y + 7, .35F, ABSORPTION);
                 if (data.equipment) quad(pose, vertices, 7, BODY, WIDTH - 7, BODY + 1, .2F, track);

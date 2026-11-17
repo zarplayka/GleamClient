@@ -488,12 +488,13 @@ document.addEventListener('input',event => {
     if (hexColor.test(field.value)) setPickerValue(field.value,false);
     return;
   }
-  if (state.page === 'module' && state.module === 'SOUND_SETTINGS' && field.id === 'field-0') {
+  if (field.hasAttribute('data-sound-search')) {
     clearTimeout(soundSearchTimer);
     const value = field.value;
+    const index = Number(field.dataset.setting);
     soundSearchTimer = setTimeout(() => {
       if (state.page === 'module' && state.module === 'SOUND_SETTINGS')
-        sendGame('setting',{id:'SOUND_SETTINGS',index:0,value});
+        sendGame('setting',{id:'SOUND_SETTINGS',index,value});
     },160);
     return;
   }
@@ -709,7 +710,7 @@ window.addEventListener('resize',positionColorPicker);
 $('content').addEventListener('scroll',positionColorPicker);
 document.addEventListener('keydown',event => {
   const field = event.target;
-  if (event.key === 'Enter' && state.module === 'SOUND_SETTINGS' && field.id === 'field-0') {
+  if (event.key === 'Enter' && field.hasAttribute('data-sound-search')) {
     field.blur();
     event.preventDefault();
     return;
@@ -728,9 +729,12 @@ document.addEventListener('change',event => {
   if (field.id === 'color-popup-hex') {
     if (hexColor.test(field.value)) setPickerValue(field.value,true);
   } else if (field.dataset?.setting !== undefined) {
-    if (state.module === 'SOUND_SETTINGS' && field.id === 'field-0') clearTimeout(soundSearchTimer);
+    if (field.hasAttribute('data-sound-search')) clearTimeout(soundSearchTimer);
     sendGame('setting',{id:state.module,index:Number(field.dataset.setting),
       value:field.value,sound:field.dataset.sound});
+    if (soundPreviewEnabled && field.dataset.sound) {
+      sendGame('sound-preview',{index:Number(field.dataset.setting),sound:field.dataset.sound});
+    }
   } else if (field.id === 'window-scale') {
     sendGame('look',{key:'windowScale',value:field.value});
   } else if (field.id === 'custom-accent' && /^#[0-9a-f]{6}$/i.test(field.value)) {
@@ -742,6 +746,18 @@ document.addEventListener('change',event => {
 document.addEventListener('click',event => {
   const button = event.target.closest('[data-sound-preview]');
   if (button) sendGame('sound-preview',{index:Number(button.dataset.soundPreview),sound:button.dataset.sound});
+  const preview = event.target.closest('[data-sound-preview-mode]');
+  if (preview) {
+    soundPreviewEnabled = !soundPreviewEnabled;
+    preview.setAttribute('aria-pressed',String(soundPreviewEnabled));
+  }
+  const lookup = event.target.closest('[data-sound-lookup]');
+  if (lookup) {
+    soundLookupOpen = !soundLookupOpen;
+    lookup.setAttribute('aria-expanded',String(soundLookupOpen));
+    $('sound-lookup-fields').hidden = !soundLookupOpen;
+    if (soundLookupOpen) $('sound-lookup-fields').querySelector('input')?.focus({preventScroll:true});
+  }
 });
 function submitGameForm(form) {
   if (form.id === 'chat-compose') {
@@ -870,7 +886,7 @@ function syncModuleSettings(module) {
         updateRange(field);
       }
     } else if (setting.kind === 'text' || setting.kind === 'color' && colorDrag?.field !== field) {
-      if (module.id === 'SOUND_SETTINGS' && index === 0 && document.activeElement === field) continue;
+      if (field.hasAttribute('data-sound-search') && document.activeElement === field) continue;
       field.value = setting.value;
       if (setting.kind === 'color' && field.value.toUpperCase() !== field.closest('.setting-color-row').pickerValue) {
         syncColorPicker(field.closest('.setting-color-row'));
@@ -1063,7 +1079,7 @@ window.paradox = {
       const contentScroll = $('content').scrollTop;
       const searchFocused = document.activeElement?.id === 'friends-search';
       const soundField = state.page === 'module' && state.module === 'SOUND_SETTINGS'
-        && document.activeElement?.id === 'field-0' ? document.activeElement : null;
+        && document.activeElement?.hasAttribute('data-sound-search') ? document.activeElement : null;
       const soundDraft = soundField && [soundField.value,soundField.selectionStart,soundField.selectionEnd];
       const scroll = $('content').querySelector('.modules-grid')?.scrollTop ?? 0;
       render(false,!gameReady);
@@ -1073,7 +1089,7 @@ window.paradox = {
         $('content').scrollTop = contentScroll;
         if (searchFocused) $('friends-search')?.focus({preventScroll:true});
       } else if (soundDraft) {
-        const input = $('field-0');
+        const input = document.querySelector('[data-sound-search]');
         input.value = soundDraft[0];
         input.focus({preventScroll:true});
         if (typeof input.setSelectionRange === 'function' && soundDraft[1] !== null)

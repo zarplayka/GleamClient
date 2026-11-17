@@ -19,23 +19,54 @@ import ru.orion.client.config.OrionConfig;
 
 public final class OrionNoRender {
     public enum Option {
-        RAIN("Дождь"), SNOW("Снег"), CLOUDS("Облака"), SKY("Небо, солнце, луна и звёзды"),
-        FOG("Атмосферный туман"), WORLD_BORDER("Граница мира"), BLOCK_ENTITIES("Модели блок-сущностей"),
-        PARTICLES("Все частицы"), PARTICLE_EXPLOSION("Частицы взрывов"),
-        PLAYERS("Другие игроки"), HOSTILE("Враждебные мобы"), PASSIVE("Остальные мобы"),
-        ARMOR_STANDS("Стойки для брони"), ITEM_FRAMES("Рамки и светящиеся рамки"), ITEMS("Предметы на земле"),
-        EXPERIENCE("Сферы опыта"), PROJECTILES("Снаряды"), FALLING_BLOCKS("Падающие блоки"), TNT("Активированный TNT"),
-        NAMETAGS("Ники над сущностями"), SHADOWS("Тени сущностей"), ENTITY_FIRE("Огонь на сущностях"),
-        FIRE_OVERLAY("Огонь на экране"), WATER_OVERLAY("Подводная плёнка"), BLOCK_OVERLAY("Экран внутри блока"),
-        PORTAL_OVERLAY("Эффект портала"), NAUSEA_OVERLAY("Эффект тошноты"), POWDER_SNOW("Рамка замерзания"),
-        PUMPKIN("Обзор в тыкве"), SPYGLASS("Рамка подзорной трубы"), VIGNETTE("Виньетка"),
-        HURT_CAMERA("Наклон камеры от урона"), HAND("Руки и предметы от первого лица"), TOTEM("Анимация тотема"),
-        SCOREBOARD("Табло сбоку"), BOSS_BAR("Полосы боссов"), VANILLA_EFFECTS("Ванильные иконки эффектов"),
-        TITLES("Заголовки на экране"), ACTION_BAR("Сообщения над хотбаром"), TITLED_ITEM("Название выбранного предмета");
+        RAIN("Дождь", "item/water_bucket"),
+        SNOW("Снег", "item/snowball"),
+        CLOUDS("Облака", "block/white_wool"),
+        SKY("Небо, солнце, луна и звёзды", "item/nether_star"),
+        FOG("Атмосферный туман", "block/gray_stained_glass"),
+        WORLD_BORDER("Граница мира", "item/barrier"),
+        BLOCK_ENTITIES("Модели блок-сущностей", "block/furnace_front"),
+        PARTICLES("Все частицы", "item/glowstone_dust"),
+        PARTICLE_EXPLOSION("Частицы взрывов", "item/fire_charge"),
+        PLAYERS("Другие игроки", "entity/player/wide/steve"),
+        HOSTILE("Враждебные мобы", "item/zombie_spawn_egg"),
+        PASSIVE("Остальные мобы", "item/cow_spawn_egg"),
+        ARMOR_STANDS("Стойки для брони", "item/armor_stand"),
+        ITEM_FRAMES("Рамки и светящиеся рамки", "item/item_frame"),
+        ITEMS("Предметы на земле", "item/iron_ingot"),
+        EXPERIENCE("Сферы опыта", "item/experience_bottle"),
+        PROJECTILES("Снаряды", "item/arrow"),
+        FALLING_BLOCKS("Падающие блоки", "block/sand"),
+        TNT("Активированный TNT", "block/tnt_side"),
+        NAMETAGS("Ники над сущностями", "item/name_tag"),
+        SHADOWS("Тени сущностей", "item/ink_sac"),
+        ENTITY_FIRE("Огонь на сущностях", "item/blaze_powder"),
+        FIRE_OVERLAY("Огонь на экране", "item/flint_and_steel"),
+        WATER_OVERLAY("Подводная плёнка", "item/cod"),
+        BLOCK_OVERLAY("Экран внутри блока", "block/stone"),
+        PORTAL_OVERLAY("Эффект портала", "block/obsidian"),
+        NAUSEA_OVERLAY("Эффект тошноты", "item/pufferfish"),
+        POWDER_SNOW("Рамка замерзания", "item/powder_snow_bucket"),
+        PUMPKIN("Обзор в тыкве", "block/carved_pumpkin"),
+        SPYGLASS("Рамка подзорной трубы", "item/spyglass"),
+        VIGNETTE("Виньетка", "item/ender_eye"),
+        HURT_CAMERA("Наклон камеры от урона", "item/iron_sword"),
+        HAND("Руки и предметы от первого лица", "item/wooden_pickaxe"),
+        TOTEM("Анимация тотема", "item/totem_of_undying"),
+        SCOREBOARD("Табло сбоку", "item/oak_sign"),
+        BOSS_BAR("Полосы боссов", "item/dragon_breath"),
+        VANILLA_EFFECTS("Ванильные иконки эффектов", "item/potion"),
+        TITLES("Заголовки на экране", "item/writable_book"),
+        ACTION_BAR("Сообщения над хотбаром", "item/paper"),
+        TITLED_ITEM("Название выбранного предмета", "item/book");
 
         public final String label;
+        public final String icon;
 
-        Option(String label) { this.label = label; }
+        Option(String label, String icon) {
+            this.label = label;
+            this.icon = icon;
+        }
     }
 
     private OrionNoRender() {}

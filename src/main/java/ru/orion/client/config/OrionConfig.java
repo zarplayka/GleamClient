@@ -775,7 +775,6 @@ public final class OrionConfig {
     public boolean isSoundSettingsEnabled() { return soundSettingsEnabled; }
     public void setSoundSettingsEnabled(boolean value) { soundSettingsEnabled = value; }
     public int getSoundVolume(String id) { return soundVolumes.getOrDefault(id, 100); }
-    public boolean hasSoundVolume(String id) { return soundVolumes.containsKey(id); }
     public void setSoundVolume(String id, int value) {
         value = Math.clamp(value, 0, 100);
         if (value == 100) soundVolumes.remove(id);

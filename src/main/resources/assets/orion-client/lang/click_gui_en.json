@@ -1182,5 +1182,20 @@
   "ID скрытых сущностей через запятую": "Hidden entity IDs, comma-separated",
   "ID скрытых частиц через запятую": "Hidden particle IDs, comma-separated",
   "Страница": "Page",
-  "Далее": "Next"
+  "Далее": "Next",
+  "Сбоку от цели в 3D": "Beside the target in 3D",
+  "Другие звуки": "Other sounds",
+  "Взрыв": "Explosion",
+  "Активация TNT": "TNT ignition",
+  "Запуск фейерверка": "Firework launch",
+  "Взрыв фейерверка": "Firework burst",
+  "Большой взрыв фейерверка": "Large firework burst",
+  "Использование тотема": "Totem activation",
+  "Рык дракона Края": "Ender dragon growl",
+  "Смерть дракона Края": "Ender dragon death",
+  "Крик эндермена": "Enderman scream",
+  "Взгляд эндермена": "Enderman stare",
+  "Крик гаста": "Ghast scream",
+  "Предупреждение гаста": "Ghast warning",
+  "Укус фантома": "Phantom bite"
 }

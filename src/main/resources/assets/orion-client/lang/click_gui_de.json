@@ -717,5 +717,20 @@
   "ID скрытых сущностей через запятую": "IDs ausgeblendeter Entitäten, durch Kommas getrennt",
   "ID скрытых частиц через запятую": "IDs ausgeblendeter Partikel, durch Kommas getrennt",
   "Страница": "Seite",
-  "Далее": "Weiter"
+  "Далее": "Weiter",
+  "Сбоку от цели в 3D": "Neben dem Ziel in 3D",
+  "Другие звуки": "Weitere Geräusche",
+  "Взрыв": "Explosion",
+  "Активация TNT": "TNT-Zündung",
+  "Запуск фейерверка": "Feuerwerkstart",
+  "Взрыв фейерверка": "Feuerwerksexplosion",
+  "Большой взрыв фейерверка": "Große Feuerwerksexplosion",
+  "Использование тотема": "Totem-Aktivierung",
+  "Рык дракона Края": "Knurren des Enderdrachen",
+  "Смерть дракона Края": "Tod des Enderdrachen",
+  "Крик эндермена": "Enderman-Schrei",
+  "Взгляд эндермена": "Enderman-Blick",
+  "Крик гаста": "Ghast-Schrei",
+  "Предупреждение гаста": "Ghast-Warnlaut",
+  "Укус фантома": "Phantombiss"
 }
