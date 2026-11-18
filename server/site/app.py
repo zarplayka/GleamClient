@@ -395,7 +395,9 @@ async def game_settings(request):
     return web.json_response({'account_id': user['id'], **current}, dumps=lambda value: json.dumps(value, ensure_ascii=False))
 
 COSMETIC_PETS = {'', 'ember_fox', 'moon_moth', 'moss_turtle', 'rhm_tarnkappe',
-                 'snow_ferret', 'space_slime', 'tracked_scout'}
+                 'snow_ferret', 'space_slime', 'tracked_scout', 'bell_fawn', 'gingerbread_pup'}
+
+COSMETIC_HATS = {'', 'santa_hat', 'fawn_hood', 'snowman_top_hat', 'gingerbread_house_hat', 'newsboy_cap', 'aviator_helmet', 'traveller_hat'}
 
 def valid_cosmetic_slots(slots):
     if not isinstance(slots, dict): return False
@@ -403,6 +405,7 @@ def valid_cosmetic_slots(slots):
         if key in ('halo', 'hat', 'dance') and type(value) is bool: continue
         if key == 'wings' and value in ('', 'angel', 'dragon', 'midnight', 'evergreen', 'first_salvo', 'ash_phoenix', 'lunar_moth'): continue
         if key == 'pet' and isinstance(value, str) and value in COSMETIC_PETS: continue
+        if key == 'headwear' and isinstance(value, str) and value in COSMETIC_HATS: continue
         return False
     return True
 
@@ -423,6 +426,10 @@ async def cosmetic_loadout(request):
         slots = json.loads(row['slots']) if row else {}
         if writing:
             updated = defaults | slots | changes
+            if changes.get('hat') is True and 'headwear' in updated:
+                updated['headwear'] = ''
+            elif updated.get('headwear'):
+                updated['hat'] = False
             if updated != slots:
                 db.execute('''INSERT INTO cosmetic_loadouts (user_id,slots) VALUES (?,?)
                     ON CONFLICT(user_id) DO UPDATE SET slots=excluded.slots''', (user['id'], json.dumps(updated)))

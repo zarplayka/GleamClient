@@ -1,6 +1,6 @@
 {
   "productName": "Gleam Launcher",
-  "version": "0.1.61",
+  "version": "0.1.63",
   "identifier": "xyz.gleamclient.launcher",
   "build": {
     "frontendDist": [
@@ -31,7 +31,25 @@
       "../src/main/resources/assets/orion-client/textures/cosmetics/pets/rhm_tarnkappe.png",
       "../src/main/resources/assets/orion-client/textures/cosmetics/pets/snow_ferret.png",
       "../src/main/resources/assets/orion-client/textures/cosmetics/pets/space_slime.png",
-      "../src/main/resources/assets/orion-client/textures/cosmetics/pets/tracked_scout.png"
+      "../src/main/resources/assets/orion-client/textures/cosmetics/pets/tracked_scout.png",
+      "../src/main/resources/assets/orion-client/cosmetics/pets/bell_fawn.json",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/pets/bell_fawn.png",
+      "../src/main/resources/assets/orion-client/cosmetics/pets/gingerbread_pup.json",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/pets/gingerbread_pup.png",
+      "../src/main/resources/assets/orion-client/cosmetics/hats/santa_hat.json",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/hats/santa_hat.png",
+      "../src/main/resources/assets/orion-client/cosmetics/hats/fawn_hood.json",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/hats/fawn_hood.png",
+      "../src/main/resources/assets/orion-client/cosmetics/hats/snowman_top_hat.json",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/hats/snowman_top_hat.png",
+      "../src/main/resources/assets/orion-client/cosmetics/hats/gingerbread_house_hat.json",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/hats/gingerbread_house_hat.png",
+      "../src/main/resources/assets/orion-client/cosmetics/hats/newsboy_cap.json",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/hats/newsboy_cap.png",
+      "../src/main/resources/assets/orion-client/cosmetics/hats/aviator_helmet.json",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/hats/aviator_helmet.png",
+      "../src/main/resources/assets/orion-client/cosmetics/hats/traveller_hat.json",
+      "../src/main/resources/assets/orion-client/textures/cosmetics/hats/traveller_hat.png"
     ]
   },
   "app": {
@@ -55,7 +73,9 @@
       "capabilities": [
         {
           "identifier": "launcher-window",
-          "windows": ["main"],
+          "windows": [
+            "main"
+          ],
           "permissions": [
             "core:event:allow-listen",
             "core:event:allow-unlisten",
@@ -71,6 +91,8 @@
     }
   },
   "bundle": {
-    "icon": ["icons/icon.ico"]
+    "icon": [
+      "icons/icon.ico"
+    ]
   }
 }

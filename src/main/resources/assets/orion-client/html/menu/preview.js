@@ -7,6 +7,7 @@ const paths = {
   gear:'<path d="m10 3-.7 2.6-2 .9-2.4-.9-2 3.4 1.9 1.8v2.4L2.9 15l2 3.4 2.4-.9 2 .9L10 21h4l.7-2.6 2-.9 2.4.9 2-3.4-1.9-1.8v-2.4l1.9-1.8-2-3.4-2.4.9-2-.9L14 3z"/><circle cx="12" cy="12" r="3"/>',
   star:'<path d="m12 3 2.7 5.4 5.9.9-4.3 4.2 1 5.9-5.3-2.8-5.3 2.8 1-5.9-4.3-4.2 5.9-.9z"/>',
   user:'<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6"/>',
+  hat:'<path d="m6 14 2-7h8l2 7M8 12h8"/><ellipse cx="12" cy="15.5" rx="9" ry="2.5"/>',
   users:'<circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 6 0 0 1 14 0M16 4.5a3.5 3.5 0 0 1 0 7m2 3a5 5 0 0 1 4 5"/>',
   chat:'<path d="M4 4h16v12H9l-5 4zM8 8h8m-8 4h5"/>',
   smile:'<circle cx="12" cy="12" r="9"/><path d="M8 14c2 3 6 3 8 0M9 9h.01M15 9h.01"/>',
@@ -110,7 +111,7 @@ const state = {
   favorites:new Set(), values:new Map(), account:0,categoriesExpanded:true,
   configTab:'catalog',config:null,friendTab:null,friendProfile:null,preset:0,appliedPreset:-1,point:null,
   publication:false,publicationReady:true,chatQuery:'',cosmetic:'angel',cosmeticSlot:'all',
-  cosmeticQuery:'',cosmeticOnlyEquipped:false,cosmeticYaw:-19,cosmeticZoom:1,wingsStyle:0,cosmeticPet:'',
+  cosmeticQuery:'',cosmeticOnlyEquipped:false,cosmeticYaw:-19,cosmeticZoom:1,wingsStyle:0,cosmeticPet:'',headwear:'',
   seq:100,theme:'dark',density:'normal',toggleStyle,windowSize,windowScale,accent,languageChoice:'auto',windowX:0,windowY:0
 };
 const currentAccount = () => accounts.find(item => item.key === state.account) || accounts[0];
@@ -578,7 +579,7 @@ function friendPresence(item) {
 function friendOutfit(item) {
   const slots = item.appearance?.slots;
   if (!slots) return [];
-  return [slots.wings,slots.pet,slots.halo && 'halo',slots.hat && 'hat'].map(cosmeticById).filter(Boolean);
+  return [slots.wings,slots.pet,slots.halo && 'halo',slots.headwear || (slots.hat && 'hat')].map(cosmeticById).filter(Boolean);
 }
 function renderFriendProfile() {
   const item = friends.items.find(entry => entry.username === state.friendProfile);
@@ -883,7 +884,14 @@ const cosmetics = [
   ['evergreen','WINGS','Еловая лапа','Спина',2],
   ['ash_phoenix','WINGS','Пепельный феникс','Спина',3],
   ['halo','HALO','Золотой нимб','Голова'],
-  ['hat','CHINA_HEAD','Соломенная шляпа','Голова'],
+  ['hat','CHINA_HEAD','Соломенная шляпа','Шляпы'],
+  ['santa_hat','CHINA_HEAD','Новогодний колпак','Шляпы'],
+  ['fawn_hood','CHINA_HEAD','Шапка оленёнка','Шляпы'],
+  ['snowman_top_hat','CHINA_HEAD','Цилиндр снеговика','Шляпы'],
+  ['gingerbread_house_hat','CHINA_HEAD','Пряничный домик','Шляпы'],
+  ['newsboy_cap','CHINA_HEAD','Кепка газетчика','Шляпы'],
+  ['aviator_helmet','CHINA_HEAD','Шлем авиатора','Шляпы'],
+  ['traveller_hat','CHINA_HEAD','Шляпа путника','Шляпы'],
   ['dance','EMOTES','Эмоции','Анимация'],
   ['ember_fox','PET','Огненный лисёнок','Питомцы'],
   ['moon_moth','PET','Лунный мотылёк','Питомцы'],
@@ -891,11 +899,14 @@ const cosmetics = [
   ['rhm_tarnkappe','PET','Rhm.-B. WT Tarnkappe','Питомцы'],
   ['snow_ferret','PET','Снежный хорёк','Питомцы'],
   ['space_slime','PET','Слизень-космонавт','Питомцы'],
-  ['tracked_scout','PET','Гусеничный разведчик','Питомцы']
+  ['tracked_scout','PET','Гусеничный разведчик','Питомцы'],
+  ['bell_fawn','PET','Оленёнок с бубенчиком','Питомцы'],
+  ['gingerbread_pup','PET','Пряничный щенок','Питомцы']
 ];
 const cosmeticById = id => cosmetics.find(item => item[0] === id);
-const cosmeticSlots = [['all','Все','grid'],['Спина','Спина','layers'],['Голова','Голова','user'],['Анимация','Анимация','movement'],['Питомцы','Питомцы','paw']];
+const cosmeticSlots = [['all','Все','grid'],['Спина','Спина','layers'],['Голова','Голова','user'],['Шляпы','Шляпы','hat'],['Анимация','Анимация','movement'],['Питомцы','Питомцы','paw']];
 const isCosmeticEquipped = ([id,module,,,style]) => module === 'PET' ? state.cosmeticPet === id
+  : module === 'CHINA_HEAD' ? (state.headwear || (state.enabled.has(module) ? 'hat' : '')) === id
   : state.enabled.has(module) && (style === undefined || style === state.wingsStyle);
 function cosmeticDrawing(id, model) {
   return '<img class="cosmetic-art" src="assets/cosmetic-' + id + (model && ['angel','dragon','hat','halo','dance'].includes(id) ? '-preview' : '-item') + '.png" alt="">';

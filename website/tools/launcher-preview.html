@@ -593,7 +593,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     .segmented-tabs button:hover { background: var(--side-hover); color: var(--text) }
     .segmented-tabs button:is([aria-selected="true"],[aria-pressed="true"]) { border-color: var(--border); background: var(--selected-bg); color: var(--selected-text) }
-    .wardrobe-filters { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); width: 100%; margin: 0 0 12px }
+    .wardrobe-filters { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); width: 100%; margin: 0 0 12px }
     .wardrobe-filters button { min-width: 0; padding-inline: 4px; white-space: normal; overflow-wrap: anywhere }
     @container wardrobe-catalog (max-width: 470px) {
       .wardrobe-filters { grid-template-columns: repeat(3,minmax(0,1fr)) }
@@ -1638,6 +1638,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <div class="segmented-tabs wardrobe-filters" id="wardrobe-filters" role="group" aria-label="Тип вещи">
               <button type="button" data-cosmetic-filter="all" aria-pressed="true">Все</button>
               <button type="button" data-cosmetic-filter="wearables" aria-pressed="false">Аксессуары</button>
+              <button type="button" data-cosmetic-filter="hat" aria-pressed="false">Шляпы</button>
               <button type="button" data-cosmetic-filter="pet" aria-pressed="false">Питомцы</button>
               <button type="button" data-cosmetic-filter="dance" aria-pressed="false">Эмоции</button>
               <button type="button" data-cosmetic-filter="equipped" aria-pressed="false">Надето</button>
@@ -1891,6 +1892,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+            <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-063">
+              <span class="release-meta"><span class="release-version">0.1.63</span><time datetime="2026-11-18">18.11.2026</time></span>
+              <div><h3 id="release-launcher-063">Семь новых шляп</h3><p>Зимние и повседневные шляпы теперь в отдельном разделе гардероба.</p></div>
+            </article>
+            <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-062">
+              <span class="release-meta"><span class="release-version">0.1.62</span><time datetime="2026-11-18">18.11.2026</time></span>
+              <div><h3 id="release-launcher-062">Два новогодних питомца</h3><p>В гардеробе появились оленёнок с бубенчиком и пряничный щенок.</p></div>
+            </article>
             <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-061">
               <span class="release-meta"><span class="release-version">0.1.61</span><time datetime="2026-11-18">18.11.2026</time></span>
               <div><h3 id="release-launcher-061">Еловая лапа и Пепельный феникс</h3><p>Две обновлённые пары крыльев доступны в гардеробе клиента и лаунчера.</p></div>
@@ -2741,6 +2750,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Косметика':['Cosmetics','Kosmetik','Cosméticos'],
       'Ничего не надето':['Nothing equipped','Nichts ausgerüstet','Nada equipado'],
       'Аксессуары':['Accessories','Accessoires','Accesorios'],
+      'Шляпы':['Hats','Hüte','Sombreros'],
+      'Новогодний колпак':['Santa Hat', 'Weihnachtsmütze', 'Gorro navideño'],
+      'Шапка оленёнка':['Fawn Hood', 'Rehkitzkapuze', 'Capucha de cervatillo'],
+      'Цилиндр снеговика':['Snowman Top Hat', 'Schneemann-Zylinder', 'Chistera de muñeco de nieve'],
+      'Пряничный домик':['Gingerbread House', 'Lebkuchenhaus', 'Casa de jengibre'],
+      'Кепка газетчика':['Newsboy Cap', 'Schiebermütze', 'Gorra de repartidor'],
+      'Шлем авиатора':['Aviator Helmet', 'Fliegerhaube', 'Casco de aviador'],
+      'Шляпа путника':['Traveller Hat', 'Reisehut', 'Sombrero de viajero'],
       'Питомцы':['Pets','Haustiere','Mascotas'],
       'Эмоции':['Emotes','Emotes','Gestos'],
       'Тип вещи':['Item type','Gegenstandstyp','Tipo de objeto'],
@@ -2761,6 +2778,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Снежный хорёк':['Snow Ferret','Schneefrettchen','Hurón de nieve'],
       'Слизень-космонавт':['Space Slime','Weltraumschleim','Slime astronauta'],
       'Гусеничный разведчик':['Tracked Scout','Kettenaufklärer','Explorador de orugas'],
+      'Оленёнок с бубенчиком':['Bell Fawn', 'Rehkitz mit Glöckchen', 'Cervatillo con cascabel'],
+      'Пряничный щенок':['Gingerbread Puppy', 'Lebkuchenwelpe', 'Cachorro de jengibre'],
       'Надето':['Equipped','Ausgerüstet','Equipado'],
       'Твоя экипировка':['Your loadout','Deine Ausrüstung','Tu equipamiento'],
       'Надето · {0}':['Equipped · {0}','Ausgerüstet · {0}','Equipado · {0}'],
@@ -3800,10 +3819,19 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       ['angel','wings','Ангельские крылья'], ['dragon','wings','Драконьи крылья'],
       ['evergreen', 'wings', 'Еловая лапа'], ['ash_phoenix', 'wings', 'Пепельный феникс'],
       ['halo','halo','Золотой нимб'], ['hat','hat','Соломенная шляпа'], ['dance','dance','Эмоции'],
+      ['santa_hat','headwear','Новогодний колпак'],
+      ['fawn_hood','headwear','Шапка оленёнка'],
+      ['snowman_top_hat','headwear','Цилиндр снеговика'],
+      ['gingerbread_house_hat','headwear','Пряничный домик'],
+      ['newsboy_cap','headwear','Кепка газетчика'],
+      ['aviator_helmet','headwear','Шлем авиатора'],
+      ['traveller_hat','headwear','Шляпа путника'],
       ['ember_fox','pet','Огненный лисёнок'], ['moon_moth','pet','Лунный мотылёк'],
       ['moss_turtle','pet','Моховая черепашка'], ['rhm_tarnkappe','pet','Rhm.-B. WT Tarnkappe'],
       ['snow_ferret','pet','Снежный хорёк'], ['space_slime','pet','Слизень-космонавт'],
-      ['tracked_scout','pet','Гусеничный разведчик']
+      ['tracked_scout','pet','Гусеничный разведчик'],
+      ['bell_fawn','pet','Оленёнок с бубенчиком'],
+      ['gingerbread_pup','pet','Пряничный щенок']
     ];
     let wardrobeFilter = 'all', wardrobeSelected = null;
     let wardrobeSlots = null, wardrobeRequest = null, wardrobeError = false, wardrobeSaving = false;
@@ -3841,6 +3869,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           }
           const pet = slot==='pet' ? await iconPreview.loadPet(id) : null;
           if (slot==='wings' || slot==='dance') await iconPreview.loadGeometry(id);
+          if (slot==='headwear') await iconPreview.loadHat(id);
           if (slot==='dance') {
             const skin = await previewSkin();
             iconPreview.setSkin(skin.image,skin.slim,skin.headLayer);
@@ -3927,7 +3956,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           const view = create();
           const [profile,pet] = await Promise.all([
             previewSkin(), slots.pet ? view.loadPet(slots.pet) : null,
-            slots.wings || slots.dance ? view.loadGeometry(slots.wings) : null
+            slots.wings || slots.dance ? view.loadGeometry(slots.wings) : null,
+            slots.headwear ? view.loadHat(slots.headwear) : null
           ]);
           if (!assign(pending,true)) return;
           if (view.currentSkin!==profile) {
@@ -3955,15 +3985,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         const slots = {...wardrobeSlots,dance:false};
         if (wardrobeSelected) {
           const [id,slot] = wardrobeSelected;
-          slots[slot] = slot==='wings'||slot==='pet' ? id : true;
+          slots[slot] = slot==='wings'||slot==='pet'||slot==='headwear' ? id : true;
+          if (slot==='hat') slots.headwear = '';
+          if (slot==='headwear') slots.hat = false;
         }
         void load(wardrobeCanvas,slots,wardrobeScene,(scene,check) => check ? wardrobeScene===scene : (wardrobeScene=scene),
           ()=>wardrobeView ?? (wardrobeView=new GleamCosmeticPreview(wardrobeCanvas)));
       }
       if ($('page-play').hidden) return;
-      const {wings,halo,hat,pet} = wardrobeSlots ?? {};
-      if (wings || halo || hat || pet) {
-        void load(homeCanvas,{wings,halo,hat,pet},homeScene,(scene,check) => check ? homeScene===scene : (homeScene=scene),
+      const {wings,halo,hat,pet,headwear} = wardrobeSlots ?? {};
+      if (wings || halo || hat || pet || headwear) {
+        void load(homeCanvas,{wings,halo,hat,pet,headwear},homeScene,(scene,check) => check ? homeScene===scene : (homeScene=scene),
           ()=>homeView ?? (homeView=new GleamCosmeticPreview(homeCanvas)));
       } else {
         homeScene = null;
@@ -4061,12 +4093,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     cosmeticResize.observe(skinStage);
     document.addEventListener('visibilitychange',queueCosmeticFrame);
     function wardrobeWearing([id,slot]) {
-      return (slot === 'wings' || slot === 'pet') ? wardrobeSlots?.[slot] === id
+      return (slot === 'wings' || slot === 'pet' || slot === 'headwear') ? wardrobeSlots?.[slot] === id
         : (wardrobeSlots?.[slot] ?? (slot === 'dance')) === true;
     }
     function wardrobeVisibleItems() {
       if (wardrobeFilter === 'equipped') return wardrobeSlots ? wardrobeItems.filter(wardrobeWearing) : [];
       return wardrobeItems.filter(([,slot]) => wardrobeFilter === 'all' || wardrobeFilter === slot
+        || (wardrobeFilter === 'hat' && slot === 'headwear')
         || (wardrobeFilter === 'wearables' && slot !== 'dance' && slot !== 'pet'));
     }
     function renderHomeLoadout(items) {
@@ -4174,6 +4207,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         const data = await request;
         if (epoch === wardrobeEpoch) {
           wardrobeSlots = {...data.slots};
+          if (!wardrobeItems.some(([id,slot]) => slot === 'headwear' && id === wardrobeSlots.headwear)) wardrobeSlots.headwear = '';
           if (!wardrobeItems.some(([id,slot]) => slot === 'wings' && id === wardrobeSlots.wings)) wardrobeSlots.wings = '';
         }
       } catch {
@@ -4212,7 +4246,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     wardrobeEquip.addEventListener('click',() => {
       if (!wardrobeSelected) return;
       const [id,slot] = wardrobeSelected, active = wardrobeWearing(wardrobeSelected);
-      void refreshWardrobe({slot,value:slot === 'pet' || slot === 'wings' ? (active ? '' : id) : !active});
+      void refreshWardrobe({slot,value:slot === 'pet' || slot === 'wings' || slot === 'headwear' ? (active ? '' : id) : !active});
     });
     setInterval(() => {
       if (!document.hidden && (!$('page-cosmetics').hidden || !$('page-play').hidden)) void refreshWardrobe();
@@ -5508,7 +5542,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         const [skin,pet] = await Promise.all([
           loadFriendSkin(look.skin),
           slots.pet ? friendPreview.loadPet(slots.pet).catch(() => null) : null,
-          slots.wings ? friendPreview.loadGeometry(slots.wings).catch(() => { slots.wings = ''; }) : null
+          slots.wings ? friendPreview.loadGeometry(slots.wings).catch(() => { slots.wings = ''; }) : null,
+          slots.headwear ? friendPreview.loadHat(slots.headwear).catch(() => { slots.headwear = ''; }) : null
         ]);
         if (request !== friendModelRequest || !stage.isConnected || !friendsOpen()
             || profile !== $('friend-profile-dialog').open) return;

@@ -217,7 +217,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         result = await response.json()
         self.assertEqual(result["wings"], {compact: 7})
         self.assertEqual(result["pets"], {compact: "moon_moth"})
-        for pet in ("snow_ferret", "space_slime", "tracked_scout"):
+        for pet in ("snow_ferret", "space_slime", "tracked_scout", "bell_fawn", "gingerbread_pup"):
             with self.subTest(pet=pet):
                 response = await self.client.post("/v1/presence", headers=headers, json={"pet": pet})
                 self.assertEqual(response.status, 200)

@@ -371,6 +371,16 @@ public final class OrionConfig {
     private int targetEspDetail = 1;
     private boolean targetEspHealthColor;
     private boolean chinaHeadEnabled = false;
+    private String cosmeticHat = "";
+
+    public String getCosmeticHat() {
+        return cosmeticHat == null ? "" : cosmeticHat;
+    }
+
+    public void setCosmeticHat(String id) {
+        cosmeticHat = ru.orion.client.cosmetic.GleamHatModel.IDS.contains(id) ? id : "";
+        if (!cosmeticHat.isEmpty()) chinaHeadEnabled = false;
+    }
     private boolean motionBlurEnabled = false;
     private float motionBlurStrength = 0.5F;
     private boolean blockHighlightEnabled = false;
@@ -1103,6 +1113,7 @@ public final class OrionConfig {
 
     public void setChinaHeadEnabled(boolean chinaHeadEnabled) {
         this.chinaHeadEnabled = chinaHeadEnabled;
+        if (chinaHeadEnabled) cosmeticHat = "";
     }
 
     public boolean isMotionBlurEnabled() { return motionBlurEnabled; }
@@ -1586,6 +1597,7 @@ public final class OrionConfig {
             wingsEnabled = false;
         }
         setCosmeticPet(cosmeticPet);
+        setCosmeticHat(getCosmeticHat());
         setSkinLayersThickness(skinLayersThickness);
         setSkinLayersDistance(skinLayersDistance);
         setItemScrollerLimit(itemScrollerLimit);

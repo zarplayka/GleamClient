@@ -315,11 +315,28 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
                          {'wings': 'dragon', 'pet': '', 'halo': True, 'hat': False, 'dance': False})
         self.assertEqual((await self.client.post(path, headers=client, json={'changes': {'pet': 'space_slime'}})).status, 200)
         self.assertEqual((await self.client.post(path, headers=launcher, json={'changes': {'wings': '', 'dance': True}})).status, 200)
+        for pet in ('bell_fawn', 'gingerbread_pup', 'space_slime'):
+            self.assertEqual((await self.client.post(path, headers=launcher, json={'changes': {'pet': pet}})).status, 200)
+            equipped = await (await self.client.get(path, headers=client)).json()
+            self.assertEqual(equipped['slots']['pet'], pet)
         expected = {'slots': {'wings': '', 'pet': 'space_slime', 'halo': True, 'hat': False, 'dance': True}}
         self.assertEqual(await (await self.client.get(path, headers=client)).json(), expected)
         self.assertEqual(await (await self.client.get(path, headers=other)).json(), {'slots': {}})
         for invalid in ({'pet': 'alien'}, {'pet': []}, {'halo': 1}, {'wings': 'halo'}, {'name': 'hat'}):
             self.assertEqual((await self.client.post(path, headers=client, json={'changes': invalid})).status, 400)
+        hat_names = ('santa_hat', 'fawn_hood', 'snowman_top_hat', 'gingerbread_house_hat',
+                     'newsboy_cap', 'aviator_helmet', 'traveller_hat')
+        for name in hat_names:
+            picked = await self.client.post(path, headers=launcher, json={'changes': {'headwear': name}})
+            self.assertEqual(picked.status, 200)
+            self.assertEqual((await picked.json())['slots'], expected['slots'] | {'headwear': name, 'hat': False})
+        self.assertEqual((await self.client.post(path, headers=launcher,
+                         json={'changes': {'headwear': 'missing'}})).status, 400)
+        old_client = await self.client.post(path, headers=client, json={'changes': {'hat': True}})
+        self.assertEqual((await old_client.json())['slots'], expected['slots'] | {'headwear': '', 'hat': True})
+        cleared = await self.client.post(path, headers=client, json={'changes': {'hat': False}})
+        expected = {'slots': expected['slots'] | {'headwear': '', 'hat': False}}
+        self.assertEqual(await cleared.json(), expected)
         unsafe = {key: value for key, value in client.items() if key != 'X-CSRF-Token'}
         self.assertEqual((await self.client.post(path, headers=unsafe, json={'changes': {'hat': True}})).status, 401)
         self.assertEqual(await (await self.client.get(path, headers=launcher)).json(), expected)

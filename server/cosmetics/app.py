@@ -195,7 +195,7 @@ class Store:
         if (not isinstance(halo, bool) or isinstance(wings, bool) or not isinstance(wings, int)
                 or not 0 <= wings <= 7 or pet not in (
                     "", "ember_fox", "moss_turtle", "moon_moth", "rhm_tarnkappe",
-                    "snow_ferret", "space_slime", "tracked_scout")):
+                    "snow_ferret", "space_slime", "tracked_scout", "bell_fawn", "gingerbread_pup")):
             raise web.HTTPBadRequest(reason="Invalid cosmetics")
         now = self.clock()
         async with self.lock:

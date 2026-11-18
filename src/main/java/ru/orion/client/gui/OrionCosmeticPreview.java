@@ -57,6 +57,10 @@ public final class OrionCosmeticPreview extends AvatarRenderState {
                 new Quaternionf().rotateZ((float) Math.PI).rotateX(-.10F), null, left, top, right, bottom);
     }
 
+    public String selectedHat() {
+        return ru.orion.client.cosmetic.GleamHatModel.IDS.stream().filter(items::contains).findFirst().orElse("");
+    }
+
     public boolean dances() { return items.contains("dance"); }
 
     public void submitItem(PoseStack pose, SubmitNodeCollector collector) {

@@ -252,6 +252,33 @@
       return Promise.all([this.geometry,this.wingRequests.get(wing)]);
     }
 
+    loadHat(id) {
+      this.hatRequests ??= new Map();
+      this.hats ??= new Map();
+      if (!this.hatRequests.has(id)) {
+        const image = new Image();
+        image.src = assetUrl(id+'.png',resources+'textures/cosmetics/hats/');
+        const request = Promise.all([asset(id+'.json',resources+'cosmetics/hats/').then(response=>response.json()),image.decode()])
+          .then(([faces])=>{
+            const vertices=[];
+            let yMin=Infinity,yMax=-Infinity;
+            for (let face=0;face<faces.length;face+=23) {
+              const points=[],uv=[];
+              for(let i=face+3;i<face+23;i+=5) {
+                points.push([faces[i],-faces[i+1],-faces[i+2]]);
+                uv.push([faces[i+3],faces[i+4]]);
+                yMin=Math.min(yMin,-faces[i+1]);
+                yMax=Math.max(yMax,-faces[i+1]);
+              }
+              quad(vertices,points,uv,undefined,.80+.20*Math.abs(faces[face+2]));
+            }
+            this.hats.set(id,{geometry:this.mesh(vertices),texture:this.texture(image),centerY:(yMax+yMin)*.5*1.8/32});
+          }).catch(error=>{this.hatRequests.delete(id);throw error;});
+        this.hatRequests.set(id,request);
+      }
+      return this.hatRequests.get(id);
+    }
+
     loadPet(id) {
       if (!this.pets.has(id)) {
         const tank = id==='rhm_tarnkappe';
@@ -345,15 +372,16 @@
       gl.clearColor(0,0,0,0);
       gl.depthMask(true);
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-      const widthUnits = (this.cosmetics[icon]?.plane || icon==='angel'||icon==='dragon') ? 5.55 : icon==='halo'||icon==='hat' ? 1.37
+      const headwear = this.hats?.get(slots.headwear ?? icon);
+      const widthUnits = icon && headwear ? 1.05 : (this.cosmetics[icon]?.plane || icon==='angel'||icon==='dragon') ? 5.55 : icon==='halo'||icon==='hat' ? 1.37
         : !player && pet ? (pet.rigid ? 1.15 : 1.30)
         : slots.wings ? (portrait ? (slots.wings === 'dragon' ? 4.7 : 4.45)
           : home ? (slots.wings === 'dragon' ? 4.45 : 4.22) : 5.45)
         : pet ? (home ? 2.04 : 2.70) : (home ? 1.23 : 1.46);
       const heightUnits = !player ? ((this.cosmetics[icon]?.plane || icon==='angel'||icon==='dragon') ? 2.5 : widthUnits*.82)
-        : home ? (slots.hat ? 2.60 : slots.halo || slots.wings ? 2.36 : 2.09) : (slots.hat ? 2.68 : 2.46);
+        :  headwear ? 2.66 : home ? (slots.hat ? 2.60 : slots.halo || slots.wings ? 2.36 : 2.09) : (slots.hat ? 2.68 : 2.46);
       const ratio = Math.min(width/widthUnits,height/heightUnits)*zoom;
-      const centerY = (this.cosmetics[icon]?.plane || icon==='angel'||icon==='dragon') ? -1.35 : icon==='halo' ? -2.01 : icon==='hat' ? -2.08
+      const centerY = icon && headwear ? headwear.centerY : headwear ? -1.11 : (this.cosmetics[icon]?.plane || icon==='angel'||icon==='dragon') ? -1.35 : icon==='halo' ? -2.01 : icon==='hat' ? -2.08
         : !player && pet ? (pet.rigid ? -.12 : -.28) : slots.hat || portrait && slots.wings ? -1.14
         : home && slots.halo ? -1.04 : -.96;
       const centerX = player && pet && !slots.wings ? (home ? -.42 : -.25) : 0;
@@ -371,7 +399,8 @@
         this.drawMesh(wings.plane,wings.texture,scale(1.8/32,1.8/32,1.8/32));
       } else if (wings && !['halo','hat'].includes(icon)) this.drawMesh(wings,this.white,identity);
       if (slots.halo || icon==='halo') after.push(()=>this.drawMesh(this.cosmetics.halo,this.white,identity,true));
-      if (slots.hat || icon==='hat') after.push(()=>this.drawMesh(this.cosmetics.hat,this.white,identity,true));
+      if (headwear) this.drawMesh(headwear.geometry,headwear.texture,scale(1.8/32,1.8/32,1.8/32));
+      else if (slots.hat || icon==='hat') after.push(()=>this.drawMesh(this.cosmetics.hat,this.white,identity,true));
       for (const draw of after) draw();
       gl.depthMask(true);
     }
