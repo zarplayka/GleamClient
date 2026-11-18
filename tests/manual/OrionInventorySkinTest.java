@@ -84,6 +84,13 @@ public final class OrionInventorySkinTest {
         chest.setItem(1, new ItemStack(Items.STONE, 64));
         check(OrionItemScroller.transfer(menu, source, player, false, 2, 16, unlocked, clicks) == 128, "all matching");
         check(chest.countItem(Items.STONE) == 0 && inventory.countItem(Items.STONE) == 138, "conserve all items");
+        check(OrionItemScroller.transfer(menu, source, player, true, 0, 1, unlocked, clicks) == 1, "pull into empty slot");
+        check(chest.getItem(0).getCount() == 1 && inventory.countItem(Items.STONE) == 137, "empty-slot pull counts");
+        chest.setItem(0, new ItemStack(Items.STONE, 64));
+        check(OrionItemScroller.transfer(menu, source, player, true, 0, 1, unlocked, clicks) == 0, "single pull into a full slot");
+        check(OrionItemScroller.transfer(menu, source, player, true, 2, 16, unlocked, clicks) == 137, "matching pull past full hovered slot");
+        check(chest.getItem(0).getCount() == 64 && chest.countItem(Items.STONE) == 201 && menu.getCarried().isEmpty(),
+                "matching pull must preserve counts and leave the cursor empty");
         chest.setItem(0, new ItemStack(Items.DIAMOND, 5));
         check(OrionItemScroller.transfer(menu, source, player, false, 0, 1, index -> index == 0, clicks) == 0, "locked source");
         menu.setCarried(new ItemStack(Items.APPLE));

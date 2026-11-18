@@ -58,6 +58,7 @@ class Room:
     kickoff_at: float = 0
     sequence: int = 0
     kicks: deque = field(default_factory=lambda: deque(maxlen=64))
+    keeper_poses: list = field(default_factory=list)
 
     def spawn(self, member):
         x = 0 if self.size == 1 else (-3 if member.slot < 2 else 3)
@@ -68,6 +69,7 @@ class Room:
         self.ball, self.roll, self.velocity = [0, .25, 0], 0, [0, 0, 0]
         self.kicks.clear()
         self.recent_ball.clear()
+        self.keeper_poses.clear()
 
 
 class FootballRooms:
@@ -137,11 +139,13 @@ class FootballRooms:
 
         member.position = vector(payload.get("position"), ((-512, 512), (-512, 512), (-512, 512)))
         member.seen = now
-        if room.phase == "lobby":
+        if room.phase in ("lobby", "finished"):
             ready = payload.get("ready")
-            if type(ready) is bool:
+            if type(ready) is bool and (room.phase == "lobby" or payload.get("round") == room.round):
                 member.ready = ready
             if len(room.players) == 2 * room.size and all(p.ready for p in room.players.values()):
+                if room.phase == "finished":
+                    self.restart(code, room)
                 room.phase = "kickoff"
         if room.phase == "kickoff":
             all_in_place = all(p.position is not None and now - p.seen < 2
@@ -166,6 +170,15 @@ class FootballRooms:
                 ball = vector(frame.get("ball"), ((-13, 13), (-1, 10), (-18, 18)))
                 roll = number(frame.get("roll"), -360, 360)
                 velocity = vector(frame.get("velocity", [0, 0, 0]), ((-64, 64),) * 3)
+                poses = frame.get("keeperPoses", [])
+                if not isinstance(poses, list) or (poses and (room.size != 1 or len(poses) != 2)):
+                    raise ValueError("keeper poses")
+                checked_poses = []
+                for pose in poses:
+                    if not isinstance(pose, list) or len(pose) != 5 or type(pose[4]) is not int or not 0 <= pose[4] <= 6:
+                        raise ValueError("keeper pose")
+                    checked_poses.append([number(pose[0], -5, 5), number(pose[1], 0, 1),
+                                          number(pose[2], -1, 1), number(pose[3], 0, 4), pose[4]])
                 goal = frame.get("goal")
                 out = frame.get("out", False)
                 if type(out) is not bool or (out and goal is not None):
@@ -177,6 +190,9 @@ class FootballRooms:
                         raise ValueError("goal")
                     room.score[goal] += 1
                     room.phase = "finished" if room.score[goal] >= WIN_SCORE else "kickoff"
+                    if room.phase == "finished":
+                        for participant in room.players.values():
+                            participant.ready = False
                     room.kickoff_at = 0
                     room.reset_ball()
                 elif out:
@@ -186,11 +202,17 @@ class FootballRooms:
                 else:
                     room.recent_ball.append((now, room.ball))
                     room.ball, room.roll, room.velocity = ball, roll, velocity
+                    room.keeper_poses = checked_poses
 
         kick = payload.get("kick")
         if kick is not None and room.phase == "play" and payload.get("round") == room.round:
             self.kick(room, actor, member, kick, now)
         return self.snapshot(code, room, actor, member)
+
+    def restart(self, code, room):
+        room.score = [0, 0]
+        room.kickoff_at = 0
+        room.reset_ball()
 
     @staticmethod
     def kick(room, actor, member, kick, now):
@@ -226,4 +248,5 @@ class FootballRooms:
                 "origin": room.origin, "spawn": room.spawn(member), "phase": room.phase,
                 "score": room.score, "round": room.round, "ball": room.ball, "roll": room.roll,
                 "velocity": room.velocity,
+                "keeperPoses": room.keeper_poses, "playerIds": list(room.players),
                 "kicks": list(room.kicks) if actor == room.host and room.phase == "play" else []}
