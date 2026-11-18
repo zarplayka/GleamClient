@@ -72,7 +72,7 @@ public final class OrionCosmeticPreview extends AvatarRenderState {
                 pose.pushPose();
                 try {
                     switch (item) {
-                        case "angel", "dragon", "midnight", "evergreen", "first_salvo", "ash_phoenix", "lunar_moth" -> OrionWings.submitPreview(pose, collector, ru.orion.client.effect.GleamWingModel.IDS.indexOf(item) + 1);
+                        case "angel", "dragon", "evergreen", "ash_phoenix" -> OrionWings.submitPreview(pose, collector, ru.orion.client.effect.GleamWingModel.IDS.indexOf(item) + 1);
                         case "halo" -> OrionHalo.submitPreview(pose, collector, boundingBoxHeight);
                         case "hat" -> OrionChinaHeadRenderer.submitPreview(pose, collector, eyeHeight, hatColor);
                         default -> { }

@@ -3667,7 +3667,7 @@ public final class OrionClickGuiScreen extends Screen {
                     new ValueSetting("Управление танцами", () -> tr("Выбери мышью или клавишами 1–6")),
                     new ButtonSetting("Текущий танец", "Остановить", ru.orion.client.effect.OrionEmotes::stop)
             };
-            case WINGS -> new Setting[]{new ChoiceSetting("Вид крыльев", new String[]{"Ангельские", "Драконьи", "Полночь", "Еловая лапа", "Первый залп", "Пепельный феникс", "Крылья лунного мотылька"}, config::getWingsStyle, configManager::setWingsStyle)};
+            case WINGS -> new Setting[]{new ChoiceSetting("Вид крыльев", new String[]{"Ангельские", "Драконьи", "Еловая лапа", "Пепельный феникс"}, config::getWingsStyle, configManager::setWingsStyle)};
             case WAYPOINTS -> new Setting[]{
                     new ToggleSetting("Указатели за экраном", config::isWaypointEdgeIndicators, config::setWaypointEdgeIndicators),
                     new ToggleSetting("Координаты меток", config::isWaypointShowCoordinates, config::setWaypointShowCoordinates),

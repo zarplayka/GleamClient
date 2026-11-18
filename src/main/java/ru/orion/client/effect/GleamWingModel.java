@@ -14,7 +14,17 @@ import java.util.List;
 import java.util.Objects;
 
 public final class GleamWingModel {
-    public static final List<String> IDS = List.of("angel", "dragon", "midnight", "evergreen", "first_salvo", "ash_phoenix", "lunar_moth");
+    public static final List<String> IDS = List.of("angel", "dragon", "evergreen", "ash_phoenix");
+    // These IDs are shared with older clients and persisted in configurations.
+    private static final List<Integer> WIRE_STYLES = List.of(1, 2, 4, 6);
+
+    public static int toWireStyle(int style) {
+        return WIRE_STYLES.get(style);
+    }
+
+    public static int fromWireStyle(int id) {
+        return WIRE_STYLES.indexOf(id);
+    }
     private static final int FACE_SIZE = 23;
     private static final List<GleamWingModel> MODELS = IDS.subList(2, IDS.size()).stream().map(GleamWingModel::new).toList();
     private final Identifier texture;

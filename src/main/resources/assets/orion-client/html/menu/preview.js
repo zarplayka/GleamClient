@@ -880,11 +880,8 @@ function patchChat(previous, friendsChanged) {
 const cosmetics = [
   ['angel','WINGS','Ангельские крылья','Спина',0],
   ['dragon','WINGS','Драконьи крылья','Спина',1],
-  ['midnight','WINGS','Полночь','Спина',2],
-  ['evergreen','WINGS','Еловая лапа','Спина',3],
-  ['first_salvo','WINGS','Первый залп','Спина',4],
-  ['ash_phoenix','WINGS','Пепельный феникс','Спина',5],
-  ['lunar_moth','WINGS','Крылья лунного мотылька','Спина',6],
+  ['evergreen','WINGS','Еловая лапа','Спина',2],
+  ['ash_phoenix','WINGS','Пепельный феникс','Спина',3],
   ['halo','HALO','Золотой нимб','Голова'],
   ['hat','CHINA_HEAD','Соломенная шляпа','Голова'],
   ['dance','EMOTES','Эмоции','Анимация'],

@@ -134,7 +134,7 @@ public final class OrionBadgePresence {
         String name = client.getUser().getName();
         var config = OrionClient.getConfigOrNull();
         boolean halo = config != null && config.isHaloEnabled();
-        int wingsValue = config != null && config.isWingsEnabled() ? config.getWingsStyle() + 1 : 0;
+        int wingsValue = config != null && config.isWingsEnabled() ? GleamWingModel.toWireStyle(config.getWingsStyle()) : 0;
         String petId = config == null ? "" : config.getCosmeticPet();
         long requestGeneration = generation;
         pending = true;
@@ -166,8 +166,8 @@ public final class OrionBadgePresence {
                     if (haloResult != null) haloResult.forEach(value -> foundHalos.add(parseUuid(value.getAsString())));
                     JsonObject wingResult = response.getAsJsonObject("wings");
                     if (wingResult != null) wingResult.entrySet().forEach(entry -> {
-                        int style = entry.getValue().getAsInt();
-                        if (style >= 1 && style <= GleamWingModel.IDS.size()) foundWings.put(parseUuid(entry.getKey()), style);
+                        int style = GleamWingModel.fromWireStyle(entry.getValue().getAsInt());
+                        if (style >= 0) foundWings.put(parseUuid(entry.getKey()), style + 1);
                     });
                     JsonObject petResult = response.getAsJsonObject("pets");
                     if (petResult != null) petResult.entrySet().forEach(entry -> {

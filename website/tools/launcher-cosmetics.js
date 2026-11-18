@@ -228,7 +228,7 @@
           this.dance = data.dance;
         }).catch(error=>{ this.geometry = null; throw error; });
       }
-      if (!['midnight','evergreen','first_salvo','ash_phoenix','lunar_moth'].includes(wing)) return this.geometry;
+      if (!['evergreen','ash_phoenix'].includes(wing)) return this.geometry;
       this.wingRequests ??= new Map();
       if (!this.wingRequests.has(wing)) {
         const name = 'wing_' + wing;

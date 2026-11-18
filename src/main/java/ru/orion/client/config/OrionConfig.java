@@ -85,8 +85,14 @@ public final class OrionConfig {
     public void setHaloEnabled(boolean value) { haloEnabled = value; }
     public boolean isWingsEnabled() { return wingsEnabled; }
     public void setWingsEnabled(boolean value) { wingsEnabled = value; }
-    public int getWingsStyle() { return wingsStyle; }
-    public void setWingsStyle(int value) { wingsStyle = Math.max(0, Math.min(ru.orion.client.effect.GleamWingModel.IDS.size() - 1, value)); }
+    public int getWingsStyle() {
+        return Math.max(0, ru.orion.client.effect.GleamWingModel.fromWireStyle(wingsStyle + 1));
+    }
+
+    public void setWingsStyle(int value) {
+        int style = Math.clamp(value, 0, ru.orion.client.effect.GleamWingModel.IDS.size() - 1);
+        wingsStyle = ru.orion.client.effect.GleamWingModel.toWireStyle(style) - 1;
+    }
     private float zoomFactor = 4.0F;
     private float zoomInTime = 1F;
     private float zoomOutTime = 0.5F;
@@ -1575,7 +1581,10 @@ public final class OrionConfig {
         if (waypointQuickPrefix.isEmpty()) waypointQuickPrefix = "Метка";
         if (waypointQuickColor == null || !waypointQuickColor.matches("^#[0-9a-fA-F]{6}$")) waypointQuickColor = "#FF9B38";
         waypointVisibleLimit = Math.max(1, Math.min(64, waypointVisibleLimit));
-        wingsStyle = Math.max(0, Math.min(ru.orion.client.effect.GleamWingModel.IDS.size() - 1, wingsStyle));
+        if (ru.orion.client.effect.GleamWingModel.fromWireStyle(wingsStyle + 1) < 0) {
+            wingsStyle = 0;
+            wingsEnabled = false;
+        }
         setCosmeticPet(cosmeticPet);
         setSkinLayersThickness(skinLayersThickness);
         setSkinLayersDistance(skinLayersDistance);
