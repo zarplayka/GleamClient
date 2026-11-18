@@ -11,11 +11,11 @@
 
 ## Обложки версий в Gleam Launcher
 
-В `tools/launcher-preview.html` используются изображения из официальных публикаций Minecraft. Они встроены в HTML и служат обложками плиток и фоном выбранной версии.
+В `tools/launcher-preview.html` используются иллюстрации Minecraft от Mojang Studios. Обложки плиток встроены в HTML в формате WebP, а фоны выбранной версии загружаются из отдельных файлов `tools/launcher-background-*.webp`.
 
-- 1.16.5 — [Nether Update](https://www.minecraft.net/en-us/article/the-nether-update-here)
-- 1.21.4 — [The Garden Awakens](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-4)
-- 1.21.11 — [Mounts of Mayhem](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-11)
-- 26.1.2 — [Tiny Takeover](https://www.minecraft.net/en-us/article/minecraft-java-edition-26-1)
-- 26.2 — [Chaos Cubed](https://www.minecraft.net/en-us/article/minecraft-java-edition-26-2)
-- 26.3 — [Wilderness Bound](https://www.minecraft.net/en-us/article/minecraft-26-3-release-candidate-2)
+- 1.16.5 — [Nether Update](https://minecraft.wiki/w/File:NetherUpdateArtwork.png)
+- 1.21.4 — [The Garden Awakens](https://minecraft.wiki/w/File:The_Garden_Awakens_Key_Art.png)
+- 1.21.11 — [Mounts of Mayhem](https://minecraft.wiki/w/File:Mounts_of_Mayhem_Key_Art.png)
+- 26.1.2 — [Tiny Takeover](https://minecraft.wiki/w/File:Tiny_Takeover_Key_Art.png)
+- 26.2 — [Chaos Cubed](https://minecraft.wiki/w/File:Chaos_Cubed_Key_Art.png)
+- 26.3 — [Wilderness Bound](https://minecraft.wiki/w/File:Wilderness_Bound_Key_Art.png)

@@ -9,6 +9,7 @@ const tools = name => path.join(__dirname, name);
 const game = name => path.join(resources, name);
 const routes = new Map([
   ['/', tools('client-preview.html')],
+  ['/title-concept/', tools('client-title-concept.html')],
   ['/client-preview.js', tools('client-preview.js')],
   ['/catalog.json', tools('client-preview-catalog.json')],
   ['/clickgui/', game('html/menu/index.html')],
@@ -70,7 +71,7 @@ const server = createServer(async (request, response) => {
       const type = path.extname(file);
       const body = await readFile(file, type === '.html' ? 'utf8' : null);
       response.writeHead(200, { 'Content-Type': types[type] });
-      return response.end(type === '.html' && route !== '/' ? browserDocument(route, body) : body);
+      return response.end(type === '.html' && route !== '/' && route !== '/title-concept/' ? browserDocument(route, body) : body);
     }
     if (item?.endsWith('-item.png')) {
       const body = await readFile(game(`html/menu/assets/${item}`)).catch(error => {
