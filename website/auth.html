@@ -7,10 +7,10 @@
   <meta name="robots" content="noindex">
   <title>Авторизация — GleamClient</title>
   <link rel="icon" type="image/png" href="assets/orion-badge.png?v=gleam-eye">
-  <link rel="stylesheet" href="style.css?v=gleam-palette-20261112">
-  <script src="i18n.js?v=launcher-auth-20261110" defer></script>
+  <link rel="stylesheet" href="style.css?v=funpay-2">
+  <script src="i18n.js?v=funpay-2" defer></script>
   <script src="app.js?v=community" defer></script>
-  <script src="auth.js?v=launcher-auth-20261110" defer></script>
+  <script src="auth.js?v=funpay-2" defer></script>
 </head>
 <body class="auth-page">
   <a class="skip" href="#main">Перейти к содержимому</a>
@@ -130,6 +130,15 @@
             <p id="profile-plus-remaining" class="profile-note" hidden><span>Осталось</span> <strong></strong></p>
             <p class="profile-note">Значок Plus рядом с ником в меню аккаунтов.</p>
             <a class="hero-action hero-action-secondary" href="/#plus">Посмотреть тарифы <span aria-hidden="true">↗</span></a>
+            <form id="funpay-redeem" class="profile-inline-form">
+              <input name="key" aria-label="Ключ GleamClient Plus" placeholder="Ключ GleamClient Plus" maxlength="36" autocomplete="off" spellcheck="false" required>
+              <button class="hero-action hero-action-primary" type="submit">Активировать ключ</button>
+            </form>
+            <p class="profile-caption" id="funpay-key-status" role="status" hidden></p>
+          </section>
+          <section class="profile-panel" id="funpay-creator" hidden>
+            <h2>Мои промокоды</h2>
+            <div id="funpay-creator-promos"></div>
           </section>
           <section class="profile-panel profile-product" aria-labelledby="profile-client-title">
             <h2 id="profile-client-title">GleamClient</h2>
@@ -222,6 +231,22 @@
           <section class="profile-panel"><h2>Список друзей</h2><ul class="profile-sessions community-list" id="friends-friend"></ul></section>
         </div>
         <div class="profile-view profile-community" role="tabpanel" id="profile-view-admin" aria-labelledby="profile-tab-admin" tabindex="0" hidden>
+          <section class="profile-panel">
+            <div class="profile-panel-heading"><h2>Промокоды FunPay</h2>
+              <button id="funpay-admin-refresh" type="button" class="hero-action hero-action-secondary">Обновить</button>
+            </div>
+            <form id="funpay-promo-create" class="profile-inline-form">
+              <label class="auth-field">Промокод<input name="code" maxlength="24" required></label>
+              <label class="auth-field">Ник GleamClient<input name="creator" maxlength="24" required></label>
+              <label class="auth-field">Доля автора, %<input name="share" type="number" min="1" max="100" value="50" required></label>
+              <label class="auth-field">Скидка, %<input name="discount" type="number" min="0" max="99" value="10" required></label>
+              <label class="auth-field">Ключей на тариф<input name="quantity" type="number" min="1" max="25" value="1" required></label>
+              <button class="hero-action hero-action-primary" type="submit">Создать промокод</button>
+            </form>
+            <dl id="funpay-price-preview" class="funpay-totals" aria-label="Цены лотов со скидкой" hidden></dl>
+            <p class="profile-caption" id="funpay-admin-status" role="status" hidden></p>
+            <ul class="profile-sessions community-list" id="funpay-admin-promos"></ul>
+          </section>
           <section class="profile-panel admin-panel">
             <div class="profile-panel-heading"><h2>Аккаунты</h2><span class="admin-result-label" id="admin-result-label"></span></div>
             <form id="admin-search-form" class="profile-inline-form">
