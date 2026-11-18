@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GleamClient · Эскиз главного меню</title>
+  <link rel="icon" href="/title/assets/gleam-title-badge.png">
+  <style>
+    @font-face { font-family:Gleam; src:url('/fonts/paradox/ParadoxSans-Regular.ttf'); font-weight:400; font-display:swap }
+    @font-face { font-family:Gleam; src:url('/fonts/paradox/ParadoxSans-Medium.ttf'); font-weight:500; font-display:swap }
+    @font-face { font-family:Gleam; src:url('/fonts/paradox/ParadoxSans-Bold.ttf'); font-weight:700; font-display:swap }
+    *,*::before,*::after { box-sizing:border-box }
+    [hidden] { display:none!important }
+    :root {
+      color-scheme:dark;
+      --canvas:#15151c; --panel:#1c1c26; --rail:#171720; --field:#222230; --hover:#292938;
+      --line:#373748; --muted:#a9a8be; --text:#f1f0f8; --accent:#aab4ff;
+      --ink:#1b2040; --selected:#30324c; --success:#93c8b4; --pad:clamp(22px,5vw,80px);
+    }
+    :root[data-theme="light"] {
+      color-scheme:light;
+      --canvas:#ecedf5; --panel:#fafaff; --rail:#f0f1f9; --field:#e9ebf5; --hover:#e0e3f3;
+      --line:#cdd2e6; --muted:#515a77; --text:#262942; --accent:#4458b7;
+      --ink:#fff; --selected:#e4e8ff; --success:#2f6a54;
+    }
+    body { margin:0; min-height:100dvh; background:var(--canvas); color:var(--text); font:400 15px/1.35 Gleam,system-ui,sans-serif }
+    button,input,select,a { color:inherit; font:inherit }
+    button { cursor:pointer }
+    a { text-decoration:none }
+    :is(button,a,input,select,summary):focus-visible { outline:2px solid var(--accent); outline-offset:3px }
+    .icon { width:18px; height:18px; flex:none; fill:none; stroke:currentColor; stroke-width:1.65; stroke-linecap:round; stroke-linejoin:round }
+    .frame { min-height:100dvh; padding:clamp(18px,4.2vh,46px) var(--pad); display:grid; align-items:center }
+    .shell { width:min(100%,1120px); margin-inline:auto }
+    .top { display:flex; align-items:center; justify-content:space-between; gap:13px; padding:0 0 16px }
+    .brand { display:flex; align-items:center; gap:11px; min-width:0 }
+    .brand img { width:33px; height:33px; object-fit:contain; flex:none }
+    [data-theme="light"] .brand img { filter:brightness(.27) }
+    .brand strong { font-size:23px; font-weight:700; letter-spacing:-.045em }
+    .toolbar { display:flex; gap:5px; align-items:center; flex:none }
+    .toolbar-button,.account summary {
+      min-height:36px; display:flex; align-items:center; justify-content:center;
+      border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--text);
+    }
+    .toolbar-button { width:36px; padding:0 }
+    .toolbar-button:hover,.account summary:hover { background:var(--hover) }
+    .account { position:relative; z-index:2 }
+    .account summary { gap:8px; padding:0 9px; font-size:13px; font-weight:500; cursor:pointer; list-style:none }
+    .account summary::-webkit-details-marker { display:none }
+    .account .chevron { width:13px; height:13px; color:var(--muted) }
+    .account[open] .chevron { transform:rotate(180deg) }
+    .account-pane { position:absolute; top:calc(100% + 6px); right:0; min-width:195px; padding:6px; border:1px solid var(--line); border-radius:4px; background:var(--panel) }
+    .account-pane small,.account-pane a { display:block; padding:7px 8px; white-space:nowrap }
+    .account-pane small { color:var(--muted) }
+    .account-pane a:hover { background:var(--hover) }
+    .workspace {
+      min-height:455px; display:grid; grid-template-columns:minmax(225px,.72fr) minmax(0,1.9fr);
+      border:1px solid var(--line); border-top-color:color-mix(in srgb,var(--accent) 58%,var(--line)); background:var(--panel);
+    }
+    .rail { position:relative; padding:25px 18px 22px 15px; background:var(--rail); border-right:1px solid var(--line) }
+    .rail::before { content:""; position:absolute; top:0; left:0; width:54px; height:2px; background:var(--accent) }
+    .tabs { display:grid; gap:5px }
+    .tabs button {
+      position:relative; isolation:isolate; display:flex; align-items:center; gap:10px; min-height:49px; width:100%;
+      padding:7px 13px; border:0; background:transparent; color:var(--muted); text-align:left; font-size:17px; font-weight:700;
+    }
+    .tabs button::before { content:""; position:absolute; z-index:-1; inset:0; clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%); background:transparent }
+    .tabs button:hover { color:var(--text) }
+    .tabs button:hover::before { background:var(--field) }
+    .tabs button[aria-selected="true"] { color:var(--ink) }
+    .tabs button[aria-selected="true"]::before { background:var(--accent) }
+    .rail a { display:flex; gap:10px; align-items:center; padding:10px 13px; margin-top:12px; border-top:1px solid var(--line); color:var(--muted); font-size:14px }
+    .rail a:hover { color:var(--text); background:var(--hover) }
+    .stage { min-width:0; padding:clamp(18px,3vw,39px); display:grid }
+    .section { min-width:0; align-self:stretch; display:grid; grid-template-rows:auto auto minmax(0,1fr) auto }
+    .section-title { display:flex; align-items:center; justify-content:space-between; gap:13px; margin-bottom:22px }
+    h1 { font-size:clamp(27px,3.6vw,52px); line-height:1; letter-spacing:-.065em; margin:0 }
+    .section-title .icon { width:18px; height:18px }
+    .command { display:inline-flex; gap:7px; align-items:center; justify-content:center; min-height:35px; padding:5px 11px; background:var(--field); border:1px solid var(--line); border-radius:3px; font-size:13px; white-space:nowrap }
+    .command:hover { background:var(--hover) }
+    .command.primary { min-height:39px; background:var(--accent); border:0; color:var(--ink); font-weight:700; border-radius:0; padding-inline:14px 19px; clip-path:polygon(0 0,calc(100% - 11px) 0,100% 11px,100% 100%,0 100%) }
+    .command.primary:hover { filter:brightness(.94) }
+    .command.primary:focus-visible { outline:0; box-shadow:inset 0 0 0 2px var(--ink) }
+    .columns,.entry { display:grid; grid-template-columns:minmax(0,1fr) 93px 62px; align-items:center; gap:10px; padding-inline:12px }
+    .columns { padding-bottom:7px; color:var(--muted); font-size:12px }
+    .columns :nth-child(n+2),.entry>span:nth-child(n+2) { text-align:right; font-variant-numeric:tabular-nums }
+    .entries { display:grid; align-content:start; border-block:1px solid var(--line) }
+    .entry { width:100%; background:transparent; border:0; min-height:47px; position:relative; text-align:left; padding-block:8px }
+    .entry+.entry { border-top:1px solid var(--line) }
+    .entry:hover { background:var(--field) }
+    .entry[aria-pressed="true"] { background:var(--selected) }
+    .entry[aria-pressed="true"]::before { content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--accent) }
+    .entry b { display:block; font-weight:500; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+    .entry small { display:block; color:var(--muted); margin-top:2px; font-size:11px }
+    .entry .ping { color:var(--success); font-size:12px }
+    .entry .ping.unavailable { color:var(--muted) }
+    .worlds .columns,.worlds .entry { grid-template-columns:minmax(0,1fr) minmax(95px,auto) }
+    .actions { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; margin-top:13px }
+    .feedback { min-width:0; color:var(--muted); font-size:12px }
+    .settings .section-title { grid-row:1 }
+    .setting-list { grid-row:3; border-top:1px solid var(--line) }
+    .setting { display:flex; justify-content:space-between; align-items:center; gap:15px; padding:10px 0; min-height:50px; border-bottom:1px solid var(--line) }
+    .setting output { min-width:36px; text-align:right; color:var(--muted); font-size:12px }
+    .setting input { accent-color:var(--accent); max-width:min(32vw,165px) }
+    .setting select { min-height:31px; padding-inline:6px; background:var(--field); border:1px solid var(--line) }
+    .foot { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:11px; color:var(--muted); font-size:12px }
+    .foot kbd { font-family:inherit; font-size:11px; padding:1px 4px; border:1px solid var(--line); border-radius:3px }
+    dialog { width:min(400px,calc(100% - 32px)); margin:auto; padding:20px; border:1px solid var(--line); color:var(--text); background:var(--panel) }
+    dialog::backdrop { background:#11121bb0 }
+    dialog h2 { margin:0 0 14px; font-size:22px; letter-spacing:-.03em }
+    dialog label { display:grid; gap:5px; margin-bottom:10px; color:var(--muted); font-size:13px }
+    dialog input { padding:7px 8px; border:1px solid var(--line); border-radius:3px; background:var(--field); color:var(--text) }
+    dialog menu { display:flex; justify-content:flex-end; gap:7px; padding:0; margin:15px 0 0 }
+    @keyframes enter { from { opacity:.1; transform:translateY(5px) } to { opacity:1; transform:translateY(0) } }
+    @media(prefers-reduced-motion:no-preference) {
+      .tabs button::before,.entry,.toolbar-button,.command { transition:background-color .16s,color .16s }
+      .section:not([hidden]),.account[open] .account-pane,dialog[open] { animation:enter .19s cubic-bezier(.2,.7,.2,1) }
+    }
+    @media(max-width:760px) {
+      :root { --pad:clamp(16px,3vw,26px) }
+      .workspace { grid-template-columns:1fr; min-height:0 }
+      .rail { display:flex; gap:6px; align-items:center; padding:5px; border-right:0; border-bottom:1px solid var(--line) }
+      .tabs { display:flex; flex:1; gap:4px }
+      .tabs button { width:auto; min-height:38px; font-size:13px; padding:5px 7px }
+      .tabs button .icon { display:none }
+      .rail a { margin:0 0 0 auto; padding:5px 6px; border:0; font-size:13px }
+      .rail a .icon { display:none }
+      .stage { padding:15px }
+      .section-title { margin-bottom:16px }
+      .columns,.entry { grid-template-columns:minmax(0,1fr) 62px 50px; gap:6px; padding-inline:8px }
+    }
+    @media(max-width:405px) {
+      .frame { align-items:start }
+      .brand strong { font-size:18px }
+      .brand img { width:27px; height:27px }
+      .brand { gap:6px }
+      .account summary { padding-inline:6px; font-size:11px }
+      .toolbar-button { width:30px }
+      .stage { padding:12px }
+      .rail { flex-wrap:wrap }
+      .rail a { margin:0 }
+      .foot { font-size:11px }
+    }
+    @media(max-height:635px) and (min-width:761px) {
+      .workspace { min-height:0 }
+      .stage { padding-block:18px }
+      .section-title { margin-bottom:14px }
+      .entry { min-height:38px }
+      .top { padding-bottom:10px }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <main class="shell" aria-label="GleamClient">
+      <header class="top">
+        <div class="brand"><img src="/title/assets/gleam-title-badge.png" alt=""><strong>GleamClient</strong></div>
+        <div class="toolbar">
+          <details class="account">
+            <summary>GleamPreview <svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <div class="account-pane"><small>Офлайн-профиль Minecraft</small><a href="/#clickgui" data-route="profile">Профиль GleamClient</a></div>
+          </details>
+          <button type="button" class="toolbar-button" id="theme" aria-pressed="false" aria-label="Светлая тема" title="Светлая тема"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1m0-14.2L17 7M7 17l-2.1 2.1"/></svg></button>
+          <a class="toolbar-button" href="/#title" aria-label="Вернуться в предпросмотр" title="Вернуться в предпросмотр"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></a>
+        </div>
+      </header>
+      <div class="workspace">
+        <nav class="rail" aria-label="Главное меню">
+          <div class="tabs" role="tablist" aria-label="Разделы игры" aria-orientation="vertical">
+            <button type="button" id="tab-servers" role="tab" aria-controls="servers" aria-selected="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.2-3.5-8.5s1.1-6.1 3.5-8.5Z"/></svg>Сетевая игра</button>
+            <button type="button" id="tab-worlds" role="tab" aria-controls="worlds" aria-selected="false" tabindex="-1"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 20 8v8l-8 4.5L4 16V8l8-4.5ZM4 8l8 4.5L20 8m-8 4.5v8"/></svg>Одиночная игра</button>
+            <button type="button" id="tab-settings" role="tab" aria-controls="settings" aria-selected="false" tabindex="-1"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h6m4 0h6M4 17h10m4 0h2"/><circle cx="12" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></svg>Настройки</button>
+          </div>
+          <a href="/#clickgui" data-route="all"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z"/></svg>Модули</a>
+        </nav>
+        <div class="stage">
+          <section class="section" id="servers" role="tabpanel" aria-labelledby="tab-servers">
+            <div class="section-title"><h1>Серверы</h1><button class="command" type="button" id="add-server">Добавить сервер</button></div>
+            <div class="columns" aria-hidden="true"><span>Сервер</span><span>Игроки</span><span>Пинг</span></div>
+            <div class="entries" aria-label="Список серверов"></div>
+            <div class="actions"><output class="feedback" aria-live="polite"></output><button class="command primary" type="button" data-command="server">Подключиться <span aria-hidden="true">→</span></button></div>
+          </section>
+          <section class="section worlds" id="worlds" role="tabpanel" aria-labelledby="tab-worlds" hidden>
+            <div class="section-title"><h1>Мои миры</h1></div>
+            <div class="columns" aria-hidden="true"><span>Мир</span><span>Последний вход</span></div>
+            <div class="entries" aria-label="Список миров"></div>
+            <div class="actions"><output class="feedback" aria-live="polite"></output><button class="command primary" type="button" data-command="world">Играть <span aria-hidden="true">→</span></button></div>
+          </section>
+          <section class="section settings" id="settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+            <div class="section-title"><h1>Настройки</h1></div>
+            <div class="setting-list">
+              <label class="setting">Тема <select id="theme-choice"><option value="dark">Тёмная</option><option value="light">Светлая</option></select></label>
+              <label class="setting">Общая громкость <span><input type="range" min="0" max="100" value="70" id="volume"><output for="volume">70%</output></span></label>
+              <label class="setting">Поле зрения <span><input type="range" min="30" max="110" value="70" id="fov"><output for="fov">70°</output></span></label>
+            </div>
+            <div class="actions"><span></span><a class="command" href="/#clickgui" data-route="settings">Настройки GleamClient</a></div>
+          </section>
+        </div>
+      </div>
+      <footer class="foot"><span>Minecraft 26.3</span><span><kbd>↑</kbd> <kbd>↓</kbd> Разделы</span></footer>
+    </main>
+  </div>
+  <dialog aria-labelledby="dialog-title">
+    <form method="dialog">
+      <h2 id="dialog-title">Добавить сервер</h2>
+      <label>Название <input name="server-name" maxlength="50" required></label>
+      <label>Адрес <input name="server-address" maxlength="95" required></label>
+      <menu><button class="command" type="submit" value="cancel" formnovalidate>Отмена</button><button class="command primary" type="submit" value="add">Добавить</button></menu>
+    </form>
+  </dialog>
+  <script>
+    const serverData = [
+      {name:'Выживание',detail:'Игры с друзьями',players:'7 / 40',ping:'32 мс'},
+      {name:'Творческий сервер',detail:'Свободные постройки',players:'3 / 20',ping:'46 мс'},
+      {name:'Арена',detail:'Приватный сервер',players:'—',ping:'—'}
+    ];
+    const worldData = [
+      {name:'Лесная база',detail:'Выживание',date:'Вчера'},
+      {name:'Мир для построек',detail:'Творческий режим',date:'12 ноября'},
+      {name:'Остров',detail:'Выживание',date:'8 ноября'}
+    ];
+    const tabs = [...document.querySelectorAll('[role=tab]')];
+    const theme = document.getElementById('theme');
+    const themeChoice = document.getElementById('theme-choice');
+    const account = document.querySelector('.account');
+    const dialog = document.querySelector('dialog');
+    const form = dialog.querySelector('form');
+
+    function placeEntries(selector,entries,type) {
+      const group = document.querySelector(selector);
+      const rows = entries.map((entry,index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'entry';
+        button.setAttribute('aria-pressed',String(index===0));
+        const label = document.createElement('span');
+        const name = document.createElement('b');
+        const detail = document.createElement('small');
+        name.textContent = entry.name;
+        detail.textContent = entry.detail;
+        label.append(name,detail);
+        button.append(label);
+        const fields = type==='server' ? [entry.players,entry.ping] : [entry.date];
+        fields.forEach((value,i) => {
+          const text = document.createElement('span');
+          if (i===1) text.className = 'ping' + (value==='—' ? ' unavailable' : '');
+          text.textContent = value;
+          button.append(text);
+        });
+        button.addEventListener('click',() => rows.forEach(row => row.setAttribute('aria-pressed',String(row===button))));
+        return button;
+      });
+      group.replaceChildren(...rows);
+    }
+    placeEntries('#servers .entries',serverData,'server');
+    placeEntries('#worlds .entries',worldData,'world');
+
+    function selectTab(active) {
+      for (const tab of tabs) {
+        const selected = tab===active;
+        tab.tabIndex = selected ? 0 : -1;
+        tab.setAttribute('aria-selected',String(selected));
+        document.getElementById(tab.getAttribute('aria-controls')).hidden = !selected;
+      }
+    }
+    for (const tab of tabs) tab.addEventListener('click',() => selectTab(tab));
+    document.addEventListener('keydown',event => {
+      if (event.key==='Escape' && account.open) {
+        account.open = false;
+        account.querySelector('summary').focus();
+        return;
+      }
+      if (dialog.open || event.target.closest('input,select,textarea,summary') || !['ArrowUp','ArrowDown'].includes(event.key)) return;
+      const index = tabs.findIndex(tab => tab.getAttribute('aria-selected')==='true');
+      const tab = tabs[(index+tabs.length+(event.key==='ArrowUp' ? -1 : 1))%tabs.length];
+      event.preventDefault();
+      selectTab(tab);
+      tab.focus();
+    });
+    function setTheme(value) {
+      document.documentElement.dataset.theme = value;
+      themeChoice.value = value;
+      const light = value==='light';
+      theme.setAttribute('aria-pressed',String(light));
+      theme.setAttribute('aria-label',light ? 'Тёмная тема' : 'Светлая тема');
+      theme.title = theme.getAttribute('aria-label');
+    }
+    theme.addEventListener('click',() => setTheme(themeChoice.value==='light' ? 'dark' : 'light'));
+    themeChoice.addEventListener('change',() => setTheme(themeChoice.value));
+    document.addEventListener('input',event => {
+      const field = event.target;
+      if (field.matches('input[type=range]')) field.nextElementSibling.value = field.value + (field.id==='volume' ? '%' : '°');
+    });
+    document.getElementById('add-server').addEventListener('click',() => {
+      form.reset();
+      dialog.showModal();
+    });
+    form.addEventListener('submit',event => {
+      if (event.submitter.value!=='add') return;
+      const values = new FormData(form);
+      const name = String(values.get('server-name')).trim(), address = String(values.get('server-address')).trim();
+      if (!name || !address) { event.preventDefault(); return; }
+      serverData.push({name,detail:address,players:'—',ping:'—'});
+      placeEntries('#servers .entries',serverData,'server');
+      document.querySelector('#servers .entry:last-child').click();
+    });
+    document.addEventListener('click',event => {
+      if (!account.contains(event.target)) account.open = false;
+      const link = event.target.closest('[data-route]');
+      if (link) sessionStorage.setItem('gleam-preview-page',JSON.stringify({page:link.dataset.route}));
+      const command = event.target.closest('[data-command]');
+      if (command) {
+        const panel = command.closest('.section');
+        const selected = panel.querySelector('.entry[aria-pressed=true] b')?.textContent;
+        panel.querySelector('.feedback').value = 'Предпросмотр · ' + selected;
+      }
+    });
+  </script>
+</body>
+</html>

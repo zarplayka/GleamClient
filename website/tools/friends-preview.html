@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="ru" data-launcher-preview>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Друзья · Gleam Launcher</title>
+<link rel="icon" href="../assets/gleam-eye.png">
+<script src="launcher-cosmetics.js" defer></script>
+<style>
+@font-face{font-family:Onest;src:url(../assets/onest-regular.ttf);font-display:swap}
+@font-face{font-family:Onest;src:url(../assets/onest-bold.ttf);font-weight:700;font-display:swap}
+:root{color-scheme:dark;--page:#141418;--bar:#16161c;--surface:#1b1b20;--raised:#23242b;--line:#31323a;--text:#f4f2ee;--muted:#aaa9b4;--accent:#4056e0;--blue:#b9c2ff;--green:#80d3a4;--ease:cubic-bezier(.22,1,.36,1)}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--page);color:var(--text);font:14px Onest,"Segoe UI",sans-serif}
+h1,h2,h3,p{margin:0}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.55}
+button:focus-visible,input:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.icon{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.bar{min-height:48px;display:flex;align-items:center;gap:16px;padding:6px 18px;background:var(--bar);border-bottom:1px solid #2e2e36}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;white-space:nowrap}
+.brand img{width:29px;height:29px;object-fit:contain}
+.shell{display:grid;grid-template-columns:235px minmax(0,1fr);min-height:calc(100dvh - 48px)}
+.sidebar{display:flex;flex-direction:column;justify-content:space-between;gap:18px;background:#18191c;border-right:1px solid #2e2e36;padding:11px 11px 10px}
+.nav{display:grid;gap:3px;color:var(--muted)}
+.nav span{min-height:34px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:5px;font-size:13px}
+.nav .icon{width:15px;height:15px}
+.nav [aria-current]{position:relative;background:#25262c;color:var(--text);font-weight:700}
+.nav [aria-current]::before{content:"";position:absolute;inset:9px auto 9px 0;width:2px;background:var(--blue);border-radius:2px}
+.nav [aria-current] .icon{color:var(--blue)}
+.demo{margin-left:auto;display:flex;align-items:center;gap:9px;color:var(--muted);font-size:12px}
+.segment{display:flex;padding:2px;border-radius:7px;border:1px solid var(--line);background:#131318}
+.segment button{height:28px;padding:0 10px;border:0;border-radius:4px;background:transparent;color:var(--muted);white-space:nowrap}
+.segment [aria-pressed=true]{background:#30313d;color:var(--text)}
+.account{display:flex;align-items:center;gap:8px;min-width:0;border-top:1px solid var(--line);padding:12px 5px 2px}
+.account strong,.account small{display:block}
+small{color:var(--muted);font-size:11px}
+main{width:100%;min-width:0;max-width:1270px;margin-inline:auto;padding:30px 34px 45px}
+.page-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:26px}
+h1{font-size:34px;line-height:1.14;letter-spacing:-.048em}
+.page-head p{color:var(--muted);margin-top:6px}
+.world-status{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);margin-right:4px}
+.world-tools{display:flex;align-items:center;gap:7px}
+.layout{display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:22px;align-items:start}
+.search{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:0 13px;height:48px;background:var(--surface);color:var(--muted)}
+.search input{width:100%;min-width:0;height:100%;background:transparent;border:0;outline:0}
+.search:focus-within{border-color:var(--blue)}
+.search input:focus-visible{outline:none}
+.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;margin:10px 0 15px;padding:4px;background:#1a1b20;border:1px solid var(--line);border-radius:8px}
+.filters button{border:0;border-radius:5px;background:transparent;color:var(--muted);white-space:nowrap;padding:7px 4px;font-size:12px}
+.filters button:hover{color:var(--text)}
+.filters button[aria-pressed=true]{color:var(--text);background:#343855;font-weight:700}
+.filters small{margin-left:5px;font-variant-numeric:tabular-nums}
+.list{display:grid;gap:8px}
+.row{min-width:0;width:100%;min-height:70px;display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:9px;text-align:left;transition:background .16s,border-color .16s,transform .16s var(--ease)}
+.row:hover{background:var(--raised)}
+.row:active{transform:translateY(1px)}
+.row[aria-pressed=true]{background:#252839;border-color:#555d83}
+.avatar{display:grid;place-items:center;position:relative;width:43px;height:43px;flex:none;border-radius:9px;background:#333548;color:#e0e5ff;font-size:11px;font-weight:700}
+.avatar img{width:100%;height:100%;border-radius:inherit;image-rendering:pixelated}
+.avatar::after{content:"";position:absolute;right:-2px;bottom:-2px;width:12px;height:12px;border:2px solid var(--surface);background:#666773;border-radius:50%}
+.avatar[data-online=true]::after{background:var(--green)}
+.account .avatar{width:29px;height:29px;border-radius:6px}
+.identity{min-width:0;flex:1}
+.identity strong,.identity small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.identity small{font-size:12px;margin-top:4px}
+.row>.icon{width:15px;height:15px;color:var(--muted)}
+.row[aria-pressed=true]>.icon{color:var(--blue)}
+.row .identity small[data-online=true]{color:var(--green)}
+.status{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:13px;line-height:1.4}
+.status[data-online=true]{color:var(--green)}
+.dot{width:7px;height:7px;display:inline-block;flex:none;border-radius:50%;background:#777985}
+[data-online=true]>.dot{background:var(--green)}
+.summary{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.profile{min-height:268px;display:grid;grid-template-columns:minmax(132px,46%) minmax(0,1fr);align-items:center;gap:9px;padding:10px 22px;background:radial-gradient(ellipse at 25% 63%,#2d3240 0%,var(--surface) 65%)}
+.render{height:248px;display:grid;place-items:center;position:relative}
+.render canvas{position:absolute;inset:0;margin:auto;width:100%;height:100%;max-width:254px}
+.render .avatar{width:78px;height:78px;position:absolute}
+.render .avatar::after{display:none}
+.profile h2{font-size:31px;letter-spacing:-.04em;overflow-wrap:anywhere;margin-bottom:8px}
+.profile-type{display:block;margin-top:8px;font-size:12px}
+.session{border-top:1px solid var(--line);padding:14px 17px 17px;background:#191a20}
+.actions{display:flex;align-items:stretch;gap:8px}
+.actions .primary,.actions .state{flex:1;min-height:43px;font-size:13px;white-space:normal;text-align:center}
+.actions .quiet{min-height:43px}
+.profile-link{margin-top:10px;display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--muted);font-size:12px;text-align:left}
+.profile-link:hover{background:var(--raised);color:var(--text)}
+.profile-link .icon{width:15px;height:15px}
+.profile-link span{display:flex;align-items:center;gap:8px}
+.profile-modal{display:flex;align-items:center;gap:13px;margin:0 0 15px}
+.profile-modal .avatar{width:54px;height:54px}
+.profile-modal h3{font-size:18px;margin-bottom:4px}
+.profile-items{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.profile-items span{padding:6px 9px;border:1px solid var(--line);border-radius:5px;color:var(--muted);font-size:12px}
+.hint{margin:0 0 11px;color:var(--muted);font-size:12px;line-height:1.5}
+.session>:last-child{margin-bottom:0}
+.world + .hint{margin-top:11px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:35px;padding:0 11px;border:1px solid var(--line);border-radius:7px;background:var(--raised);font-size:12px;font-weight:700;transition:background .16s,transform .16s var(--ease)}
+.btn:hover:enabled{background:#30313b}
+.btn:active:enabled{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:#ffffff10;color:#fff}
+.btn.primary:hover:enabled{background:#4d62ea}
+.btn.quiet{background:transparent}
+.btn .icon{width:16px;height:16px}
+.world{display:grid;grid-template-columns:86px minmax(0,1fr);align-items:center;gap:11px;margin:0 0 13px}
+.world-art{height:48px;border-radius:6px;background:#272123 url(launcher-background-26-3.webp) center 52%/cover}
+.world strong{font-size:14px}
+.world strong,.world small{display:block}
+.world small{margin-top:4px;font-size:11px}
+.empty{padding:17px;border:1px solid var(--line);border-radius:9px;color:var(--muted);background:var(--surface);font-size:13px}
+.summary.empty{min-height:240px;display:grid;place-content:center;text-align:center}
+dialog{width:min(426px,calc(100% - 24px));padding:0;border:1px solid #444652;border-radius:11px;background:var(--surface);color:var(--text)}
+dialog[open],.summary.fresh,.toast{animation:enter .2s var(--ease) both}
+dialog::backdrop{background:#101017bc}
+.dialog-head,.dialog-body{padding:14px 16px}
+.dialog-head{border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.dialog-head h2{font-size:17px}
+.dialog-body>p{color:var(--muted);line-height:1.45;margin:0 0 14px}
+.dialog-body label{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:0 0 13px;padding:10px;border:1px solid var(--line);border-radius:7px;background:#18191e}
+.dialog-body label small{display:block;margin-top:4px}
+.switch{appearance:none;width:34px;height:19px;flex:none;margin:0;background:#444653;border-radius:11px;padding:3px;cursor:pointer}
+.switch::before{content:"";display:block;width:13px;height:13px;background:#f5f4fb;border-radius:50%;transition:transform .18s var(--ease)}
+.switch:checked{background:var(--accent)}
+.switch:checked::before{transform:translateX(15px)}
+.dialog-actions{display:flex;gap:6px;justify-content:flex-end}
+.toast{position:fixed;right:16px;bottom:16px;max-width:calc(100% - 32px);background:#282b3a;border:1px solid #4a5070;border-radius:8px;padding:10px 13px;font-size:12px}
+.game-preview{min-height:calc(100dvh - 48px);position:relative;isolation:isolate;background:#13181a url(../assets/gameplay-orion.webp) center/contain no-repeat}
+.game-controls{position:absolute;bottom:16px;left:16px;display:flex;gap:7px;flex-wrap:wrap}
+.game-controls .btn{background:#171820eb}
+.game-invite{position:absolute;top:20px;right:20px;width:min(354px,calc(100% - 32px));padding:9px 11px 8px;display:grid;grid-template-columns:34px minmax(0,1fr) 37px;gap:7px 8px;align-items:center;animation:enter .22s var(--ease) both}
+.game-invite .avatar{width:33px;height:33px;border:1px solid var(--line);border-radius:var(--hud-inner-radius)}
+.game-invite .avatar::after{display:none}
+.game-copy{min-width:0;padding-right:3px}
+.game-copy strong,.game-copy small,.game-copy p{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.game-copy strong{font-size:13px;font-weight:700;line-height:17px}
+.game-copy small{color:var(--muted);font-size:11px;margin-top:2px}
+.game-copy p{color:var(--accent);font-size:11px;margin-top:3px}
+.game-dismiss{position:absolute;top:3px;right:4px;width:18px;height:18px;display:grid;place-items:center;padding:0;border:0;border-radius:4px;background:transparent;color:var(--muted)}
+.game-dismiss:hover{color:white;background:#ffffff15}
+.game-dismiss .icon{width:14px;height:14px}
+.hold-key{width:29px;height:27px;margin-top:6px;display:grid;place-items:center;font-size:12px;position:relative;overflow:hidden;touch-action:none}
+.hold-key span{position:relative}
+.hold-key::before{content:"";position:absolute;inset:0;background:color-mix(in srgb,var(--accent) 36%,transparent);transform:scaleY(0);transform-origin:bottom;transition:transform .16s ease-out}
+.game-invite .hold-key[data-holding]{color:var(--text);background:var(--well)}
+.hold-key[data-holding]::before{transform:scaleY(1);transition:transform var(--hold-duration) linear}
+.invite-countdown{grid-column:1/-1;height:2px;border-radius:1px;overflow:hidden}
+.invite-countdown span{display:block;height:100%;background:var(--accent);transform-origin:left;animation:invite-countdown var(--invite-duration) linear both}
+@keyframes invite-countdown{to{transform:scaleX(0)}}
+.game-result{position:absolute;top:20px;right:20px;max-width:calc(100% - 32px);padding:11px 15px;animation:enter .22s var(--ease) both}
+@keyframes enter{from{opacity:0;transform:translateY(5px)}}
+@media(max-width:1100px){.shell{grid-template-columns:184px minmax(0,1fr)}main{padding:26px 23px}.profile{padding-inline:14px}}
+@media(max-width:820px){.shell{grid-template-columns:48px minmax(0,1fr)}.sidebar{padding-inline:5px}.nav span{justify-content:center;padding:0;font-size:0;gap:0}.account{justify-content:center;padding-inline:0}.account>div{display:none}}
+@media(max-width:890px){.filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.bar{gap:9px;padding-inline:12px}.demo>span{display:none}main{padding:19px 12px}.page-head{align-items:start;flex-direction:column;margin-bottom:15px}.layout{grid-template-columns:1fr;gap:13px}.profile{min-height:198px;grid-template-columns:minmax(86px,43%) minmax(0,1fr)}.profile h2{font-size:25px}.render{height:178px}.actions{flex-wrap:wrap}.game-invite,.game-result{right:12px;top:15px}}
+@media(max-width:385px){.brand img{display:none}.brand{font-size:12px}.segment button{padding-inline:7px}.game-invite{width:calc(100% - 24px)}}
+@media(prefers-reduced-motion:reduce){*:not(.invite-countdown span),*:not(.hold-key)::before,*::after{animation:none!important;transition:none!important}}
+</style>
+<link rel="stylesheet" href="../../src/main/resources/assets/orion-client/html/hud-theme.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><img src="../assets/gleam-eye.png" alt="">Gleam Launcher</div>
+  <div class="demo"><span>Макет</span><div class="segment" role="group" aria-label="Сторона приглашения">
+    <button type="button" data-role="host" aria-pressed="true">Хост</button>
+    <button type="button" data-role="guest" aria-pressed="false">Друг</button>
+    <button type="button" data-role="game" aria-pressed="false">В игре</button>
+  </div></div>
+</header>
+<div class="shell" id="launcher-preview">
+<aside class="sidebar">
+  <nav class="nav" id="nav" aria-label="Разделы лаунчера"></nav>
+  <div class="account" id="account"></div>
+</aside>
+<main>
+  <div class="page-head"><div><h1>Друзья</h1><p>Приглашения в локальные миры Minecraft</p></div><div class="world-tools" id="world-tools"></div></div>
+  <div class="layout">
+    <div>
+      <label class="search" id="search-box"><input type="search" id="search" placeholder="Поиск по нику" aria-label="Поиск по нику"></label>
+      <div class="filters" role="group" aria-label="Список друзей" id="filters"></div>
+      <div class="list" id="list"></div>
+    </div>
+    <div id="detail"></div>
+  </div>
+</main>
+</div>
+<section class="game-preview" id="game-preview" aria-label="Макет приглашения в Minecraft" hidden>
+  <div id="game-invite"></div>
+  <div class="game-controls"><button type="button" class="btn" data-game="replay">Показать приглашение</button></div>
+</section>
+<dialog id="dialog" aria-labelledby="dialog-title">
+  <form method="dialog">
+    <div class="dialog-head"><h2 id="dialog-title"></h2><button value="cancel" class="btn quiet" id="close" aria-label="Закрыть"></button></div>
+    <div class="dialog-body" id="dialog-body"></div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status" hidden></div>
+<script>
+'use strict';
+const paths = {
+  home:'M3 10 12 3l9 7v10H3zm6 10v-6h6v6', profiles:'M5 5h14v14H5zM8 9h8m-8 4h6',
+  layers:'m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5m-18 4 9 5 9-5',
+  shirt:'m8 4-5 3 2 5 3-1v9h8v-9l3 1 2-5-5-3a4 4 0 0 1-8 0z',
+  news:'M4 4h16v16H4zm4 4h8m-8 4h8m-8 4h5', chart:'M4 20v-5m5 5V9m5 11V5m5 15V11',
+  people:'M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-4M13 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0zm4-4a4 4 0 0 1 0 8',
+  inbox:'M4 4h16l2 9v6H2v-6zm-2 9h6l2 3h4l2-3h6', plus:'M12 5v14M5 12h14', close:'m6 6 12 12M18 6 6 18', next:'m9 6 6 6-6 6',
+  play:'m8 5 12 7-12 7z', stop:'M6 6h12v12H6z', link:'M10 14l4-4m-6 5-1 1a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m2 0 1-1a3 3 0 1 1 4 4l-4 4a3 3 0 0 1-4 0'
+};
+const icon = name => '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="' + paths[name] + '"/></svg>';
+
+const $ = id => document.getElementById(id);
+const me = {name:'LayOffick', initials:'LO', status:'В лаунчере', online:true, kit:[[65,104,163],[44,52,79]], hair:[41,45,61], halo:true, pet:'moon_moth'};
+const friends = [
+  {name:'Mossbyte', initials:'MB', status:'В лаунчере', online:true, offline:true, kit:[[72,109,88],[58,65,62]], hair:[67,49,39], pet:'moss_turtle'},
+  {name:'NorthFox', initials:'NF', status:'В лаунчере', online:true, kit:[[121,79,56],[57,52,59]], hair:[121,74,47], halo:true},
+  {name:'CinderJay', initials:'CJ', status:'Был в сети 3 ч назад', online:false, kit:[[114,69,78],[65,51,63]], hair:[35,35,43]},
+  {name:'SnowVale', initials:'SV', status:'В лаунчере', online:true, kit:[[97,115,145],[55,64,82]], hair:[156,127,88]}
+];
+let role = 'host', tab = 'all', selected = friends[0], open = false, allowOffline = true;
+let invite = null, toastTimer, connectionTimer, dialogAction, lastProfile;
+let gameState = 'hidden', inviteDeadline, inviteTimer, holdTimer, holdInput = null;
+const INVITE_MS = 15_000;
+const HOLD_MS = 830;
+const type = person => person.offline ? 'Офлайн-профиль Minecraft' : 'Minecraft · Лицензия';
+const avatar = person => '<span class="avatar" data-online="' + person.online + '" aria-hidden="true">'
+  + (person.face ? '<img alt="" src="' + person.face + '">' : person.initials) + '</span>';
+const button = (action,label,kind='',symbol='') => '<button type="button" class="btn ' + kind + '" data-action="' + action + '">'
+  + (symbol ? icon(symbol) : '') + label + '</button>';
+const viewer = () => role === 'host' ? me : invite?.guest ?? friends[0];
+const roleStatus = person => person === me && open ? 'Мир открыт · Тихая долина' :
+  invite?.guest === person && invite.state === 'joined' ? 'В твоём мире' : person.status;
+const stateText = {
+  pending:'Ожидает ответа', connecting:'Подключение…', joined:'В мире · 34 мс',
+  declined:'Приглашение отклонено', cancelled:'Приглашение отозвано', closed:'Доступ к миру закрыт', left:'Гость вышел из мира'
+};
+function toast(message) {
+  clearTimeout(toastTimer);
+  $('toast').textContent = message;
+  $('toast').hidden = false;
+  toastTimer = setTimeout(() => { $('toast').hidden = true; }, 2700);
+}
+function entries() {
+  const list = role === 'host' ? friends : [me];
+  const incoming = role === 'guest' && invite ? [me] : [];
+  const outgoing = role === 'host' && invite ? [invite.guest] : [];
+  return {all:list,online:list.filter(person => person.online),incoming,outgoing};
+}
+const query = () => $('search').value.trim().toLowerCase();
+function currentRows(groups = entries()) {
+  return groups[tab].filter(person => person.name.toLowerCase().includes(query()));
+}
+function invitationFor(person) {
+  return invite && (role === 'host' ? person === invite.guest : person === me) ? invite : null;
+}
+function renderList() {
+  const groups = entries(), rows = currentRows(groups);
+  if (!rows.includes(selected)) selected = rows[0] ?? null;
+  $('filters').innerHTML = [['all','Друзья'],['online','В сети'],['incoming','Входящие'],['outgoing','Исходящие']]
+    .map(([id,label]) => '<button type="button" data-tab="' + id + '" aria-pressed="' + (id === tab) + '">' + label
+      + '<small>' + groups[id].length + '</small></button>').join('');
+  $('list').innerHTML = rows.length ? rows.map(person => {
+    const linked = invitationFor(person);
+    const description = linked && (tab === 'incoming' || tab === 'outgoing' || ['pending','connecting','joined'].includes(linked.state))
+      ? role === 'guest' && linked.state === 'pending' ? 'Приглашает в «Тихую долину»' : stateText[linked.state] : roleStatus(person);
+    const takingAction = linked && ['pending','connecting','joined'].includes(linked.state);
+    return '<button type="button" class="row" data-person="' + person.name + '" aria-pressed="' + (person === selected) + '">'
+      + avatar(person) + '<span class="identity"><strong>' + person.name + '</strong><small data-online="'
+      + (linked?.state === 'joined' || (role === 'guest' && linked?.state === 'pending')) + '">' + description + '</small></span>'
+      + icon(takingAction ? linked.state === 'joined' ? 'link' : 'inbox' : 'next') + '</button>';
+  }).join('') : '<p class="empty">' + (query() ? 'Никого не нашли' : 'Пока пусто') + '</p>';
+}
+function renderProfile() {
+  const person = selected;
+  if (!person) {
+    $('detail').innerHTML = '<p class="summary empty">Здесь появится профиль друга</p>';
+    lastProfile = null;
+    return;
+  }
+  const linked = invitationFor(person);
+  let actions = '', hint = '', showWorld = false;
+  if (role === 'host' && person.online) {
+    if (linked?.state === 'pending' || linked?.state === 'connecting') {
+      actions = button('cancel','Отозвать приглашение','quiet');
+      hint = stateText[linked.state];
+    } else if (linked?.state === 'joined') {
+      hint = 'Прямое подключение · 34 мс';
+    } else {
+      actions = button('invite',open ? 'Пригласить в мир' : 'Открыть мир и пригласить','primary','plus');
+      hint = linked ? stateText[linked.state] : '';
+    }
+    showWorld = open || !!linked;
+  } else if (role === 'guest' && linked) {
+    showWorld = true;
+    if (linked.state === 'pending') {
+      if (!viewer().offline || allowOffline) {
+        actions = button('join','Зайти к другу','primary','play');
+      }
+      else hint = 'Этот мир доступен только лицензионным аккаунтам';
+      actions += button('decline','Отклонить','quiet');
+    } else if (linked.state === 'joined') {
+      actions = button('leave','Выйти из мира','quiet');
+      hint = 'Прямое подключение · 34 мс';
+    } else {
+      if (linked.state === 'connecting') actions = '<button class="btn state" type="button" disabled>Подключение…</button>';
+      else hint = stateText[linked.state];
+    }
+  }
+  const fresh = lastProfile !== person;
+  $('detail').innerHTML = '<article class="summary' + (fresh ? ' fresh' : '') + '"><div class="profile">'
+    + '<div class="render" id="render" aria-hidden="true">' + avatar(person) + '</div><div><h2>' + person.name + '</h2>'
+    + '<div class="status" data-online="' + person.online + '"><i class="dot"></i>' + roleStatus(person) + '</div>'
+    + '<small class="profile-type">' + type(person) + '</small></div></div>'
+    + (showWorld || actions || hint ? '<div class="session">'
+      + (showWorld ? '<div class="world"><div class="world-art"></div><div><strong>Тихая долина</strong><small>Minecraft 26.3 · '
+        + (allowOffline ? 'Офлайн-профили разрешены' : 'Вход с лицензией') + '</small></div></div>' : '')
+      + (hint ? '<p class="hint" role="status">' + hint + '</p>' : '')
+      + (actions ? '<div class="actions">' + actions + '</div>' : '')
+      + (linked ? '<button type="button" class="profile-link" data-action="profile"><span>' + icon('profiles')
+        + 'Открыть профиль</span>' + icon('next') + '</button>' : '') + '</div>' : '') + '</article>';
+  lastProfile = person;
+  drawModel(person);
+}
+function render() {
+  for (const control of document.querySelectorAll('[data-role]')) control.setAttribute('aria-pressed',String(control.dataset.role === role));
+  $('launcher-preview').hidden = role === 'game';
+  $('game-preview').hidden = role !== 'game';
+  if (role === 'game') return;
+  $('account').innerHTML = avatar(viewer()) + '<div><strong>' + viewer().name + '</strong><small>' + type(viewer()) + '</small></div>';
+  $('world-tools').innerHTML = role === 'host' ? '<span class="world-status" data-online="' + open + '"><i class="dot"></i>'
+    + (open ? 'Мир открыт' : 'Мир закрыт') + '</span>'
+    + button(open ? 'settings' : 'open',open ? 'Доступ к миру' : 'Открыть мир','quiet') : '';
+  renderList();
+  renderProfile();
+}
+function showFriendProfile(person) {
+  dialogAction = 'profile';
+  $('dialog-title').textContent = 'Профиль друга';
+  $('dialog-body').innerHTML = '<div class="profile-modal">' + avatar(person) + '<div><h3>' + person.name
+    + '</h3><div class="status" data-online="' + person.online + '"><i class="dot"></i>' + roleStatus(person)
+    + '</div></div></div><div class="profile-items"><span>' + type(person) + '</span></div>'
+    + '<div class="dialog-actions"><button class="btn quiet" value="cancel">Назад</button></div>';
+  $('dialog').returnValue = '';
+  $('dialog').showModal();
+}
+function showGameInvite() {
+  clearTimeout(inviteTimer);
+  stopHold();
+  gameState = 'pending';
+  const target = $('game-invite');
+  target.style.setProperty('--invite-duration', INVITE_MS + 'ms');
+  target.style.setProperty('--hold-duration', HOLD_MS + 'ms');
+  target.innerHTML = '<article class="game-invite gleam-hud-panel" aria-label="Входящее приглашение">' + avatar(me)
+    + '<div class="game-copy"><strong>' + me.name + ' приглашает в мир</strong><small>Тихая долина · Minecraft 26.3</small>'
+    + '<p>Удерживай Y, чтобы принять</p></div>'
+    + '<button class="hold-key gleam-hud-key" type="button" data-game="accept" aria-label="Принять приглашение" aria-keyshortcuts="Y"><span>Y</span></button>'
+    + '<button class="game-dismiss" type="button" data-game="dismiss" aria-label="Скрыть уведомление">' + icon('close') + '</button>'
+    + '<div class="invite-countdown gleam-hud-divider" aria-hidden="true"><span></span></div></article>';
+  inviteDeadline = performance.now() + INVITE_MS;
+  inviteTimer = setTimeout(closeGameInvite, INVITE_MS);
+}
+async function closeGameInvite(accepted = false) {
+  if (gameState !== 'pending') return;
+  accepted = accepted && performance.now() < inviteDeadline;
+  gameState = 'hidden';
+  clearTimeout(inviteTimer);
+  stopHold();
+  const target = $('game-invite');
+  const card = target.firstElementChild;
+  card.inert = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const style = getComputedStyle(card);
+    await card.animate([
+      {opacity: style.opacity, transform: style.transform},
+      {opacity: 0, transform: 'translateY(-6px)'}
+    ], {duration: 230, easing: 'ease-out', fill: 'forwards'}).finished;
+  }
+  if (card.parentNode !== target) return;
+  if (accepted) {
+    target.innerHTML = '<p class="game-result gleam-hud-panel" role="status">Вход в мир «Тихая долина»</p>';
+  } else {
+    card.remove();
+  }
+}
+function stopHold() {
+  clearTimeout(holdTimer);
+  holdInput = null;
+  if (gameState === 'pending') document.querySelector('.hold-key')?.removeAttribute('data-holding');
+}
+function beginHold(input) {
+  if (role !== 'game' || gameState !== 'pending' || holdInput !== null) return;
+  holdInput = input;
+  document.querySelector('.hold-key').setAttribute('data-holding','');
+  holdTimer = setTimeout(() => closeGameInvite(true), HOLD_MS);
+}
+document.addEventListener('keydown', event => {
+  if (role !== 'game' || event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.code === 'KeyY' && gameState === 'pending') { event.preventDefault(); beginHold('key'); }
+});
+document.addEventListener('keyup', event => {
+  if (event.code === 'KeyY' && holdInput === 'key') stopHold();
+});
+document.addEventListener('pointerdown', event => {
+  const control = event.target.closest('[data-game="accept"]');
+  if (!control || event.button !== 0) return;
+  control.setPointerCapture(event.pointerId);
+  beginHold(event.pointerId);
+});
+for (const name of ['pointerup','pointercancel','lostpointercapture']) document.addEventListener(name, event => {
+  if (holdInput === event.pointerId) stopHold();
+});
+window.addEventListener('blur', stopHold);
+function showDialog(mode) {
+  dialogAction = mode;
+  const existing = mode === 'settings';
+  $('dialog-title').textContent = existing ? 'Доступ к миру' : 'Открыть мир для друзей';
+  $('dialog-body').innerHTML = '<p>Тихая долина · Minecraft 26.3</p>'
+    + '<label><span><strong>Офлайн-профили</strong><small>Разрешить вход по приглашению без лицензии Minecraft</small></span>'
+    + '<input class="switch" name="offline" type="checkbox"' + (allowOffline ? ' checked' : '') + '></label>'
+    + '<div class="dialog-actions">' + (existing ? '<button class="btn quiet" value="stop">Закрыть доступ</button>' : '')
+    + '<button class="btn primary" value="save">' + (existing ? 'Сохранить' : mode === 'invite' ? 'Открыть и пригласить' : 'Открыть мир') + '</button></div>';
+  $('dialog').returnValue = '';
+  $('dialog').showModal();
+}
+function sendInvite() {
+  clearTimeout(connectionTimer);
+  invite = {guest:selected,state:'pending'};
+  toast('Приглашение отправлено · ' + selected.name);
+}
+$('dialog').addEventListener('close', () => {
+  const value = $('dialog').returnValue;
+  if (value === 'stop') {
+    open = false;
+    clearTimeout(connectionTimer);
+    if (invite) invite.state = 'closed';
+    toast('Доступ закрыт');
+  } else if (value === 'save') {
+    allowOffline = $('dialog').querySelector('[name=offline]').checked;
+    open = true;
+    if (dialogAction === 'invite') sendInvite();
+    else toast('Доступ к миру настроен');
+  }
+  render();
+});
+$('search').addEventListener('input', () => { renderList(); renderProfile(); });
+document.addEventListener('click', event => {
+  const control = event.target.closest('button');
+  if (!control) return;
+  if (control.dataset.game) {
+    if (control.dataset.game === 'replay') showGameInvite();
+    if (control.dataset.game === 'dismiss') closeGameInvite();
+    if (control.dataset.game === 'accept' && event.detail === 0) closeGameInvite(true);
+    return;
+  }
+  if (control.dataset.role && control.dataset.role !== role) {
+    clearTimeout(inviteTimer);
+    stopHold();
+    gameState = 'hidden';
+    $('game-invite').replaceChildren();
+    role = control.dataset.role;
+    if (role === 'game') { $('toast').hidden = true; render(); showGameInvite(); return; }
+    tab = role === 'guest' && invite ? 'incoming' : 'all';
+    selected = role === 'guest' ? me : invite?.guest ?? friends[0];
+    $('search').value = '';
+    $('toast').hidden = true;
+  } else if (control.dataset.tab) {
+    tab = control.dataset.tab;
+  } else if (control.dataset.person) {
+    selected = currentRows().find(person => person.name === control.dataset.person) ?? null;
+  } else {
+    switch (control.dataset.action) {
+      case 'open': case 'settings': showDialog(control.dataset.action); return;
+      case 'profile': if (selected) showFriendProfile(selected); return;
+      case 'invite':
+        if (!open) { showDialog('invite'); return; }
+        sendInvite(); break;
+      case 'cancel': case 'decline':
+        clearTimeout(connectionTimer);
+        invite.state = control.dataset.action === 'cancel' ? 'cancelled' : 'declined';
+        toast(stateText[invite.state]); break;
+      case 'join':
+        if (!open || invite?.state !== 'pending' || (viewer().offline && !allowOffline)) return;
+        invite.state = 'connecting';
+        connectionTimer = setTimeout(() => { invite.state = 'joined'; toast('Вы в одном мире'); render(); }, 600);
+        break;
+      case 'leave': invite.state = 'left'; toast('Ты вышел из мира'); break;
+      default: return;
+    }
+  }
+  render();
+});
+const canvas = document.createElement('canvas');
+canvas.width = 368;
+canvas.height = 400;
+canvas.hidden = true;
+let preview, modelPerson;
+canvas.addEventListener('webglcontextlost', event => {
+  event.preventDefault();
+  canvas.hidden = true;
+  const portrait = $('render')?.querySelector('.avatar');
+  if (portrait) portrait.hidden = false;
+});
+function drawModel(person) {
+  if (!preview || !person.skin || !$('render')) return;
+  $('render').append(canvas);
+  if (modelPerson !== person) {
+    preview.setSkin(person.skin);
+    modelPerson = person;
+  }
+  preview.draw({yaw:-.53,pitch:.16,home:true,zoom:.94,slots:person.halo ? {halo:true} : {},pet:person.petModel});
+  canvas.hidden = false;
+  $('render').firstElementChild.hidden = true;
+}
+function tintSkin(ctx, person, width, height) {
+  const guide = ctx.getImageData(0,0,width,height);
+  for (let i = 0; i < guide.data.length; i += 4) {
+    const red = guide.data[i], green = guide.data[i+1], blue = guide.data[i+2], alpha = guide.data[i+3];
+    if (!alpha) continue;
+    const y = Math.floor(i / 4 / width);
+    const color = y < 16 && red < 125 && red > green * 1.12 && green > blue * 1.18 ? person.hair
+      : y >= 16 && green > red * 1.2 && blue > red * 1.25 ? person.kit[0]
+      : y >= 16 && blue > red * 1.3 && blue > green * 1.18 ? person.kit[1] : null;
+    if (!color) continue;
+    const light = Math.max(-28,Math.min(31,(red * .24 + green * .58 + blue * .18) - (y < 16 ? 47 : 91)));
+    for (let channel = 0; channel < 3; channel++) guide.data[i+channel] = color[channel] + light;
+  }
+  ctx.putImageData(guide,0,0);
+}
+async function loadSkins() {
+  const source = new Image();
+  source.src = 'launcher-default-skin.png';
+  await source.decode();
+  for (const person of [me,...friends]) {
+    const skin = document.createElement('canvas');
+    skin.width = source.width; skin.height = source.height;
+    const ctx = skin.getContext('2d');
+    ctx.drawImage(source,0,0);
+    tintSkin(ctx,person,skin.width,skin.height);
+    person.skin = skin;
+    const face = document.createElement('canvas');
+    face.width = face.height = 8;
+    const faceContext = face.getContext('2d');
+    faceContext.drawImage(skin,8,8,8,8,0,0,8,8);
+    faceContext.drawImage(skin,40,8,8,8,0,0,8,8);
+    person.face = face.toDataURL();
+  }
+  try { preview = new GleamCosmeticPreview(canvas); } catch { /* Keep the pixel portrait when WebGL is unavailable. */ }
+  render();
+  if (preview) {
+    await Promise.allSettled([me,...friends].filter(person => person.pet).map(async person => {
+      person.petModel = await preview.loadPet(person.pet);
+      if (selected === person) drawModel(person);
+    }));
+  }
+}
+$('nav').innerHTML = [['home','Главная'],['profiles','Профили'],['layers','Моды'],['shirt','Косметика'],['people','Друзья'],['news','Обновления'],['chart','Активность']]
+  .map(([symbol,label]) => '<span title="' + label + '"' + (symbol === 'people' ? ' aria-current="page"' : '') + '>'
+    + icon(symbol) + label + '</span>').join('');
+$('search-box').insertAdjacentHTML('afterbegin','<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="5.5"/><path d="m14 14 5 5"/></svg>');
+$('close').innerHTML = icon('close');
+render();
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startPreview, {once:true});
+else startPreview();
+function startPreview() { loadSkins().catch(() => {}); }
+</script>
+</body>
+</html>
