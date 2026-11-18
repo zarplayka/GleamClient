@@ -1,5 +1,9 @@
 # Обновления Gleam Launcher
 
+## 0.1.57
+
+Добавлены пять анимированных крыльев, обновлены TargetHud, Potions, Sound Settings и NoRender. HitDistance удалён.
+
 ## 0.1.53
 
 Cleanwater меняет прозрачность без перезагрузки ресурсов. HitDistance оформлен в стиле остальных виджетов и обходит занятые области HUD.

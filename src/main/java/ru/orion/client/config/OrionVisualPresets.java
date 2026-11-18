@@ -157,7 +157,7 @@ public final class OrionVisualPresets {
         for (String id : HUD_STYLES) config.setHudElementGlass(id, detailed);
     }
 
-    private static final String[] HUD_STYLES = {"hud_watermark", "hud_status_panels", "inventory_hud", "hud_better_near", "media_player_hud", "basketball_hud", "football_hud", ru.orion.client.hud.OrionHitDistanceHud.ID, ru.orion.client.hud.OrionPotionsHud.ID, ru.orion.client.hud.OrionTargetHud.ID};
+    private static final String[] HUD_STYLES = {"hud_watermark", "hud_status_panels", "inventory_hud", "hud_better_near", "media_player_hud", "basketball_hud", "football_hud", ru.orion.client.hud.OrionPotionsHud.ID, ru.orion.client.hud.OrionTargetHud.ID};
 
     private record VideoState(int render, int simulation, double entity, boolean ao, CloudStatus clouds, ParticleStatus particles,
                               int blend, double gamma, int mipmap, boolean cutout, boolean transparency, boolean vignette) {

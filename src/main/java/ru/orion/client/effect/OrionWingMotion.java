@@ -21,5 +21,6 @@ public final class OrionWingMotion {
         rootHeight=1.38F-.21F*crouching-.86F*Math.max(flying,swimming);
         bodyPitch=approach(bodyPitch,flying*(-90F-viewPitch)+swimming*(-75F)+crouching*28F,blend);
     }
+    public float deployment() { return air; }
     private static float approach(float current,float target,float amount){return current+(target-current)*amount;}
 }

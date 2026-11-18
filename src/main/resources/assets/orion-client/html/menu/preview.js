@@ -880,6 +880,11 @@ function patchChat(previous, friendsChanged) {
 const cosmetics = [
   ['angel','WINGS','Ангельские крылья','Спина',0],
   ['dragon','WINGS','Драконьи крылья','Спина',1],
+  ['midnight','WINGS','Полночь','Спина',2],
+  ['evergreen','WINGS','Еловая лапа','Спина',3],
+  ['first_salvo','WINGS','Первый залп','Спина',4],
+  ['ash_phoenix','WINGS','Пепельный феникс','Спина',5],
+  ['lunar_moth','WINGS','Крылья лунного мотылька','Спина',6],
   ['halo','HALO','Золотой нимб','Голова'],
   ['hat','CHINA_HEAD','Соломенная шляпа','Голова'],
   ['dance','EMOTES','Эмоции','Анимация'],
@@ -896,7 +901,7 @@ const cosmeticSlots = [['all','Все','grid'],['Спина','Спина','layer
 const isCosmeticEquipped = ([id,module,,,style]) => module === 'PET' ? state.cosmeticPet === id
   : state.enabled.has(module) && (style === undefined || style === state.wingsStyle);
 function cosmeticDrawing(id, model) {
-  return '<img class="cosmetic-art" src="assets/cosmetic-' + id + (model && cosmeticById(id)?.[1] !== 'PET' ? '-preview' : '-item') + '.png" alt="">';
+  return '<img class="cosmetic-art" src="assets/cosmetic-' + id + (model && ['angel','dragon','hat','halo','dance'].includes(id) ? '-preview' : '-item') + '.png" alt="">';
 }
 function renderCosmetics() {
   const selected = cosmeticById(state.cosmetic) ?? cosmetics[0];

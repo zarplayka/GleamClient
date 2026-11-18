@@ -294,7 +294,6 @@ public final class OrionConfigManager {
     public void setCleanWaterEnabled(boolean value) { config.setCleanWaterEnabled(value); save(); }
     public void setNametagsEnabled(boolean value) { config.setNametagsEnabled(value); save(); }
     public void setFreeLookEnabled(boolean value) { config.setFreeLookEnabled(value); save(); }
-    public void setHitDistanceEnabled(boolean value) { config.setHitDistanceEnabled(value); save(); }
     public void setArmorIndicatorEnabled(boolean value) { config.setArmorIndicatorEnabled(value); save(); }
     public void setLockSlotEnabled(boolean value) { config.setLockSlotEnabled(value); save(); }
     public void setLockSlotMask(long value) { config.setLockSlotMask(value); save(); }

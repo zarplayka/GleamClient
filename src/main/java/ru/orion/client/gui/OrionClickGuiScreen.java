@@ -30,7 +30,6 @@ import ru.orion.client.config.OrionConfigLibrary;
 import ru.orion.client.config.OrionAccounts;
 import ru.orion.client.config.OrionVisualPresets.Profile;
 import ru.orion.client.hud.OrionGlassCompositor;
-import ru.orion.client.hud.OrionHitDistanceHud;
 import ru.orion.client.effect.OrionHitSound;
 import ru.orion.client.effect.OrionSkinLayers;
 import ru.orion.client.effect.OrionItemScroller;
@@ -997,7 +996,7 @@ public final class OrionClickGuiScreen extends Screen {
         int bottom = Math.min(y + h, Math.round(preview.clipBottom() / scale));
         if (w < 12 || h < 12 || top >= bottom || x < 0 || x + w > width + 1) return;
         var items = preview.items();
-        boolean wings = items.contains("angel") || items.contains("dragon");
+        boolean wings = items.stream().anyMatch(ru.orion.client.effect.GleamWingModel.IDS::contains);
         float stageWidth = wings ? (friend ? 5.15F : 5.5F) : previewPet != null ? 3.2F : 2.6F;
         float stageHeight = wings ? 2.95F : (friend ? 2.5F : 2.8F);
         float size = Math.min(w / stageWidth, h / stageHeight) * preview.zoom();
@@ -1487,7 +1486,7 @@ public final class OrionClickGuiScreen extends Screen {
                 var items = new java.util.HashSet<String>();
                 for (var item : event.getAsJsonArray("items")) {
                     String id = item.getAsString();
-                    if (id.matches("angel|dragon|halo|hat|dance") || GleamPet.byId(id) != null) items.add(id);
+                    if ((ru.orion.client.effect.GleamWingModel.IDS.contains(id) || id.matches("halo|hat|dance")) || GleamPet.byId(id) != null) items.add(id);
                 }
                 GleamPet pet = GleamPet.in(items);
                 if (previewPet != pet) {
@@ -3473,7 +3472,7 @@ public final class OrionClickGuiScreen extends Screen {
 
     private boolean hasSettings(Action action) {
         return switch (action) {
-            case RAGDOLL, FRESH_ANIMATIONS, NAMETAGS, FREE_LOOK, HIT_DISTANCE, CLEAN_WATER,
+            case RAGDOLL, FRESH_ANIMATIONS, NAMETAGS, FREE_LOOK, CLEAN_WATER,
                     POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER -> true;
             case SKIN_LAYERS, ITEM_SCROLLER, EMOTES, CHAT_ANIMATION, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
                  FAKE_PREFIX, HEALTH_TAGS, ARMOR_INDICATOR,
@@ -3668,7 +3667,7 @@ public final class OrionClickGuiScreen extends Screen {
                     new ValueSetting("Управление танцами", () -> tr("Выбери мышью или клавишами 1–6")),
                     new ButtonSetting("Текущий танец", "Остановить", ru.orion.client.effect.OrionEmotes::stop)
             };
-            case WINGS -> new Setting[]{new ChoiceSetting("Вид крыльев", new String[]{"Ангельские", "Драконьи"}, config::getWingsStyle, configManager::setWingsStyle)};
+            case WINGS -> new Setting[]{new ChoiceSetting("Вид крыльев", new String[]{"Ангельские", "Драконьи", "Полночь", "Еловая лапа", "Первый залп", "Пепельный феникс", "Крылья лунного мотылька"}, config::getWingsStyle, configManager::setWingsStyle)};
             case WAYPOINTS -> new Setting[]{
                     new ToggleSetting("Указатели за экраном", config::isWaypointEdgeIndicators, config::setWaypointEdgeIndicators),
                     new ToggleSetting("Координаты меток", config::isWaypointShowCoordinates, config::setWaypointShowCoordinates),
@@ -3703,11 +3702,6 @@ public final class OrionClickGuiScreen extends Screen {
             case FREE_LOOK -> new Setting[]{
                     new KeybindSetting("Клавиша обзора", OrionKeybinds::getFreeLookKey),
                     new ToggleSetting("Переключение по нажатию", config::isFreeLookToggle, config::setFreeLookToggle)
-            };
-            case HIT_DISTANCE -> new Setting[]{
-                    new ChoiceSetting("Вид", new String[]{"Карточка с ником", "Только цифры"},
-                            () -> config.isHitDistanceCompact() ? 1 : 0, value -> config.setHitDistanceCompact(value == 1)),
-                    hudStyleSetting("Оформление", OrionHitDistanceHud.ID)
             };
             case POTIONS -> new Setting[]{
                     new ToggleSetting("Скрывать ванильные иконки эффектов", config::isPotionsHideVanilla, config::setPotionsHideVanilla),
@@ -7294,7 +7288,6 @@ public final class OrionClickGuiScreen extends Screen {
             case CLEAN_WATER -> configManager.setCleanWaterEnabled(!config.isCleanWaterEnabled());
             case NAMETAGS -> configManager.setNametagsEnabled(!config.isNametagsEnabled());
             case FREE_LOOK -> configManager.setFreeLookEnabled(!config.isFreeLookEnabled());
-            case HIT_DISTANCE -> configManager.setHitDistanceEnabled(!config.isHitDistanceEnabled());
             case POTIONS -> { config.setPotionsEnabled(!config.isPotionsEnabled()); configManager.save(); }
             case TARGET_HUD -> { config.setTargetHudEnabled(!config.isTargetHudEnabled()); configManager.save(); }
             case SOUND_SETTINGS -> {
@@ -7378,7 +7371,6 @@ public final class OrionClickGuiScreen extends Screen {
             case CLEAN_WATER -> config.isCleanWaterEnabled();
             case NAMETAGS -> config.isNametagsEnabled();
             case FREE_LOOK -> config.isFreeLookEnabled();
-            case HIT_DISTANCE -> config.isHitDistanceEnabled();
             case POTIONS -> config.isPotionsEnabled();
             case TARGET_HUD -> config.isTargetHudEnabled();
             case SOUND_SETTINGS -> config.isSoundSettingsEnabled();
@@ -7920,7 +7912,7 @@ public final class OrionClickGuiScreen extends Screen {
         MIRAGE, WINGS, HALO, SKIN_LAYERS, ITEM_SCROLLER, EMOTES, ZOOM, CHAT_FILTER, CHAT_ANIMATION, CHAT_HIGHLIGHT, WAYPOINTS, DEATH_POINT, TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, ITEM_PHYSICS, HIT_PARTICLES, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
         WORLD_PARTICLES, FOOTBALL, BASKETBALL, ANIMATIONS, ENCHANT_GLINT, INVENTORY_HUD, SELF_TAG, ARMOR_INDICATOR, LOCK_SLOT, PVP_SAFE, KEYSTROKES, NO_ANIMATIONS, SATURATION, CHAT_HISTORY, CHAT_TIME, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, NO_PARTICLES, NO_WEATHER, NO_FIRE, WORLD_CHANGER, HEALTH_TAGS, PROTECT_NAME, FAKE_PREFIX,
         HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW, KILL_EFFECTS, RAGDOLL, FRESH_ANIMATIONS,
-        NAMETAGS, FREE_LOOK, HIT_DISTANCE, CLEAN_WATER, POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER;
+        NAMETAGS, FREE_LOOK, CLEAN_WATER, POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER;
 
         private static final Action[] VALUES = values();
     }
@@ -7967,7 +7959,6 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("FullBright", "Повышает яркость мира", Icon.SUN, Action.FULL_BRIGHT),
                 new ModuleRow("HUD", "Отображает интерфейс клиента", Icon.MONITOR, Action.HUD),
                 new ModuleRow("Keystrokes", "Показывает нажатые клавиши", Icon.GRID, Action.KEYSTROKES),
-                new ModuleRow("HitDistance", "Оценка дистанции последнего полученного удара", Icon.CROSSHAIR, Action.HIT_DISTANCE),
                 new ModuleRow("Potions", "Иконки, названия и таймеры активных эффектов", Icon.RINGS, Action.POTIONS),
                 new ModuleRow("NoRender", "Скрывает выбранные модели, частицы и наложения", Icon.EYE, Action.NO_RENDER),
                 new ModuleRow("InventoryHUD", "Содержимое инвентаря на экране", Icon.GRID, Action.INVENTORY_HUD),

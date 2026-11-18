@@ -1891,6 +1891,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="release-feed">
+            <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-057">
+              <span class="release-meta"><span class="release-version">0.1.57</span><time datetime="2026-11-18">18.11.2026</time></span>
+              <div><h3 id="release-launcher-057">Пять новых крыльев</h3>
+                <p>Примерьте крылья в гардеробе. В клиенте также доступны Potions, TargetHud, Sound Settings и NoRender. HitDistance удалён.</p></div>
+            </article>
           <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-050">
             <span class="release-meta"><span class="release-version">0.1.50</span><time datetime="2026-11-16">16.11.2026</time></span>
             <div>
@@ -2730,6 +2735,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Примерочная':['Fitting room','Anprobe','Probador'],
       'К экипировке':['Back to loadout','Zur Ausrüstung','Volver al equipamiento'],
       'Ангельские крылья':['Angel wings','Engelsflügel','Alas de ángel'],
+      'Полночь':['Midnight', 'Mitternacht', 'Medianoche'],
+      'Еловая лапа':['Evergreen', 'Tannenzweig', 'Rama de abeto'],
+      'Первый залп':['First Salvo', 'Erste Salve', 'Primera salva'],
+      'Пепельный феникс':['Ash Phoenix', 'Aschephönix', 'Fénix de ceniza'],
+      'Крылья лунного мотылька':['Lunar Moth Wings', 'Mondmottenflügel', 'Alas de polilla lunar'],
       'Драконьи крылья':['Dragon wings','Drachenflügel','Alas de dragón'],
       'Золотой нимб':['Golden halo','Goldener Heiligenschein','Aureola dorada'],
       'Соломенная шляпа':['Straw hat','Strohhut','Sombrero de paja'],
@@ -3776,6 +3786,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
     const wardrobeItems = [
       ['angel','wings','Ангельские крылья'], ['dragon','wings','Драконьи крылья'],
+      ['midnight', 'wings', 'Полночь'], ['evergreen', 'wings', 'Еловая лапа'], ['first_salvo', 'wings', 'Первый залп'], ['ash_phoenix', 'wings', 'Пепельный феникс'], ['lunar_moth', 'wings', 'Крылья лунного мотылька'],
       ['halo','halo','Золотой нимб'], ['hat','hat','Соломенная шляпа'], ['dance','dance','Эмоции'],
       ['ember_fox','pet','Огненный лисёнок'], ['moon_moth','pet','Лунный мотылёк'],
       ['moss_turtle','pet','Моховая черепашка'], ['rhm_tarnkappe','pet','Rhm.-B. WT Tarnkappe'],
@@ -3817,7 +3828,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             iconPreview = new GleamCosmeticPreview(canvas,true);
           }
           const pet = slot==='pet' ? await iconPreview.loadPet(id) : null;
-          if (slot==='wings' || slot==='dance') await iconPreview.loadGeometry();
+          if (slot==='wings' || slot==='dance') await iconPreview.loadGeometry(id);
           if (slot==='dance') {
             const skin = await previewSkin();
             iconPreview.setSkin(skin.image,skin.slim,skin.headLayer);
@@ -3904,7 +3915,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           const view = create();
           const [profile,pet] = await Promise.all([
             previewSkin(), slots.pet ? view.loadPet(slots.pet) : null,
-            slots.wings || slots.dance ? view.loadGeometry() : null
+            slots.wings || slots.dance ? view.loadGeometry(slots.wings) : null
           ]);
           if (!assign(pending,true)) return;
           if (view.currentSkin!==profile) {
@@ -5482,7 +5493,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         const [skin,pet] = await Promise.all([
           loadFriendSkin(look.skin),
           slots.pet ? friendPreview.loadPet(slots.pet).catch(() => null) : null,
-          slots.wings ? friendPreview.loadGeometry().catch(() => { slots.wings = ''; }) : null
+          slots.wings ? friendPreview.loadGeometry(slots.wings).catch(() => { slots.wings = ''; }) : null
         ]);
         if (request !== friendModelRequest || !stage.isConnected || !friendsOpen()
             || profile !== $('friend-profile-dialog').open) return;

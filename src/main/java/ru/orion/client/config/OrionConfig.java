@@ -86,7 +86,7 @@ public final class OrionConfig {
     public boolean isWingsEnabled() { return wingsEnabled; }
     public void setWingsEnabled(boolean value) { wingsEnabled = value; }
     public int getWingsStyle() { return wingsStyle; }
-    public void setWingsStyle(int value) { wingsStyle = Math.max(0, Math.min(1, value)); }
+    public void setWingsStyle(int value) { wingsStyle = Math.max(0, Math.min(ru.orion.client.effect.GleamWingModel.IDS.size() - 1, value)); }
     private float zoomFactor = 4.0F;
     private float zoomInTime = 1F;
     private float zoomOutTime = 0.5F;
@@ -271,10 +271,6 @@ public final class OrionConfig {
     private boolean nametagsShadow = true;
     private boolean freeLookEnabled;
     private boolean freeLookToggle;
-    private boolean hitDistanceEnabled;
-    private int hitDistanceX = -1;
-    private int hitDistanceY = -1;
-    private boolean hitDistanceCompact;
     private boolean potionsEnabled;
     private boolean potionsHideVanilla = true;
     private boolean targetHudEnabled;
@@ -328,9 +324,6 @@ public final class OrionConfig {
     public boolean isHudElementGlass(String id) {
         if (hudElementGlass == null) return true;
         Boolean glass = hudElementGlass.get(id);
-        if (glass == null && ru.orion.client.hud.OrionHitDistanceHud.ID.equals(id)) {
-            glass = hudElementGlass.get("hud_better_near");
-        }
         return !Boolean.FALSE.equals(glass);
     }
     public void setHudElementGlass(String id, boolean glass) {
@@ -739,14 +732,6 @@ public final class OrionConfig {
     public void setFreeLookEnabled(boolean value) { freeLookEnabled = value; }
     public boolean isFreeLookToggle() { return freeLookToggle; }
     public void setFreeLookToggle(boolean value) { freeLookToggle = value; }
-    public boolean isHitDistanceEnabled() { return hitDistanceEnabled; }
-    public void setHitDistanceEnabled(boolean value) { hitDistanceEnabled = value; }
-    public int getHitDistanceX() { return hitDistanceX; }
-    public void setHitDistanceX(int value) { hitDistanceX = Math.max(-1, value); }
-    public int getHitDistanceY() { return hitDistanceY; }
-    public void setHitDistanceY(int value) { hitDistanceY = Math.max(-1, value); }
-    public boolean isHitDistanceCompact() { return hitDistanceCompact; }
-    public void setHitDistanceCompact(boolean value) { hitDistanceCompact = value; }
     public boolean isPotionsEnabled() { return potionsEnabled; }
     public void setPotionsEnabled(boolean value) { potionsEnabled = value; }
     public boolean isPotionsHideVanilla() { return potionsHideVanilla; }
@@ -1590,15 +1575,13 @@ public final class OrionConfig {
         if (waypointQuickPrefix.isEmpty()) waypointQuickPrefix = "Метка";
         if (waypointQuickColor == null || !waypointQuickColor.matches("^#[0-9a-fA-F]{6}$")) waypointQuickColor = "#FF9B38";
         waypointVisibleLimit = Math.max(1, Math.min(64, waypointVisibleLimit));
-        wingsStyle = Math.max(0, Math.min(1, wingsStyle));
+        wingsStyle = Math.max(0, Math.min(ru.orion.client.effect.GleamWingModel.IDS.size() - 1, wingsStyle));
         setCosmeticPet(cosmeticPet);
         setSkinLayersThickness(skinLayersThickness);
         setSkinLayersDistance(skinLayersDistance);
         setItemScrollerLimit(itemScrollerLimit);
         setZoomFactor(zoomFactor);
         setCleanWaterOpacity(cleanWaterOpacity);
-        setHitDistanceX(hitDistanceX);
-        setHitDistanceY(hitDistanceY);
         setTargetHudHoldSeconds(targetHudHoldSeconds);
         if (extraHudPositions == null) extraHudPositions = new java.util.HashMap<>();
         if (soundVolumes == null) soundVolumes = new java.util.HashMap<>();

@@ -363,7 +363,7 @@ public final class OrionAccounts {
 
     private static JsonObject cosmeticSlots(OrionConfig config) {
         var slots = new JsonObject();
-        slots.addProperty("wings", !config.isWingsEnabled() ? "" : config.getWingsStyle() == 0 ? "angel" : "dragon");
+        slots.addProperty("wings", !config.isWingsEnabled() ? "" : ru.orion.client.effect.GleamWingModel.IDS.get(config.getWingsStyle()));
         slots.addProperty("halo", config.isHaloEnabled());
         slots.addProperty("hat", config.isChinaHeadEnabled());
         slots.addProperty("dance", config.isEmotesEnabled());
@@ -375,8 +375,9 @@ public final class OrionAccounts {
         OrionConfig config = manager.getConfig();
         if (cosmeticSlots(config).equals(slots)) return;
         String wings = slots.get("wings").getAsString();
-        config.setWingsEnabled(!wings.isEmpty());
-        if (!wings.isEmpty()) config.setWingsStyle("dragon".equals(wings) ? 1 : 0);
+        int wingStyle = ru.orion.client.effect.GleamWingModel.IDS.indexOf(wings);
+        config.setWingsEnabled(wingStyle >= 0);
+        if (wingStyle >= 0) config.setWingsStyle(wingStyle);
         config.setHaloEnabled(slots.get("halo").getAsBoolean());
         config.setChinaHeadEnabled(slots.get("hat").getAsBoolean());
         config.setEmotesEnabled(slots.get("dance").getAsBoolean());

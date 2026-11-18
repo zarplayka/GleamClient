@@ -24,7 +24,7 @@ public final class OrionWings {
     private final Map<UUID, OrionWingMotion> motions = new HashMap<>();
     private long lastFrame;
     public OrionWings(OrionConfigManager manager) { this.manager = manager; }
-    public void register() { LevelRenderEvents.COLLECT_SUBMITS.register(this::render); }
+    public void register() { GleamWingModel.load(); LevelRenderEvents.COLLECT_SUBMITS.register(this::render); }
 
     private void render(LevelRenderContext context) {
         Minecraft client = Minecraft.getInstance();
@@ -42,7 +42,7 @@ public final class OrionWings {
             if (local && client.options.getCameraType().isFirstPerson()) continue;
             int style = local ? (manager.getConfig().isWingsEnabled() ? manager.getConfig().getWingsStyle() + 1 : 0)
                     : OrionBadgePresence.wingsStyle(player.getUUID());
-            if (style < 1 || style > 2) continue;
+            if (style < 1 || style > GleamWingModel.IDS.size()) continue;
             if(player.position().distanceToSqr(camera.pos)>16384D) continue;
             visible.add(player.getUUID());
             OrionWingMotion motion=motions.computeIfAbsent(player.getUUID(),ignored->new OrionWingMotion());
@@ -59,6 +59,12 @@ public final class OrionWings {
             ru.orion.client.render.GleamPose.rotate(pose, Axis.YP.rotationDegrees(180F - bodyYaw));
             ru.orion.client.render.GleamPose.rotate(pose, Axis.XP.rotationDegrees(motion.bodyPitch));
             pose.translate(0F, 0F, .16F);
+            if (style > 2) {
+                float time = style == 3 || style == 5 ? motion.deployment() : (now % 2_000_000_000L) / 1_000_000_000F;
+                GleamWingModel.submit(pose, context.submitNodeCollector(), style, time);
+                pose.popPose();
+                continue;
+            }
             for (int side = -1; side <= 1; side += 2) {
                 pose.pushPose();
                 pose.scale(side, 1F, 1F);
@@ -85,6 +91,10 @@ public final class OrionWings {
 
     public static void submitPreview(PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector, int style) {
         pose.translate(0F, 1.37F, .16F);
+        if (style > 2) {
+            GleamWingModel.submit(pose, collector, style, (System.nanoTime() % 2_000_000_000L) / 1_000_000_000F);
+            return;
+        }
         for (int side : new int[]{-1, 1}) {
             pose.pushPose();
             pose.scale(side, 1F, 1F);

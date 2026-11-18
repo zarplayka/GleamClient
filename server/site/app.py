@@ -401,7 +401,7 @@ def valid_cosmetic_slots(slots):
     if not isinstance(slots, dict): return False
     for key, value in slots.items():
         if key in ('halo', 'hat', 'dance') and type(value) is bool: continue
-        if key == 'wings' and value in ('', 'angel', 'dragon'): continue
+        if key == 'wings' and value in ('', 'angel', 'dragon', 'midnight', 'evergreen', 'first_salvo', 'ash_phoenix', 'lunar_moth'): continue
         if key == 'pet' and isinstance(value, str) and value in COSMETIC_PETS: continue
         return False
     return True

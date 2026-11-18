@@ -167,7 +167,7 @@ public final class OrionBadgePresence {
                     JsonObject wingResult = response.getAsJsonObject("wings");
                     if (wingResult != null) wingResult.entrySet().forEach(entry -> {
                         int style = entry.getValue().getAsInt();
-                        if (style >= 1 && style <= 2) foundWings.put(parseUuid(entry.getKey()), style);
+                        if (style >= 1 && style <= GleamWingModel.IDS.size()) foundWings.put(parseUuid(entry.getKey()), style);
                     });
                     JsonObject petResult = response.getAsJsonObject("pets");
                     if (petResult != null) petResult.entrySet().forEach(entry -> {

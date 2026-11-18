@@ -273,6 +273,10 @@ final class OrionSiteMenu {
                         loaded.put("cosmetic-"+names[i]+"-preview", png(atlas.getSubimage(i * width, height, width, height)));
                     }
                 }
+                for (String id : ru.orion.client.effect.GleamWingModel.IDS.subList(2, ru.orion.client.effect.GleamWingModel.IDS.size())) {
+                    String name = "cosmetic-" + id + "-item";
+                    loaded.put(name, read(MENU + "assets/" + name + ".png"));
+                }
                 for (var pet : ru.orion.client.cosmetic.GleamPet.values()) {
                     String name = "cosmetic-" + pet.id() + "-item";
                     loaded.put(name, read(MENU + "assets/" + name + ".png"));

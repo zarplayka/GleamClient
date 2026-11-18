@@ -203,19 +203,19 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cosmetics_and_java_uuid_contract(self):
         player, headers, _ = await self.login()
-        response = await self.client.post("/v1/presence", headers=headers, json={"players": [player], "halo": True, "wings": 2, "pet": "moon_moth"})
+        response = await self.client.post("/v1/presence", headers=headers, json={"players": [player], "halo": True, "wings": 7, "pet": "moon_moth"})
         self.assertEqual(response.status, 200)
         result = await response.json()
         compact = uuid.UUID(player).hex
         self.assertEqual(result["online"], [compact])
         self.assertEqual(result["halos"], [compact])
-        self.assertEqual(result["wings"], {compact: 2})
+        self.assertEqual(result["wings"], {compact: 7})
         self.assertEqual(result["pets"], {compact: "moon_moth"})
         self.assertGreater(result["revision"], 0)
         _, other, _ = await self.login("OtherProbe")
         response = await self.client.post("/v1/presence", headers=other, json={"players": [player], "halo": False, "wings": 0})
         result = await response.json()
-        self.assertEqual(result["wings"], {compact: 2})
+        self.assertEqual(result["wings"], {compact: 7})
         self.assertEqual(result["pets"], {compact: "moon_moth"})
         for pet in ("snow_ferret", "space_slime", "tracked_scout"):
             with self.subTest(pet=pet):
@@ -391,7 +391,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.get("/healthz")
         self.assertEqual((await response.json())["protocol"], 1)
         _, headers, _ = await self.login()
-        for payload in ({"players": ["bad"]}, {"players": [str(uuid.uuid4())] * 101}, {"players": [], "wings": 3},
+        for payload in ({"players": ["bad"]}, {"players": [str(uuid.uuid4())] * 101}, {"players": [], "wings": 8},
                         {"players": [], "halo": "yes"}, {"pet": "unknown"}, {"pet": ["moon_moth"]}):
             response = await self.client.post("/v1/presence", headers=headers, json=payload)
             self.assertEqual(response.status, 400)

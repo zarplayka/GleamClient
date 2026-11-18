@@ -35,7 +35,6 @@ import ru.orion.client.effect.OrionTargetEsp;
 import ru.orion.client.effect.OrionWorldParticles;
 import ru.orion.client.hud.OrionBetterNearHud;
 import ru.orion.client.hud.OrionCustomCrosshair;
-import ru.orion.client.hud.OrionHitDistanceHud;
 import ru.orion.client.hud.OrionStatusHud;
 import ru.orion.client.hud.OrionHotbarLocks;
 import ru.orion.client.hud.OrionInventoryHud;
@@ -65,7 +64,6 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionHotbarLocks hotbarLocks = new OrionHotbarLocks(configManager);
     private final OrionInventoryHud inventoryHud = new OrionInventoryHud(configManager);
     private final OrionStatusHud statusHud = new OrionStatusHud(configManager);
-    private final OrionHitDistanceHud hitDistanceHud = new OrionHitDistanceHud(configManager);
     private final ru.orion.client.hud.OrionTargetHud targetHud = new ru.orion.client.hud.OrionTargetHud(configManager);
     private final OrionKeybinds keybinds = new OrionKeybinds(configManager);
     private final OrionDiscordPresenceService discordPresenceService = new OrionDiscordPresenceService(configManager);
@@ -146,7 +144,6 @@ public final class OrionClient implements ClientModInitializer {
         hitSound.register();
         customCrosshair.register();
         betterNearHud.register();
-        hitDistanceHud.register();
         new ru.orion.client.hud.OrionPotionsHud(configManager).register();
         targetHud.register();
         fakeBanCommand.register();
@@ -166,9 +163,6 @@ public final class OrionClient implements ClientModInitializer {
     }
 
     /** Safe accessor for mixins/early callers; returns null before init instead of throwing. */
-    public static OrionHitDistanceHud getHitDistanceHudOrNull() {
-        return instance == null ? null : instance.hitDistanceHud;
-    }
 
     public static OrionConfig getConfigOrNull() {
         OrionClient current = instance;
