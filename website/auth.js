@@ -70,6 +70,21 @@
   const adminTab = document.querySelector('#profile-tab-admin');
   const friendForm = document.querySelector('#friend-request-form');
   const adminForm = document.querySelector('#admin-search-form');
+  const keyForm = document.querySelector('#funpay-redeem');
+  const promoForm = document.querySelector('#funpay-promo-create');
+  const pricePreview = document.querySelector('#funpay-price-preview');
+  const promoPanel = document.querySelector('#funpay-creator');
+  const creatorPromos = document.querySelector('#funpay-creator-promos');
+  const adminPromos = document.querySelector('#funpay-admin-promos');
+  const refreshPromos = document.querySelector('#funpay-admin-refresh');
+  const funpayPlans = {month: 'Месяц', quarter: '3 месяца', year: 'Год', lifetime: 'Навсегда'};
+  const funpayStates = {queued: 'В очереди', creating: 'Проверяется на FunPay', rejected: 'FunPay отклонил лот',
+    linked: 'Опубликован', paid: 'Ожидает подтверждения', closed: 'Подтверждён', refunded: 'Возврат',
+    review: 'На проверке', adjusted: 'Сумма скорректирована'};
+  let promoBusy = false;
+  let assignedPromos = [];
+  let staffPromos = [];
+  let promoPrices = null;
   const deleteDialog = document.querySelector('#account-delete-dialog');
   const deleteForm = document.querySelector('#account-delete-form');
   let deleteTarget = '';
@@ -94,7 +109,11 @@
       document.getElementById(item.getAttribute('aria-controls')).hidden = !selected;
     }
     if (tab.id === 'profile-tab-friends') loadFriends();
-    if (tab === adminTab) loadAdmin();
+    if (tab === adminTab) {
+      loadAdmin();
+      loadFunpay();
+    }
+    if (tab === profileTabs[0] && csrf) loadCreatorPromos();
   }
 
   function syncTabOrientation() {
@@ -412,6 +431,15 @@
     plusExpiresAt = data.plus_expires_at ?? null;
     csrf = user ? data.csrf : null;
     adminTab.hidden = !['admin', 'owner'].includes(user?.role);
+    assignedPromos = [];
+    staffPromos = [];
+    promoPrices = null;
+    promoBusy = false;
+    keyForm.reset();
+    keyForm.querySelector('button').disabled = false;
+    profileStatus('funpay-key-status', '');
+    profileStatus('funpay-admin-status', '');
+    renderFunpay();
     friendItems = [];
     adminAccounts = null;
     friendsBusy = adminBusy = false;
@@ -957,6 +985,234 @@
     status.hidden = !message;
   }
 
+  function rubles(kopecks) {
+    return new Intl.NumberFormat(document.documentElement.lang || 'ru',
+      {style: 'currency', currency: 'RUB'}).format(kopecks / 100);
+  }
+
+  function promoTotals(promo) {
+    const list = document.createElement('dl');
+    list.className = 'funpay-totals';
+    const fields = [['Заказы', promo.sales], ['Ожидает подтверждения', rubles(promo.pending)],
+      ['К выплате', rubles(promo.available)], ['Выплачено', rubles(promo.paid)]];
+    if (promo.adjustment < 0) fields.push(['Корректировка после возврата', rubles(promo.adjustment)]);
+    renderTotals(list, fields);
+    return list;
+  }
+
+  function renderTotals(list, fields) {
+    list.replaceChildren();
+    for (const [label, value] of fields) {
+      const item = document.createElement('div');
+      const term = document.createElement('dt');
+      const amount = document.createElement('dd');
+      term.textContent = t(label);
+      amount.textContent = value;
+      item.append(term, amount);
+      list.append(item);
+    }
+  }
+
+  function renderPricePreview() {
+    const discount = promoForm.elements.discount;
+    const ready = Boolean(promoPrices && discount.validity.valid);
+    pricePreview.hidden = !ready;
+    if (ready) {
+      renderTotals(pricePreview, Object.entries(funpayPlans).map(([plan, label]) =>
+        [label, rubles(Math.floor((promoPrices[plan] * (100 - discount.valueAsNumber) + 50) / 100))]));
+    }
+  }
+
+  function promoLinks(container, promo, staff = false) {
+    for (const lot of promo.lots) {
+      const row = document.createElement('p');
+      row.className = 'profile-note funpay-lot';
+      const title = t(funpayPlans[lot.plan]) + ' · ' + rubles(lot.price);
+      if (lot.offer_id) {
+        const link = document.createElement('a');
+        link.className = 'profile-share';
+        link.href = 'https://funpay.com/lots/offer?id=' + lot.offer_id;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = title + ' ↗';
+        row.append(link);
+        if (staff) row.append(' · ' + t('Осталось ключей') + ' ' + lot.remaining);
+      } else if (staff) {
+        row.textContent = title + ' · ' + t(funpayStates[lot.state]);
+        if (lot.state === 'rejected' && promo.assigned) {
+          row.append(' ', communityButton('Повторить публикацию', () =>
+            loadFunpay({action: 'retry', code: promo.code, plan: lot.plan}), promoBusy));
+        }
+      }
+      if (row.hasChildNodes()) container.append(row);
+    }
+  }
+
+  function renderFunpay() {
+    keyForm.elements.key.placeholder = t('Ключ GleamClient Plus');
+    promoPanel.hidden = assignedPromos.length === 0;
+    creatorPromos.replaceChildren();
+    for (const promo of assignedPromos) {
+      const block = document.createElement('section');
+      block.className = 'funpay-promo';
+      const name = document.createElement('h3');
+      name.textContent = promo.code + ' · ' + promo.share_percent + '%';
+      if (promo.discount_percent) name.textContent += ' · ' + t('Скидка') + ' ' + promo.discount_percent + '%';
+      block.append(name, promoTotals(promo));
+      promoLinks(block, promo);
+      if (promo.orders.length) {
+        const history = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = t('Последние заказы');
+        history.append(summary);
+        for (const order of promo.orders) {
+          const row = document.createElement('p');
+          row.className = 'profile-note funpay-lot';
+          const date = new Date(order.created_at * 1000).toLocaleDateString(document.documentElement.lang || 'ru');
+          const share = ['paid', 'closed', 'adjusted'].includes(order.status) ? ' · ' + rubles(order.share) : '';
+          row.textContent = [date, t(funpayPlans[order.plan]), t(funpayStates[order.status])].join(' · ') + share;
+          history.append(row);
+        }
+        block.append(history);
+      }
+      creatorPromos.append(block);
+    }
+    adminPromos.replaceChildren();
+    for (const promo of staffPromos) {
+      const item = document.createElement('li');
+      const title = document.createElement('strong');
+      title.textContent = promo.code + ' · ' + promo.creator + ' · ' + promo.share_percent + '%';
+      if (promo.discount_percent) title.textContent += ' · ' + t('Скидка') + ' ' + promo.discount_percent + '%';
+      item.append(title, promoTotals(promo));
+      adminPromos.append(item);
+      promoLinks(item, promo, true);
+      for (const order of promo.reviews) {
+        const row = document.createElement('p');
+        row.className = 'profile-note funpay-lot';
+        const link = document.createElement('a');
+        link.className = 'profile-share';
+        link.href = 'https://funpay.com/orders/' + order.id + '/';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = t('Частичный возврат') + ' · #' + order.id + ' ↗';
+        row.append(link);
+        if (user?.role === 'owner') {
+          row.append(' ', communityButton('Уточнить сумму', () => {
+            const value = prompt(t('Сколько рублей осталось по заказу после возврата?'));
+            if (value === null) return;
+            const amount = value.trim().replace(',', '.');
+            if (!/^\d{1,8}(\.\d{1,2})?$/.test(amount)) {
+              profileStatus('funpay-admin-status', 'Введи сумму в рублях');
+              return;
+            }
+            loadFunpay({action: 'resolve', code: promo.code, order_id: order.id, amount: Math.round(Number(amount) * 100)});
+          }, promoBusy));
+        }
+        item.append(row);
+      }
+      if (user?.role === 'owner' && promo.available > 0) {
+        item.append(communityButton('Отметить выплату', () => {
+          if (confirm(t('Подтвердить уже сделанную выплату') + ' ' + rubles(promo.available) + '?')) {
+            loadFunpay({action: 'payout', code: promo.code, amount: promo.available, version: promo.payout_version});
+          }
+        }, promoBusy));
+      }
+    }
+    promoForm.querySelector('button').disabled = promoBusy || !promoPrices;
+    renderPricePreview();
+    refreshPromos.disabled = promoBusy;
+  }
+
+  async function loadCreatorPromos() {
+    const key = csrf;
+    try {
+      const data = await request('/api/funpay/profile');
+      if (csrf === key) {
+        assignedPromos = data.promos;
+        renderFunpay();
+      }
+    } catch {
+      // Keep the last successful snapshot until the profile is opened again.
+    }
+  }
+
+  const funpayErrors = {
+    funpay_key_invalid: 'Ключ не найден',
+    funpay_key_pending: 'FunPay ещё не передал заказ. Попробуй чуть позже',
+    funpay_key_unavailable: 'Активация этого ключа сейчас недоступна',
+    funpay_key_used: 'Ключ уже активирован на другом аккаунте',
+    funpay_promo_exists: 'Этот промокод уже есть',
+    funpay_promo_missing: 'Промокод не найден',
+    funpay_lot_exists: 'Лот на этот срок уже создан или стоит в очереди',
+    funpay_balance_changed: 'Сумма изменилась. Проверь баланс и повтори',
+    profile_missing: 'Аккаунт GleamClient не найден',
+  };
+
+  async function loadFunpay(action) {
+    if (!csrf || adminTab.hidden || promoBusy) return;
+    const key = csrf;
+    promoBusy = true;
+    profileStatus('funpay-admin-status', '');
+    renderFunpay();
+    try {
+      if (action) await request('/api/admin/funpay', action);
+      if (key !== csrf) return;
+      const data = await request('/api/admin/funpay');
+      if (key === csrf) {
+        staffPromos = data.promos;
+        promoPrices = data.prices;
+        promoForm.elements.discount.max = data.max_discount;
+        if (action?.action === 'create') promoForm.reset();
+        if (action) profileStatus('funpay-admin-status', ({
+          create: 'Промокод создан, все тарифы в очереди', retry: 'Лот поставлен в очередь', payout: 'Выплата отмечена',
+          resolve: 'Сумма заказа обновлена',
+        })[action.action]);
+      }
+    } catch (error) {
+      if (key === csrf) profileStatus('funpay-admin-status', funpayErrors[error.code] || explain(error));
+    } finally {
+      if (key === csrf) {
+        promoBusy = false;
+        renderFunpay();
+      }
+    }
+  }
+
+  refreshPromos.addEventListener('click', () => loadFunpay());
+  promoForm.elements.discount.addEventListener('input', renderPricePreview);
+  promoForm.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!promoPrices) return;
+    const {code, creator, share, discount, quantity} = promoForm.elements;
+    loadFunpay({action: 'create', code: code.value, creator: creator.value, share_percent: share.valueAsNumber,
+      discount_percent: discount.valueAsNumber, quantity: quantity.valueAsNumber});
+  });
+  keyForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const key = csrf;
+    const button = keyForm.querySelector('button');
+    if (!key || button.disabled) return;
+    button.disabled = true;
+    profileStatus('funpay-key-status', '');
+    try {
+      await request('/api/funpay/redeem', {key: keyForm.elements.key.value});
+      if (key !== csrf) return;
+      keyForm.reset();
+      profileStatus('funpay-key-status', 'Ключ активирован');
+      const session = await request('/api/me').catch(() => null);
+      if (session && key === csrf) {
+        plusActive = session.plus_active ?? null;
+        plusExpiresAt = session.plus_expires_at ?? null;
+        renderPlusStatus();
+        renderProfileTier();
+      }
+    } catch (error) {
+      if (key === csrf) profileStatus('funpay-key-status', funpayErrors[error.code] || explain(error));
+    } finally {
+      if (key === csrf) button.disabled = false;
+    }
+  });
+
   async function profileAction(status, action) {
     if (busy || sessionsBusy || !csrf) return;
     busy = true;
@@ -1243,6 +1499,7 @@
     renderSessions();
     renderFriends();
     renderAdmin();
+    renderFunpay();
     if (profileDetails) profileDate('profile', profileDetails);
     for (const [id, message] of profileStatuses) profileStatus(id, message);
   });

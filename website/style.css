@@ -608,6 +608,22 @@
 .profile-inline-form input { flex: 1 1 155px; min-width: 0; min-height: 40px; padding: 8px 11px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
 .profile-inline-form input:focus-visible { outline: 1px solid var(--accent); outline-offset: 0; }
 .profile-panel .profile-inline-form .hero-action { margin-top: 0; }
+#funpay-creator { grid-column: 1 / -1; }
+#funpay-promo-create { align-items: end; }
+#funpay-promo-create .auth-field { flex: 1 1 118px; min-width: 0; margin: 0; font-size: 13px; color: var(--muted); }
+#funpay-promo-create .auth-field:has(input[type="number"]) { flex: 1 1 95px; }
+#funpay-promo-create input { margin-top: 5px; height: 40px; }
+#funpay-admin-refresh { color: var(--text); }
+#funpay-admin-promos > li { display: block; }
+.funpay-promo { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px; }
+.funpay-promo h3 { margin: 0; font-size: 15px; }
+.funpay-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 10px 0; }
+.funpay-totals div { padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+.funpay-totals dt, .funpay-lot { font-size: 12px; color: var(--muted); }
+.funpay-totals dd { margin: 4px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.funpay-lot { margin: 6px 0; }
+.funpay-promo summary { cursor: pointer; font-size: 13px; margin-top: 12px; }
+@media (max-width: 480px) { #funpay-redeem input { flex-basis: 100%; } }
 .community-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .community-actions:empty { display: none; }
 .community-button, .admin-actions summary {
