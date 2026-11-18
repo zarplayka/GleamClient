@@ -234,12 +234,17 @@
         const name = 'wing_' + wing;
         const image = new Image();
         image.src = assetUrl(name+'.png',resources+'textures/cosmetics/wings/');
-        const request = image.decode().then(()=>{
+        const request = Promise.all([asset(name+'.json',resources+'cosmetics/wings/').then(r=>r.json()),image.decode()])
+            .then(([faces])=>{
             const vertices=[];
-            const points=[[-32,-36.5,3],[32,-36.5,3],[32,3.5,3],[-32,3.5,3]];
-            const uv=[[0,0],[1,0],[1,1],[0,1]];
-            quad(vertices,points,uv);
-            quad(vertices,[...points].reverse(),[...uv].reverse());
+            for(let f=0; f<faces.length; f+=23) {
+              const points=[], uv=[];
+              for(let i=f+3; i<f+23; i+=5) {
+                points.push([faces[i],-faces[i+1],faces[i+2]]);
+                uv.push([faces[i+3],faces[i+4]]);
+              }
+              quad(vertices,points,uv,undefined,.88+.12*Math.abs(faces[f+2]));
+            }
             this.cosmetics[wing]={plane:this.mesh(vertices),texture:this.texture(image)};
           }).catch(error=>{this.wingRequests.delete(wing);throw error;});
         this.wingRequests.set(wing,request);
