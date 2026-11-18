@@ -277,6 +277,10 @@ final class OrionSiteMenu {
                     String name = "cosmetic-" + id + "-item";
                     loaded.put(name, read(MENU + "assets/" + name + ".png"));
                 }
+                for (String id : ru.orion.client.cosmetic.GleamHatModel.IDS) {
+                    String name = "cosmetic-" + id + "-item";
+                    loaded.put(name, read(MENU + "assets/" + name + ".png"));
+                }
                 for (var pet : ru.orion.client.cosmetic.GleamPet.values()) {
                     String name = "cosmetic-" + pet.id() + "-item";
                     loaded.put(name, read(MENU + "assets/" + name + ".png"));

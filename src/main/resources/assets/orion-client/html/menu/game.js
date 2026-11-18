@@ -468,6 +468,7 @@ document.addEventListener('click',event => {
   } else if (d.equipCosmetic) {
     const [id,module,,,style] = cosmeticById(d.equipCosmetic);
     if (module === 'PET') sendGame('cosmetic-pet',{id});
+    else if (module === 'CHINA_HEAD') sendGame('cosmetic-hat',{id});
     else if (style !== undefined && (!state.enabled.has(module) || state.wingsStyle !== style))
       sendGame('cosmetic-wings',{style});
     else sendGame('toggle',{id:module});
@@ -955,6 +956,10 @@ window.paradox = {
     }
     if (state.wingsStyle !== data.look.wingsStyle && data.look.wingsStyle !== undefined) {
       state.wingsStyle = data.look.wingsStyle;
+      redraw = redraw || state.page === 'cosmetics';
+    }
+    if (state.headwear !== (data.look.headwear ?? '')) {
+      state.headwear = data.look.headwear ?? '';
       redraw = redraw || state.page === 'cosmetics';
     }
     if (state.cosmeticPet !== (data.look.cosmeticPet ?? '')) {

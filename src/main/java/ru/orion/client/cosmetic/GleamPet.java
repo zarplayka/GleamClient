@@ -13,7 +13,9 @@ public enum GleamPet {
     TARNKAPPE("rhm_tarnkappe", true, .17D, .31D),
     SNOW_FERRET("snow_ferret", true, .23D, .40D),
     SPACE_SLIME("space_slime", true, .17D, .30D),
-    TRACKED_SCOUT("tracked_scout", true, .19D, .34D);
+    TRACKED_SCOUT("tracked_scout", true, .19D, .34D),
+    BELL_FAWN("bell_fawn", true, .22D, .39D),
+    GINGERBREAD_PUP("gingerbread_pup", true, .19D, .35D);
 
     private static final GleamPet[] VALUES = values();
     private final String id;

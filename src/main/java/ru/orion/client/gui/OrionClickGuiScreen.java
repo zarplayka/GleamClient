@@ -832,6 +832,7 @@ public final class OrionClickGuiScreen extends Screen {
         look.addProperty("windowY",config.getClickGuiWindowY());
         look.addProperty("wingsStyle",config.getWingsStyle());
         look.addProperty("cosmeticPet",config.getCosmeticPet());
+        look.addProperty("headwear",config.getCosmeticHat());
         data.add("look",look);
 
         var users = new JsonArray();
@@ -998,14 +999,15 @@ public final class OrionClickGuiScreen extends Screen {
         var items = preview.items();
         boolean wings = items.stream().anyMatch(ru.orion.client.effect.GleamWingModel.IDS::contains);
         float stageWidth = wings ? (friend ? 5.15F : 5.5F) : previewPet != null ? 3.2F : 2.6F;
-        float stageHeight = wings ? 2.95F : (friend ? 2.5F : 2.8F);
+        boolean headwear = items.stream().anyMatch(ru.orion.client.cosmetic.GleamHatModel.IDS::contains);
+        float stageHeight = wings ? 2.95F : headwear ? 2.84F : (friend ? 2.5F : 2.8F);
         float size = Math.min(w / stageWidth, h / stageHeight) * preview.zoom();
         int color = parseColor(configManager.getConfig().getAccentColor()).getRGB();
         graphics.nextStratum();
         graphics.enableScissor(x, top, x + w, bottom);
         try {
             OrionCosmeticPreview.draw(graphics, friend ? friendSkin() : cosmeticSkin(), items, preview.yaw(), color, x, y, x + w, y + h,
-                    size, wings || items.contains("hat") ? 1.20F : 1.04F,
+                    size, wings || headwear || items.contains("hat") ? 1.20F : 1.04F,
                     previewPet, (System.nanoTime() - petPreviewStarted) / 1_000_000L);
         } finally {
             graphics.disableScissor();
@@ -1486,7 +1488,7 @@ public final class OrionClickGuiScreen extends Screen {
                 var items = new java.util.HashSet<String>();
                 for (var item : event.getAsJsonArray("items")) {
                     String id = item.getAsString();
-                    if ((ru.orion.client.effect.GleamWingModel.IDS.contains(id) || id.matches("halo|hat|dance")) || GleamPet.byId(id) != null) items.add(id);
+                    if ((ru.orion.client.effect.GleamWingModel.IDS.contains(id) || id.matches("halo|hat|dance")) || GleamPet.byId(id) != null || ru.orion.client.cosmetic.GleamHatModel.IDS.contains(id)) items.add(id);
                 }
                 GleamPet pet = GleamPet.in(items);
                 if (previewPet != pet) {
@@ -1589,6 +1591,17 @@ public final class OrionClickGuiScreen extends Screen {
             }
             case "clipboard-copy" -> {
                 if (event.has("text")) minecraft.keyboardHandler.setClipboard(event.get("text").getAsString());
+            }
+            case "cosmetic-hat" -> {
+                if (!"COSMETICS".equals(siteSection) || !event.has("id")) return;
+                String id = event.get("id").getAsString();
+                OrionConfig config = configManager.getConfig();
+                if ("hat".equals(id)) {
+                    configManager.setChinaHeadEnabled(!config.isChinaHeadEnabled());
+                } else if (ru.orion.client.cosmetic.GleamHatModel.IDS.contains(id)) {
+                    config.setCosmeticHat(id.equals(config.getCosmeticHat()) ? "" : id);
+                    configManager.save();
+                }
             }
             case "cosmetic-pet" -> {
                 if ("COSMETICS".equals(siteSection) && event.has("id")) {
