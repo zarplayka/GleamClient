@@ -19,8 +19,12 @@ public final class OrionNoParticles {
                 || type == ParticleTypes.CRIMSON_SPORE || type == ParticleTypes.WARPED_SPORE
                 || type == ParticleTypes.SPORE_BLOSSOM_AIR || type == ParticleTypes.FALLING_SPORE_BLOSSOM
                 || type == ParticleTypes.CHERRY_LEAVES || type == ParticleTypes.PALE_OAK_LEAVES
+                //? if >=26.3 {
                 || type == ParticleTypes.RED_POPLAR_LEAVES || type == ParticleTypes.ORANGE_POPLAR_LEAVES
                 || type == ParticleTypes.YELLOW_POPLAR_LEAVES || type == ParticleTypes.TINTED_LEAVES
+                //?} else {
+                /*|| type == ParticleTypes.TINTED_LEAVES
+                *///?}
                 || type == ParticleTypes.MYCELIUM || type == ParticleTypes.UNDERWATER
                 || type == ParticleTypes.FIREFLY || type == ParticleTypes.SNOWFLAKE
                 || type == ParticleTypes.ENCHANT);

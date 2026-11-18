@@ -12,10 +12,17 @@ import ru.orion.client.OrionClient;
 
 @Mixin(EntityRenderer.class)
 public abstract class OrionRagdollRendererMixin {
+    //? if >=26.3 {
     @Inject(method = "shouldRender(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/culling/Frustum;DDDF)Z",
             at = @At("HEAD"), cancellable = true)
     private void orion$hideReplacedPlayer(Entity entity, Frustum frustum, double x, double y, double z,
                                           float partialTick, CallbackInfoReturnable<Boolean> result) {
+    //?} else {
+        /*@Inject(method = "shouldRender(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/culling/Frustum;DDD)Z",
+            at = @At("HEAD"), cancellable = true)
+    private void orion$hideReplacedPlayer(Entity entity, Frustum frustum, double x, double y, double z,
+                                          CallbackInfoReturnable<Boolean> result) {
+    *///?}
         if (entity instanceof AbstractClientPlayer player) {
             var effects = OrionClient.getKillEffects();
             if (effects != null && effects.replacesPlayerModel(player)) result.setReturnValue(false);

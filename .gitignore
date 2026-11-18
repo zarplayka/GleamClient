@@ -28,3 +28,8 @@
 *.pfx
 Thumbs.db
 .DS_Store
+
+# Stonecutter: исходники общие, результаты каждой цели локальные
+/versions/*/build/
+/versions/*/.gradle/
+/versions/*/run/

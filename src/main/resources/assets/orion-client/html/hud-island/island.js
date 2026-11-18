@@ -313,7 +313,8 @@ window.paradox={
     if(!next.interactive && state.interactive) {
       cancelPointer();
       mouse={x:-1000,y:-1000}; hoverStarted=0; lastHovered=-10000;
-      phase=0; speed=0;
+      // Сворачиваем шторку из её текущего положения.
+      speed=Math.min(speed,0);
     }
     if(!dragging && (next.x!==state.x || next.custom!==state.custom || next.placement!==state.placement))custom=null;
     if(sourceChanged)lastAudible=Number(next.volume)>.001?Number(next.volume):.7;

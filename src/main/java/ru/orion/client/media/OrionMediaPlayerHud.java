@@ -1,5 +1,7 @@
 package ru.orion.client.media;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -21,11 +23,11 @@ import ru.orion.client.effect.OrionNameProtect;
 import ru.orion.client.gui.OrionClickGuiScreen;
 import ru.orion.client.gui.OrionGuiLanguage;
 import ru.orion.client.gui.OrionLumenView;
+import ru.orion.client.hud.OrionHudDrag;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 
 /** Мост острова HUD: HTML/CSS/JS через Lumen, данные и команды остаются в менеджерах Java. */
 public final class OrionMediaPlayerHud {
@@ -65,7 +67,7 @@ public final class OrionMediaPlayerHud {
     public void register() {
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "media_player"),
                 (graphics, delta) -> {
-                    if (!(Minecraft.getInstance().gui.screen() instanceof ChatScreen)) render(graphics);
+                    if (!(GleamMinecraft.screen(Minecraft.getInstance()) instanceof ChatScreen)) render(graphics);
                 });
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (!(screen instanceof ChatScreen)) return;
@@ -105,7 +107,7 @@ public final class OrionMediaPlayerHud {
     }
 
     private static boolean chatPointerAvailable(Minecraft client) {
-        return client.gui.screen() instanceof ChatScreen && client.gui.overlay() == null
+        return GleamMinecraft.screen(client) instanceof ChatScreen && GleamMinecraft.overlay(client) == null
                 && !client.mouseHandler.isMouseGrabbed();
     }
 
@@ -169,6 +171,11 @@ public final class OrionMediaPlayerHud {
             renderedAt = System.nanoTime();
         }
         receive();
+        if (bounds != null) {
+            float scale = window.getGuiScale();
+            OrionHudDrag.observe("island", (int) (bounds.x / scale), (int) (bounds.y / scale),
+                    (int) Math.ceil(bounds.width / scale), (int) Math.ceil(bounds.height / scale));
+        }
     }
 
     private JsonObject labels() {
@@ -229,14 +236,24 @@ public final class OrionMediaPlayerHud {
             case "TOP_RIGHT" -> screenWidth - scaledWidth - 5;
             default -> (screenWidth - scaledWidth) / 2;
         };
+        OrionHudDrag.observe("island", Math.clamp(x, 0, Math.max(0, screenWidth - scaledWidth)), 0,
+                scaledWidth, (int) Math.ceil((track.isBlank() ? 17 : 30) * scale));
         var pose = graphics.pose();
         pose.pushMatrix();
         try {
             pose.translate(Math.clamp(x, 0, Math.max(0, screenWidth - scaledWidth)), 0);
             pose.scale(scale);
             graphics.fill(0, 0, width, track.isBlank() ? 17 : 30, 0xDB171A23);
+            //? if >=26.1 {
             graphics.text(client.font, label, 6, 4, 0xFFF3F4FA);
+            //?} else {
+            /*graphics.drawString(client.font, label, 6, 4, 0xFFF3F4FA);
+            *///?}
+            //? if >=26.1 {
             if (!track.isBlank()) graphics.text(client.font, track, 6, 17, 0xFFC2D2F7);
+            //?} else {
+            /*if (!track.isBlank()) graphics.drawString(client.font, track, 6, 17, 0xFFC2D2F7);
+            *///?}
         } finally {
             pose.popMatrix();
         }
@@ -287,7 +304,7 @@ public final class OrionMediaPlayerHud {
             manager.setMediaPlayerPosition(Math.clamp(Math.round(x / client.getWindow().getGuiScale()),
                     0, client.getWindow().getGuiScaledWidth()), 0);
         } else if ("settings".equals(action)) {
-            client.gui.setScreen(OrionClickGuiScreen.withMediaPlayerSettings(manager));
+            GleamMinecraft.setScreen(client, OrionClickGuiScreen.withMediaPlayerSettings(manager));
         } else if ("enable".equals(action)) {
             manager.setMediaPlayerEnabled(true);
         } else {
@@ -307,6 +324,7 @@ public final class OrionMediaPlayerHud {
     }
 
     private void dispose() {
+        OrionHudDrag.forget("island");
         view.dispose();
         previous = null;
         bounds = null;
@@ -318,10 +336,6 @@ public final class OrionMediaPlayerHud {
 
     private static byte[] loadDocument() {
         try {
-            for (String face : new String[]{"Regular", "Bold"}) {
-                LumenNative.registerFont(bytes("assets/orion-" + face.toLowerCase(Locale.ROOT) + ".ttf"),
-                        read(ROOT + "fonts/paradox/ParadoxSans-" + face + ".ttf"));
-            }
             LumenNative.registerImage(bytes("assets/gleam-hud-badge.png"), read(ROOT + "textures/cosmetics/orion_badge.png"));
             if (document == null) {
                 String html = new String(read(ROOT + "html/hud-island/index.html"), StandardCharsets.UTF_8);

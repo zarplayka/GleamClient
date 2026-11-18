@@ -13,8 +13,13 @@ import ru.orion.client.effect.OrionBadgePresence;
 
 @Mixin(EntityRenderer.class)
 public abstract class OrionBadgeNameTagMixin {
+    //? if >=26.2 {
     @Inject(method = "extractNameTags(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/entity/state/EntityRenderState;FDD)V", at = @At("RETURN"))
     private void orion$addBadge(Entity entity, EntityRenderState state, float tickDelta, double nameDistance, double scoreDistance, CallbackInfo ci) {
+    //?} else {
+    /*@Inject(method = "extractRenderState(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/entity/state/EntityRenderState;F)V", at = @At("RETURN"))
+    private void orion$addBadge(Entity entity, EntityRenderState state, float tickDelta, CallbackInfo ci) {
+    *///?}
         if (entity instanceof Player && state.nameTag != null && OrionBadgePresence.isOrion(entity.getUUID())) {
             state.nameTag = OrionBadge.prepend(state.nameTag);
         }

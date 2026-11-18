@@ -4,16 +4,33 @@ import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+//? if >=26.3 {
 import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
+
+//?} elif >=26.2 {
+/*import com.mojang.blaze3d.GpuFormat;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.vertex.VertexFormat;
+
+*///?} else {
+/*import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormatElement;
+import ru.orion.client.render.GleamLumenVertex;
+*///?}
 import com.paradox.lumen.LumenNative;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.render.TextureSetup;
+//? if >=26.2 {
 import net.minecraft.client.renderer.BindGroupLayouts;
+//?}
 import net.minecraft.client.renderer.state.gui.GuiElementRenderState;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
@@ -47,9 +64,14 @@ public final class OrionLumenView {
     private static final long THEME_REVEAL_NANOS = 410_000_000L;
     private static final byte[] UPDATE = bytes("update");
     private static final byte[] OPENING = bytes("opening");
+    private static final String HUD_THEME_IN_PAGE = "<link rel=\"stylesheet\" data-hud-theme";
+    private static final String RESOURCE_ROOT = "/assets/orion-client/";
+    private static String hudTheme;
+    private static byte[] hudRegular, hudBold;
 
     private final String resource, texturePrefix, fontResource;
     private final Supplier<byte[]> pageSource;
+    private final boolean smoothText;
     private final Map<Integer, DynamicTexture> atlases = new HashMap<>();
     private final Map<Integer, DynamicTexture> images = new HashMap<>();
     private final LinkedHashMap<GradientKey, DynamicTexture> gradients = new LinkedHashMap<>(16, .75F, true);
@@ -66,10 +88,15 @@ public final class OrionLumenView {
     }
 
     public OrionLumenView(String resource, String texturePrefix, String fontResource, Supplier<byte[]> pageSource) {
+        this(resource,texturePrefix,fontResource,pageSource,false);
+    }
+
+    OrionLumenView(String resource, String texturePrefix, String fontResource, Supplier<byte[]> pageSource, boolean smoothText) {
         this.resource = "/assets/orion-client/html/" + resource;
         this.texturePrefix = texturePrefix;
         this.fontResource = fontResource;
         this.pageSource = pageSource;
+        this.smoothText = smoothText;
     }
 
     public boolean ready() {
@@ -77,6 +104,13 @@ public final class OrionLumenView {
     }
 
     static void registerPipelines() { Paint.initialize(); }
+    //? if <26.3 {
+    /*static void preloadPipelines(com.mojang.blaze3d.shaders.ShaderSource source) {
+        RenderSystem.getDevice().precompilePipeline(Paint.SHAPE, source);
+        RenderSystem.getDevice().precompilePipeline(Paint.TEXTURED, source);
+    }
+    *///?}
+
 
     private boolean initialize() {
         try (var html = OrionLumenView.class.getResourceAsStream(resource)) {
@@ -104,7 +138,7 @@ public final class OrionLumenView {
             if (!LumenNative.setFontData(engine, font)) return false;
             LumenNative.setViewport(engine, viewportWidth, viewportHeight);
             byte[] source = pageSource == null ? html.readAllBytes() : pageSource.get();
-            page = LumenNative.pageOpen(engine, source, bytes(""));
+            page = LumenNative.pageOpen(engine, applyHudTheme(source), bytes(""));
             if (page == 0) return false;
             // Первый тик инициализирует скрипт до вызова window.paradox.update.
             LumenNative.pageTick(page, engine, 0F);
@@ -116,6 +150,29 @@ public final class OrionLumenView {
                 unavailable = true;
                 dispose();
             }
+        }
+    }
+
+    private static byte[] applyHudTheme(byte[] source) throws IOException {
+        String html = new String(source, StandardCharsets.UTF_8);
+        int start = html.indexOf(HUD_THEME_IN_PAGE);
+        if (start < 0) return source;
+        int end = html.indexOf('>', start) + 1;
+        if (hudTheme == null) {
+            hudRegular = hudResource("fonts/paradox/ParadoxSans-Regular.ttf");
+            hudBold = hudResource("fonts/paradox/ParadoxSans-Bold.ttf");
+            hudTheme = new String(hudResource("html/hud-theme.css"), StandardCharsets.UTF_8)
+                    .replace("../fonts/paradox/ParadoxSans-", "assets/gleam-hud-");
+        }
+        LumenNative.registerFont(bytes("assets/gleam-hud-Regular.ttf"), hudRegular);
+        LumenNative.registerFont(bytes("assets/gleam-hud-Bold.ttf"), hudBold);
+        return bytes(html.substring(0, start) + "<style>" + hudTheme + "</style>" + html.substring(end));
+    }
+
+    private static byte[] hudResource(String path) throws IOException {
+        try (var stream = OrionLumenView.class.getResourceAsStream(RESOURCE_ROOT + path)) {
+            if (stream == null) throw new IOException("Missing HUD resource " + path);
+            return stream.readAllBytes();
         }
     }
 
@@ -137,7 +194,8 @@ public final class OrionLumenView {
         frameAt = 0;
     }
 
-    public void resize(int width, int height, float ratio) {
+    public boolean resize(int width, int height, float ratio) {
+        boolean changed = pixelRatio != ratio || viewportWidth != width || viewportHeight != height;
         if (pixelRatio != ratio) {
             pixelRatio = ratio;
             LumenNative.setPixelRatio(engine, ratio);
@@ -149,6 +207,7 @@ public final class OrionLumenView {
             viewportHeight = height;
             LumenNative.setViewport(engine, width, height);
         }
+        return changed;
     }
 
     public void update(JsonObject state) {
@@ -232,8 +291,8 @@ public final class OrionLumenView {
         int clips = display.getInt(4);
         long clipBase = 16L + COMMAND_SIZE * (long) count;
         if (count <= 0 || clips < 0 || clipBase + 16L * clips > size) return false;
-        if (RenderSystem.getCompiledPipelineNullable(Paint.SHAPE) == null
-                || RenderSystem.getCompiledPipelineNullable(Paint.TEXTURED) == null) return false;
+        if (ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.SHAPE) == null
+                || ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.TEXTURED) == null) return false;
         while (gradients.size() > GRADIENT_CACHE_LIMIT) {
             Minecraft.getInstance().getTextureManager().release(gradientId(gradients.pollFirstEntry().getKey()));
         }
@@ -273,6 +332,7 @@ public final class OrionLumenView {
             pose.translate(x, y);
             pose.scale(sx, sy);
             Matrix3x2f base = new Matrix3x2f(pose);
+            Matrix3x2f paintPose = base;
             ScreenRectangle viewport = graphics.scissorStack.peek();
             for (int i = 0; i < count; i++) {
                 int at = 16 + i * COMMAND_SIZE;
@@ -282,10 +342,15 @@ public final class OrionLumenView {
                     pose.mul(new Matrix3x2f(commands.getFloat(at+4),commands.getFloat(at+8),commands.getFloat(at+12),
                             commands.getFloat(at+16),commands.getFloat(at+20),commands.getFloat(at+24)));
                     transforms++;
+                    paintPose = new Matrix3x2f(pose);
                     continue;
                 }
                 if (kind == 7) {
-                    if (transforms > 0) { pose.popMatrix(); transforms--; }
+                    if (transforms > 0) {
+                        pose.popMatrix();
+                        transforms--;
+                        paintPose = transforms == 0 ? base : new Matrix3x2f(pose);
+                    }
                     continue;
                 }
 
@@ -320,6 +385,7 @@ public final class OrionLumenView {
                             int index = commands.getInt(at + 48) - 1;
                             if (index < 0 || index > 15 || !atlases.containsKey(index) && !uploadAtlas(index)) continue;
                             pixels = atlases.get(index);
+                            if (smoothText) filter = FilterMode.LINEAR;
                         } else {
                             int id = commands.getInt(at + 48) - 65536;
                             if (id < 0) continue;
@@ -374,7 +440,7 @@ public final class OrionLumenView {
                 var bounds = scissor.intersection(bounds(pose, x0, y0, x1, y1));
                 if (bounds == null) continue;
                 RenderPipeline pipeline = kind == 5 || kind == 8 || kind == 12 ? Paint.TEXTURED : Paint.SHAPE;
-                graphics.guiRenderState.addGuiElement(new Paint(pipeline, texture, scissor, bounds, new Matrix3x2f(pose),
+                graphics.guiRenderState.addGuiElement(new Paint(pipeline, texture, scissor, bounds, paintPose,
                         x0, y0, x1, y1, left, top, w, h, u0, v0, u1, v1, color, radius, kind, variant, circle));
             }
         } finally {
@@ -480,6 +546,7 @@ public final class OrionLumenView {
                          float left, float top, float width, float height, float u0, float v0, float u1, float v1,
                          int color, float radius, int kind, int variant, CircleClip circle) implements GuiElementRenderState {
         private static final Identifier SHADER = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/lumen_paint");
+        //? if >=26.2 {
         private static final VertexFormat FORMAT = VertexFormat.builder(0)
                 .addAttribute("Position", GpuFormat.RGB32_FLOAT)
                 .addAttribute("Color", GpuFormat.RGBA8_UNORM)
@@ -490,6 +557,19 @@ public final class OrionLumenView {
                 .addAttribute("Normal", GpuFormat.RGBA8_SNORM)
                 .addAttribute("LineWidth", GpuFormat.R32_FLOAT)
                 .build();
+        //?} else {
+        /*private static final VertexFormat FORMAT = VertexFormat.builder()
+                .add("Position", VertexFormatElement.POSITION)
+                .add("Color", VertexFormatElement.COLOR)
+                .add("UV0", VertexFormatElement.UV0)
+                .add("UV1", VertexFormatElement.UV1)
+                .add("UV2", VertexFormatElement.UV2)
+                .add("UV3", GleamLumenVertex.UV3)
+                .add("Normal", VertexFormatElement.NORMAL)
+                .padding(1)
+                .add("LineWidth", VertexFormatElement.LINE_WIDTH)
+                .build();
+        *///?}
         private static final RenderPipeline SHAPE = pipeline("lumen_shape", false);
         private static final RenderPipeline TEXTURED = pipeline("lumen_texture", true);
 
@@ -500,8 +580,13 @@ public final class OrionLumenView {
             var builder = RenderPipeline.builder(RenderPipelinesAccessor.orion$getGuiSnippet())
                     .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/" + name))
                     .withVertexShader(SHADER).withFragmentShader(SHADER)
+                    //? if >=26.2 {
                     .withVertexBinding(0, FORMAT);
             if (textured) builder.withShaderDefine("LUMEN_TEXTURED").withBindGroupLayout(BindGroupLayouts.SAMPLER0);
+            //?} else {
+            /*.withVertexFormat(FORMAT, VertexFormat.Mode.QUADS);
+            if (textured) builder.withShaderDefine("LUMEN_TEXTURED").withSampler("Sampler0");
+            *///?}
             return RenderPipelinesAccessor.orion$registerOptional(builder.build());
         }
 
@@ -518,13 +603,13 @@ public final class OrionLumenView {
             // В Normal передаём тип, вариант и радиус скругления с шагом 1/16.
             int flags = kind + 16 * Math.clamp(variant, 0, 4);
             int corner = Math.clamp(Math.round(radius * 16F), 0, 8191);
-            vertices.addVertexWith2DPose(pose, x, y).setColor(color)
+            var vertex = vertices.addVertexWith2DPose(pose, x, y).setColor(color)
                     .setUv(u0 + (u1 - u0) * dx / width, v0 + (v1 - v0) * dy / height)
                     .setUv1(circle.x(), circle.y())
                     .setUv2(Math.min(32767, Math.round(width * 4F)), Math.min(32767, Math.round(height * 4F)))
-                    .setUv3(dx - width / 2F, dy - height / 2F)
                     .setNormal(normalByte(flags), normalByte(corner / 64), normalByte(corner % 64))
                     .setLineWidth(circle.signedRadius());
+            ru.orion.client.render.GleamLumenVertex.uv3(vertex, dx - width / 2F, dy - height / 2F);
         }
 
         private static float normalByte(int value) {

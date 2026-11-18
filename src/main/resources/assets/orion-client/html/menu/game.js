@@ -291,7 +291,7 @@ let gameStatus = '';
 let lastProfile = '';
 let gameReady = false;
 let pendingChatDraft;
-const gameForms = new Set(['game-login','game-publish','game-config-command','add-account','add-config','add-point','add-friend','chat-compose']);
+const gameForms = new Set(['game-login','game-publish','game-config-command','add-account','add-config','add-point','add-friend','chat-compose','chat-recovery-form','chat-link-form']);
 let lastChatRoute = 0;
 function applyGameLanguage(language) {
   uiLanguage = ['en','de','es'].includes(language) ? language : 'ru';
@@ -328,6 +328,31 @@ Object.assign(actions,{
   'friends-refresh'() { sendGame('friends-refresh'); },
   'chat-friends'() { selectPage('friends'); sendGame('section',{page:'friends'}); },
   'chat-retry'() { sendGame('chat-retry'); },
+  'chat-link-start'() { sendGame('chat-link-start'); },
+  'chat-link-copy'() { sendGame('chat-link-copy'); },
+  'chat-link-cancel'() { sendGame('chat-link-cancel'); },
+  'chat-key-settings'() {
+    showDialog(t('Устройства чата'),'<div class="chat-device-actions">'
+      + actionButton('chat-link-approve',t('Подключить новый ПК'),'monitor','primary')
+      + actionButton('chat-key-copy',t('Сохранить ключ чата'),'copy') + '</div>');
+  },
+  'chat-link-approve'() {
+    const label = text(t('Код подключения'));
+    showDialog(t('Подключить новый ПК'),'<p>' + text(t('Введи код, показанный в чате на твоём новом ПК. Подтверждение даст этому ПК доступ к переписке.'))
+      + '</p><form id="chat-link-form" autocomplete="off"><input type="password" required maxlength="43" placeholder="'
+      + label + '" aria-label="' + label + '"><button class="button primary" type="submit">' + text(t('Подтвердить')) + '</button></form>');
+  },
+  'chat-key-copy'() {
+    showDialog(t('Сохранить ключ чата'),'<p>' + text(t('Сохрани код в надёжном месте. Он откроет твою зашифрованную переписку на другом устройстве.'))
+      + '</p>' + actionButton('chat-key-confirm',t('Скопировать код'),'copy','primary'));
+  },
+  'chat-key-confirm'() { closeDialog(); sendGame('chat-key-copy'); },
+  'chat-key-restore'() {
+    const label = text(t('Код восстановления'));
+    showDialog(t('Восстанови ключ чата'),'<form id="chat-recovery-form" autocomplete="off">'
+      + '<input name="code" type="password" required maxlength="43" autocomplete="off" placeholder="' + label + '" aria-label="' + label + '">'
+      + '<button class="button primary" type="submit">' + text(t('Восстановить')) + '</button></form>');
+  },
   'chat-older'() { sendGame('chat-older'); },
   'chat-wave'() { if (chat.peer && !chat.busy) sendGame('chat-send',{body:'👋'}); },
   'friend-profile-back'() {
@@ -357,6 +382,11 @@ Object.assign(actions,{
   },
   logout() { sendGame('logout'); }
 });
+document.addEventListener('click',event => {
+  const control = event.target.closest('button,a[href],input[type="checkbox"],input[type="radio"],summary');
+  if (gameReady && state.interfaceSounds !== false && control && !control.disabled
+      && control.dataset.chatPreference !== 'interfaceSounds') sendGame('ui-sound',{kind:'click'});
+},true);
 document.addEventListener('click',event => {
   const button = event.target.closest('button');
   if (!button) return;
@@ -391,6 +421,7 @@ document.addEventListener('click',event => {
     } else {
       state[d.chatPreference] = checked;
       sendGame('look',{key:d.chatPreference,value:checked});
+      if (checked && d.chatPreference === 'interfaceSounds') sendGame('ui-sound',{kind:'click'});
     }
   } else if (d.colorToggle !== undefined) {
     if (colorPicker?.trigger === button) closeColorPicker();
@@ -425,13 +456,19 @@ document.addEventListener('click',event => {
     sendGame('profile');
   } else if (d.friendChange) {
     sendGame('friend-change',{username:d.username,change:d.friendChange});
+  } else if (d.action === 'friend-offline') {
+    state.friendOffline = button.getAttribute('aria-checked') !== 'true';
+    button.setAttribute('aria-checked',String(state.friendOffline));
+  } else if (d.worldAction) {
+    sendGame('friend-world',{command:d.worldAction,target:d.target,offline:Boolean(state.friendOffline ?? friends.worlds?.offline)});
   } else if (d.friendProfile) {
     sendGame('friend-profile',{username:d.friendProfile});
   } else if (d.chatPeer) {
     sendGame('chat-select',{username:d.chatPeer});
-  } else if (d.equipCosmetic || d.cosmetic) {
-    const [,module,,,style] = cosmeticById(d.equipCosmetic || d.cosmetic);
-    if (style !== undefined && (!state.enabled.has(module) || state.wingsStyle !== style))
+  } else if (d.equipCosmetic) {
+    const [id,module,,,style] = cosmeticById(d.equipCosmetic);
+    if (module === 'PET') sendGame('cosmetic-pet',{id});
+    else if (style !== undefined && (!state.enabled.has(module) || state.wingsStyle !== style))
       sendGame('cosmetic-wings',{style});
     else sendGame('toggle',{id:module});
   } else if (d.configTab) {
@@ -444,10 +481,21 @@ document.addEventListener('click',event => {
     sendGame('look',{key:'accent',value:d.accent});
   }
 },true);
+let soundSearchTimer;
 document.addEventListener('input',event => {
   const field = event.target;
   if (field.id === 'color-popup-hex') {
     if (hexColor.test(field.value)) setPickerValue(field.value,false);
+    return;
+  }
+  if (field.hasAttribute('data-sound-search')) {
+    clearTimeout(soundSearchTimer);
+    const value = field.value;
+    const index = Number(field.dataset.setting);
+    soundSearchTimer = setTimeout(() => {
+      if (state.page === 'module' && state.module === 'SOUND_SETTINGS')
+        sendGame('setting',{id:'SOUND_SETTINGS',index,value});
+    },160);
     return;
   }
   if (field.id === 'chat-search') {
@@ -462,7 +510,7 @@ document.addEventListener('input',event => {
     chatDrafts.set(chat.peer,field.value);
   }
   if (field.type === 'range' && field.dataset?.setting !== undefined) {
-    sendGame('setting-preview',{id:state.module,index:Number(field.dataset.setting),value:field.value});
+    sendGame('setting-preview',{id:state.module,index:Number(field.dataset.setting),value:field.value,sound:field.dataset.sound});
   }
   const colorRow = field.closest('.setting-color-row');
   if (colorRow && colorDrag?.row !== colorRow) syncColorPicker(colorRow);
@@ -478,6 +526,19 @@ document.addEventListener('input',event => {
   }
   if (state.page === 'module' && state.module === 'ENCHANT_GLINT' && field.dataset?.setting !== undefined) updateGlintPreview();
   if (state.page === 'module' && state.module === 'WORLD_CHANGER' && field.dataset?.setting !== undefined) updateWorldPreview();
+});
+document.addEventListener('input',event => {
+  if (event.target.id !== 'friends-search') return;
+  state.friendSearch = event.target.value;
+  const markup = document.createElement('div');
+  markup.innerHTML = renderFriends();
+  for (const selector of ['.friends-list','.friend-detail']) {
+    const old = $('content').querySelector(selector), current = markup.querySelector(selector);
+    if (old && current) old.replaceWith(current);
+    else if (old) old.remove();
+    else if (current) $('content').querySelector('.friends-layout')?.appendChild(current);
+  }
+  scheduleCosmeticPreview();
 });
 let rangeDrag, colorDrag, colorPicker;
 const clampUnit = value => Math.max(0,Math.min(1,value));
@@ -649,6 +710,11 @@ window.addEventListener('resize',positionColorPicker);
 $('content').addEventListener('scroll',positionColorPicker);
 document.addEventListener('keydown',event => {
   const field = event.target;
+  if (event.key === 'Enter' && field.hasAttribute('data-sound-search')) {
+    field.blur();
+    event.preventDefault();
+    return;
+  }
   if (field.type !== 'range') return;
   const [min,max,step] = rangeLimits(field), value = Number(field.value);
   const next = {ArrowLeft:value - step,ArrowDown:value - step,ArrowRight:value + step,ArrowUp:value + step,
@@ -663,8 +729,12 @@ document.addEventListener('change',event => {
   if (field.id === 'color-popup-hex') {
     if (hexColor.test(field.value)) setPickerValue(field.value,true);
   } else if (field.dataset?.setting !== undefined) {
+    if (field.hasAttribute('data-sound-search')) clearTimeout(soundSearchTimer);
     sendGame('setting',{id:state.module,index:Number(field.dataset.setting),
-      value:field.value});
+      value:field.value,sound:field.dataset.sound});
+    if (soundPreviewEnabled && field.dataset.sound) {
+      sendGame('sound-preview',{index:Number(field.dataset.setting),sound:field.dataset.sound});
+    }
   } else if (field.id === 'window-scale') {
     sendGame('look',{key:'windowScale',value:field.value});
   } else if (field.id === 'custom-accent' && /^#[0-9a-f]{6}$/i.test(field.value)) {
@@ -673,15 +743,44 @@ document.addEventListener('change',event => {
     sendGame('look',{key:'accent',value:field.value});
   }
 });
+document.addEventListener('click',event => {
+  const button = event.target.closest('[data-sound-preview]');
+  if (button) sendGame('sound-preview',{index:Number(button.dataset.soundPreview),sound:button.dataset.sound});
+  const preview = event.target.closest('[data-sound-preview-mode]');
+  if (preview) {
+    soundPreviewEnabled = !soundPreviewEnabled;
+    preview.setAttribute('aria-pressed',String(soundPreviewEnabled));
+  }
+  const lookup = event.target.closest('[data-sound-lookup]');
+  if (lookup) {
+    soundLookupOpen = !soundLookupOpen;
+    lookup.setAttribute('aria-expanded',String(soundLookupOpen));
+    $('sound-lookup-fields').hidden = !soundLookupOpen;
+    if (soundLookupOpen) $('sound-lookup-fields').querySelector('input')?.focus({preventScroll:true});
+  }
+});
 function submitGameForm(form) {
   if (form.id === 'chat-compose') {
     const draft = form.querySelector('input').value;
     const body = draft.trim();
-    if (!chat.busy && body && Array.from(body).length <= 500) {
+    if (!chat.busy && !chat.keyBusy && !chat.keyState && body && Array.from(body).length <= 500) {
       const reply = chatReplies.get(chat.peer);
       pendingChatDraft = {peer:chat.peer,draft,reply};
       sendGame('chat-send',reply ? {body,replyTo:String(reply.id)} : {body});
     }
+    return;
+  }
+  if (form.id === 'chat-recovery-form' || form.id === 'chat-link-form') {
+    const linking = form.id === 'chat-link-form';
+    const field = form.querySelector('input');
+    const code = field.value.trim();
+    if (!/^[A-Za-z0-9_-]{43}$/.test(code)) {
+      toast(t(linking ? 'Неверный код подключения' : 'Неверный код восстановления'),'error');
+      return;
+    }
+    field.value = '';
+    closeDialog();
+    sendGame(linking ? 'chat-link-approve' : 'chat-key-restore',{code});
     return;
   }
   if (form.id === 'game-login') {
@@ -787,6 +886,7 @@ function syncModuleSettings(module) {
         updateRange(field);
       }
     } else if (setting.kind === 'text' || setting.kind === 'color' && colorDrag?.field !== field) {
+      if (field.hasAttribute('data-sound-search') && document.activeElement === field) continue;
       field.value = setting.value;
       if (setting.kind === 'color' && field.value.toUpperCase() !== field.closest('.setting-color-row').pickerValue) {
         syncColorPicker(field.closest('.setting-color-row'));
@@ -820,7 +920,7 @@ window.paradox = {
       menu.style.setProperty('opacity',String(.3 + .7 * eased));
       menu.style.setProperty('transform','translateY(' + (10 * (1 - eased)) + 'px)');
     }
-    if (state.page === 'cosmetics') scheduleCosmeticPreview();
+    if (state.page === 'cosmetics' || state.page === 'friends') scheduleCosmeticPreview();
   },
   update(data) {
     let redraw = false, look = false, friendsChanged = false, chatChanged = false;
@@ -835,16 +935,30 @@ window.paradox = {
       setCategoriesExpanded(state.categoriesExpanded);
       if (state.page === 'configs') sendGame('configs',{tab:state.configTab});
       look = redraw = true;
-    } else if (data.language !== uiLanguage) {
-      applyGameLanguage(data.language);
+    } else if (data.language !== uiLanguage || catalog.length !== data.catalog.length
+        || data.catalog.some((item,index) => catalog[index]?.id !== item.id)) {
+      if (data.language !== uiLanguage) applyGameLanguage(data.language);
+      for (const item of data.catalog) {
+        const previous = byId.get(item.id);
+        if (previous) item.settings = previous.settings;
+      }
       catalog.splice(0,catalog.length,...data.catalog);
       ordered.splice(0,ordered.length,...data.catalog);
-      for (const item of data.catalog) byId.get(item.id).description = item.description;
+      byId.clear();
+      for (const item of data.catalog) byId.set(item.id,item);
+      if (state.module && !byId.has(state.module)) {
+        state.module = null;
+        if (state.page === 'module') state.page = 'all';
+      }
       presets.splice(0,presets.length,...data.presets);
       redraw = true;
     }
     if (state.wingsStyle !== data.look.wingsStyle && data.look.wingsStyle !== undefined) {
       state.wingsStyle = data.look.wingsStyle;
+      redraw = redraw || state.page === 'cosmetics';
+    }
+    if (state.cosmeticPet !== (data.look.cosmeticPet ?? '')) {
+      state.cosmeticPet = data.look.cosmeticPet ?? '';
       redraw = redraw || state.page === 'cosmetics';
     }
     if (data.chatRoute > lastChatRoute) {
@@ -883,7 +997,9 @@ window.paradox = {
       lastProfile = accountKey;
       accounts.splice(0,accounts.length,...data.accounts);
       if (state.account !== data.account) {
-        state.friendTab = state.friendProfile = null;
+        state.friendTab = state.friendProfile = state.friendSelected = null;
+        state.friendSearch = '';
+        state.friendOffline = null;
         chatDrafts.clear();
         chatReplies.clear();
         closeChatContext();
@@ -961,11 +1077,24 @@ window.paradox = {
     if (look) applyLook();
     if (redraw) {
       const contentScroll = $('content').scrollTop;
+      const searchFocused = document.activeElement?.id === 'friends-search';
+      const soundField = state.page === 'module' && state.module === 'SOUND_SETTINGS'
+        && document.activeElement?.hasAttribute('data-sound-search') ? document.activeElement : null;
+      const soundDraft = soundField && [soundField.value,soundField.selectionStart,soundField.selectionEnd];
       const scroll = $('content').querySelector('.modules-grid')?.scrollTop ?? 0;
       render(false,!gameReady);
       const grid = $('content').querySelector('.modules-grid');
       if (grid) grid.scrollTop = scroll;
-      else if (state.page === 'friends') $('content').scrollTop = contentScroll;
+      else if (state.page === 'friends') {
+        $('content').scrollTop = contentScroll;
+        if (searchFocused) $('friends-search')?.focus({preventScroll:true});
+      } else if (soundDraft) {
+        const input = document.querySelector('[data-sound-search]');
+        input.value = soundDraft[0];
+        input.focus({preventScroll:true});
+        if (typeof input.setSelectionRange === 'function' && soundDraft[1] !== null)
+          input.setSelectionRange(soundDraft[1],soundDraft[2]);
+      }
     } else if (state.page === 'chat' && (friendsChanged || chatChanged)) patchChat(previousChat,friendsChanged);
     if (titleAccount) {
       if (state.account) sendGame('profile');

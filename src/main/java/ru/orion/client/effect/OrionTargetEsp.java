@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -147,7 +149,7 @@ public final class OrionTargetEsp {
             return;
         }
 
-        Camera camera = client.gameRenderer.mainCamera();
+        Camera camera = GleamMinecraft.camera(client);
         Vec3 targetPosition = interpolatedPosition(target, client.getDeltaTracker().getGameTimeDeltaPartialTick(true));
         if (lastTarget != target || smoothedPosition == null) {
             smoothedPosition = targetPosition;
@@ -252,10 +254,10 @@ public final class OrionTargetEsp {
                 renderPosition.y - cameraPosition.y + target.getBbHeight() * 0.5F,
                 renderPosition.z - cameraPosition.z
         );
-        poseStack.rotate(camera.rotation());
+        ru.orion.client.render.GleamPose.rotate(poseStack, camera.rotation());
 
         if (shouldSpin(selected)) {
-            poseStack.rotate(Axis.ZP.rotation(rotation));
+            ru.orion.client.render.GleamPose.rotate(poseStack, Axis.ZP.rotation(rotation));
         }
 
         poseStack.scale(scale, scale, 1.0F);
@@ -290,8 +292,8 @@ public final class OrionTargetEsp {
             poseStack.pushPose();
             poseStack.translate(0.0F, target.getBbHeight() * 0.5F, 0.0F);
             poseStack.scale(CHAIN_SCALE * hitScale, CHAIN_SCALE * hitScale, CHAIN_SCALE * hitScale);
-            poseStack.rotate(Axis.ZP.rotationDegrees(ringZTilt));
-            poseStack.rotate(Axis.XP.rotationDegrees(ringXTilt));
+            ru.orion.client.render.GleamPose.rotate(poseStack, Axis.ZP.rotationDegrees(ringZTilt));
+            ru.orion.client.render.GleamPose.rotate(poseStack, Axis.XP.rotationDegrees(ringXTilt));
 
             RenderType renderType = OrionEspRenderTypes.texturedDepthTested(texture("chain"));
             context.submitNodeCollector().submitCustomGeometry(
@@ -315,9 +317,9 @@ public final class OrionTargetEsp {
 
     private static void submitRhomb(LevelRenderContext context, PoseStack poseStack, Camera camera, LivingEntity target, float alpha, float hitAnim, int color1, int color2) {
         poseStack.translate(0.0F, target.getBbHeight() * 0.5F, 0.0F);
-        poseStack.rotate(camera.rotation());
+        ru.orion.client.render.GleamPose.rotate(poseStack, camera.rotation());
         float time = (System.currentTimeMillis() % 6283L) / 1000.0F;
-        poseStack.rotate(Axis.ZP.rotationDegrees((float) Math.sin(time) * 360.0F));
+        ru.orion.client.render.GleamPose.rotate(poseStack, Axis.ZP.rotationDegrees((float) Math.sin(time) * 360.0F));
         float scale = 0.5F * (1.0F - MARKER_RADIUS_PULSE * hitAnim);
         poseStack.scale(scale, scale, 1.0F);
 
@@ -358,7 +360,7 @@ public final class OrionTargetEsp {
                 double y = Math.sin(angle * 1.25 + lane * 1.2) * .36;
                 sprites.pushPose();
                 sprites.translate(Math.sin(angle) * radius, y, Math.cos(angle) * radius);
-                sprites.rotate(rotation);
+                ru.orion.client.render.GleamPose.rotate(sprites, rotation);
                 int color = withAlpha(lerpColor(color1, color2, strength), Math.round(210 * alpha * strength * strength));
                 buildTexturedQuad(sprites.last(), vertices, .045F + .24F * strength, color);
                 sprites.popPose();
@@ -369,7 +371,7 @@ public final class OrionTargetEsp {
     private void submitCrystals(LevelRenderContext context, PoseStack poseStack, Camera camera, float alpha, float hitAnim,
                                 int color, float deltaTime, int detail) {
         crystalRotation = (crystalRotation + 0.5F * deltaTime) % 360.0F;
-        poseStack.rotate(Axis.YP.rotationDegrees(crystalRotation));
+        ru.orion.client.render.GleamPose.rotate(poseStack, Axis.YP.rotationDegrees(crystalRotation));
         int crystalColor = withAlpha(color, Math.round(160F * alpha));
         RenderType crystalRenderType = OrionEspRenderTypes.colorQuadsDepthTested();
 
@@ -381,7 +383,7 @@ public final class OrionTargetEsp {
             poseStack.pushPose();
             crystal.applyTransform(poseStack, hitAnim);
             facets.add(poseStack.last().copy());
-            poseStack.rotate(camera.rotation());
+            ru.orion.client.render.GleamPose.rotate(poseStack, camera.rotation());
             blooms.add(poseStack.last().copy());
             poseStack.popPose();
         }
@@ -591,7 +593,7 @@ public final class OrionTargetEsp {
             return true;
         }
 
-        Vec3 from = client.gameRenderer.mainCamera().position();
+        Vec3 from = GleamMinecraft.camera(client).position();
         Vec3 eye = target.getEyePosition();
         Vec3 center = target.position().add(0.0D, target.getBbHeight() * 0.5D, 0.0D);
         return isClearPath(client, from, eye, target) || isClearPath(client, from, center, target);
@@ -819,9 +821,9 @@ public final class OrionTargetEsp {
             float timeRotation = (System.currentTimeMillis() % 36_000L) / 100.0F * rotationSpeed;
             float pulsation = 1.0F + (float) Math.sin(System.currentTimeMillis() % 31_416L / 1000.0D * 2.0D) * 0.1F;
             poseStack.scale(pulsation, pulsation, pulsation);
-            poseStack.rotate(Axis.XP.rotationDegrees(rotationX));
-            poseStack.rotate(Axis.YP.rotationDegrees(rotationY + timeRotation));
-            poseStack.rotate(Axis.ZP.rotationDegrees(rotationZ));
+            ru.orion.client.render.GleamPose.rotate(poseStack, Axis.XP.rotationDegrees(rotationX));
+            ru.orion.client.render.GleamPose.rotate(poseStack, Axis.YP.rotationDegrees(rotationY + timeRotation));
+            ru.orion.client.render.GleamPose.rotate(poseStack, Axis.ZP.rotationDegrees(rotationZ));
         }
     }
 }

@@ -10,8 +10,24 @@ import ru.orion.client.effect.OrionWorldChanger;
 
 @Mixin(CloudRenderer.class)
 public abstract class OrionCloudColorMixin {
+    //? if >=26.3 {
+    @org.spongepowered.asm.mixin.injection.Inject(method = {"render", "renderOit"},
+            at = @At("HEAD"), cancellable = true)
+    private void orion$hideClouds(org.spongepowered.asm.mixin.injection.callback.CallbackInfo callback) {
+        if (ru.orion.client.effect.OrionNoRender.hides(ru.orion.client.effect.OrionNoRender.Option.CLOUDS)) callback.cancel();
+    }
+    //?}
+
+    //? if >=26.3 {
     @ModifyVariable(method = "prepare(ILnet/minecraft/client/CloudStatus;FILnet/minecraft/world/phys/Vec3;JF)V",
             at = @At("HEAD"), argsOnly = true, ordinal = 0)
+    //?} elif >=26.1 {
+        /*@ModifyVariable(method = "render(ILnet/minecraft/client/CloudStatus;FILnet/minecraft/world/phys/Vec3;JF)V",
+            at = @At("HEAD"), argsOnly = true, ordinal = 0)
+    *///?} else {
+    /*@ModifyVariable(method = "render(ILnet/minecraft/client/CloudStatus;FLnet/minecraft/world/phys/Vec3;JF)V",
+            at = @At("HEAD"), argsOnly = true, ordinal = 0)
+    *///?}
     private int orion$applyCloudColor(int vanilla) {
         var config = OrionClient.getConfigOrNull();
         if (config == null || !config.isWorldChangerEnabled() || !config.isWorldChangerCloudsEnabled()) return vanilla;

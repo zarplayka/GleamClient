@@ -1,13 +1,26 @@
 #version 330
 #extension GL_ARB_separate_shader_objects : require
+//? if >=26.3 {
 layout(std140) uniform DynamicTransforms {
     mat4 ModelViewMat;
     mat4 TextureMat;
     vec4 ColorModulator;
     vec3 ModelOffset;
 };
+//?} else {
+/*layout(std140) uniform DynamicTransforms {
+    mat4 ModelViewMat;
+    vec4 ColorModulator;
+    vec3 ModelOffset;
+    mat4 TextureMat;
+};
+*///?}
 uniform sampler2D Sampler0;
+//? if >=26.3 {
 layout(location = 0) out vec4 fragColor;
+//?} else {
+/*out vec4 fragColor;
+*///?}
 void main() {
     vec2 pixel = 1.0 / vec2(textureSize(Sampler0, 0));
     // Копия framebuffer и gl_FragCoord используют одно начало координат на каждом бэкенде.

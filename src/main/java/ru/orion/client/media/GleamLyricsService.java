@@ -73,7 +73,7 @@ public final class GleamLyricsService implements AutoCloseable {
             HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint + "?" + query(track))).timeout(Duration.ofSeconds(10))
                     .header("User-Agent", "GleamClient/0.2.3 (https://gleamclient.xyz)")
                     .header("Accept", "application/json").GET().build();
-            var download = client().sendAsync(request, HttpResponse.BodyHandlers.limiting(HttpResponse.BodyHandlers.ofByteArray(), 1_000_000));
+            var download = client().sendAsync(request, GleamHttpBodyHandlers.bytes(1_000_000));
             HttpResponse<byte[]> response;
             try { response = download.get(10, TimeUnit.SECONDS); }
             finally { if (!download.isDone()) download.cancel(true); }

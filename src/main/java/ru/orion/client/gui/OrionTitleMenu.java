@@ -1,10 +1,19 @@
 package ru.orion.client.gui;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.InputConstants;
+//? if >=26.3 {
 import com.mojang.renderpearl.api.pipeline.ShaderSource;
 import com.mojang.renderpearl.api.pipeline.ShaderType;
+
+//?} else {
+/*import com.mojang.blaze3d.shaders.ShaderSource;
+import com.mojang.blaze3d.shaders.ShaderType;
+
+*///?}
 import com.paradox.lumen.LumenNative;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -60,6 +69,7 @@ public final class OrionTitleMenu {
 
     // На первом кадре ShaderManager ещё использует кэш, в котором есть только ресурсы Minecraft.
     public static ShaderSource startupShaders(ShaderSource vanilla) {
+        //? if >=26.3 {
         return new ShaderSource() {
             @Override
             public String getShader(Identifier id, ShaderType type) {
@@ -76,6 +86,30 @@ public final class OrionTitleMenu {
             @Override public CachedIncludeSource getInclude(Identifier id) { return vanilla.getInclude(id); }
             @Override public void close() { vanilla.close(); }
         };
+        //?} else {
+                /*ShaderSource source = (id, type) -> {
+            if (!OrionClient.MOD_ID.equals(id.getNamespace()) || !"core/lumen_paint".equals(id.getPath()))
+                return vanilla.get(id, type);
+            try {
+                String shader = new String(read(ROOT + type.idConverter().idToFile(id).getPath()), StandardCharsets.UTF_8);
+                var matcher = java.util.regex.Pattern.compile("(?m)^#moj_import <minecraft:([^>]+)>.*$").matcher(shader);
+                StringBuilder expanded = new StringBuilder();
+                while (matcher.find()) {
+                    String include = new String(read("/assets/minecraft/shaders/include/" + matcher.group(1)), StandardCharsets.UTF_8)
+                            .replaceAll("(?m)^#version.*$", "");
+                    matcher.appendReplacement(expanded, java.util.regex.Matcher.quoteReplacement(include));
+                }
+                matcher.appendTail(expanded);
+                return expanded.toString();
+            } catch (IOException failure) {
+                LoggerFactory.getLogger("GleamClient").warn("Не удалось загрузить шейдер заставки", failure);
+                return null;
+            }
+        };
+        OrionLumenView.preloadPipelines(source);
+        return source;
+        *///?}
+
     }
 
     public boolean startupDrawn() { return startupDrawn; }
@@ -163,10 +197,10 @@ public final class OrionTitleMenu {
                 case "add-offline" -> new IasAdd(accounts, "ias.add.offline");
                 default -> null;
             };
-            client.gui.setScreen(accounts);
+            GleamMinecraft.setScreen(client, accounts);
         } catch (ReflectiveOperationException | LinkageError failure) {
             LoggerFactory.getLogger("GleamClient").warn("Не удалось открыть экран аккаунтов IAS", failure);
-            client.gui.setScreen(new AlertScreen(() -> client.gui.setScreen(title),
+            GleamMinecraft.setScreen(client, new AlertScreen(() -> GleamMinecraft.setScreen(client, title),
                     Component.literal(OrionGuiLanguage.translate("Аккаунты Minecraft")),
                     Component.literal(OrionGuiLanguage.translate("Не удалось открыть аккаунты Minecraft"))));
         }
@@ -175,13 +209,13 @@ public final class OrionTitleMenu {
     private void openIasChoice(Minecraft client) {
         IasAdd request = pendingIasAdd;
         if (request == null) return;
-        Screen current = client.gui.screen();
+        Screen current = GleamMinecraft.screen(client);
         // IAS может сначала показать свой экран подтверждения, затем вернуть тот же экземпляр списка.
         if (current instanceof AlertScreen) return;
         pendingIasAdd = null;
         if (current != request.accounts()) return;
-        if (pressIasButton(current, "ias.accounts.add") && client.gui.screen() != current)
-            pressIasButton(client.gui.screen(), request.choice());
+        if (pressIasButton(current, "ias.accounts.add") && GleamMinecraft.screen(client) != current)
+            pressIasButton(GleamMinecraft.screen(client), request.choice());
     }
 
     private static boolean pressIasButton(Screen screen, String key) {
@@ -257,7 +291,9 @@ public final class OrionTitleMenu {
                 if (value.isJsonPrimitive()) value = JsonParser.parseString(value.getAsString());
             }
             if (value.isJsonObject() && value.getAsJsonObject().has("action")) {
-                action.accept(value.getAsJsonObject().get("action").getAsString());
+                String name = value.getAsJsonObject().get("action").getAsString();
+                OrionClickGuiScreen.playInterfaceSound(Minecraft.getInstance(), "click");
+                if (!"account-dropdown".equals(name)) action.accept(name);
                 return;
             }
         }

@@ -1,5 +1,7 @@
 package ru.orion.client.command;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonObject;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.ArgumentType;
@@ -166,11 +168,11 @@ public final class OrionFakeBanCommand {
                 .append(Component.literal(SECOND_LINE_INDENT).append(text(reason)))
                 .append("\n");
 
-        client.gui.hud.getChat().addClientSystemMessage(message);
+        GleamMinecraft.addChatMessage(client, message);
     }
 
     private static void feedback(Minecraft client, String message) {
-        client.gui.hud.getChat().addClientSystemMessage(Component.literal(message));
+        GleamMinecraft.addChatMessage(client, Component.literal(message));
     }
 
     private static MutableComponent icon() {

@@ -20,6 +20,8 @@ html[data-light]{--accent:#4257b2;--accent-ink:#fff;--surface:#f6f7fb;--hover:#e
 .edition{margin-top:3px;color:#e4e9f2;font-size:12px;line-height:16px;text-shadow:0 1px 3px #0b1118c0}
 .menu{position:absolute;top:0;left:0;display:flex;flex-direction:column;gap:6px}
 .item{position:relative;display:flex;align-items:center;gap:11px;width:100%;height:41px;padding:0 12px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink);text-align:left;font:14px sans-serif;cursor:pointer}
+.item,.account,.tool,.account-option{transition:background-color .16s,border-color .16s}
+@media(prefers-reduced-motion:reduce){.item,.account,.tool,.account-option{transition:none}}
 .item:hover,.item:focus{background:var(--hover);border-color:var(--icon)}
 .item:active{transform:scale(.985)}
 .item[disabled]{color:var(--muted);cursor:default}
@@ -226,7 +228,10 @@ function showAccounts(open) {
 }
 function activate(button) {
   if (!revealed || !button || button.disabled) return;
-  if (button === accountButton) showAccounts(!accountsOpen);
+  if (button === accountButton) {
+    showAccounts(!accountsOpen);
+    window.webkit.messageHandlers.paradox.postMessage(JSON.stringify({action:'account-dropdown'}));
+  }
   else {
     if (accountsOpen) showAccounts(false);
     choose(button);

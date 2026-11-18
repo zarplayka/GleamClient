@@ -1,5 +1,7 @@
 package ru.orion.client.basketball.engine;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraft.client.Minecraft;
@@ -146,7 +148,7 @@ public final class OrionBasketballMatch {
     }
     public void pickup() {
         var client = Minecraft.getInstance();
-        if (!active() || !phase.equals("play") || client.player == null || client.gui.screen() != null) return;
+        if (!active() || !phase.equals("play") || client.player == null || GleamMinecraft.screen(client) != null) return;
         if (holding()) {
             command(dribble ? "pickup" : "dribble", 0);
         } else if (owner.isEmpty() && canReachBall(client)) {
@@ -201,10 +203,10 @@ public final class OrionBasketballMatch {
         var feet=client.player.position().subtract(origin);
         if(feet.lengthSqr()>10000) { close("Ты покинул площадку",true);return; }
         OrionBasketballInput.consumeHoop();
-        if(OrionBasketballInput.consumeTake()&&client.gui.screen()==null)pickup();
-        boolean use=client.gui.screen()==null&&client.options.keyUse.isDown();
-        boolean attack=client.gui.screen()==null&&client.options.keyAttack.isDown();
-        if(holding()&&phase.equals("play")&&client.gui.screen()==null) {
+        if(OrionBasketballInput.consumeTake()&&GleamMinecraft.screen(client)==null)pickup();
+        boolean use=GleamMinecraft.screen(client)==null&&client.options.keyUse.isDown();
+        boolean attack=GleamMinecraft.screen(client)==null&&client.options.keyAttack.isDown();
+        if(holding()&&phase.equals("play")&&GleamMinecraft.screen(client)==null) {
             if(use&&!useDown) {
                 if(dribble)command("pickup",0);
                 charging=true;chargeAt=now;

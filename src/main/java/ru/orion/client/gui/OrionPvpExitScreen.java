@@ -1,5 +1,7 @@
 package ru.orion.client.gui;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
@@ -39,7 +41,11 @@ public final class OrionPvpExitScreen extends Screen {
     @Override public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         context.fill(0, 0, width, height, 0x99000000);
     }
+    //? if >=26.1 {
     @Override public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+    //?} else {
+    /*@Override public void render(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+    *///?}
         super.extractRenderState(context, mouseX, mouseY, delta);
         int scale = Math.max(1, Math.min(6, Minecraft.getInstance().getWindow().getGuiScale()));
         float fit = Math.max(0.01F, Math.min(1F, Math.min((width - 12F) / DESIGN_W, (height - 12F) / DESIGN_H)));
@@ -107,7 +113,7 @@ public final class OrionPvpExitScreen extends Screen {
             NativeImage pixels = new NativeImage(w,h,true); OrionHudRenderer.copyPixels(image,pixels);
             texture = new DynamicTexture(() -> "orion_pvp_exit",pixels);
             Minecraft.getInstance().getTextureManager().register(TEXTURE,texture); pixelW=w; pixelH=h;
-        } else if (texture.getPixels() != null && !texture.getPixels().isClosed()) { OrionHudRenderer.copyPixels(image,texture.getPixels()); texture.upload(); }
+        } else if (texture.getPixels() != null && !ru.orion.client.render.GleamNativeImages.isClosed(texture.getPixels())) { OrionHudRenderer.copyPixels(image,texture.getPixels()); texture.upload(); }
     }
     private static float width(Graphics2D g, Font font, String text) {
         Font f=font.deriveFont(font.getSize2D()*16F); return (float)g.getFontMetrics(f).getStringBounds(text,g).getWidth()/16F;
@@ -125,12 +131,12 @@ public final class OrionPvpExitScreen extends Screen {
     @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || guiW == 0 || guiH == 0) return super.mouseClicked(event,doubleClick);
         int action = actionAt(event.x(), event.y());
-        if (action == 1) minecraft.gui.setScreen(previous);
+        if (action == 1) GleamMinecraft.setScreen(minecraft, previous);
         if (action == 2) minecraft.disconnectFromWorld(ClientLevel.DEFAULT_QUIT_MESSAGE);
         return true;
     }
     @Override public boolean keyPressed(KeyEvent event) {
-        if(event.key()==InputConstants.KEY_ESCAPE) { minecraft.gui.setScreen(previous); return true; }
+        if(event.key()==InputConstants.KEY_ESCAPE) { GleamMinecraft.setScreen(minecraft, previous); return true; }
         return super.keyPressed(event);
     }
     @Override public void removed() {

@@ -98,7 +98,7 @@ public final class OrionHitParticles {
             PoseStack stack = context.poseStack();
             stack.pushPose();
             stack.translate(position.x, position.y, position.z);
-            stack.rotate(camera.orientation);
+            ru.orion.client.render.GleamPose.rotate(stack, camera.orientation);
             visible.add(new RenderedParticle(stack.last().copy(), size, fade, angle));
             stack.popPose();
         }

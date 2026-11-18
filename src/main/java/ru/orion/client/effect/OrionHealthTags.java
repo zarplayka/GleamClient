@@ -103,7 +103,7 @@ public final class OrionHealthTags {
                 String value = health + (options.mode == 2 ? "%" : "");
                 int absorption = Mth.ceil(living.getAbsorptionAmount());
                 if (absorption > 0) value += " +" + absorption;
-                submitNumber(context, client.font, value, 0xFFFF737A, dx,
+                submitNumber(context, client.font, value, options.getValueArgb(), dx,
                         dy + baseLift(living, options), dz, cameraState, options.scale);
             }
         }
@@ -142,7 +142,7 @@ public final class OrionHealthTags {
         PoseStack stack = context.poseStack();
         stack.pushPose();
         stack.translate(x, y, z);
-        stack.rotate(camera.orientation);
+        ru.orion.client.render.GleamPose.rotate(stack, camera.orientation);
         stack.scale(SCALE * scale, -SCALE * scale, SCALE * scale);
         var text = Component.literal(value).getVisualOrderText();
         context.submitNodeCollector().submitText(stack, -font.width(text) / 2F, 0, text, true,
@@ -196,7 +196,7 @@ public final class OrionHealthTags {
 
             poseStack.pushPose();
             poseStack.translate(dx, dy + baseLift + rowLift * options.scale, dz);
-            poseStack.rotate(cameraState.orientation);
+            ru.orion.client.render.GleamPose.rotate(poseStack, cameraState.orientation);
             poseStack.scale(-SCALE * options.scale, SCALE * options.scale, SCALE * options.scale);
 
             submitHeart(context, poseStack, HEART_CONTAINER, x, -zOffset);

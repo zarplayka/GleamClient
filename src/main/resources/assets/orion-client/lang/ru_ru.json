@@ -3,6 +3,7 @@
   "key.orion-client.add_waypoint": "Создать метку",
   "key.orion-client.open_click_gui": "Открыть GleamClient ClickGUI",
   "key.orion-client.zoom": "Приближение",
+  "key.orion-client.freelook": "FreeLook",
   "key.orion-client.secondary_zoom": "Второе приближение",
   "key.orion-client.lock_slot": "Защитить слот",
   "key.categories.orion-client.orion_client": "GleamClient",

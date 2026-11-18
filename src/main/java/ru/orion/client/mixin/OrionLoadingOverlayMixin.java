@@ -1,4 +1,7 @@
+//~ legacy_gui
 package ru.orion.client.mixin;
+
+import ru.orion.client.GleamMinecraft;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.NarratorStatus;
@@ -28,9 +31,13 @@ abstract class OrionLoadingOverlayMixin {
         if (fadeOutStart < 0) {
             if (menu.renderStartup(graphics, reload.getActualProgress())) ci.cancel();
         } else if (menu.startupDrawn()) {
-            if (minecraft.gui.screen() instanceof TitleScreen && menu.renderStartup(graphics, 1F)) {
+            if (GleamMinecraft.screen(minecraft) instanceof TitleScreen && menu.renderStartup(graphics, 1F)) {
                 // tick() уже завершил reload, проверил ошибки и вызвал штатный callback.
+                //? if >=26.2 {
                 minecraft.gui.setOverlay(null);
+                //?} else {
+                /*minecraft.setOverlay(null);
+                *///?}
                 ci.cancel();
             } else {
                 menu.release();

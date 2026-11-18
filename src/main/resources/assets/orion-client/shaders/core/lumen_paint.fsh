@@ -1,21 +1,61 @@
 #version 330
 #extension GL_ARB_separate_shader_objects : require
 
+//? if >=26.3 {
 #include <minecraft:dynamictransforms.glsl>
+//?} else {
+/*#moj_import <minecraft:dynamictransforms.glsl>
+*///?}
 
 #ifdef LUMEN_TEXTURED
 uniform sampler2D Sampler0;
 #endif
 
+//? if >=26.3 {
 layout(location = 0) in vec4 tint;
+//?} else {
+/*in vec4 tint;
+*///?}
+//? if >=26.3 {
 layout(location = 1) in vec2 texCoord;
+//?} else {
+/*in vec2 texCoord;
+*///?}
+//? if >=26.3 {
 layout(location = 2) in vec2 localPosition;
+//?} else {
+/*in vec2 localPosition;
+*///?}
+//? if >=26.3 {
 layout(location = 3) flat in vec2 halfSize;
+//?} else {
+/*flat in vec2 halfSize;
+*///?}
+//? if >=26.3 {
 layout(location = 4) flat in float radius;
+//?} else {
+/*flat in float radius;
+*///?}
+//? if >=26.3 {
 layout(location = 5) flat in ivec2 primitive;
+//?} else {
+/*flat in ivec2 primitive;
+*///?}
+//? if >=26.3 {
 layout(location = 6) in vec2 guiPosition;
+//?} else {
+/*in vec2 guiPosition;
+*///?}
+//? if >=26.3 {
 layout(location = 7) flat in vec3 themeCircle;
+//?} else {
+/*flat in vec3 themeCircle;
+*///?}
+//? if >=26.3 {
 layout(location = 0) out vec4 fragColor;
+//?} else {
+/*out vec4 fragColor;
+*///?}
 
 float boxDistance(vec2 position, float r) {
     vec2 corner = abs(position) - halfSize + r;

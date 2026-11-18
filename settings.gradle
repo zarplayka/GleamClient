@@ -8,4 +8,17 @@ pluginManagement {
     }
 }
 
+plugins {
+    id 'dev.kikugie.stonecutter' version '0.9.8'
+}
+
 rootProject.name = 'GleamClient'
+
+stonecutter {
+    centralScript = 'build.gradle'
+    kotlinController = false
+    create(rootProject) {
+        versions('1.21.11', '26.1.2', '26.2', '26.3')
+        vcsVersion = '26.3'
+    }
+}

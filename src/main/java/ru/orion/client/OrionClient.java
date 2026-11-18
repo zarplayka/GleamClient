@@ -15,6 +15,7 @@ import ru.orion.client.hud.OrionFoodSync;
 import ru.orion.client.hud.OrionFoodTooltip;
 import ru.orion.client.discord.OrionDiscordPresenceService;
 import ru.orion.client.effect.OrionBreadcrumbs;
+import ru.orion.client.effect.OrionFreeLook;
 import ru.orion.client.effect.OrionChatHistory;
 import ru.orion.client.effect.OrionSelfTag;
 import ru.orion.client.effect.OrionArmorIndicator;
@@ -54,6 +55,7 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionConfigManager configManager = new OrionConfigManager();
     private final ru.orion.client.effect.OrionHalo halo = new ru.orion.client.effect.OrionHalo(configManager);
     private final ru.orion.client.effect.OrionWings wings = new ru.orion.client.effect.OrionWings(configManager);
+    private final ru.orion.client.cosmetic.GleamPetRenderer pets = new ru.orion.client.cosmetic.GleamPetRenderer(configManager);
     private final ru.orion.client.effect.OrionWaypoints waypoints = new ru.orion.client.effect.OrionWaypoints(configManager);
     private final OrionFootball football = new OrionFootball(configManager);
     private final OrionFootballHud footballHud = new OrionFootballHud(football, configManager);
@@ -62,6 +64,7 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionHotbarLocks hotbarLocks = new OrionHotbarLocks(configManager);
     private final OrionInventoryHud inventoryHud = new OrionInventoryHud(configManager);
     private final OrionStatusHud statusHud = new OrionStatusHud(configManager);
+    private final ru.orion.client.hud.OrionTargetHud targetHud = new ru.orion.client.hud.OrionTargetHud(configManager);
     private final OrionKeybinds keybinds = new OrionKeybinds(configManager);
     private final OrionDiscordPresenceService discordPresenceService = new OrionDiscordPresenceService(configManager);
     private final OrionJumpCircleEffect jumpCircleEffect = new OrionJumpCircleEffect(configManager);
@@ -111,6 +114,7 @@ public final class OrionClient implements ClientModInitializer {
         hotbarLocks.register();
         inventoryHud.register();
         keybinds.register();
+        OrionFreeLook.register();
         ru.orion.client.effect.OrionEmotes.register();
         OrionFoodSync.register();
         OrionFoodTooltip.register();
@@ -120,6 +124,7 @@ public final class OrionClient implements ClientModInitializer {
         chinaHeadRenderer.register();
         halo.register();
         wings.register();
+        pets.register();
         healthTags.register();
         worldParticles.register();
         breadcrumbs.register();
@@ -136,9 +141,12 @@ public final class OrionClient implements ClientModInitializer {
         mediaPlayerHud.register();
         new ru.orion.client.media.GleamWorldLyrics(configManager, mediaController).register();
         hitColorFlash.register();
+        ru.orion.client.gui.GleamScreenSnow.register();
         hitSound.register();
         customCrosshair.register();
         betterNearHud.register();
+        new ru.orion.client.hud.OrionPotionsHud(configManager).register();
+        targetHud.register();
         fakeBanCommand.register();
         ru.orion.client.hud.OrionHudDrag.registerOverlay();
     }
@@ -151,11 +159,18 @@ public final class OrionClient implements ClientModInitializer {
         return instance;
     }
 
+    public static ru.orion.client.hud.OrionTargetHud getTargetHudOrNull() {
+        return instance == null ? null : instance.targetHud;
+    }
+
     /** Safe accessor for mixins/early callers; returns null before init instead of throwing. */
+
     public static OrionConfig getConfigOrNull() {
         OrionClient current = instance;
         return current == null ? null : current.configManager.getConfig();
     }
+
+    public ru.orion.client.cosmetic.GleamPetRenderer getPets() { return pets; }
 
     public OrionConfigManager getConfigManager() {
         return configManager;

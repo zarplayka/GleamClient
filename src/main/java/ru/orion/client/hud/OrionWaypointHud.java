@@ -1,11 +1,11 @@
 package ru.orion.client.hud;
 
-import com.mojang.blaze3d.platform.NativeImage;
+import ru.orion.client.GleamMinecraft;
+
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
@@ -14,15 +14,6 @@ import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.effect.OrionWaypoints;
 
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.geom.Ellipse2D;
-import java.awt.geom.Path2D;
-import java.awt.geom.RoundRectangle2D;
-import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
@@ -39,7 +30,7 @@ public final class OrionWaypointHud {
     private final OrionConfigManager manager;
     private final Map<OrionConfig.Waypoint, Entry> entries = new IdentityHashMap<>();
     private Object level;
-    private int nextId;
+    private final OrionHudView view = new OrionHudView("hud_waypoints");
 
     public OrionWaypointHud(OrionConfigManager manager) { this.manager = manager; }
     public void register() {
@@ -49,16 +40,16 @@ public final class OrionWaypointHud {
     private void render(GuiGraphicsExtractor context, DeltaTracker tracker) {
         Minecraft client = Minecraft.getInstance();
         OrionConfig config = manager.getConfig();
-        if (client.level != level) { releaseAll(client); level = client.level; }
+        if (client.level != level) { releaseAll(); level = client.level; }
         if (client.player == null || client.level == null || (!config.isWaypointsEnabled() && !config.isDeathPointEnabled())) {
-            releaseAll(client); return;
+            releaseAll(); return;
         }
-        if (client.gui.screen() != null) return;
-        var camera = client.gameRenderer.gameRenderState().levelRenderState.cameraRenderState;
-        if (camera == null || !camera.initialized || camera.pos == null || camera.projectionMatrix == null || camera.viewRotationMatrix == null) return;
+        if (GleamMinecraft.screen(client) != null) return;
+        var camera = GleamMinecraft.levelState(client).cameraRenderState;
+        if (camera == null || !camera.initialized || camera.pos == null || ru.orion.client.render.GleamCameraMatrices.projection(camera) == null || ru.orion.client.render.GleamCameraMatrices.view(camera) == null) return;
         int screenW = context.guiWidth(), screenH = context.guiHeight();
         if (screenW < 72 || screenH < 48) return;
-        Matrix4f matrix = new Matrix4f(camera.projectionMatrix).mul(camera.viewRotationMatrix);
+        Matrix4f matrix = new Matrix4f(ru.orion.client.render.GleamCameraMatrices.projection(camera)).mul(ru.orion.client.render.GleamCameraMatrices.view(camera));
         String world = OrionWaypoints.worldKey(client);
         List<Candidate> candidates = new ArrayList<>();
         if (config.isWaypointsEnabled()) for (var point : config.getWaypoints()) {
@@ -70,7 +61,7 @@ public final class OrionWaypointHud {
         candidates.sort(Comparator.comparing((Candidate c) -> !c.death).thenComparingDouble(Candidate::distanceSq));
         Set<OrionConfig.Waypoint> live = Collections.newSetFromMap(new IdentityHashMap<>());
         List<Bounds> occupied = new ArrayList<>();
-        int scale = Math.max(1, Math.min(6, client.getWindow().getGuiScale()));
+        var scene = new OrionHudView.Scene(screenW, screenH);
         int drawn = 0, considered = 0;
         for (Candidate candidate : candidates) {
             if (drawn >= config.getWaypointVisibleLimit()) break;
@@ -86,23 +77,19 @@ public final class OrionWaypointHud {
             int altitude = (int) Math.round(point.y - client.player.getY());
             if (detailed && Math.abs(altitude) > 2) subtitle += " · " + (altitude > 0 ? "+" : "") + altitude + " м";
             String coordinates = detailed && config.isWaypointShowCoordinates() ? point.x + " · " + point.y + " · " + point.z : "";
-            Entry entry = entries.computeIfAbsent(point, ignored -> new Entry(nextId++));
+            Entry entry = entries.computeIfAbsent(point, ignored -> new Entry());
             live.add(point);
-            entry.update(client, point, candidate.death, scale, detailed, subtitle, coordinates,
-                    projection.edge ? Math.round(projection.angle * 16F / (float) Math.PI) : Integer.MIN_VALUE, screenW - EDGE_MARGIN * 2);
-            if (entry.texture == null) continue;
+            int angle = projection.edge ? Math.round(projection.angle * 16F / (float) Math.PI) : Integer.MIN_VALUE;
+            entry.update(point, candidate.death, detailed, subtitle, coordinates, angle, screenW - EDGE_MARGIN * 2);
             int x = Math.round(projection.x - 14F), y = Math.round(projection.y - entry.height / 2F);
             Bounds bounds = place(x, y, entry.width, entry.height, screenW, screenH, occupied);
             if (bounds == null) continue;
             occupied.add(bounds);
-            context.blit(entry.id, bounds.x, bounds.y, bounds.x + entry.width, bounds.y + entry.height, 0F, 1F, 0F, 1F);
+            entry.draw(scene, bounds.x, bounds.y);
             drawn++;
         }
-        var iterator = entries.entrySet().iterator();
-        while (iterator.hasNext()) {
-            var cached = iterator.next();
-            if (!live.contains(cached.getKey())) { cached.getValue().release(client); iterator.remove(); }
-        }
+        entries.keySet().removeIf(point -> !live.contains(point));
+        if (drawn != 0) view.draw(context, scene, 0, 0, screenW, screenH);
     }
 
     static boolean directlyAimed(Projection projection, int width, int height) {
@@ -142,111 +129,55 @@ public final class OrionWaypointHud {
         return distance >= 1000 ? String.format(Locale.ROOT, "%.1f км", distance / 1000) : Math.round(Math.max(0, distance)) + " м";
     }
 
-    private final class Entry {
-        final Identifier id;
-        DynamicTexture texture;
-        int width, height, pixelWidth, pixelHeight;
-        List<Object> fingerprint;
-        long updated;
-        Entry(int number) { id = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "hud_waypoint_" + number); }
-        void update(Minecraft client, OrionConfig.Waypoint point, boolean death, int scale, boolean detailed,
+    private static final class Entry {
+        private int width, height;
+        private Marker marker;
+        private long updated;
+
+        void update(OrionConfig.Waypoint point, boolean death, boolean detailed,
                     String distance, String coords, int angle, int maxWidth) {
-            List<Object> next = List.of(point.name, point.color == null ? "" : point.color, death, scale, detailed, distance, coords, angle, maxWidth);
+            Marker next = new Marker(point.name, point.color, death, detailed, distance, coords, angle, maxWidth);
             long now = System.nanoTime();
-            if (next.equals(fingerprint)) return;
-            if (texture != null && now - updated < UPDATE_NS && fingerprint != null
-                    && fingerprint.get(3).equals(scale) && fingerprint.get(4).equals(detailed) && fingerprint.get(8).equals(maxWidth)) return;
-            BufferedImage image = drawMarker(point.name, distance, coords, point.color, death, scale, detailed, angle, maxWidth);
-            width = image.getWidth() / scale; height = image.getHeight() / scale;
-            if (texture == null || image.getWidth() != pixelWidth || image.getHeight() != pixelHeight) {
-                release(client);
-                NativeImage pixels = new NativeImage(image.getWidth(), image.getHeight(), true);
-                OrionHudRenderer.copyPixels(image, pixels);
-                texture = new DynamicTexture(() -> "orion_waypoint", pixels);
-                client.getTextureManager().register(id, texture);
-                pixelWidth = image.getWidth(); pixelHeight = image.getHeight();
+            if (next.equals(marker) || (marker != null && now - updated < UPDATE_NS
+                    && marker.detailed == detailed && marker.maxWidth == maxWidth && marker.angle == angle)) return;
+            var font = Minecraft.getInstance().font;
+            int text = font.width(distance);
+            if (detailed) text = Math.max(text, Math.max(Math.min(130, font.width(point.name)), font.width(coords)));
+            width = Math.min(maxWidth, Math.max(48, 32 + text));
+            height = detailed ? coords.isEmpty() ? 32 : 43 : 24;
+            marker = next;
+            updated = now;
+        }
+
+        void draw(OrionHudView.Scene scene, int x, int y) {
+            int rgb = marker.death ? 0xffff6262 : ru.orion.client.effect.OrionWorldChanger.parseOpaqueColor(marker.color);
+            String accent = OrionHudView.color(rgb);
+            scene.surface(x, y, width, height, 6);
+            scene.box(x + 5, y + (height - 18) / 2F, 18, 18, 3, OrionHudView.color(rgb & 0xffffff | 0x18000000), null);
+            boolean edge = marker.angle != Integer.MIN_VALUE;
+            String icon = edge ? OrionHudView.arrow(marker.angle * 11.25F + 90)
+                    : marker.death ? "M4 12V8a6 6 0 0 1 12 0v4l-3 2v3H7v-3Z M7 9h1 M12 9h1"
+                    : "M10 18C-2 7 4 2 10 2S22 7 10 18Z M10 5a3 3 0 1 1 0 6a3 3 0 1 1 0-6";
+            scene.icon(icon, x + 7, y + (height - 14) / 2F, 14, accent, edge);
+            if (marker.detailed) {
+                scene.label(marker.name, x + 28, y + 2, width - 32, 12, 9, "var(--text)", "left", true);
+                scene.label(marker.distance, x + 28, y + 14, width - 32, 12, 7.5F, accent, "left", false);
+                if (!marker.coords.isEmpty())
+                    scene.label(marker.coords, x + 28, y + 26, width - 32, 12, 7.5F, "var(--muted)", "left", false);
             } else {
-                var pixels = texture.getPixels();
-                if (pixels == null || pixels.isClosed()) { release(client); return; }
-                OrionHudRenderer.copyPixels(image, pixels); texture.upload();
+                scene.label(marker.distance, x + 28, y, width - 32, height, 9, "var(--text)", "left", true);
             }
-            fingerprint = next; updated = now;
         }
-        void release(Minecraft client) { if (texture != null) client.getTextureManager().release(id); texture = null; fingerprint = null; }
     }
 
-    private void releaseAll(Minecraft client) { for (Entry entry : entries.values()) entry.release(client); entries.clear(); }
+    private record Marker(String name, String color, boolean death, boolean detailed, String distance,
+                          String coords, int angle, int maxWidth) {}
 
-    static BufferedImage drawMarker(String name, String distance, String coords, String color, boolean death, int scale,
-                                    boolean detailed, int angle, int maxWidth) {
-        Font title = font(Font.BOLD, 9), small = font(Font.PLAIN, 7.5F);
-        BufferedImage probe = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D pg = probe.createGraphics(); hints(pg);
-        float available = Math.max(4, maxWidth - 36);
-        String shown = ellipsize(pg, title, name, Math.min(130, available));
-        String sub = ellipsize(pg, small, distance, available);
-        String location = ellipsize(pg, small, coords, available);
-        float text = detailed ? Math.max(textWidth(pg, title, shown), Math.max(textWidth(pg, small, sub), textWidth(pg, small, location))) : textWidth(pg, title, sub);
-        int width = Math.min(maxWidth, Math.max(48, (int) Math.ceil(32 + text)));
-        int height = detailed ? coords.isEmpty() ? 32 : 43 : 24;
-        pg.dispose();
-        BufferedImage image = new BufferedImage(width * scale, height * scale, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = image.createGraphics(); hints(g); g.scale(scale, scale);
-        Color accent = death ? new Color(0xFF6262) : OrionHudRenderer.parseColor(color);
-        g.setColor(new Color(15, 17, 23, 235)); g.fill(new RoundRectangle2D.Float(.5F, .5F, width - 1, height - 1, 9, 9));
-        g.setStroke(new BasicStroke(.65F)); g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 100));
-        g.draw(new RoundRectangle2D.Float(.5F, .5F, width - 1, height - 1, 9, 9));
-        g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 24));
-        g.fill(new RoundRectangle2D.Float(5, (height - 18) / 2F, 18, 18, 6, 6));
-        Graphics2D symbol = (Graphics2D) g.create();
-        symbol.translate(14, height / 2F); symbol.setStroke(new BasicStroke(1.2F, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)); symbol.setColor(accent);
-        if (angle != Integer.MIN_VALUE) {
-            symbol.rotate(angle * Math.PI / 16);
-            Path2D.Float arrow = new Path2D.Float(); arrow.moveTo(5, 0); arrow.lineTo(-4, -4); arrow.lineTo(-2, 0); arrow.lineTo(-4, 4); arrow.closePath(); symbol.fill(arrow);
-        } else if (death) {
-            symbol.draw(new RoundRectangle2D.Float(-4, -5, 8, 8, 5, 5));
-            symbol.fill(new Ellipse2D.Float(-2.5F, -2, 1.8F, 1.8F)); symbol.fill(new Ellipse2D.Float(.7F, -2, 1.8F, 1.8F));
-            symbol.draw(new java.awt.geom.Line2D.Float(-2, 3, -2, 5)); symbol.draw(new java.awt.geom.Line2D.Float(2, 3, 2, 5));
-        } else {
-            Path2D.Float pin = new Path2D.Float(); pin.moveTo(0, 6); pin.curveTo(-9, -2, -4, -6, 0, -6); pin.curveTo(4, -6, 9, -2, 0, 6); pin.closePath(); symbol.draw(pin);
-            symbol.draw(new Ellipse2D.Float(-1.8F, -3.8F, 3.6F, 3.6F));
-        }
-        symbol.dispose();
-        if (detailed) {
-            drawText(g, title, shown, 28, 12, Color.WHITE);
-            drawText(g, small, sub, 28, 24, accent);
-            if (!location.isEmpty()) drawText(g, small, location, 28, 36, new Color(164, 172, 190));
-        } else drawText(g, title, sub, 28, 15, Color.WHITE);
-        g.dispose(); return image;
+    private void releaseAll() {
+        entries.clear();
+        view.dispose();
     }
 
-    private static void drawText(Graphics2D g, Font font, String text, float x, float y, Color color) {
-        g.setFont(font); g.setColor(new Color(0, 0, 0, 100)); g.drawString(text, x + .5F, y + .7F);
-        g.setColor(color); g.drawString(text, x, y);
-    }
-    private static Font font(int style, float size) {
-        for (String name : new String[]{"Inter", "Segoe UI", Font.SANS_SERIF}) {
-            Font font = new Font(name, style, 1).deriveFont(size);
-            if (font.canDisplay('Я') && font.canDisplay('ё')) return font;
-        }
-        return new Font(Font.SANS_SERIF, style, 1).deriveFont(size);
-    }
-    private static void hints(Graphics2D g) {
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-    }
-    private static float textWidth(Graphics2D g, Font font, String text) {
-        return (float) g.getFontMetrics(font.deriveFont(font.getSize2D() * 16F)).getStringBounds(text, g).getWidth() / 16F;
-    }
-    private static String ellipsize(Graphics2D g, Font font, String text, float max) {
-        if (textWidth(g, font, text) <= max) return text;
-        int end = text.length();
-        while (end > 0 && textWidth(g, font, text.substring(0, end) + "…") > max) end = text.offsetByCodePoints(end, -1);
-        return text.substring(0, end) + "…";
-    }
     record Projection(float x, float y, float angle, boolean edge) { }
     record Bounds(int x, int y, int width, int height) {
         boolean intersects(Bounds other) { return x < other.x + other.width + 3 && x + width + 3 > other.x && y < other.y + other.height + 3 && y + height + 3 > other.y; }

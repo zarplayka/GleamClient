@@ -20,9 +20,12 @@ const paths = {
   shirt:'<path d="m8 4-5 3 2 5 3-1v9h8v-9l3 1 2-5-5-3a4 4 0 0 1-8 0z"/>',
   pin:'<path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0z"/><circle cx="12" cy="10" r="2"/>',
   folder:'<path d="M3 6h7l2 3h9v10H3z"/>',
+  download:'<path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/>',
   layers:'<path d="m3 8 9-5 9 5-9 5-9-5Zm0 4 9 5 9-5M3 16l9 5 9-5"/>',
   monitor:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',
+  speaker:'<path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12"/>',
   target:'<circle cx="12" cy="12" r="7"/><path d="M12 2v5m0 10v5M2 12h5m10 0h5"/>',
+  paw:'<circle cx="5" cy="10" r="1.6"/><circle cx="9" cy="5.5" r="1.6"/><circle cx="15" cy="5.5" r="1.6"/><circle cx="19" cy="10" r="1.6"/><path d="M12 11c-2 0-3.5 2-5.2 3.6C4.2 17 6 21 9.3 19.5l2.7-1.2 2.7 1.2c3.3 1.5 5.1-2.5 2.5-4.9C15.5 13 14 11 12 11Z"/>',
   movement:'<path d="m7 17 10-10M8 7h9v9M3 13l5-5m3 13 5-5"/>',
   eye:'<path d="M2 12c5-9 15-9 20 0-5 9-15 9-20 0z"/><circle cx="12" cy="12" r="3"/>',
   cube:'<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3zM4 7.5l8 4.5 8-4.5M12 12v9"/>',
@@ -61,6 +64,7 @@ const moduleGroups = {
   FOOTBALL:[[0,'Сетевой матч'],[9,'Как играть'],[14,'Поле'],[20,'Правила игры'],[24,'Удар']],
   HEALTH_TAGS:[[0,'Внешний вид'],[4,'Кого показывать']],
   ARMOR_INDICATOR:[[0,'Внешний вид'],[4,'Кого показывать']],
+  NO_RENDER:[[0,'Мир и погода'],[7,'Частицы'],[9,'Сущности'],[22,'Камера и наложения'],[34,'Ванильный интерфейс'],[40,'Фильтры по ID']],
   ENCHANT_GLINT:[[0,'Редактор переливания'],[6,'Сохранённые переливания']],
   WORLD_CHANGER:[[0,'Небо'],[6,'Туман'],[11,'Облака'],[14,'Пресеты атмосферы']]
 };
@@ -106,7 +110,7 @@ const state = {
   favorites:new Set(), values:new Map(), account:0,categoriesExpanded:true,
   configTab:'catalog',config:null,friendTab:null,friendProfile:null,preset:0,appliedPreset:-1,point:null,
   publication:false,publicationReady:true,chatQuery:'',cosmetic:'angel',cosmeticSlot:'all',
-  cosmeticQuery:'',cosmeticOnlyEquipped:false,cosmeticYaw:-19,cosmeticZoom:1,wingsStyle:0,
+  cosmeticQuery:'',cosmeticOnlyEquipped:false,cosmeticYaw:-19,cosmeticZoom:1,wingsStyle:0,cosmeticPet:'',
   seq:100,theme:'dark',density:'normal',toggleStyle,windowSize,windowScale,accent,languageChoice:'auto',windowX:0,windowY:0
 };
 const currentAccount = () => accounts.find(item => item.key === state.account) || accounts[0];
@@ -122,7 +126,7 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const motionEase = 'cubic-bezier(.2,.7,.2,1)';
 
 function appear(element, x, y, duration=180, delay=0) {
-  if (!element || reducedMotion.matches) return;
+  if (!element?.animate || reducedMotion.matches) return;
   element.animate([
     {opacity:.45,transform:'translate(' + x + 'px,' + y + 'px)'},
     {opacity:1,transform:'translate(0,0)'}
@@ -142,6 +146,12 @@ function animatePage(content) {
     const delay = Math.min(72,(i % columns + Math.floor(i / columns)) * 14);
     appear(card,0,5,175,delay);
   }
+}
+
+function animateRows(list) {
+  if (!list || reducedMotion.matches) return;
+  for (const [index,row] of Array.from(list.children).slice(0,8).entries())
+    appear(row,0,4,175,Math.min(index,4) * 13);
 }
 
 function navItem([id,title,svg], count) {
@@ -309,6 +319,7 @@ function showChoices(trigger,open) {
   const height = options.getBoundingClientRect().height;
   options.style.top = (upward ? anchor.top - gap - height : anchor.bottom + gap) / scale + 'px';
   openChoice = trigger;
+  appear(options,0,upward ? 4 : -4,155);
 }
 function updateChoice(trigger,value) {
   const row = byId.get(state.module).settings[Number(trigger.dataset.choiceToggle)];
@@ -369,15 +380,26 @@ function controlRow(row, module, index, embedded = false) {
   if (row.kind === 'crosshair') return crosshairEditor(row,module,index);
   if (!embedded && module.id === 'CROSSHAIR' && module.settings[0]?.kind === 'crosshair') return '';
   const id = 'field-' + index, saved = state.values.get(module.id + ':' + index) ?? row.value;
-  if (row.kind === 'toggle') return settingToggle(id,row.label,saved,'data-setting-toggle="' + index + '"');
+  if (row.kind === 'toggle') return settingToggle(id,row.label,saved,'data-setting-toggle="' + index + '"',row.art);
   let control;
-  const attrs = ' id="' + id + '" data-setting="' + index + '"';
+  const attrs = ' id="' + id + '" data-setting="' + index + '"'
+    + (row.sound ? ' data-sound="' + text(row.sound) + '"' : '');
+  if (row.sound) {
+    const title = row.lookup ? row.sound : row.label;
+    return '<div class="setting-row sound-setting-row"><button type="button" class="sound-preview-button" data-sound-preview="'
+      + index + '" data-sound="' + text(row.sound) + '" aria-label="' + text(t('Прослушать') + ' ' + row.label) + '" title="'
+      + text(t('Прослушать')) + '">' + (row.art ? settingArt(row.art) : icon('speaker')) + '</button>'
+      + '<label for="' + id + '" title="' + text(title) + '">' + text(row.label) + '</label><span class="range">'
+      + '<output for="' + id + '">' + saved + text(row.suffix) + '</output>'
+      + rangeControl(attrs,row.min,row.max,row.step,saved,row.suffix) + '</span></div>';
+  }
   switch (row.kind) {
     case 'slider': control = '<span class="range">' + rangeControl(attrs,row.min,row.max,row.step || '.01',saved,row.suffix)
       + '<output for="' + id + '">' + saved + text(row.suffix ?? '') + '</output></span>'; break;
     case 'choice': control = choiceControl(row,id,index,saved); break;
     case 'color': return colorRow(row,id,attrs,saved);
-    case 'text': control = '<input type="text"' + attrs + (row.maxLength ? ' maxlength="' + row.maxLength + '"' : '')
+    case 'text': control = '<input type="text"' + attrs + (module.id === 'SOUND_SETTINGS' ? ' data-sound-search' : '')
+      + (row.maxLength ? ' maxlength="' + row.maxLength + '"' : '')
       + ' value="' + text(saved) + '" autocomplete="off">'; break;
     case 'keybind': control = '<button type="button" class="button" id="' + id + '" data-keybind="' + index + '">' + text(saved === '—' ? t('Назначить') : saved) + '</button>'; break;
     case 'button': control = '<button class="button" type="button" data-setting-button="' + index + '">' + text(row.caption) + '</button>'; break;
@@ -386,9 +408,13 @@ function controlRow(row, module, index, embedded = false) {
   return '<div class="setting-row' + (row.kind === 'choice' ? ' choice-row' : '')
     + '"><label for="' + id + '">' + text(row.label) + '</label>' + control + '</div>';
 }
-function settingToggle(id,label,checked,attrs) {
-  return '<button type="button" id="' + id + '" class="setting-row setting-toggle-row" role="switch" aria-checked="'
-    + Boolean(checked) + '" ' + attrs + '><span>' + text(label) + '</span>' + toggleMarkup + '</button>';
+function settingArt(art) {
+  return '<img class="setting-art" src="assets/' + text(art) + '.png" alt="">';
+}
+function settingToggle(id,label,checked,attrs,art) {
+  return '<button type="button" id="' + id + '" class="setting-row setting-toggle-row' + (art ? ' has-setting-art' : '')
+    + '" role="switch" aria-checked="' + Boolean(checked) + '" ' + attrs + '>'
+    + (art ? settingArt(art) : '') + '<span class="setting-name">' + text(label) + '</span>' + toggleMarkup + '</button>';
 }
 function colorRow(row,id,attrs,value) {
   return '<div class="setting-row setting-color-row" style="--picker-color:' + text(value) + '">'
@@ -422,9 +448,35 @@ function worldPreview(module) {
     + '<path class="world-preview-near" fill="currentColor" d="M0 105 70 93 126 102 195 91 259 102 328 93 390 103 466 86 533 99 589 89 640 95V126H0Z"/>'
     + '</svg></div></div>';
 }
+let soundLookupOpen = false;
+let soundPreviewEnabled = false;
+function renderSoundSettings(module,enabled) {
+  const groups = new Map();
+  const lookup = [];
+  module.settings.forEach((row,index) => {
+    const markup = controlRow(row,module,index);
+    if (!row.sound || row.lookup) {
+      lookup.push(markup);
+      return;
+    }
+    groups.set(row.section,(groups.get(row.section) ?? '') + markup);
+  });
+  return '<div class="sound-mixer"><div class="sound-mixer-head"><div class="sound-mixer-title">' + itemArt(module)
+    + '<h1>Sound Settings</h1></div><div class="sound-mixer-actions">'
+    + '<button type="button" class="sound-module-switch" role="switch" aria-checked="' + enabled
+    + '" data-module-toggle="' + module.id + '" aria-label="Sound Settings">' + toggleMarkup + '</button>'
+    + '<button type="button" class="button sound-preview-mode" data-sound-preview-mode aria-pressed="' + soundPreviewEnabled
+    + '">' + icon('speaker') + ' ' + text(t('Предпросмотр')) + '</button></div></div>'
+    + '<div class="sound-mixer-body">' + [...groups].map(([title,rows]) =>
+      '<section class="sound-group"><h2>' + text(title) + '</h2><div class="sound-group-list">' + rows + '</div></section>').join('')
+    + '<div class="sound-lookup"><button type="button" class="sound-lookup-button" data-sound-lookup aria-expanded="'
+    + soundLookupOpen + '" aria-controls="sound-lookup-fields">' + icon('search') + ' ' + text(t('Другие звуки'))
+    + '</button><div id="sound-lookup-fields"' + (soundLookupOpen ? '' : ' hidden') + '>' + lookup.join('') + '</div></div></div></div>';
+}
 function renderModule() {
   const module = byId.get(state.module);
   const enabled = state.enabled.has(module.id);
+  if (module.id === 'SOUND_SETTINGS') return renderSoundSettings(module,enabled);
   const groups = (moduleGroups[module.id] || [[0,t('Настройки модуля')]]).map(([start,title],i,all) => ({
     start, title, rows:module.settings.slice(start,all[i+1]?.[0] ?? module.settings.length)
   })).filter(group => group.rows.length);
@@ -439,7 +491,8 @@ function renderModule() {
     + '<span class="module-state">' + (enabled ? t('Включён') : t('Выключен')) + '</span>' + toggleMarkup + '</button></div>'
     + '<div class="module-settings' + (contents ? ' with-toc' : '') + '">' + contents + '<div class="settings-groups">'
     + groups.map(({start,title,rows},i) => '<section class="settings-group" id="settings-group-' + i + '">'
-      + (module.id === 'CROSSHAIR' ? '' : '<div class="settings-group-title"><h2>' + text(t(title)) + '</h2><span>' + rows.length + '</span></div>')
+      + (module.id === 'CROSSHAIR' ? '' : '<div class="settings-group-title"><h2>' + text(t(title)) + '</h2>'
+        + (module.id === 'NO_RENDER' ? '' : '<span>' + rows.length + '</span>') + '</div>')
       + '<div class="sheet">'
       + (module.id === 'ENCHANT_GLINT' && start === 0 ? glintPreview(module) : '')
       + (module.id === 'WORLD_CHANGER' && start === 0 ? worldPreview(module) : '')
@@ -449,7 +502,7 @@ function renderModule() {
 function renderProfile() {
   const account = currentAccount();
   if (!account.key) return pageHead(t('Профиль')) + actionButton('login',t('Войти в GleamClient'),'user','primary');
-  const status = account.badge === 'Owner' || account.badge === 'Admin'
+  const status = ['Owner', 'Admin', 'Media'].includes(account.badge)
     ? accountStatus(account) : text(t('Подписка')) + ' ' + text(account.plan);
   return pageHead(t('Профиль')) + '<div class="sheet"><div class="profile-top">' + avatar(account,'hero') + '<div><h2>'
     + text(account.name) + '</h2><p>' + status + '</p></div></div>'
@@ -464,9 +517,8 @@ function renderProfile() {
     + actionButton('my-configs',t('Мои публикации'),'layers') + '</div></div>';
 }
 function renderConfigs() {
-  const tabs = [['catalog',t('Каталог')],['local',t('Локальные')],['published',t('Мои публикации')]];
+  const tabs = [['catalog','Каталог','layers'],['local','Локальные','folder'],['published','Мои публикации','user']];
   const tab = state.configTab, list = configs[tab], chosen = currentConfig();
-  const modules = chosen?.modules.filter(id => byId.has(id)).map(id => text(byId.get(id).name)).join(' · ');
   const status = configLoadStatus[tab], page = configPages[tab] ?? {};
   const disabled = page.busy ? ' disabled' : '';
   const button = (action,label,svg='',variant='') => actionButton(action,t(label),svg,variant,page.busy);
@@ -474,25 +526,36 @@ function renderConfigs() {
     + actionButton('config-prev',t('Назад'),'back','',page.busy || status === 'loading' || !page.offset)
     + actionButton('config-next',t('Дальше'),'arrow','',page.busy || status === 'loading' || !page.hasNext) + '</div>' : '';
   const canEdit = chosen && (tab === 'published' || tab === 'local' && chosen.key !== 0);
-  return pageHead(t('Конфиги'),t('Сохраняй и применяй наборы модулей'),'<div class="native-config-actions">'
-      + button('new-config','Создать','plus') + button('publish-config','Опубликовать')
-      + button('refresh-configs','Обновить') + '</div>')
-    + '<div class="tabs" role="tablist">' + tabs.map(([id,label]) => '<button type="button" role="tab" aria-selected="'
-      + (tab === id) + '" data-config-tab="' + id + '"' + disabled + '>' + text(label) + '</button>').join('') + '</div>'
-    + (list.length ? '<div class="split"><div class="list-panel">' + list.map(item => '<button type="button" class="list-row" data-config="'
-      + item.key + '" aria-pressed="' + (item === chosen) + '"' + disabled + '>' + icon('layers') + '<span><span class="row-name">' + text(item.name)
-      + '</span><span class="row-note">' + text(item.note) + '</span></span></button>').join('')
-      + pagination + '</div><article class="preset-info"><h2>' + text(chosen.name) + '</h2><p>'
-      + text([chosen.note,chosen.author].filter(Boolean).join(' · ')) + '</p>'
-      + (modules ? '<p>' + modules + '</p>' : '') + '<div class="config-entry-actions">'
-      + (tab === 'local' ? button('apply-config','Применить','check','primary')
-        : button('save-config',chosen.downloaded ? 'Обновить копию' : 'Скачать','folder','primary'))
-      + (canEdit ? button('rename-config','Переименовать') + button('overwrite-config','Обновить текущими') : '')
+  const art = '<span class="config-art">' + icon(tab === 'local' ? 'folder' : 'layers') + '</span>';
+  const downloads = item => '<span class="config-stat" title="' + text(t('Скачивания')) + '">'
+    + icon('download') + '<span>' + text((item.downloads ?? 0).toLocaleString(uiLanguage)) + '</span></span>';
+  const meta = item => [item.author, tab === 'local' && item.key > 0 ? t('Из каталога') : ''].filter(Boolean).join(' · ');
+  const listMarkup = list.map(item => '<button type="button" class="config-row" data-config="' + item.key
+    + '" aria-pressed="' + (item === chosen) + '"' + disabled + '>' + art
+    + '<span class="config-identity"><b>' + text(item.name) + '</b>'
+    + (meta(item) ? '<small>' + text(meta(item)) + '</small>' : '') + '</span>'
+    + (tab === 'local' ? '' : downloads(item)) + '</button>').join('');
+  const primary = tab === 'local' ? ['apply-config','Применить','check']
+    : ['save-config',chosen?.downloaded ? 'Обновить копию' : 'Скачать','download'];
+  const details = chosen ? '<article class="config-details" data-config-detail="' + tab + ':' + chosen.key + '">'
+    + '<div class="config-detail-head">' + art + '<div><h2>' + text(chosen.name)
+    + '</h2>' + (meta(chosen) ? '<p>' + text(meta(chosen)) + '</p>' : '') + '</div></div>'
+    + (tab === 'local' ? '' : '<div class="config-detail-meta">' + downloads(chosen)
+      + (chosen.downloaded ? '<span class="config-stat">' + icon('check') + text(t('Копия сохранена')) + '</span>' : '') + '</div>')
+    + button(...primary,'primary') + (canEdit || tab === 'local' ? '<div class="config-entry-actions">'
+      + (canEdit ? button('rename-config','Переименовать') + button('overwrite-config','Обновить текущими','refresh') : '')
       + (tab === 'local' ? button('publish-config-copy','Опубликовать копию') : '')
-      + (canEdit ? button('remove-config','Удалить') : '')
-      + '</div></article></div>' : !status || status === 'loading' ? empty(t('Загрузка…'),'')
-      : status !== 'ready' ? empty(status,'')
-      : empty(t('Здесь пока пусто'),t('Создай конфиг из текущего набора модулей')));
+      + (canEdit ? button('remove-config','Удалить','','config-danger') : '') + '</div>' : '') + '</article>' : '';
+  return pageHead('Конфиги','', '<div class="native-config-actions">'
+      + (tab === 'local' ? button('new-config','Создать','plus','primary')
+        : tab === 'published' ? button('publish-config','Опубликовать','plus','primary') : '')
+      + button('refresh-configs','Обновить','refresh') + '</div>')
+    + '<div class="config-tabs" role="tablist">' + tabs.map(([id,label,svg]) => '<button type="button" role="tab" aria-selected="'
+      + (tab === id) + '" data-config-tab="' + id + '"' + disabled + '>' + icon(svg) + text(t(label)) + '</button>').join('') + '</div>'
+    + (list.length ? '<div class="config-library"><div class="config-list">' + listMarkup + pagination + '</div>' + details + '</div>'
+      : !status || status === 'loading' ? empty(t('Загрузка…'),'') : status !== 'ready' ? empty(status,'')
+      : '<div class="empty config-empty">' + icon('folder') + '<b>' + text(t(tab === 'local' ? 'Локальных конфигов пока нет'
+        : tab === 'published' ? 'У тебя пока нет публикаций' : 'В каталоге пока нет конфигов')) + '</b></div>');
 }
 function friendAvatar(item,large=false) {
   const source = friends.avatars?.[item.public_id];
@@ -500,19 +563,45 @@ function friendAvatar(item,large=false) {
   return source ? '<img class="avatar friend-avatar' + size + '" src="assets/' + text(source) + '.png" alt="">'
     : '<span class="friend-initial' + size + '" aria-hidden="true">' + text(item.username[0].toUpperCase()) + '</span>';
 }
+function friendModel(item) {
+  return '<div class="friend-model" data-friend-model="' + text(item.username) + '">'
+    + (typeof sendGame === 'function' ? '' : friendAvatar(item,true)) + '</div>';
+}
+function friendPresence(item) {
+  const presence = friends.worlds?.people?.[item.username];
+  const label = {world:'В своём мире',game:'В игре',launcher:'В лаунчере'}[presence?.status] ?? 'Не в сети';
+  const online = ['world','game','launcher'].includes(presence?.status);
+  return '<small class="friend-live" data-online="' + online + '"><i class="friend-live-dot" aria-hidden="true"></i><span>'
+    + text(t(label)) + '</span></small>'
+    + (presence?.world ? '<small>' + text(presence.world + (presence.version ? ' · Minecraft ' + presence.version : '')) + '</small>' : '');
+}
+function friendOutfit(item) {
+  const slots = item.appearance?.slots;
+  if (!slots) return [];
+  return [slots.wings,slots.pet,slots.halo && 'halo',slots.hat && 'hat'].map(cosmeticById).filter(Boolean);
+}
 function renderFriendProfile() {
   const item = friends.items.find(entry => entry.username === state.friendProfile);
   const profile = friends.profile?.username === state.friendProfile ? friends.profile : null;
   const back = actionButton('friend-profile-back',t('Назад к друзьям'),'back');
   const head = pageHead(t('Профиль'),'',back);
   if (!item) return head + empty(t('Профиль недоступен'),'');
-  const badge = (profile?.role ?? item.role) === 'owner' ? 'Owner' : (profile?.role ?? item.role) === 'admin' ? 'Admin' : '';
-  return head + '<div class="sheet"><div class="profile-top">' + friendAvatar(item,true) + '<div><h2>'
-    + text(item.username) + '</h2>' + (badge ? '<p>' + accountStatus({badge}) + '</p>' : '') + '</div></div>'
-    + (profile?.id ? '<div class="setting-row"><span>' + text(t('ID аккаунта')) + '</span>'
-      + actionButton('friend-profile-copy',profile.id,'copy') + '</div><div class="setting-row"><span>'
-      + text(t('Дата регистрации')) + '</span><small>' + text(profile.created) + '</small></div>'
-      : '<div class="setting-row"><span>' + text(profile?.status ?? t('Загрузка…')) + '</span></div>') + '</div>';
+  const badge = {owner:'Owner', admin:'Admin', media:'Media'}[profile?.role ?? item.role];
+  const outfit = friendOutfit(item);
+  return head + '<article class="friend-detail friend-profile-page"><div class="friend-portrait">' + friendModel(item)
+    + '<div class="friend-profile-identity"><h2>' + text(item.username) + '</h2>' + friendPresence(item)
+    + (badge ? '<p>' + accountStatus({badge}) + '</p>' : '') + '</div></div>'
+    + '<section class="friend-profile-section">' + (profile?.id
+      ? '<div class="friend-profile-facts"><div><small>' + text(t('Дата регистрации')) + '</small><b>' + text(profile.created)
+        + '</b></div><div><small>' + text(t('ID аккаунта')) + '</small>'
+        + actionButton('friend-profile-copy',profile.id,'copy') + '</div></div>'
+      : '<small>' + text(profile?.status ?? t('Загрузка…')) + '</small>') + '</section>'
+    + (item.appearance?.slots ? '<section class="friend-profile-section"><h3>' + text(t('Экипировка')) + '</h3>'
+      + (outfit.length ? '<div class="friend-outfit">' + outfit.map(([id,,label]) =>
+        '<div class="friend-outfit-item">' + cosmeticDrawing(id,false) + '<b>' + text(t(label)) + '</b></div>').join('') + '</div>'
+        : '<small>' + text(t('Ничего не надето')) + '</small>') + '</section>' : '')
+    + (item.status === 'friend' ? '<div class="friend-profile-section friend-profile-footer"><button type="button" class="button" data-friend-change="remove" data-username="'
+      + text(item.username) + '">' + text(t('Удалить из друзей')) + '</button></div>' : '') + '</article>';
 }
 function renderFriends() {
   if (state.friendProfile && friends.signedIn) return renderFriendProfile();
@@ -521,27 +610,67 @@ function renderFriends() {
       + actionButton('friends-add',t('Добавить'),'plus','primary',friends.busy) + '</div>' : '');
   if (!friends.signedIn) return head + '<div class="empty">' + icon('users') + '<b>' + text(t('Войди в аккаунт GleamClient'))
     + '</b>' + actionButton('friends-login',t('Войти'),'user','primary') + '</div>';
+  const worlds = friends.worlds ?? {};
+  const invites = worlds.invites ?? [];
+  const online = item => ['launcher','game','world'].includes(worlds.people?.[item.username]?.status);
+  const presence = item => ({launcher:'В лаунчере',game:'В игре',world:'В своём мире'}[worlds.people?.[item.username]?.status] ?? 'Не в сети');
   const tabs = [
-    ['friend','Друзья',[['remove','Удалить из друзей']]],
-    ['incoming','Входящие',[['accept','Принять'],['decline','Отклонить']]],
-    ['outgoing','Исходящие',[['cancel','Отозвать']]]
-  ].map(([id,title,commands]) => ({id,title,commands,rows:friends.items.filter(item => item.status === id)}));
-  const active = tabs.find(tab => tab.id === state.friendTab) ?? tabs.find(tab => tab.rows.length) ?? tabs[0];
-  const summary = friends.busy ? 'Загрузка…' : active.id === 'friend' ? 'Друзей пока нет' : 'Заявок пока нет';
-  return head + '<div class="tabs friends-tabs" role="tablist" aria-label="' + text(t('Друзья')) + '">'
+    ['friend','Друзья',item => item.status === 'friend'],
+    ['online','В сети',item => item.status === 'friend' && online(item)],
+    ['incoming','Входящие',item => item.status === 'incoming' || invites.some(invite => invite.incoming && invite.username === item.username)],
+    ['outgoing','Исходящие',item => item.status === 'outgoing' || invites.some(invite => !invite.incoming && invite.username === item.username)]
+  ].map(([id,title,include]) => ({id,title,rows:friends.items.filter(include)}));
+  const active = tabs.find(tab => tab.id === state.friendTab) ?? tabs[0];
+  const query = (state.friendSearch ?? '').toLowerCase();
+  const rows = active.rows.filter(item => item.username.toLowerCase().includes(query));
+  const selected = rows.find(item => item.username === state.friendSelected) ?? rows[0];
+  const button = (action,label,target='',primary=false,disabled=false) => '<button type="button" class="button'
+    + (primary ? ' primary' : '') + '" data-world-action="' + action + '" data-target="' + text(target) + '"'
+    + (disabled || worlds.busy ? ' disabled' : '') + '>' + text(t(label)) + '</button>';
+  const invite = selected && invites.find(item => item.username === selected.username
+    && (active.id === 'incoming' ? item.incoming : active.id !== 'outgoing' || !item.incoming));
+  const controls = worlds.canHost ? '<div class="friend-world-tools">'
+    + settingToggle('friends-allow-offline',t('Разрешить офлайн-профили'),state.friendOffline ?? worlds.offline,'data-action="friend-offline"')
+    + '<div class="friends-tools">'
+    + button('open',worlds.hosting ? 'Сохранить доступ' : 'Открыть мир для друзей','',true)
+    + (worlds.hosting ? button('close','Закрыть доступ') + '<small>TCP ' + text(String(worlds.port)) + '</small>' : '') + '</div></div>' : '';
+  const commands = selected ? ({friend:[['remove','Удалить из друзей']],incoming:[['accept','Принять'],['decline','Отклонить']],
+    outgoing:[['cancel','Отозвать']]}[selected.status] ?? []) : [];
+  const detail = selected ? '<div class="friend-detail"><div class="friend-portrait">' + friendModel(selected)
+    + '<div class="friend-profile-identity"><h2>' + text(selected.username) + '</h2>' + friendPresence(selected) + '</div></div><div class="friend-controls">'
+    + (invite ? '<div class="friend-world"><b>' + text(invite.world) + '</b><small>Minecraft ' + text(invite.version)
+      + '</small><div class="friends-tools">' + (invite.incoming && (invite.state === 'pending' || invite.state === 'reserved')
+        ? button('accept','Зайти к другу',invite.id,true,invite.version !== worlds.version)
+          + button('decline','Отклонить',invite.id)
+        : invite.incoming ? '<small>' + text(t(invite.state === 'connected' ? 'В мире друга' : 'Подключение…')) + '</small>'
+        : '<small>' + text(t(invite.state === 'connected' ? 'В твоём мире' : 'Ожидает ответа')) + '</small>'
+          + button('cancel','Отозвать приглашение',invite.id)) + '</div></div>'
+      : selected.status === 'friend' && worlds.hosting ? '<div class="friend-world">'
+        + button('invite','Пригласить в мир',selected.username,true) + '</div>' : '')
+    + '<button type="button" class="friend-open-profile" data-friend-profile="' + text(selected.username) + '">'
+    + icon('user') + '<span>' + text(t('Открыть профиль')) + '</span>' + icon('arrow') + '</button>'
+    + '<div class="friends-tools friend-detail-actions">' + commands.filter(([change]) => change !== 'remove').map(([change,label]) => '<button type="button" class="button'
+      + (change === 'accept' ? ' primary' : '') + '" data-friend-change="' + change + '" data-username="' + text(selected.username)
+      + '"' + (friends.busy ? ' disabled' : '') + '>' + text(t(label)) + '</button>').join('') + '</div></div></div>' : '';
+  const summary = query ? 'Никого не найдено' : friends.busy ? 'Загрузка…' : active.id === 'online'
+    ? 'Друзей нет в сети' : active.id === 'friend' ? 'Друзей пока нет' : 'Заявок пока нет';
+  return head + controls + (worlds.status || friends.status ? '<p class="friends-status" role="status">'
+      + text(worlds.status || friends.status) + '</p>' : '')
+    + '<div class="friends-layout"><div class="friends-column"><div class="friend-search-box">' + icon('search')
+    + '<input type="search" class="friend-search" id="friends-search"'
+    + ' aria-label="' + text(t('Поиск по нику')) + '" placeholder="' + text(t('Поиск по нику'))
+    + '" value="' + text(state.friendSearch ?? '') + '"></div><div class="tabs friends-tabs" role="tablist" aria-label="' + text(t('Друзья')) + '">'
     + tabs.map(({id,title,rows}) => '<button type="button" role="tab" aria-selected="' + (id === active.id)
       + '" data-friend-tab="' + id + '"><span>' + text(t(title)) + '</span><span class="friend-count">'
       + rows.length + '</span></button>').join('') + '</div>'
-    + (friends.status ? '<p class="friends-status" role="status">' + text(friends.status) + '</p>' : '')
     + '<div class="friends-list" role="tabpanel" aria-label="' + text(t(active.title)) + '">'
-    + (active.rows.length ? active.rows.map(item => '<div class="friends-row"><button type="button" class="friend-identity" data-friend-profile="'
-      + text(item.username) + '">' + friendAvatar(item) + '<span class="friend-name">' + text(item.username)
-      + '</span></button><div class="friends-tools"><button type="button" class="button" data-friend-profile="' + text(item.username)
-      + '">' + text(t('Профиль')) + '</button>'
-      + active.commands.map(([change,label]) => '<button type="button" class="button' + (change === 'accept' ? ' primary' : '')
-        + '" data-friend-change="' + change + '" data-username="' + text(item.username) + '"'
-        + (friends.busy ? ' disabled' : '') + '>' + text(t(label)) + '</button>').join('') + '</div></div>').join('')
-      : '<div class="friends-empty">' + icon(active.id === 'friend' ? 'users' : 'user') + '<span>' + text(t(summary)) + '</span></div>') + '</div>';
+    + (rows.length ? rows.map(item => '<button type="button" class="friends-row" aria-pressed="' + (item === selected)
+      + '" data-friend-select="' + text(item.username) + '">' + friendAvatar(item) + '<span class="friend-identity"><b class="friend-name">'
+      + text(item.username) + '</b><small data-online="' + online(item) + '">'
+      + text(t(invites.some(invite => invite.username === item.username && invite.incoming) ? 'Приглашение в мир'
+        : item.status === 'friend' ? presence(item) : item.status === 'incoming' ? 'Заявка в друзья' : 'Ожидает ответа'))
+      + '</small></span></button>').join('') : '<div class="friends-empty">' + text(t(summary)) + '</div>')
+    + '</div></div>' + detail + '</div>';
 }
 const chatContacts = () => friends.items.filter(item => item.status === 'friend');
 function chatTime(sentAt) {
@@ -603,6 +732,17 @@ function renderChatMessages() {
     + text(friends.busy ? t('Загрузка…') : friends.status || t('Чатов пока нет')) + '</b>'
     + (friends.busy ? '' : friends.status ? retry() : '<small>' + text(t('Чат появится после принятия заявки в друзья')) + '</small>'
       + actionButton('chat-friends',t('Перейти к друзьям'),'users')) + '</div>';
+  if (chat.linkPending) return '<div class="chat-empty chat-unlock">' + icon('monitor') + '<b>'
+    + text(t('Подключение нового ПК')) + '</b><small>'
+    + text(t('Скопируй код и введи его на старом ПК в разделе «Устройства чата». Код действует пять минут.'))
+    + '</small>' + actionButton('chat-link-copy',t('Скопировать код'),'copy','primary')
+    + actionButton('chat-link-cancel',t('Отмена')) + '</div>';
+  if (chat.keyState) return '<div class="chat-empty chat-unlock">' + icon('lock') + '<b>'
+    + text(t('Открой переписку на этом ПК')) + '</b><small>'
+    + text(t('Подтверди подключение на устройстве, где чат уже работает.')) + '</small>'
+    + actionButton('chat-link-start',t('Подключить этот ПК'),'monitor','primary',chat.keyBusy)
+    + (chat.keyState === 'restore' ? actionButton('chat-key-restore',t('Ввести код восстановления'),'lock','',chat.keyBusy) : '')
+    + '</div>';
   if (!chat.items.length) return '<div class="chat-empty"><b>'
     + text(chat.busy ? t('Загрузка…') : chat.status || t(chat.loaded ? 'Сообщений пока нет' : 'Загрузка…')) + '</b>'
     + (chat.busy ? '' : chat.status ? retry() : chat.loaded ? actionButton('chat-wave',t('Поздороваться'),'chat') : '') + '</div>';
@@ -632,13 +772,19 @@ function renderChatMessages() {
 function renderChatThread() {
   const person = chatContacts().find(item => item.username === chat.peer);
   const title = person ? '<div class="chat-heading"><div id="chat-heading-avatar">' + friendAvatar(person)
-    + '</div><strong>' + text(person.username) + '</strong>'
+    + '</div><div class="chat-person"><strong>' + text(person.username) + '</strong><small>'
+    + text(t('Личная переписка')) + '</small></div>'
     + '<button id="chat-verify" type="button" class="button" data-action="chat-verify"'
-    + (chat.verification ? '' : ' hidden') + '>' + icon('lock') + text(t('Код безопасности')) + '</button></div>' : '';
+    + ' title="' + text(t('Код безопасности')) + '" aria-label="' + text(t('Код безопасности')) + '"'
+    + (chat.verification ? '' : ' hidden') + '>' + icon('lock') + '</button>'
+    + '<button id="chat-key" type="button" class="icon-button" data-action="chat-key-settings" aria-label="'
+    + text(t('Устройства чата')) + '" title="' + text(t('Устройства чата')) + '"'
+    + (chat.loaded && !chat.keyState ? '' : ' hidden') + (chat.keyBusy || chat.busy ? ' disabled' : '')
+    + '>' + icon('monitor') + '</button></div>' : '';
   const controls = person ? '<form id="chat-compose" class="chat-compose"><input name="body" autocomplete="off" maxlength="500"'
     + ' aria-label="' + text(t('Сообщение')) + '" placeholder="' + text(t('Напиши сообщение')) + '" value="'
     + text(chatDrafts.get(chat.peer) ?? '') + '"><button class="button primary chat-send" type="submit" aria-label="'
-    + text(t('Отправить')) + '" title="' + text(t('Отправить')) + '"' + (chat.busy ? ' disabled' : '')
+    + text(t('Отправить')) + '" title="' + text(t('Отправить')) + '"' + (chat.busy || chat.keyState || chat.keyBusy ? ' disabled' : '')
     + '>' + icon('send') + '</button></form>' : '';
   return title + '<div id="chat-messages" class="chat-messages">' + renderChatMessages() + '</div>'
     + (person ? '<button id="chat-bottom" class="button" type="button" data-action="chat-bottom" aria-label="'
@@ -691,6 +837,7 @@ function patchChat(previous, friendsChanged) {
     closeChatContext();
     thread.innerHTML = renderChatThread();
     mountChatThread();
+    appear($('chat-messages'),0,5);
     return;
   }
   const portrait = $('chat-heading-avatar');
@@ -700,19 +847,31 @@ function patchChat(previous, friendsChanged) {
   }
   const box = $('chat-messages');
   if (JSON.stringify(previous.items) !== JSON.stringify(chat.items) || previous.busy !== chat.busy || friendsChanged
-      || previous.loaded !== chat.loaded || previous.status !== chat.status) {
+      || previous.loaded !== chat.loaded || previous.status !== chat.status
+      || previous.keyState !== chat.keyState || previous.keyBusy !== chat.keyBusy || previous.linkPending !== chat.linkPending) {
     const top = box.scrollTop, height = box.scrollHeight;
     const atEnd = height - top - box.clientHeight < 40;
     const older = previous.items[0] && chat.items[0] && chat.items[0].id < previous.items[0].id;
     box.innerHTML = renderChatMessages();
     box.scrollTop = older ? top + box.scrollHeight - height : atEnd || previous.sent !== chat.sent ? box.scrollHeight : top;
+    if (!older && previous.items.length && chat.items.at(-1)?.id > previous.items.at(-1)?.id) {
+      const last = previous.items.at(-1).id;
+      for (const message of Array.from(box.querySelectorAll('[data-chat-message]')).slice(-3)) {
+        if (Number(message.dataset.chatMessage) > last) appear(message,0,5,180);
+      }
+    }
   }
   const input = thread.querySelector('input[name="body"]'), send = thread.querySelector('button[type="submit"]');
-  if (send) send.disabled = chat.busy;
+  if (send) send.disabled = chat.busy || Boolean(chat.keyState) || chat.keyBusy;
   if (input && previous.sent !== chat.sent) input.value = chatDrafts.get(chat.peer) ?? '';
   const status = $('chat-status');
   const verification = $('chat-verify');
   if (verification) verification.hidden = !chat.verification;
+  const key = $('chat-key');
+  if (key) {
+    key.hidden = !chat.loaded || Boolean(chat.keyState);
+    key.disabled = chat.keyBusy || chat.busy;
+  }
   status.textContent = chat.status ?? '';
   status.hidden = !chat.items.length || !chat.status || chat.status === t('Сообщение отправлено');
   syncReplyDraft();
@@ -721,15 +880,25 @@ function patchChat(previous, friendsChanged) {
 const cosmetics = [
   ['angel','WINGS','Ангельские крылья','Спина',0],
   ['dragon','WINGS','Драконьи крылья','Спина',1],
+  ['evergreen','WINGS','Еловая лапа','Спина',2],
+  ['ash_phoenix','WINGS','Пепельный феникс','Спина',3],
   ['halo','HALO','Золотой нимб','Голова'],
   ['hat','CHINA_HEAD','Соломенная шляпа','Голова'],
-  ['dance','EMOTES','Эмоции','Анимация']
+  ['dance','EMOTES','Эмоции','Анимация'],
+  ['ember_fox','PET','Огненный лисёнок','Питомцы'],
+  ['moon_moth','PET','Лунный мотылёк','Питомцы'],
+  ['moss_turtle','PET','Моховая черепашка','Питомцы'],
+  ['rhm_tarnkappe','PET','Rhm.-B. WT Tarnkappe','Питомцы'],
+  ['snow_ferret','PET','Снежный хорёк','Питомцы'],
+  ['space_slime','PET','Слизень-космонавт','Питомцы'],
+  ['tracked_scout','PET','Гусеничный разведчик','Питомцы']
 ];
 const cosmeticById = id => cosmetics.find(item => item[0] === id);
-const cosmeticSlots = [['all','Все','grid'],['Спина','Спина','layers'],['Голова','Голова','user'],['Анимация','Анимация','movement']];
-const isCosmeticEquipped = ([,module,,,style]) => state.enabled.has(module) && (style === undefined || style === state.wingsStyle);
+const cosmeticSlots = [['all','Все','grid'],['Спина','Спина','layers'],['Голова','Голова','user'],['Анимация','Анимация','movement'],['Питомцы','Питомцы','paw']];
+const isCosmeticEquipped = ([id,module,,,style]) => module === 'PET' ? state.cosmeticPet === id
+  : state.enabled.has(module) && (style === undefined || style === state.wingsStyle);
 function cosmeticDrawing(id, model) {
-  return '<img class="cosmetic-art" src="assets/cosmetic-' + id + (model ? '-preview' : '-item') + '.png" alt="">';
+  return '<img class="cosmetic-art" src="assets/cosmetic-' + id + (model && ['angel','dragon','hat','halo','dance'].includes(id) ? '-preview' : '-item') + '.png" alt="">';
 }
 function renderCosmetics() {
   const selected = cosmeticById(state.cosmetic) ?? cosmetics[0];
@@ -746,12 +915,13 @@ function renderCosmetics() {
     + actionButton('cosmetic-show-equipped',t('Надето'),'',state.cosmeticOnlyEquipped ? 'selected' : '') + '</div></header>'
     + '<div id="cosmetic-items" class="cosmetic-items"></div></section>'
     + '<section class="cosmetic-preview"><header class="cosmetic-preview-head">'
-    + '<span>' + text(t('Примерка')) + '</span>' + actionButton('cosmetic-turn',t(Math.cos(state.cosmeticYaw * Math.PI / 180) < 0 ? 'Спереди' : 'Со спины'),'rotate') + '</header>'
+    + '<span>' + text(t('Примерка')) + '</span>' + actionButton('cosmetic-turn',t(cosmeticFacingBack() ? 'Спереди' : 'Со спины'),'rotate') + '</header>'
     + '<div class="cosmetic-stage" data-preview="' + id + '">' + (typeof sendGame === 'function' ? '' : cosmeticDrawing(id,true)) + '</div>'
     + '<div class="cosmetic-info"><div class="cosmetic-info-title">' + cosmeticDrawing(id,false) + '<div><strong>'
     + text(t(label)) + '</strong><div class="cosmetic-type">' + text(t(type)) + '</div></div></div>'
     + '<div class="cosmetic-actions"><button type="button" class="button ' + (active ? '' : 'primary') + '" data-equip-cosmetic="'
-    + id + '">' + text(t(id === 'dance' ? active ? 'Выключить' : 'Включить' : active ? 'Снять' : 'Надеть')) + '</button>'
+    + id + '">' + text(t(module === 'PET' ? (active ? 'Убрать' : 'Позвать')
+      : id === 'dance' ? (active ? 'Выключить' : 'Включить') : (active ? 'Снять' : 'Надеть'))) + '</button>'
     + (byId.get(module)?.configurable ? '<button type="button" class="button" data-module-settings="' + module + '">'
       + icon('gear') + text(t('Настройки')) + '</button>' : '') + '</div></div></section></div>';
 }
@@ -769,25 +939,51 @@ function patchCosmeticShelf() {
   }).join('') : '<p class="chat-hint">' + text(t('Ничего не найдено')) + '</p>';
 }
 let cosmeticFrame = 0, cosmeticLayout = '';
-let cosmeticHover = '', cosmeticSuppressed = '', cosmeticSpin = null;
+let cosmeticHover = '', cosmeticSuppressed = '', cosmeticSpin = null, cosmeticTurn = null;
+function cosmeticFacingBack() {
+  return Math.cos((cosmeticTurn?.target ?? state.cosmeticYaw) * Math.PI / 180) < 0;
+}
+function turnCosmetic(target) {
+  if (cosmeticTurn?.target === target) return;
+  const start = state.cosmeticYaw;
+  const delta = (target - start + 540) % 360 - 180;
+  cosmeticTurn = !reducedMotion.matches && typeof sendGame === 'function' && Math.abs(delta) > 1
+    ? {start,target,delta,started:performance.now()} : null;
+  if (!cosmeticTurn) state.cosmeticYaw = target;
+}
 function cosmeticLoadout() {
-  const peek = cosmeticById(cosmeticHover);
-  const worn = cosmetics.filter(item => item[0] !== 'dance' && isCosmeticEquipped(item) && (!peek || peek[3] !== item[3]));
+  const peek = cosmeticById(cosmeticHover || state.cosmetic);
+  const worn = cosmetics.filter(item => item[0] !== 'dance' && isCosmeticEquipped(item) && item[1] !== peek?.[1]);
   if (peek) worn.push(peek);
   return worn.map(item => item[0]);
 }
 function scheduleCosmeticPreview() {
   if (typeof sendGame !== 'function' || cosmeticFrame) return;
-  cosmeticFrame = requestAnimationFrame(() => {
+  cosmeticFrame = requestAnimationFrame(now => {
     cosmeticFrame = 0;
-    const stage = state.page === 'cosmetics' && !$('dialog').hasAttribute('open')
-      && !$('window').hidden && $('content').querySelector('.cosmetic-stage');
+    if (cosmeticTurn) {
+      const turn = cosmeticTurn;
+      const progress = state.page === 'cosmetics' && !reducedMotion.matches
+        ? Math.max(0,Math.min(1,(now - turn.started) / 250)) : 1;
+      state.cosmeticYaw = progress === 1 ? turn.target : turn.start + turn.delta * (1 - (1 - progress) ** 3);
+      if (progress === 1) cosmeticTurn = null;
+      else scheduleCosmeticPreview();
+    }
+    const selector = state.page === 'cosmetics' ? '.cosmetic-stage' : state.page === 'friends' ? '.friend-model' : '';
+    const stage = selector && !$('dialog').hasAttribute('open') && !$('window').hidden && $('content').querySelector(selector);
     const data = {};
     if (stage) {
       const box = stage.getBoundingClientRect(), clip = $('content').getBoundingClientRect();
       data.items = cosmeticLoadout();
       data.yaw = state.cosmeticYaw;
       data.zoom = state.cosmeticZoom;
+      if (stage.dataset.friendModel) {
+        data.friend = stage.dataset.friendModel;
+        const person = friends.items.find(item => item.username === data.friend);
+        data.items = person ? friendOutfit(person).map(([id]) => id) : [];
+        data.yaw = -30;
+        data.zoom = 1;
+      }
       data.x = box.left;
       data.y = box.top;
       data.w = box.width;
@@ -817,6 +1013,7 @@ document.addEventListener('mouseout',event => {
 });
 document.addEventListener('pointerdown',event => {
   if (event.button !== 0 || !event.target.closest('.cosmetic-stage')) return;
+  cosmeticTurn = null;
   cosmeticSpin = event.clientX;
 });
 document.addEventListener('pointermove',event => {
@@ -899,7 +1096,9 @@ function renderSettings() {
     + '</div></section><section><h2>' + text(t('Оформление')) + '</h2>'
     + '<div class="sheet look-block"><h3>' + text(t('Тема ClickGUI')) + '</h3><p>' + text(t('Выбери оформление меню')) + '</p><div class="look-options" role="group" aria-label="' + text(t('Тема ClickGUI')) + '">'
     + lookTile('theme','dark',t('Тёмная'),'dark',state.density) + lookTile('theme','light',t('Светлая'),'light',state.density)
-    + '</div>' + accentPicker() + '</div></section><section><h2>' + text(t('Окно')) + '</h2><div class="sheet look-block">'
+    + '</div>' + accentPicker() + '</div><div class="sheet interface-sounds">'
+    + chatPreference('interface-sounds','interfaceSounds','Звуки интерфейса')
+    + '</div></section><section><h2>' + text(t('Окно')) + '</h2><div class="sheet look-block">'
     + '<h3>' + text(t('Размер окна')) + '</h3><p>' + text(t('Сколько места меню занимает на экране')) + '</p>'
     + '<div class="look-options window-options" role="group" aria-label="' + text(t('Размер окна')) + '">'
     + windowSizes.map(([id,label]) => sizeTile(id,label)).join('')
@@ -920,7 +1119,7 @@ function chatPreference(id,key,label,fallback=true) {
 }
 const renderers = {module:renderModule,profile:renderProfile,configs:renderConfigs,presets:renderPresets,
   waypoints:renderWaypoints,settings:renderSettings,friends:renderFriends,chat:renderChat,cosmetics:renderCosmetics};
-let renderedPage;
+let renderedPage, renderedTab;
 function render(scrollTop=true, animate=true) {
   if (openChoice) showChoices(openChoice,false);
   renderNavigation();
@@ -933,6 +1132,13 @@ function render(scrollTop=true, animate=true) {
   $('breadcrumb').querySelector('svg').style.height = '11px';
   $('content').toggleAttribute('data-grid',modulePage());
   $('content').toggleAttribute('data-chat',state.page === 'chat');
+  const content = $('content');
+  const previousConfig = content.querySelector('[data-config-detail]')?.dataset.configDetail;
+  const previousConfigList = content.querySelector('.config-list');
+  const previousFriend = content.querySelector('.friend-model')?.dataset.friendModel;
+  const previousFriendProfile = Boolean(content.querySelector('.friend-profile-page'));
+  const previousFriendFacts = Boolean(content.querySelector('.friend-profile-facts'));
+  const previousCosmetic = content.querySelector('.cosmetic-stage')?.dataset.preview;
   $('content').innerHTML = modulePage() ? renderModules() : renderers[state.page]();
   if (state.page === 'chat') mountChatThread();
   if (state.page === 'cosmetics') patchCosmeticShelf();
@@ -940,15 +1146,36 @@ function render(scrollTop=true, animate=true) {
   fitCategories();
   if (scrollTop) $('content').scrollTop = 0;
   const page = isModule ? state.module : state.page;
+  const tab = page === 'cosmetics' ? state.cosmeticSlot + ':' + state.cosmeticOnlyEquipped
+    : page === 'friends' ? state.friendTab ?? 'friend' : page === 'configs' ? state.configTab : null;
   if (animate && renderedPage !== page) animatePage($('content'));
+  else if (renderedPage === page && page === 'cosmetics') {
+    if (tab !== renderedTab) animateRows($('cosmetic-items'));
+    if (state.cosmetic !== previousCosmetic) appear(content.querySelector('.cosmetic-info'),0,4);
+  } else if (renderedPage === page && page === 'friends') {
+    if (tab !== renderedTab || previousFriendProfile && !isFriendProfile) animateRows(content.querySelector('.friends-list'));
+    const friend = content.querySelector('.friend-model')?.dataset.friendModel;
+    if (friend !== previousFriend || previousFriendProfile !== Boolean(isFriendProfile)) {
+      for (const part of content.querySelectorAll('.friend-profile-identity,.friend-profile-section,.friend-controls'))
+        appear(part,0,4);
+    } else if (!previousFriendFacts) appear(content.querySelector('.friend-profile-facts'),0,4);
+  } else if (page === 'configs') {
+    if (tab !== renderedTab || !previousConfigList) animateRows(content.querySelector('.config-list'));
+    const detail = content.querySelector('[data-config-detail]');
+    if (detail && detail.dataset.configDetail !== previousConfig) appear(detail,0,6,170);
+  }
   renderedPage = page;
+  renderedTab = tab;
   window.paradox?.refreshSettingsArtwork?.();
   scheduleCosmeticPreview();
 }
 function fitGrid() {
   const content = $('content');
-  const availableWidth = content.getBoundingClientRect().width / (state.windowScale / 100);
+  const scale = state.windowScale / 100;
+  const availableWidth = content.getBoundingClientRect().width / scale;
   content.toggleAttribute('data-stacked',availableWidth <= 540);
+  const friendsLayout = state.page === 'friends' && content.querySelector('.friends-layout');
+  if (friendsLayout) friendsLayout.toggleAttribute('data-stacked',friendsLayout.getBoundingClientRect().width / scale <= 560);
   const grid = content.querySelector('.modules-grid');
   if (!grid) return;
   const columns = availableWidth < 360 ? 1 : availableWidth < 740 ? 2 : availableWidth < 875 ? 3 : 4;
@@ -1133,6 +1360,8 @@ function nextToast() {
   if (!toastQueue.length) { toastRunning = false; return; }
   toastRunning = true;
   const [message,kind] = toastQueue.shift(), element = $('toast');
+  if (window.paradox && state.interfaceSounds !== false && (kind === 'success' || kind === 'error'))
+    sendGame('ui-sound',{kind});
   element.dataset.kind = kind;
   element.innerHTML = icon(kind === 'error' ? 'alert' : kind === 'chat' ? 'chat' : 'check') + '<span>' + text(message) + '</span>';
   element.classList.add('visible');
@@ -1153,6 +1382,7 @@ function showDialog(title,html) {
     $('window').setAttribute('inert','');
     (dialog.querySelector('input') || dialog.querySelector('[type="submit"]'))?.focus({preventScroll:true});
   }
+  appear(dialog,0,8,195);
   scheduleCosmeticPreview();
 }
 function closeDialog() {
@@ -1216,7 +1446,7 @@ const actions = {
     toast(t('Скопировано'));
   },
   'cosmetic-turn'() {
-    state.cosmeticYaw = Math.cos(state.cosmeticYaw * Math.PI / 180) < 0 ? -19 : 158;
+    turnCosmetic(cosmeticFacingBack() ? -19 : 158);
     render(false,false);
   },
   'cosmetic-show-all'() { state.cosmeticOnlyEquipped = false; cosmeticHover = ''; render(false,false); },
@@ -1305,6 +1535,9 @@ document.addEventListener('click', event => {
     render(true,false);
     if (!document.documentElement.hasAttribute('data-pointer-focus'))
       $('content').querySelector('[data-friend-tab][aria-selected="true"]').focus({preventScroll:true});
+  } else if (data.friendSelect) {
+    state.friendSelected = data.friendSelect;
+    render(true,false);
   } else if (data.friendProfile) {
     state.friendProfile = data.friendProfile;
     render();
@@ -1312,9 +1545,14 @@ document.addEventListener('click', event => {
     state.cosmetic = data.cosmetic;
     cosmeticSuppressed = data.cosmetic;
     cosmeticHover = '';
+    turnCosmetic(cosmeticById(data.cosmetic)?.[1] === 'WINGS' ? 158 : -19);
     render(false,false);
   } else if (data.cosmeticSlot) {
     state.cosmeticSlot = data.cosmeticSlot;
+    if (state.cosmeticSlot === 'Питомцы' && cosmeticById(state.cosmetic)?.[1] !== 'PET') {
+      state.cosmetic = state.cosmeticPet || cosmetics.find(item => item[1] === 'PET')[0];
+      turnCosmetic(-19);
+    }
     state.cosmeticQuery = cosmeticHover = '';
     render(false,false);
   }
@@ -1425,7 +1663,7 @@ window.addEventListener('resize', () => {
 });
 $('content').addEventListener('scroll', () => {
   if (openChoice) showChoices(openChoice,false);
-  if (state.page === 'cosmetics') scheduleCosmeticPreview();
+  if (state.page === 'cosmetics' || state.page === 'friends') scheduleCosmeticPreview();
 });
 new ResizeObserver(() => { fitGrid(); fitCategories(); positionWindow(); }).observe($('content'));
 document.addEventListener('input', event => {

@@ -1,5 +1,7 @@
+//? if >=26.1 {
 package ru.orion.client.mixin;
 
+//? if >=26.3 {
 import net.minecraft.client.ClientClockManager;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -29,3 +31,6 @@ public abstract class ClientClockInstanceMixin implements OrionOverworldClock {
         if (orion$overworld && config != null && config.isCustomTimeEnabled()) callback.setReturnValue(0F);
     }
 }
+
+//?}
+//?}

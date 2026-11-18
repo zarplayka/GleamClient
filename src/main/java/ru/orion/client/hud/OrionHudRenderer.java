@@ -1,7 +1,6 @@
 package ru.orion.client.hud;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import java.awt.Color;
 import java.awt.image.BufferedImage;
 
 /** Общие операции с пикселями HUD. Остров HUD и музыки рисует OrionMediaPlayerHud. */
@@ -16,11 +15,4 @@ public final class OrionHudRenderer {
         }
     }
 
-    static Color parseColor(String value) {
-        try {
-            return new Color(Integer.parseUnsignedInt(value.substring(1), 16));
-        } catch (RuntimeException invalid) {
-            return new Color(0xFF7C00);
-        }
-    }
 }

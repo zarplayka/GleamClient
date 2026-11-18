@@ -27,6 +27,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.interfaces.RSAPublicKey;
+import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -51,26 +52,180 @@ final class OrionChatCrypto {
         }
     }
     record Peer(PublicKey encryption, PublicKey signing) { }
+    record Recovery(String code, String backup) { }
 
-    static Identity identity(String account) throws IOException, GeneralSecurityException {
-        Path file = file(account, "-identity.json");
-        JsonObject keys = read(file);
-        if (keys == null) {
-            var rsa = KeyPairGenerator.getInstance("RSA");
-            rsa.initialize(3072);
-            var identity = new Identity(rsa.generateKeyPair(), KeyPairGenerator.getInstance("Ed25519").generateKeyPair());
-            keys = identity.publicKeys();
-            keys.addProperty("decrypt", encode(identity.encryption().getPrivate().getEncoded()));
-            keys.addProperty("sign", encode(identity.signing().getPrivate().getEncoded()));
-            write(file, keys);
-            return identity;
+    static Identity localIdentity(String account, JsonObject registered) throws IOException, GeneralSecurityException {
+        var shared = identityFile(account, registered);
+        var original = file(account, "-identity.json");
+        for (Path candidate : new Path[]{shared, original}) {
+            JsonObject keys;
+            try {
+                keys = read(candidate);
+                if (keys == null) continue;
+                var identity = decodeIdentity(keys);
+                if (!registered.has("encryption") || matches(identity, registered)) return identity;
+            } catch (IOException | RuntimeException | GeneralSecurityException invalid) {
+                if (!registered.has("encryption")) throw invalid;
+            }
+            if (shared.equals(original)) break;
         }
+        return null;
+    }
+
+    static Identity newIdentity() throws GeneralSecurityException {
+        var rsa = KeyPairGenerator.getInstance("RSA");
+        rsa.initialize(3072);
+        return new Identity(rsa.generateKeyPair(), KeyPairGenerator.getInstance("Ed25519").generateKeyPair());
+    }
+
+    static void saveIdentity(String account, Identity identity) throws IOException {
+        var keys = identity.publicKeys();
+        keys.addProperty("decrypt", encode(identity.encryption().getPrivate().getEncoded()));
+        keys.addProperty("sign", encode(identity.signing().getPrivate().getEncoded()));
+        write(identityFile(account, keys), keys);
+    }
+
+    private static Identity decodeIdentity(JsonObject keys) throws GeneralSecurityException {
         var peer = decodePeer(keys);
         return new Identity(
                 new KeyPair(peer.encryption(), KeyFactory.getInstance("RSA").generatePrivate(
                         new PKCS8EncodedKeySpec(decode(keys, "decrypt")))),
                 new KeyPair(peer.signing(), KeyFactory.getInstance("Ed25519").generatePrivate(
                         new PKCS8EncodedKeySpec(decode(keys, "sign")))));
+    }
+
+    static Recovery localRecovery(String account, String backup) throws IOException {
+        var stored = read(recoveryFile(account, backup));
+        return stored == null ? null : new Recovery(stored.get("code").getAsString(), stored.get("backup").getAsString());
+    }
+
+    static Recovery pendingRecovery(String account) throws IOException {
+        var stored = read(sharedFile(account, "-pending-recovery.json"));
+        return stored == null ? null : new Recovery(stored.get("code").getAsString(), stored.get("backup").getAsString());
+    }
+
+    static void saveRecovery(String account, Recovery recovery) throws IOException {
+        writeRecovery(recoveryFile(account, recovery.backup()), recovery);
+    }
+
+    static void stageRecovery(String account, Recovery recovery) throws IOException {
+        saveRecovery(account, recovery);
+        writeRecovery(sharedFile(account, "-pending-recovery.json"), recovery);
+    }
+
+    private static void writeRecovery(Path file, Recovery recovery) throws IOException {
+        var data = new JsonObject();
+        data.addProperty("code", recovery.code());
+        data.addProperty("backup", recovery.backup());
+        write(file, data);
+    }
+
+    private static Path recoveryFile(String account, String backup) {
+        return sharedFile(account, "-" + keyFingerprint(Base64.getDecoder().decode(backup)) + "-recovery.json");
+    }
+
+    static Recovery createRecovery(String account, Identity identity) throws GeneralSecurityException {
+        String code = transferCode();
+        return new Recovery(code, encryptIdentity(account, identity, code, (byte) 1));
+    }
+
+    static String transferCode() {
+        byte[] secret = new byte[32];
+        RANDOM.nextBytes(secret);
+        try {
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
+        } finally {
+            Arrays.fill(secret, (byte) 0);
+        }
+    }
+
+    static String transferId(String code) {
+        return keyFingerprint(("GleamChatTransfer/1/" + code).getBytes(StandardCharsets.US_ASCII));
+    }
+
+    static String encryptTransfer(String account, Identity identity, String code) throws GeneralSecurityException {
+        return encryptIdentity(account, identity, code, (byte) 2);
+    }
+
+    private static String encryptIdentity(String account, Identity identity, String code, byte version)
+            throws GeneralSecurityException {
+        byte[] secret = Base64.getUrlDecoder().decode(code), nonce = new byte[NONCE];
+        RANDOM.nextBytes(nonce);
+        byte[] encryption = identity.encryption().getPrivate().getEncoded();
+        byte[] signing = identity.signing().getPrivate().getEncoded();
+        byte[] plain = ByteBuffer.allocate(4 + encryption.length + signing.length)
+                .putInt(encryption.length).put(encryption).put(signing).array();
+        try {
+            var aes = recoveryCipher(Cipher.ENCRYPT_MODE, secret, nonce, account, identity.publicKeys(), version);
+            byte[] sealed = aes.doFinal(plain);
+            byte[] packet = ByteBuffer.allocate(1 + NONCE + sealed.length).put(version).put(nonce).put(sealed).array();
+            return encode(packet);
+        } finally {
+            Arrays.fill(plain, (byte) 0);
+            Arrays.fill(secret, (byte) 0);
+            Arrays.fill(encryption, (byte) 0);
+            Arrays.fill(signing, (byte) 0);
+        }
+    }
+
+    static Identity recover(String account, Recovery recovery, JsonObject keys) throws GeneralSecurityException {
+        return decryptIdentity(account, recovery, keys, (byte) 1);
+    }
+
+    static Identity openTransfer(String account, String code, String packet, JsonObject keys) throws GeneralSecurityException {
+        return decryptIdentity(account, new Recovery(code, packet), keys, (byte) 2);
+    }
+
+    private static Identity decryptIdentity(String account, Recovery recovery, JsonObject keys, byte version)
+            throws GeneralSecurityException {
+        byte[] packet = Base64.getDecoder().decode(recovery.backup());
+        if (packet.length < 1700 || packet.length > 2850 || packet[0] != version)
+            throw new GeneralSecurityException("Invalid key backup");
+        byte[] secret = Base64.getUrlDecoder().decode(recovery.code());
+        try {
+            if (secret.length != 32) throw new GeneralSecurityException("Invalid recovery code");
+            byte[] nonce = Arrays.copyOfRange(packet, 1, 1 + NONCE);
+            var aes = recoveryCipher(Cipher.DECRYPT_MODE, secret, nonce, account, keys, version);
+            byte[] plain = aes.doFinal(packet, 1 + NONCE, packet.length - 1 - NONCE);
+            try {
+                var buffer = ByteBuffer.wrap(plain);
+                int length = buffer.getInt();
+                if (length <= 0 || length >= buffer.remaining()) throw new GeneralSecurityException("Invalid key backup");
+                var peer = decodePeer(keys);
+                var decrypt = (RSAPrivateKey) KeyFactory.getInstance("RSA").generatePrivate(
+                        new PKCS8EncodedKeySpec(Arrays.copyOfRange(plain, 4, 4 + length)));
+                var sign = KeyFactory.getInstance("Ed25519").generatePrivate(
+                        new PKCS8EncodedKeySpec(Arrays.copyOfRange(plain, 4 + length, plain.length)));
+                var signature = Signature.getInstance("Ed25519");
+                signature.initSign(sign);
+                signature.update(nonce);
+                byte[] proof = signature.sign();
+                signature.initVerify(peer.signing());
+                signature.update(nonce);
+                if (!signature.verify(proof) || !decrypt.getModulus().equals(((RSAPublicKey) peer.encryption()).getModulus()))
+                    throw new GeneralSecurityException("Invalid key backup");
+                return new Identity(new KeyPair(peer.encryption(), decrypt), new KeyPair(peer.signing(), sign));
+            } finally {
+                Arrays.fill(plain, (byte) 0);
+            }
+        } finally {
+            Arrays.fill(secret, (byte) 0);
+        }
+    }
+
+    private static Cipher recoveryCipher(int mode, byte[] secret, byte[] nonce, String account, JsonObject keys, byte version)
+            throws GeneralSecurityException {
+        var aes = Cipher.getInstance("AES/GCM/NoPadding");
+        aes.init(mode, new SecretKeySpec(secret, "AES"), new GCMParameterSpec(128, nonce));
+        aes.updateAAD(("GleamChatRecovery/" + version + "\0" + account.toLowerCase(Locale.ROOT) + "\0").getBytes(StandardCharsets.UTF_8));
+        aes.updateAAD(decode(keys, "encryption"));
+        aes.updateAAD(decode(keys, "signing"));
+        return aes;
+    }
+
+    private static boolean matches(Identity identity, JsonObject keys) {
+        var local = identity.publicKeys();
+        return local.get("encryption").equals(keys.get("encryption")) && local.get("signing").equals(keys.get("signing"));
     }
 
     static Peer pin(String account, String username, JsonObject keys) throws IOException, GeneralSecurityException {
@@ -160,6 +315,26 @@ final class OrionChatCrypto {
     private static Path file(String account, String suffix) {
         if (!account.matches("[A-Za-z0-9_]{3,24}")) throw new IllegalArgumentException("Invalid account");
         return FabricLoader.getInstance().getConfigDir().resolve("gleam-chat-" + account.toLowerCase(Locale.ROOT) + suffix);
+    }
+
+    private static Path sharedFile(String account, String suffix) {
+        var original = file(account, suffix);
+        String directory = System.getenv("LOCALAPPDATA");
+        return directory == null || directory.isBlank() ? original
+                : Path.of(directory, "GleamClient", "chat").resolve(original.getFileName());
+    }
+
+    private static Path identityFile(String account, JsonObject keys) {
+        if (!keys.has("encryption")) return sharedFile(account, "-identity.json");
+        return sharedFile(account, "-" + keyFingerprint(decode(keys, "encryption")) + "-identity.json");
+    }
+
+    private static String keyFingerprint(byte[] key) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(key));
+        } catch (GeneralSecurityException unavailable) {
+            throw new IllegalStateException(unavailable);
+        }
     }
 
     private static JsonObject read(Path file) throws IOException {

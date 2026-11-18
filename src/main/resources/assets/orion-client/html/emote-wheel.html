@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" data-hud-theme href="hud-theme.css">
+<style>
+* { box-sizing: border-box; }
+body { width: 392px; height: 420px; margin: 0; overflow: hidden; color: var(--text); font-size: 14px; }
+[hidden] { display: none !important; }
+#stage { position: absolute; width: 392px; height: 420px; transform-origin: 196px 196px; }
+#ring { position: absolute; inset: 0; width: 392px; height: 392px; }
+.sector { fill: var(--surface); stroke: var(--line); stroke-width: .85; transition: fill .14s, stroke .14s; }
+.sector.active { fill: var(--hud-selected); stroke: var(--accent); stroke-width: 1; }
+#slots { position: absolute; inset: 0; }
+.slot {
+    position: absolute; width: 84px; height: 63px; margin: -31px 0 0 -42px;
+    text-align: center; color: var(--text);
+}
+.slot.active .digit { color: var(--accent); border-color: var(--accent); }
+.slot.active .emote-mark { color: var(--accent); transform: translateY(-2px); }
+.slot.empty .name { color: var(--muted); }
+.emote-mark { display: block; width: 21px; height: 21px; margin: 3px auto; transition: transform .16s, color .16s; }
+.digit { display: inline-block; min-width: 14px; height: 14px; padding: 0 2px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; font-size: 8px; line-height: 12px; }
+.name { display: flex; height: 21px; align-items: center; justify-content: center; font-size: 9.5px; line-height: 10px; font-weight: bold; padding: 0 6px; }
+#hub {
+    position: absolute; top: 148px; left: 148px; width: 96px; height: 96px;
+    border: 1px solid var(--line); border-radius: 50%; background: var(--hud-panel);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    text-align: center; padding: 5px;
+}
+#hub-symbol { width: 12px; height: 12px; border: 1.5px solid var(--accent); border-radius: 3px; margin-bottom: 3px; }
+#title { display: flex; height: 24px; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; line-height: 11px; }
+#subtitle { color: var(--muted); font-size: 8px; line-height: 9px; }
+.control, .option {
+    position: absolute; height: 28px; text-align: center; line-height: 26px;
+    background: var(--top); color: var(--text); border: 1px solid var(--line); border-radius: var(--hud-radius);
+    padding: 0 4px; font-size: 12px; white-space: nowrap;
+}
+.control.active, .option.active { border-color: var(--accent); background: var(--hud-selected); }
+#edit { left: 117px; top: 354px; width: 158px; }
+#done { left: 216px; top: 354px; width: 132px; }
+#reset { left: 44px; top: 354px; width: 132px; color: var(--muted); }
+#hint { position: absolute; top: 393px; width: 392px; text-align: center; color: #f5f5f8; font-size: 11px; }
+#picker {
+    position: absolute; left: 50px; top: 66px; width: 292px; height: 288px;
+    border: 1px solid var(--line); border-radius: var(--hud-radius); background: var(--hud-panel);
+    text-align: center;
+}
+#picker-title { margin: 18px 0 0; font-size: 15px; line-height: 20px; font-weight: bold; }
+#options { position: absolute; left: 0; top: 0; width: 290px; height: 232px; }
+#options .option { width: 126px; height: 30px; line-height: 28px; overflow: hidden; text-overflow: ellipsis; }
+#clear { left: 15px; top: 243px; width: 126px; }
+#back { left: 149px; top: 243px; width: 126px; }
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body class="gleam-hud">
+<div id="stage">
+    <div id="wheel">
+        <svg id="ring" viewBox="0 0 392 392" aria-hidden="true"></svg>
+        <div id="slots"></div>
+        <div id="hub"><div id="hub-symbol"></div><div id="title"></div><div id="subtitle"></div></div>
+        <div id="edit" class="control"></div>
+        <div id="reset" class="control" hidden></div>
+        <div id="done" class="control" hidden></div>
+        <div id="hint"></div>
+    </div>
+    <div id="picker" hidden>
+        <div id="picker-title"></div>
+        <div id="options"></div>
+        <div id="clear" class="control"></div>
+        <div id="back" class="control"></div>
+    </div>
+</div>
+<script>
+const byId = id => document.getElementById(id);
+const stage = byId('stage');
+const slots = [];
+const options = [];
+const svg = 'http://www.w3.org/2000/svg';
+const points = (r, a) => [196 + r * Math.sin(a), 196 - r * Math.cos(a)].join(' ');
+const marks = [
+    'M12 6v12M6 12h12',
+    'M3 17h9l2-5 6-1M4 12l4-4 5 4M15 4l4 3',
+    'M5 8h14v11H5zM12 8V4m-3 9h.1m5.9 0h.1M9 16h6',
+    'M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2M12 7l5 5-5 5-5-5z',
+    'M4 8l4 5 8-2 4 5m-16 0 4-4 7 2 5-5M12 3v4m0 13v1',
+    'M3 17c3-8 5-8 8-4s6 4 10-4M4 11c3-7 5-7 8-3s5 4 8 1',
+    'M5 19l3-10 7 7-10 3Zm5-11 1-4m4 5 4-5m-1 9 4-1',
+    'M3 12h4l3-6 4 12 3-6h4',
+    'M3 15h17v3H3zm13 0v3m0-6c3-2-2-3 0-6m4 6c3-2-2-3 0-6',
+    'M4 8h12v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8Zm12 1h2a2 2 0 0 1 0 5h-2M3 21h17M8 5V3m4 2V3'
+];
+function mark(id) {
+    return '<svg class="emote-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + marks[id] + '"/></svg>';
+}
+for (let i = 0; i < 6; i++) {
+    const slot = document.createElement('div');
+    const digit = document.createElement('span');
+    const name = document.createElement('span');
+    const emblem = document.createElement('span');
+    const segment = document.createElementNS(svg,'path');
+    const start = (60 * i - 28.5) * Math.PI / 180, end = (60 * i + 28.5) * Math.PI / 180;
+    segment.setAttribute('class','sector');
+    segment.setAttribute('d','M' + points(145,start) + ' A145 145 0 0 1 ' + points(145,end)
+      + ' L' + points(54,end) + ' A54 54 0 0 0 ' + points(54,start) + ' Z');
+    byId('ring').appendChild(segment);
+    digit.className = 'digit';
+    digit.textContent = String(i + 1);
+    name.className = 'name';
+    slot.appendChild(digit);
+    slot.appendChild(emblem);
+    slot.appendChild(name);
+    byId('slots').appendChild(slot);
+    slots.push({slot, name, emblem, segment});
+
+}
+
+function updateOptions(names, selected, hovered) {
+    for (let id = 1; id < names.length; id++) {
+        let option = options[id - 1];
+        if (!option) {
+            option = document.createElement('div');
+            option.style.left = 15 + (id - 1) % 2 * 134 + 'px';
+            option.style.top = 50 + Math.floor((id - 1) / 2) * 36 + 'px';
+            byId('options').appendChild(option);
+            options.push(option);
+        }
+        option.textContent = id + '  ' + names[id];
+        option.className = 'option' + (id === selected || id === hovered ? ' active' : '');
+    }
+}
+
+window.paradox = {
+    update(state) {
+        const root = document.documentElement;
+        root.toggleAttribute('data-light', Boolean(state.light));
+        if (/^#[0-9a-f]{6}$/i.test(state.accent)) root.style.setProperty('--accent', state.accent);
+        else root.style.removeProperty('--accent');
+        const labels = state.labels;
+        const picking = state.slotToEdit >= 0;
+        byId('wheel').hidden = picking;
+        byId('picker').hidden = !picking;
+        byId('edit').hidden = state.editing;
+        byId('reset').hidden = byId('done').hidden = !state.editing;
+        byId('hint').hidden = state.editing;
+        const hovered = state.active >= 0 ? state.slots[state.active].id : 0;
+        byId('title').textContent = hovered ? state.names[hovered] : labels[0];
+        byId('subtitle').textContent = state.editing ? labels[5] : hovered ? '' : labels[1];
+        byId('edit').textContent = labels[2];
+        byId('done').textContent = labels[3];
+        byId('reset').textContent = labels[4];
+        byId('hint').textContent = labels[9];
+        byId('picker-title').textContent = labels[6] + (picking ? ' · ' + (state.slotToEdit + 1) : '');
+        byId('clear').textContent = labels[7];
+        byId('back').textContent = labels[8];
+        for (let i = 0; i < slots.length; i++) {
+            const {x, y, id} = state.slots[i];
+            const {slot, name, emblem, segment} = slots[i];
+            segment.setAttribute('class','sector' + (i === state.active ? ' active' : ''));
+            slot.className = 'slot' + (i === state.active ? ' active' : '') + (!id ? ' empty' : '');
+            slot.style.left = x + 'px';
+            slot.style.top = y + 'px';
+            name.textContent = state.names[id];
+            if (emblem.dataset.id !== String(id)) {
+                emblem.innerHTML = mark(id);
+                emblem.dataset.id = String(id);
+            }
+        }
+        for (const control of ['edit', 'done', 'reset', 'clear', 'back']) {
+            byId(control).className = 'control' + (state.control === control ? ' active' : '');
+        }
+        if (picking) updateOptions(state.names, state.slots[state.slotToEdit].id, state.option);
+    },
+    opening(progress) {
+        const eased = 1 - (1 - progress) ** 3;
+        stage.style.setProperty('opacity', String(eased));
+        stage.style.setProperty('transform', 'scale(' + (.92 + .08 * eased) + ')');
+    }
+};
+</script>
+</body>
+</html>

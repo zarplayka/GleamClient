@@ -11,9 +11,9 @@ import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.effect.OrionEmotes;
 import sun.misc.Unsafe;
-import javax.imageio.ImageIO;
+import com.google.gson.Gson;
 import java.lang.reflect.*;
-import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Map;
 
 /** Проверка секторов колеса, локализации и поз обеих моделей скина без GPU. */
@@ -45,14 +45,30 @@ public final class OrionEmotesTest {
             throw new AssertionError("Wheel dead zones");
         }
         if (!OrionGuiLanguage.translate("Games").equals("Игры")) throw new AssertionError("Russian games label");
-        for (String code : new String[]{"ru_ru", "en_us"}) {
-            languages.setSelected(code);
-            for (boolean light : new boolean[]{false, true}) {
-                ImageIO.write(OrionEmoteWheelScreen.renderImage(660, light, 2), "png",
-                        Path.of(args[0], "wheel-" + code + "-" + light + ".png").toFile());
-            }
+        languages.setSelected("en_us");
+        if (!OrionGuiLanguage.translate("Танцы").equals("Emotes")
+                || !OrionGuiLanguage.translate("Изменить круг").equals("Edit wheel")) {
+            throw new AssertionError("English wheel labels");
         }
-        if (!OrionGuiLanguage.translate("Танцы").equals("Emotes")) throw new AssertionError("English dance label");
+        int[] defaults = {1, 2, 3, 4, 5, 6};
+        if (!Arrays.equals(config.getEmoteSlots(), defaults)) throw new AssertionError("Default order");
+        config.setEmoteSlot(0, 6);
+        config.setEmoteSlot(1, 0);
+        config.setEmoteSlot(2, 9);
+        int[] edited = {6, 0, 9, 4, 5, 1};
+        Gson gson = new Gson();
+        var restored = gson.fromJson(gson.toJson(config), OrionConfig.class);
+        restored.sanitize();
+        if (!Arrays.equals(restored.getEmoteSlots(), edited)) throw new AssertionError("Wheel order after reload");
+        restored.setEmoteSlot(-1, 6);
+        restored.setEmoteSlot(0, 10);
+        if (!Arrays.equals(restored.getEmoteSlots(), edited)) throw new AssertionError("Invalid slot update");
+        restored.resetEmoteSlots();
+        var corrupt = gson.fromJson("{\"emoteSlots\":[1,1,3,4,5,6]}", OrionConfig.class);
+        corrupt.sanitize();
+        if (!Arrays.equals(restored.getEmoteSlots(), defaults) || !Arrays.equals(corrupt.getEmoteSlots(), defaults)) {
+            throw new AssertionError("Default order after reset / migration");
+        }
         @SuppressWarnings("unchecked")
         Map<Integer,Object> visible = (Map<Integer,Object>) field(OrionEmotes.class, "VISIBLE").get(null);
         Class<?> danceType = Class.forName(OrionEmotes.class.getName() + "$Dance");
@@ -60,17 +76,37 @@ public final class OrionEmotesTest {
         dance.setAccessible(true);
         var state = new AvatarRenderState();
         state.id = 55;
+        var pose = OrionEmotes.class.getDeclaredMethod("applyPose", net.minecraft.client.model.HumanoidModel.class,
+                int.class, double.class, float.class);
+        pose.setAccessible(true);
         for (boolean slim : new boolean[]{false, true}) {
             var model = new PlayerModel(LayerDefinition.create(PlayerModel.createMesh(CubeDeformation.NONE, slim), 64, 64).bakeRoot(), slim);
-            for (int id = 1; id <= 6; id++) {
+            for (int id = 1; id <= OrionEmotes.NAMES.length; id++) {
                 model.resetPose();
                 visible.put(state.id, dance.newInstance(id, System.nanoTime() - 900_000_000L));
                 OrionEmotes.apply(model, state);
-                if (!Float.isFinite(model.rightArm.xRot) || !Float.isFinite(model.leftArm.zRot)) throw new AssertionError("Invalid pose");
                 if (Math.abs(model.rightArm.xRot) + Math.abs(model.rightArm.zRot) < .01F) throw new AssertionError("No pose " + id);
                 if (model.rightSleeve.xRot != 0F) throw new AssertionError("Double-transformed skin layer");
+                double period = new double[]{1.36F, 2F, 1.92F, 1.48F, 2.4F, 2F, 1.3F, 5.4F, 4.5F}[id - 1];
+                model.resetPose();
+                pose.invoke(null, model, id, 0D, 1F);
+                float origin = model.rightArm.xRot, base = model.body.x;
+                model.resetPose();
+                pose.invoke(null, model, id, period - .00001D, 1F);
+                if (Math.abs(origin - model.rightArm.xRot) > .001F || Math.abs(base - model.body.x) > .001F) {
+                    throw new AssertionError("Loop seam " + id);
+                }
+                for (int frame = 0; frame < 120; frame++) {
+                    model.resetPose();
+                    pose.invoke(null, model, id, frame * period / 120, 1F);
+                    for (var part : model.root().getAllParts()) {
+                        if (!Float.isFinite(part.x + part.y + part.z + part.xRot + part.yRot + part.zRot)) {
+                            throw new AssertionError("Invalid pose " + id + " frame " + frame);
+                        }
+                    }
+                }
             }
         }
-        System.out.println("Wheel selection, RU/EN rendering and all six poses for both skin models passed");
+        System.out.println("Wheel selection, editable slot persistence, localization and all nine cyclic emotes for both skin models passed");
     }
 }

@@ -1,3 +1,4 @@
+//? if >=26.1 {
 package ru.orion.client.mixin;
 
 import net.minecraft.client.gui.components.ChatComponent;
@@ -44,3 +45,4 @@ public abstract class ChatHistoryMixin {
         return config != null && config.isChatHistoryEnabled() ? Integer.MAX_VALUE : original;
     }
 }
+//?}

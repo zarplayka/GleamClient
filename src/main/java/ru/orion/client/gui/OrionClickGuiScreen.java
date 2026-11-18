@@ -1,5 +1,7 @@
 package ru.orion.client.gui;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
@@ -16,11 +18,14 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.sounds.SoundEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
+import ru.orion.client.cosmetic.GleamPet;
 import ru.orion.client.config.OrionConfigLibrary;
 import ru.orion.client.config.OrionAccounts;
 import ru.orion.client.config.OrionVisualPresets.Profile;
@@ -60,6 +65,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -68,6 +74,25 @@ import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 public final class OrionClickGuiScreen extends Screen {
+    private static final SoundEvent UI_CLICK = uiSound("click");
+    private static final SoundEvent UI_SUCCESS = uiSound("success");
+    private static final SoundEvent UI_ERROR = uiSound("error");
+
+    private static SoundEvent uiSound(String kind) {
+        return SoundEvent.createVariableRangeEvent(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "ui." + kind));
+    }
+
+    static void playInterfaceSound(Minecraft client, String kind) {
+        var config = OrionClient.getConfigOrNull();
+        if (config == null || !config.isInterfaceSounds()) return;
+        var sound = switch (kind) {
+            case "click" -> UI_CLICK;
+            case "success" -> UI_SUCCESS;
+            case "error" -> UI_ERROR;
+            default -> null;
+        };
+        if (sound != null) client.getSoundManager().play(SimpleSoundInstance.forUI(sound, 1F, .7F));
+    }
     private static final Component TITLE = Component.literal(OrionClient.VERSION_TEXT);
     private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
     private static final Identifier GUI_TEXTURE = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "click_gui_dynamic");
@@ -249,6 +274,7 @@ public final class OrionClickGuiScreen extends Screen {
     private OrionLumenView htmlMenu;
     private OrionSiteMenu siteMenu;
     private JsonArray siteCatalog;
+    private boolean siteItemScrollerAllowed;
     private String siteCatalogLanguage = "";
     private boolean siteActive;
     private String siteSection = "ALL", siteStatus = "";
@@ -261,12 +287,20 @@ public final class OrionClickGuiScreen extends Screen {
     private int friendsRequest;
     private String chatPeer = "", chatStatus = "", chatVerification = "";
     private JsonArray chatMessages = new JsonArray();
-    private boolean chatBusy, chatLoading, chatLoaded, chatOlder;
+    private boolean chatBusy, chatLoading, chatLoaded, chatOlder, chatKeyBusy;
+    private String chatKeyState = "";
+    private long nextChatTransferPoll;
+    private boolean chatTransferPolling;
     private int chatRequest, chatSent;
     private long nextChatPoll, nextChatFriends;
     private record CosmeticStage(float x, float y, float w, float h, float clipTop, float clipBottom,
                                  float yaw, float zoom, java.util.Set<String> items) { }
     private CosmeticStage cosmeticPreview;
+    private String friendPreviewName = "";
+    private final Map<String, java.util.concurrent.CompletableFuture<net.minecraft.core.ClientAsset.Texture>> friendSkins = new HashMap<>();
+    private String sharedFriendSkin = "";
+    private GleamPet previewPet;
+    private long petPreviewStarted;
     private net.minecraft.client.User previewUser;
     private net.minecraft.world.entity.player.PlayerSkin previewSkin;
     private int chatRoute;
@@ -326,6 +360,60 @@ public final class OrionClickGuiScreen extends Screen {
     private boolean draggingModuleScroll;
     private ModuleRow settingsFor;
     private Setting[] settingsRows = new Setting[0];
+    private String soundQuery = "";
+    private SimpleSoundInstance soundPreview;
+    private record SoundPreset(String group, String id, String label, String icon, String... variants) {}
+    private static final String EXPLOSION_SOUNDS = "Взрывы и эффекты";
+    private static final String HOSTILE_SOUNDS = "Враждебные мобы";
+    private static final String WORLD_SOUNDS = "Погода и окружение";
+    private static final String MACHINE_SOUNDS = "Механизмы и транспорт";
+    private static final String FARM_SOUNDS = "Жители и фермы";
+    private static final String PLAYER_SOUNDS = "Звуки игрока";
+    private static final String LOOKUP_SOUNDS = "Другие звуки";
+    private static final SoundPreset[] FEATURED_SOUNDS = {
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.generic.explode", "Взрыв", "block/tnt_side"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.tnt.primed", "Активация TNT", "block/tnt_side"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.firework_rocket.launch", "Запуск фейерверка", "item/firework_rocket"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.firework_rocket.blast", "Взрыв фейерверка", "item/firework_rocket",
+                    "entity.firework_rocket.blast_far"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.firework_rocket.large_blast", "Большой взрыв фейерверка", "item/firework_rocket",
+                    "entity.firework_rocket.large_blast_far"),
+            new SoundPreset(EXPLOSION_SOUNDS, "item.totem.use", "Использование тотема", "item/totem_of_undying"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.ender_dragon.growl", "Рык дракона Края", "item/dragon_breath"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.ender_dragon.death", "Смерть дракона Края", "item/dragon_breath"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.wither.spawn", "Появление визера", "item/nether_star"),
+            new SoundPreset(EXPLOSION_SOUNDS, "entity.warden.sonic_boom", "Звуковая атака хранителя", "block/sculk"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.enderman.scream", "Крик эндермена", "item/ender_pearl"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.enderman.stare", "Взгляд эндермена", "item/ender_pearl"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.ghast.scream", "Крик гаста", "item/ghast_tear"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.ghast.warn", "Предупреждение гаста", "item/ghast_tear"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.phantom.bite", "Укус фантома", "item/phantom_membrane"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.zombie.ambient", "Стоны зомби", "item/rotten_flesh"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.skeleton.ambient", "Грохот скелетов", "item/bone"),
+            new SoundPreset(HOSTILE_SOUNDS, "entity.slime.squish", "Хлюпанье слизней", "item/slime_ball",
+                    "entity.slime.squish_small"),
+            new SoundPreset(WORLD_SOUNDS, "weather.rain", "Дождь", "item/water_bucket", "weather.rain.above"),
+            new SoundPreset(WORLD_SOUNDS, "entity.lightning_bolt.thunder", "Гром", "item/trident"),
+            new SoundPreset(WORLD_SOUNDS, "block.portal.ambient", "Гул портала в Незер", "block/obsidian"),
+            new SoundPreset(WORLD_SOUNDS, "block.portal.travel", "Переход через портал", "item/flint_and_steel",
+                    "block.portal.trigger"),
+            new SoundPreset(WORLD_SOUNDS, "ambient.cave", "Пещерные звуки", "item/echo_shard"),
+            new SoundPreset(WORLD_SOUNDS, "block.fire.ambient", "Треск огня", "item/fire_charge"),
+            new SoundPreset(WORLD_SOUNDS, "block.lava.ambient", "Бульканье лавы", "item/lava_bucket", "block.lava.pop"),
+            new SoundPreset(MACHINE_SOUNDS, "block.piston.extend", "Поршни", "block/piston_side", "block.piston.contract"),
+            new SoundPreset(MACHINE_SOUNDS, "block.dispenser.dispense", "Раздатчики и выбрасыватели", "block/dispenser_front",
+                    "block.dispenser.fail", "block.dispenser.launch"),
+            new SoundPreset(MACHINE_SOUNDS, "entity.minecart.riding", "Вагонетки", "item/minecart",
+                    "entity.minecart.inside", "entity.minecart.inside.underwater"),
+            new SoundPreset(MACHINE_SOUNDS, "block.bell.use", "Звон колокола", "item/bell"),
+            new SoundPreset(FARM_SOUNDS, "entity.villager.ambient", "Бормотание жителей", "item/emerald"),
+            new SoundPreset(FARM_SOUNDS, "entity.wandering_trader.ambient", "Бормотание странствующего торговца", "item/lead"),
+            new SoundPreset(FARM_SOUNDS, "entity.sheep.ambient", "Блеяние овец", "block/white_wool"),
+            new SoundPreset(FARM_SOUNDS, "entity.bee.loop", "Жужжание пчёл", "item/honeycomb", "entity.bee.loop_aggressive"),
+            new SoundPreset(PLAYER_SOUNDS, "entity.experience_orb.pickup", "Подбор опыта", "item/experience_bottle"),
+            new SoundPreset(PLAYER_SOUNDS, "entity.item.pickup", "Подбор предметов", "item/iron_ingot"),
+            new SoundPreset(PLAYER_SOUNDS, "entity.player.burp", "Отрыжка после еды", "item/cooked_beef")
+    };
     private static final String[] CROSSHAIR_PRESET_NAMES = {"Классический", "Точка", "С разрывом", "Кольцо", "Уголки"};
     private static final String[] CROSSHAIR_MODES = {"Custom", "Presets", "Classic"};
     private static final int CROSSHAIR_SITE_ROWS = 5;
@@ -568,11 +656,16 @@ public final class OrionClickGuiScreen extends Screen {
     @Override
     public void added() {
         super.added();
+        //? if >=26.1 {
         Minecraft.getInstance().onTextInputFocusChange(this, true);
+        //?} else {
+        /*
+        *///?}
     }
 
     @Override
     public void removed() {
+        stopSoundPreview();
         if (siteMenu != null) siteMenu.dispose();
         boolean wasSite = siteActive;
         siteActive = false;
@@ -581,7 +674,11 @@ public final class OrionClickGuiScreen extends Screen {
         lastHtmlMenuState = null;
         htmlModuleGrid = htmlActive = false;
         closeAccounts();
+        //? if >=26.1 {
         Minecraft.getInstance().onTextInputFocusChange(this, false);
+        //?} else {
+        /*
+        *///?}
         configManager.getConfig().setClickGuiLastSection(wasSite ? siteSection : selectedSection());
         configManager.save();
         Minecraft.getInstance().getTextureManager().release(GUI_TEXTURE);
@@ -603,17 +700,21 @@ public final class OrionClickGuiScreen extends Screen {
     public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
         if (titleParent instanceof net.minecraft.client.gui.screens.TitleScreen) OrionTitleMenu.drawBackdrop(context, width, height);
         context.fill(0, 0, width, height, 0x66000000);
-        minecraft.gui.hud.extractDeferredSubtitles();
+        GleamMinecraft.extractDeferredSubtitles(minecraft);
     }
 
     @Override
     public void onClose() {
         if (titleParent == null) super.onClose();
-        else minecraft.gui.setScreen(titleParent);
+        else GleamMinecraft.setScreen(minecraft, titleParent);
     }
 
     @Override
+    //? if >=26.1 {
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
+    //?} else {
+    /*public void render(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
+    *///?}
         super.extractRenderState(context, mouseX, mouseY, deltaTicks);
 
         applyPalette();
@@ -623,7 +724,7 @@ public final class OrionClickGuiScreen extends Screen {
                     siteSection = titlePage == TitlePage.SETTINGS ? "SETTINGS" : configManager.getConfig().getClickGuiLastSection();
                 siteMenu = new OrionSiteMenu(Arrays.stream(Action.VALUES).map(Enum::name).toArray(String[]::new),this::onSiteAction);
             }
-            siteActive = siteMenu.ready() && siteMenu.render(context,width,height,mouseX,mouseY,siteState());
+            siteActive = siteMenu.ready() && siteMenu.render(context,width,height,mouseX,mouseY,this::siteState);
             if (siteActive) {
                 drawCosmeticPreview(context);
                 return;
@@ -670,10 +771,13 @@ public final class OrionClickGuiScreen extends Screen {
     private JsonObject siteState() {
         var data = new JsonObject();
         String language = OrionGuiLanguage.language();
-        if (!language.equals(siteCatalogLanguage)) {
+        boolean itemScrollerAllowed = OrionItemScroller.isServerAllowed();
+        if (!language.equals(siteCatalogLanguage) || itemScrollerAllowed != siteItemScrollerAllowed) {
             siteCatalogLanguage = language;
+            siteItemScrollerAllowed = itemScrollerAllowed;
             siteCatalog = siteCatalog();
         }
+        if (settingsFor != null && !isModuleAvailable(settingsFor.action)) settingsFor = null;
         data.addProperty("language",language);
         data.addProperty("chatRoute", chatRoute);
         if (openTitleAccount) data.addProperty("openTitleAccount", true);
@@ -693,6 +797,7 @@ public final class OrionClickGuiScreen extends Screen {
         var enabled = new JsonArray();
         var favorites = new JsonArray();
         for (Action action : Action.VALUES) {
+            if (!isModuleAvailable(action)) continue;
             if (isActive(action)) enabled.add(action.name());
             if (!isCosmetic(action) && paradoxFavorites.contains(action)) favorites.add(action.name());
         }
@@ -721,10 +826,12 @@ public final class OrionClickGuiScreen extends Screen {
         look.addProperty("languageChoice",config.getClickGuiLanguage());
         look.addProperty("chatNotifications",config.isChatNotifications());
         look.addProperty("chatNotificationSound",config.isChatNotificationSound());
+        look.addProperty("interfaceSounds",config.isInterfaceSounds());
         look.addProperty("showFakePunishments", config.isShowFakePunishments());
         look.addProperty("windowX",config.getClickGuiWindowX());
         look.addProperty("windowY",config.getClickGuiWindowY());
         look.addProperty("wingsStyle",config.getWingsStyle());
+        look.addProperty("cosmeticPet",config.getCosmeticPet());
         data.add("look",look);
 
         var users = new JsonArray();
@@ -759,6 +866,13 @@ public final class OrionClickGuiScreen extends Screen {
         long chatNow = System.nanoTime();
         if ("FRIENDS".equals(siteSection) || chatPage) {
             if (friendsAccountChanged) refreshFriends(null, null);
+            if (!chatPage && !friendsSession.isEmpty()) {
+                shareFriendSkin();
+                if (chatNow >= nextChatFriends && !friendsBusy) {
+                    nextChatFriends = chatNow + 15_000_000_000L;
+                    refreshFriends(null, null);
+                }
+            }
             var social = new JsonObject();
             social.addProperty("signedIn", !friendsSession.isEmpty());
             social.addProperty("busy", friendsBusy);
@@ -766,6 +880,7 @@ public final class OrionClickGuiScreen extends Screen {
             social.add("items", friends);
             social.add("avatars", friendAvatars);
             if (friendProfile != null) social.add("profile", friendProfile);
+            if (!chatPage) social.add("worlds", OrionFriendWorlds.state(minecraft));
             data.add("friends", social);
         }
         if (chatPage) {
@@ -783,9 +898,13 @@ public final class OrionClickGuiScreen extends Screen {
                 }
             }
         }
-        if (chatPage && !friendsSession.isEmpty() && !chatPeer.isEmpty() && chatNow >= nextChatPoll) updateChat(null, false);
+        if (chatPage && !friendsSession.isEmpty() && !chatPeer.isEmpty() && chatNow >= nextChatPoll)
+            updateChat(null, false);
         if (chatPage) {
             var chat = new JsonObject();
+            var transfer = accounts.chatTransfer();
+            chat.addProperty("linkPending", transfer != null);
+            if (transfer != null && !chatTransferPolling && chatNow >= nextChatTransferPoll) pollChatTransfer();
             chat.addProperty("peer", chatPeer);
             chat.addProperty("busy", chatLoading);
             chat.addProperty("loaded", chatLoaded);
@@ -793,6 +912,8 @@ public final class OrionClickGuiScreen extends Screen {
             chat.addProperty("sent", chatSent);
             chat.addProperty("status", tr(chatStatus));
             chat.addProperty("verification", chatVerification);
+            chat.addProperty("keyState", chatKeyState);
+            chat.addProperty("keyBusy", chatKeyBusy);
             chat.add("items", chatMessages);
             data.add("chat", chat);
         }
@@ -840,10 +961,9 @@ public final class OrionClickGuiScreen extends Screen {
                 item.addProperty("key",entry.id());
                 item.addProperty("name",entry.id()==0 ? tr(entry.name()) : entry.name());
                 item.addProperty("author",entry.author());
-                item.addProperty("note",entry.id()<=0 ? tr("Локальный конфиг") : entry.downloads()+" "+tr("скачиваний"));
+                item.addProperty("downloads",entry.downloads());
                 item.addProperty("downloaded",entry.id() > 0
                         && localConfigs.stream().anyMatch(copy -> copy.entry().id() == entry.id()));
-                item.add("modules",new JsonArray());
                 entries.add(item);
             }
             data.add("configs",entries);
@@ -857,14 +977,16 @@ public final class OrionClickGuiScreen extends Screen {
         }
         String status = !siteStatus.isBlank() ? siteStatus : configsPage ? configStatus : accountStatus;
         data.addProperty("status",tr(status));
-        data.addProperty("statusKind", status.matches("(?s)^(Не удалось|Неверн|Недоступ|Сайт|Укажите|Слишком|Войди).*")
+        data.addProperty("statusKind", status.matches("(?s)^(Не удалось|Неверн|Недоступ|Сайт|Укажите|Слишком|Войди|Восстанови|Сохрани ключ|Код уже|Срок действия|Запрос на подключение|Подтверди подключение).*")
                 ? "error" : "success");
         return data;
     }
 
     private void drawCosmeticPreview(GuiGraphicsExtractor graphics) {
         var preview = cosmeticPreview;
-        if (preview == null || !"COSMETICS".equals(siteSection)) return;
+        if (preview == null) return;
+        boolean friend = "FRIENDS".equals(siteSection) && !friendPreviewName.isEmpty();
+        if (!friend && !"COSMETICS".equals(siteSection)) return;
         float scale = minecraft.getWindow().getGuiScale();
         int x = Math.round(preview.x() / scale);
         int y = Math.round(preview.y() / scale);
@@ -874,17 +996,61 @@ public final class OrionClickGuiScreen extends Screen {
         int bottom = Math.min(y + h, Math.round(preview.clipBottom() / scale));
         if (w < 12 || h < 12 || top >= bottom || x < 0 || x + w > width + 1) return;
         var items = preview.items();
-        boolean wings = items.contains("angel") || items.contains("dragon");
-        float size = Math.min(w / (wings ? 5.5F : 2.6F), h / (wings ? 2.95F : 2.8F)) * preview.zoom();
+        boolean wings = items.stream().anyMatch(ru.orion.client.effect.GleamWingModel.IDS::contains);
+        float stageWidth = wings ? (friend ? 5.15F : 5.5F) : previewPet != null ? 3.2F : 2.6F;
+        float stageHeight = wings ? 2.95F : (friend ? 2.5F : 2.8F);
+        float size = Math.min(w / stageWidth, h / stageHeight) * preview.zoom();
         int color = parseColor(configManager.getConfig().getAccentColor()).getRGB();
         graphics.nextStratum();
         graphics.enableScissor(x, top, x + w, bottom);
         try {
-            OrionCosmeticPreview.draw(graphics, cosmeticSkin(), items, preview.yaw(), color, x, y, x + w, y + h,
-                    size, wings || items.contains("hat") ? 1.20F : 1.04F);
+            OrionCosmeticPreview.draw(graphics, friend ? friendSkin() : cosmeticSkin(), items, preview.yaw(), color, x, y, x + w, y + h,
+                    size, wings || items.contains("hat") ? 1.20F : 1.04F,
+                    previewPet, (System.nanoTime() - petPreviewStarted) / 1_000_000L);
         } finally {
             graphics.disableScissor();
         }
+    }
+
+    private net.minecraft.world.entity.player.PlayerSkin friendSkin() {
+        var fallback = net.minecraft.client.resources.DefaultPlayerSkin.get(java.util.UUID.nameUUIDFromBytes(
+                friendPreviewName.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        for (var value : friends) {
+            var item = value.getAsJsonObject();
+            if (!friendPreviewName.equals(item.get("username").getAsString()) || !item.has("appearance")) continue;
+            var appearance = item.getAsJsonObject("appearance");
+            var raw = appearance.get("skin");
+            if (raw == null || raw.isJsonNull()) return fallback;
+            String hash = raw.getAsString();
+            if (!hash.matches("[a-f0-9]{1,64}")) return fallback;
+            var pending = friendSkins.computeIfAbsent(hash, key -> {
+                var downloader = new net.minecraft.client.renderer.texture.SkinTextureDownloader(
+                        minecraft.getProxy(), minecraft.getTextureManager(), net.minecraft.util.Util.ioPool());
+                var id = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "friends/skins/" + key);
+                var cache = net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir()
+                        .resolve("assets/skins").resolve(key);
+                return downloader.downloadAndRegisterSkin(id, cache, "https://textures.minecraft.net/texture/" + key, true)
+                        .exceptionally(failure -> null);
+            });
+            var texture = pending.getNow(null);
+            if (texture == null) return fallback;
+            var model = appearance.get("slim").getAsBoolean()
+                    ? net.minecraft.world.entity.player.PlayerModelType.SLIM : net.minecraft.world.entity.player.PlayerModelType.WIDE;
+            return net.minecraft.world.entity.player.PlayerSkin.insecure(texture, null, null, model);
+        }
+        return fallback;
+    }
+
+    private void shareFriendSkin() {
+        var skin = cosmeticSkin();
+        if (skin == null || !(skin.body() instanceof net.minecraft.core.ClientAsset.DownloadedTexture texture)) return;
+        var url = texture.url();
+        if (!url.matches("https?://textures\\.minecraft\\.net/texture/[a-f0-9]{1,64}")) return;
+        var owner = accounts.username() + "/" + url;
+        if (sharedFriendSkin.equals(owner)) return;
+        sharedFriendSkin = owner;
+        accounts.publishFriendAppearance(url.substring(url.lastIndexOf('/') + 1),
+                skin.model() == net.minecraft.world.entity.player.PlayerModelType.SLIM);
     }
 
     private net.minecraft.world.entity.player.PlayerSkin cosmeticSkin() {
@@ -1007,10 +1173,35 @@ public final class OrionClickGuiScreen extends Screen {
     private void selectChat(String peer) {
         chatPeer = peer;
         chatMessages = new JsonArray();
-        chatStatus = chatVerification = "";
+        chatStatus = chatVerification = chatKeyState = "";
+        chatKeyBusy = false;
         chatBusy = chatLoading = chatLoaded = chatOlder = false;
         nextChatPoll = 0;
         chatRequest++;
+    }
+
+    private void pollChatTransfer() {
+        chatTransferPolling = true;
+        nextChatTransferPoll = System.nanoTime() + 3_000_000_000L;
+        String session = friendsSession;
+        var transfer = accounts.chatTransfer();
+        accounts.pollChatTransfer().whenComplete((apply, failure) -> minecraft.execute(() -> {
+            chatTransferPolling = false;
+            if (!session.equals(accounts.sessionCookieHeader())) return;
+            if (apply != null && accounts.chatTransfer() == transfer) {
+                try {
+                    apply.run();
+                } catch (IllegalStateException expired) {
+                    siteStatus = expired.getMessage();
+                    return;
+                }
+                chatKeyState = chatStatus = "";
+                siteStatus = "Переписка синхронизирована";
+                nextChatPoll = 0;
+            } else if (failure != null && accounts.chatTransfer() == null) {
+                siteStatus = "Срок действия кода истёк";
+            }
+        }));
     }
 
     public boolean isViewingChat(String username) {
@@ -1020,7 +1211,7 @@ public final class OrionClickGuiScreen extends Screen {
     static void openChatNotification(Minecraft client, String peer) {
         var instance = OrionClient.getInstance();
         if (instance == null) return;
-        Screen current = client.gui.screen();
+        Screen current = GleamMinecraft.screen(client);
         var screen = current instanceof OrionClickGuiScreen gui ? gui
                 : new OrionClickGuiScreen(instance.getConfigManager(), current, TitlePage.MODULES);
         screen.syncFriendsAccount();
@@ -1028,7 +1219,8 @@ public final class OrionClickGuiScreen extends Screen {
         screen.selectChat(peer);
         screen.chatRoute++;
         screen.nextChatFriends = 0;
-        if (screen != current) client.gui.setScreen(screen);
+        if (screen.siteMenu != null) screen.siteMenu.invalidateState();
+        if (screen != current) GleamMinecraft.setScreen(client, screen);
     }
 
     private void updateChat(String message, boolean older) {
@@ -1036,7 +1228,7 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void updateChat(String message, boolean older, OrionAccounts.ChatReply reply) {
-        if (chatPeer.isEmpty() || chatBusy && (chatLoading || message == null && !older)) return;
+        if (chatPeer.isEmpty() || chatKeyBusy || accounts.chatTransfer() != null || chatBusy && (chatLoading || message == null && !older)) return;
         chatBusy = true;
         int request = ++chatRequest;
         String session = friendsSession;
@@ -1048,8 +1240,14 @@ public final class OrionClickGuiScreen extends Screen {
             chatBusy = chatLoading = false;
             nextChatPoll = System.nanoTime() + 4_000_000_000L;
             if (failure != null) {
-                Throwable cause = failure.getCause() == null ? failure : failure.getCause();
+                Throwable cause = failure;
+                while (cause instanceof java.util.concurrent.CompletionException && cause.getCause() != null)
+                    cause = cause.getCause();
                 chatStatus = cause instanceof IllegalStateException ? cause.getMessage() : "Чат недоступен";
+                if (cause instanceof OrionAccounts.ChatRecoveryRequired recovery) {
+                    chatKeyState = recovery.backupAvailable() ? "restore" : "missing";
+                    nextChatPoll = System.nanoTime() + 20_000_000_000L;
+                }
                 if ("Чат доступен только друзьям".equals(chatStatus)) {
                     chatMessages = new JsonArray();
                     chatOlder = false;
@@ -1060,6 +1258,7 @@ public final class OrionClickGuiScreen extends Screen {
             chatStatus = message == null ? "" : "Сообщение отправлено";
             if (!older && isViewingChat(chatPeer)) accounts.markChatRead(chatPeer);
             chatVerification = response.has("verification") ? response.get("verification").getAsString() : "";
+            chatKeyState = "";
             chatLoaded = true;
             if (message != null) chatSent++;
             var merged = new JsonArray();
@@ -1092,10 +1291,10 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void loadNextFriendAvatar(Iterator<String> ids, int requestId, String session) {
-        if (minecraft.gui.screen() != this || requestId != friendsRequest || !session.equals(accounts.sessionCookieHeader()) || !ids.hasNext()) return;
+        if (GleamMinecraft.screen(minecraft) != this || requestId != friendsRequest || !session.equals(accounts.sessionCookieHeader()) || !ids.hasNext()) return;
         String id = ids.next();
         accounts.publicAvatar(id).whenComplete((image, failure) -> minecraft.execute(() -> {
-            if (minecraft.gui.screen() != this || requestId != friendsRequest || !session.equals(accounts.sessionCookieHeader())) return;
+            if (GleamMinecraft.screen(minecraft) != this || requestId != friendsRequest || !session.equals(accounts.sessionCookieHeader())) return;
             if (image != null) {
                 friendAvatarImages.put(id, image);
                 JsonObject avatars = friendAvatars.deepCopy();
@@ -1144,6 +1343,7 @@ public final class OrionClickGuiScreen extends Screen {
             case ToggleSetting toggle -> {
                 item.addProperty("kind","toggle");
                 item.addProperty("value",toggle.get.get());
+                if (toggle.icon != null) item.addProperty("art", settingIconName(toggle.icon));
             }
             case SliderSetting slider -> {
                 item.addProperty("kind","slider");
@@ -1152,6 +1352,12 @@ public final class OrionClickGuiScreen extends Screen {
                 item.addProperty("step",slider.integer ? 1 : .01F);
                 item.addProperty("suffix",tr(slider.suffix));
                 item.addProperty("value",slider.get.get());
+                if (slider.sound != null) {
+                    item.addProperty("sound", slider.sound.toString());
+                    item.addProperty("section", tr(slider.section));
+                    if (slider.icon != null) item.addProperty("art", settingIconName(slider.icon));
+                    if (LOOKUP_SOUNDS.equals(slider.section)) item.addProperty("lookup", true);
+                }
             }
             case ChoiceSetting choice -> {
                 item.addProperty("kind","choice");
@@ -1217,6 +1423,10 @@ public final class OrionClickGuiScreen extends Screen {
 
     private void onSiteAction(JsonObject event) {
         String action = event.get("action").getAsString();
+        if ("ui-sound".equals(action)) {
+            if (event.has("kind")) playInterfaceSound(minecraft, event.get("kind").getAsString());
+            return;
+        }
         siteStatus = "";
         switch (action) {
             case "close" -> onClose();
@@ -1234,6 +1444,14 @@ public final class OrionClickGuiScreen extends Screen {
                 for (ModuleRow row : ModuleRow.ALL) if (row.action == target) { openSettings(row); break; }
             }
             case "setting", "setting-preview", "setting-button", "bind" -> applySiteSetting(action,event);
+            case "sound-preview" -> {
+                if (settingsFor == null || settingsFor.action != Action.SOUND_SETTINGS) return;
+                int index = event.get("index").getAsInt();
+                if (index >= 0 && index < settingsRows.length && settingsRows[index] instanceof SliderSetting row
+                        && row.sound != null && event.has("sound") && row.sound.toString().equals(event.get("sound").getAsString())) {
+                    previewSound(row.sound);
+                }
+            }
             case "look" -> {
                 String key = event.get("key").getAsString();
                 if ("theme".equals(key) && event.has("reveal")) siteMenu.revealTheme(event.getAsJsonObject("reveal"));
@@ -1253,11 +1471,27 @@ public final class OrionClickGuiScreen extends Screen {
             }
             case "cosmetic-preview" -> {
                 cosmeticPreview = null;
-                if (!"COSMETICS".equals(siteSection) || !event.has("items")) return;
+                friendPreviewName = "";
+                boolean friend = "FRIENDS".equals(siteSection) && event.has("friend");
+                if ((!friend && !"COSMETICS".equals(siteSection)) || !event.has("items")) {
+                    previewPet = null;
+                    return;
+                }
+                if (friend) {
+                    String username = event.get("friend").getAsString();
+                    if (friends.asList().stream().noneMatch(value -> username.equals(value.getAsJsonObject().get("username").getAsString())))
+                        return;
+                    friendPreviewName = username;
+                }
                 var items = new java.util.HashSet<String>();
                 for (var item : event.getAsJsonArray("items")) {
                     String id = item.getAsString();
-                    if (id.matches("angel|dragon|halo|hat|dance")) items.add(id);
+                    if ((ru.orion.client.effect.GleamWingModel.IDS.contains(id) || id.matches("halo|hat|dance")) || GleamPet.byId(id) != null) items.add(id);
+                }
+                GleamPet pet = GleamPet.in(items);
+                if (previewPet != pet) {
+                    previewPet = pet;
+                    petPreviewStarted = System.nanoTime();
                 }
                 cosmeticPreview = new CosmeticStage(event.get("x").getAsFloat(), event.get("y").getAsFloat(),
                         event.get("w").getAsFloat(), event.get("h").getAsFloat(), event.get("clipTop").getAsFloat(),
@@ -1299,8 +1533,71 @@ public final class OrionClickGuiScreen extends Screen {
                     updateChat(message, false, reply);
                 }
             }
+            case "chat-link-copy" -> {
+                var transfer = accounts.chatTransfer();
+                if ("CHAT".equals(siteSection) && transfer != null) {
+                    minecraft.keyboardHandler.setClipboard(transfer.code());
+                    siteStatus = "Код подключения скопирован";
+                }
+            }
+            case "chat-link-cancel" -> {
+                if ("CHAT".equals(siteSection)) accounts.cancelChatTransfer();
+            }
+            case "chat-key-copy", "chat-key-restore", "chat-link-start", "chat-link-approve" -> {
+                if (!"CHAT".equals(siteSection) || syncFriendsAccount() || friendsSession.isEmpty() || chatKeyBusy) return;
+                boolean restoring = "chat-key-restore".equals(action);
+                boolean approving = "chat-link-approve".equals(action);
+                if ((restoring || approving) && !event.has("code")) return;
+                String code = restoring || approving ? event.get("code").getAsString().strip() : "";
+                chatKeyBusy = true;
+                int request = ++chatRequest;
+                chatBusy = chatLoading = false;
+                String session = friendsSession;
+                java.util.concurrent.CompletableFuture<Runnable> result = switch (action) {
+                    case "chat-key-restore" -> accounts.restoreChatKey(code);
+                    case "chat-link-start" -> accounts.startChatTransfer();
+                    case "chat-link-approve" -> accounts.approveChatTransfer(code).thenApply(ignored -> () -> { });
+                    default -> accounts.copyChatRecoveryCode().thenApply(secret -> () -> minecraft.keyboardHandler.setClipboard(secret));
+                };
+                result.whenComplete((apply, failure) -> minecraft.execute(() -> {
+                    if (!session.equals(accounts.sessionCookieHeader())) return;
+                    if (failure == null && restoring) apply.run();
+                    if (request != chatRequest || GleamMinecraft.screen(minecraft) != this) return;
+                    chatKeyBusy = false;
+                    if (failure == null) {
+                        if (restoring) {
+                            chatKeyState = chatStatus = "";
+                            updateChat(null, false);
+                        } else apply.run();
+                        siteStatus = switch (action) {
+                            case "chat-key-restore" -> "Ключ чата восстановлен";
+                            case "chat-link-start" -> "";
+                            case "chat-link-approve" -> "Подключение подтверждено";
+                            default -> "Код скопирован. Сохрани его в надёжном месте";
+                        };
+                        return;
+                    }
+                    Throwable cause = failure;
+                    while (cause instanceof java.util.concurrent.CompletionException && cause.getCause() != null)
+                        cause = cause.getCause();
+                    chatStatus = cause instanceof IllegalStateException ? cause.getMessage() : "Ключи защищённого чата недоступны";
+                    if (cause instanceof OrionAccounts.ChatRecoveryRequired recovery)
+                        chatKeyState = recovery.backupAvailable() ? "restore" : "missing";
+                    nextChatPoll = System.nanoTime() + 20_000_000_000L;
+                    siteStatus = chatStatus;
+                }));
+            }
             case "clipboard-copy" -> {
                 if (event.has("text")) minecraft.keyboardHandler.setClipboard(event.get("text").getAsString());
+            }
+            case "cosmetic-pet" -> {
+                if ("COSMETICS".equals(siteSection) && event.has("id")) {
+                    GleamPet pet = GleamPet.byId(event.get("id").getAsString());
+                    if (pet != null) {
+                        boolean equipped = pet.id().equals(configManager.getConfig().getCosmeticPet());
+                        configManager.setCosmeticPet(equipped ? "" : pet.id());
+                    }
+                }
             }
             case "cosmetic-wings" -> {
                 if ("COSMETICS".equals(siteSection)) {
@@ -1319,6 +1616,12 @@ public final class OrionClickGuiScreen extends Screen {
                     refreshFriends(username, change);
             }
             case "friend-profile" -> openFriendProfile(event.get("username").getAsString());
+            case "friend-world" -> {
+                if ("FRIENDS".equals(siteSection))
+                    OrionFriendWorlds.action(minecraft, event.get("command").getAsString(),
+                            event.has("target") ? event.get("target").getAsString() : "",
+                            event.has("offline") && event.get("offline").getAsBoolean());
+            }
             case "friend-profile-back" -> friendProfile = null;
             case "friend-profile-copy" -> {
                 if ("FRIENDS".equals(siteSection) && friendProfile != null && friendProfile.has("id")
@@ -1408,6 +1711,7 @@ public final class OrionClickGuiScreen extends Screen {
             case "languageChoice" -> config.setClickGuiLanguage(value);
             case "chatNotifications" -> config.setChatNotifications(Boolean.parseBoolean(value));
             case "chatNotificationSound" -> config.setChatNotificationSound(Boolean.parseBoolean(value));
+            case "interfaceSounds" -> config.setInterfaceSounds(Boolean.parseBoolean(value));
             case "showFakePunishments" -> config.setShowFakePunishments(Boolean.parseBoolean(value));
             default -> { return; }
         }
@@ -1430,10 +1734,12 @@ public final class OrionClickGuiScreen extends Screen {
             switch (row) {
                 case ToggleSetting toggle -> toggle.set.accept(value.getAsBoolean());
                 case SliderSetting slider -> {
+                    if (slider.sound != null && (!event.has("sound") || !slider.sound.toString().equals(event.get("sound").getAsString()))) return;
                     float number = value.getAsFloat();
                     if (!Float.isFinite(number)) return;
                     number = Math.clamp(number,slider.min,slider.max);
                     slider.set.accept(slider.integer ? (float)Math.round(number) : number);
+                    if (slider.sound != null && !preview && configManager.getConfig().isSoundSettingsEnabled()) refreshSoundVolumes();
                 }
                 case ChoiceSetting choice -> {
                     int option = value.getAsInt();
@@ -1455,7 +1761,7 @@ public final class OrionClickGuiScreen extends Screen {
                 }
                 default -> { return; }
             }
-            if (!preview) configManager.save();
+            if (!preview && (settingsFor.action != Action.SOUND_SETTINGS || row instanceof SliderSetting)) configManager.save();
         }
     }
 
@@ -2762,6 +3068,8 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void openSettings(ModuleRow row) {
+        if (!isModuleAvailable(row.action)) return;
+        stopSoundPreview();
         htmlReturnCategory = selectedCategory;
         htmlReturnScroll = moduleScroll;
         if (paradox) {
@@ -2801,6 +3109,7 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void closeSettings() {
+        stopSoundPreview();
         if (crosshairPaintButton >= 0) {
             finishCrosshairEdit();
             crosshairPaintButton = crosshairLastCell = -1;
@@ -3163,7 +3472,8 @@ public final class OrionClickGuiScreen extends Screen {
 
     private boolean hasSettings(Action action) {
         return switch (action) {
-            case RAGDOLL, FRESH_ANIMATIONS -> true;
+            case RAGDOLL, FRESH_ANIMATIONS, NAMETAGS, FREE_LOOK, CLEAN_WATER,
+                    POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER -> true;
             case SKIN_LAYERS, ITEM_SCROLLER, EMOTES, CHAT_ANIMATION, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
                  FAKE_PREFIX, HEALTH_TAGS, ARMOR_INDICATOR,
                  HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW -> true;
@@ -3201,6 +3511,105 @@ public final class OrionClickGuiScreen extends Screen {
         config.setBasketballCourtLines(defaults.isBasketballCourtLines());
         config.setBasketballTrajectory(defaults.isBasketballTrajectory());
         configManager.save();
+    }
+
+    private Setting[] buildSoundSettings(OrionConfig config) {
+        var sounds = minecraft.getSoundManager();
+        var rows = new ArrayList<Setting>();
+        var visible = new java.util.HashSet<Identifier>();
+        for (var preset : FEATURED_SOUNDS) {
+            var id = Identifier.withDefaultNamespace(preset.id);
+            if (sounds.getSoundEvent(id) == null) continue;
+            rows.add(soundSlider(config, id, preset.label, preset.group, preset.icon, preset.variants));
+            visible.add(id);
+        }
+        rows.add(new TextSetting("Поиск по названию или ID", () -> soundQuery, value -> {
+            if (!soundQuery.equals(value)) {
+                soundQuery = value;
+                settingsRows = buildSoundSettings(configManager.getConfig());
+                lastFingerprint = null;
+            }
+        }, 120));
+        String query = soundQuery.strip().toLowerCase(Locale.ROOT);
+        if (query.length() >= 2) {
+            int firstResult = rows.size();
+            sounds.getAvailableSounds().stream().sorted(java.util.Comparator
+                            .comparing((Identifier id) -> !id.toString().equals(query) && !id.getPath().equals(query))
+                            .thenComparing(Identifier::toString))
+                    .filter(id -> !visible.contains(id))
+                    .map(id -> {
+                        var event = sounds.getSoundEvent(id);
+                        var subtitle = event == null ? null : event.getSubtitle();
+                        return new SoundPreset(LOOKUP_SOUNDS, id.toString(), subtitle == null ? id.getPath() : subtitle.getString(), null);
+                    })
+                    .filter(sound -> sound.id.contains(query) || sound.label.toLowerCase(Locale.ROOT).contains(query))
+                    .limit(6)
+                    .forEach(sound -> rows.add(soundSlider(config, Identifier.parse(sound.id), sound.label, sound.group, null)));
+            if (rows.size() == firstResult) {
+                rows.add(new ValueSetting("Нет подходящих звуков", () -> ""));
+            }
+        }
+        return rows.toArray(Setting[]::new);
+    }
+
+    private static SliderSetting soundSlider(OrionConfig config, Identifier id, String label, String section, String icon,
+                                             String... variants) {
+        String key = id.toString();
+        return new SliderSetting(label, 0, 100, () -> (float) config.getSoundVolume(key),
+                value -> {
+                    int volume = Math.round(value);
+                    config.setSoundVolume(key, volume);
+                    for (String variant : variants) {
+                        config.setSoundVolume("minecraft:" + variant, volume);
+                    }
+                }, "%", true, id, section, icon);
+    }
+
+    static java.util.Set<String> settingIcons() {
+        var icons = new java.util.LinkedHashSet<String>();
+        for (var sound : FEATURED_SOUNDS) icons.add(sound.icon);
+        for (var option : ru.orion.client.effect.OrionNoRender.Option.values()) icons.add(option.icon);
+        return icons;
+    }
+
+    static String settingIconName(String path) {
+        return "setting-" + path.replace('/', '-');
+    }
+
+    private void previewSound(Identifier id) {
+        var sounds = minecraft.getSoundManager();
+        if (sounds.getSoundEvent(id) == null) return;
+        stopSoundPreview();
+        var config = configManager.getConfig();
+        float volume = config.getSoundVolume(id.toString()) / 100F;
+        if (volume == 0) return;
+        soundPreview = SimpleSoundInstance.forUI(SoundEvent.createVariableRangeEvent(id), 1F,
+                config.isSoundSettingsEnabled() ? 1F : volume);
+        sounds.play(soundPreview);
+    }
+
+    private void stopSoundPreview() {
+        if (soundPreview == null) return;
+        minecraft.getSoundManager().stop(soundPreview);
+        soundPreview = null;
+    }
+
+    private void refreshSoundVolumes() {
+        var sounds = minecraft.getSoundManager();
+        for (var source : net.minecraft.sounds.SoundSource.values()) sounds.refreshCategoryVolume(source);
+    }
+
+    private static Setting[] buildNoRenderSettings(OrionConfig config) {
+        var rows = new ArrayList<Setting>();
+        for (var option : ru.orion.client.effect.OrionNoRender.Option.values()) {
+            rows.add(new ToggleSetting(option.label, () -> config.hasNoRenderOption(option.name()),
+                    value -> config.setNoRenderOption(option.name(), value), option.icon));
+        }
+        rows.add(new TextSetting("ID скрытых сущностей через запятую", () -> config.getHiddenRenderTypes(false),
+                value -> config.setHiddenRenderTypes(false, value), 2048));
+        rows.add(new TextSetting("ID скрытых частиц через запятую", () -> config.getHiddenRenderTypes(true),
+                value -> config.setHiddenRenderTypes(true, value), 2048));
+        return rows.toArray(Setting[]::new);
     }
 
     private Setting[] buildSettings(Action action) {
@@ -3258,7 +3667,7 @@ public final class OrionClickGuiScreen extends Screen {
                     new ValueSetting("Управление танцами", () -> tr("Выбери мышью или клавишами 1–6")),
                     new ButtonSetting("Текущий танец", "Остановить", ru.orion.client.effect.OrionEmotes::stop)
             };
-            case WINGS -> new Setting[]{new ChoiceSetting("Вид крыльев", new String[]{"Ангельские", "Драконьи"}, config::getWingsStyle, configManager::setWingsStyle)};
+            case WINGS -> new Setting[]{new ChoiceSetting("Вид крыльев", new String[]{"Ангельские", "Драконьи", "Еловая лапа", "Пепельный феникс"}, config::getWingsStyle, configManager::setWingsStyle)};
             case WAYPOINTS -> new Setting[]{
                     new ToggleSetting("Указатели за экраном", config::isWaypointEdgeIndicators, config::setWaypointEdgeIndicators),
                     new ToggleSetting("Координаты меток", config::isWaypointShowCoordinates, config::setWaypointShowCoordinates),
@@ -3281,6 +3690,36 @@ public final class OrionClickGuiScreen extends Screen {
                     new ButtonSetting("Выбранная метка", "Сохранить", () -> saveWaypoint(true)),
                     new ButtonSetting("Удалить метку", "Удалить", this::deleteWaypoint)
             };
+            case CLEAN_WATER -> new Setting[]{
+                    new SliderSetting("Непрозрачность текстуры воды", OrionConfig.MIN_CLEAN_WATER_OPACITY, 100,
+                            () -> (float) config.getCleanWaterOpacity(), config::setCleanWaterOpacity, "%", true),
+                    new ToggleSetting("Убрать подводный туман", config::isCleanWaterClearFog, config::setCleanWaterClearFog)
+            };
+            case NAMETAGS -> new Setting[]{
+                    new ToggleSetting("Фон ника", config::isNametagsBackground, config::setNametagsBackground),
+                    new ToggleSetting("Тень текста", config::isNametagsShadow, config::setNametagsShadow)
+            };
+            case FREE_LOOK -> new Setting[]{
+                    new KeybindSetting("Клавиша обзора", OrionKeybinds::getFreeLookKey),
+                    new ToggleSetting("Переключение по нажатию", config::isFreeLookToggle, config::setFreeLookToggle)
+            };
+            case POTIONS -> new Setting[]{
+                    new ToggleSetting("Скрывать ванильные иконки эффектов", config::isPotionsHideVanilla, config::setPotionsHideVanilla),
+                    hudStyleSetting("Оформление", ru.orion.client.hud.OrionPotionsHud.ID)
+            };
+            case TARGET_HUD -> new Setting[]{
+                    new ChoiceSetting("Расположение", new String[]{"На экране", "Сбоку от цели в 3D"},
+                            () -> config.isTargetHudWorld() ? 1 : 0, value -> config.setTargetHudWorld(value == 1)),
+                    new ToggleSetting("Показывать только после атаки", config::isTargetHudAttackOnly, config::setTargetHudAttackOnly),
+                    new ToggleSetting("Только игроки", config::isTargetHudPlayersOnly, config::setTargetHudPlayersOnly),
+                    new SliderSetting("Удерживать цель", 0, 10, () -> (float) config.getTargetHudHoldSeconds(),
+                            value -> config.setTargetHudHoldSeconds(Math.round(value)), " с", true),
+                    new ToggleSetting("Показывать снаряжение", config::isTargetHudEquipment, config::setTargetHudEquipment),
+                    new ToggleSetting("Показывать пинг", config::isTargetHudPing, config::setTargetHudPing),
+                    hudStyleSetting("Оформление", ru.orion.client.hud.OrionTargetHud.ID)
+            };
+            case SOUND_SETTINGS -> buildSoundSettings(config);
+            case NO_RENDER -> buildNoRenderSettings(config);
             case ZOOM -> new Setting[]{
                     new SliderSetting("Приближение", 1.5F, 12F, config::getZoomFactor, config::setZoomFactor, "x"),
                     new KeybindSetting("Клавиша приближения", OrionKeybinds::getZoomKey),
@@ -3747,6 +4186,7 @@ public final class OrionClickGuiScreen extends Screen {
         return new Setting[]{
                 new ChoiceSetting("Вид индикатора", new String[]{armor ? "Значки брони" : "Сердца", "Число", "Проценты"},
                         () -> options.mode, value -> options.mode = value),
+                new ColorSetting("Цвет чисел и процентов", COLOR_PRESETS, options::getValueColor, options::setValueColor),
                 new SliderSetting("Масштаб индикатора", 40, 200, () -> options.scale * 100,
                         value -> options.scale = value / 100, "%", true),
                 new SliderSetting("Смещение по высоте", -.5F, 2F, () -> options.offset, value -> options.offset = value, " м"),
@@ -3869,7 +4309,7 @@ public final class OrionClickGuiScreen extends Screen {
         int pw = settingsAtlasGuiWidth * scale, ph = settingsAtlasGuiHeight * scale;
         renderSettingsImage(pw, ph);
         var client = Minecraft.getInstance();
-        if (settingsTexture == null || settingsTexture.getPixels() == null || settingsTexture.getPixels().isClosed() || settingsTexture.getPixels().getWidth() != pw || settingsTexture.getPixels().getHeight() != ph) {
+        if (settingsTexture == null || settingsTexture.getPixels() == null || ru.orion.client.render.GleamNativeImages.isClosed(settingsTexture.getPixels()) || settingsTexture.getPixels().getWidth() != pw || settingsTexture.getPixels().getHeight() != ph) {
             client.getTextureManager().release(SETTINGS_TEXTURE);
             NativeImage pixels = new NativeImage(pw, ph, true);
             settingsUploadPixels = copyPixels(settingsCanvas, pixels, settingsUploadPixels);
@@ -3977,7 +4417,7 @@ public final class OrionClickGuiScreen extends Screen {
             textureHeight = imageHeight;
         } else {
             NativeImage pixels = dynamicTexture.getPixels();
-            if (pixels == null || pixels.isClosed()) {
+            if (pixels == null || ru.orion.client.render.GleamNativeImages.isClosed(pixels)) {
                 lastFingerprint = null;
                 return;
             }
@@ -4005,7 +4445,13 @@ public final class OrionClickGuiScreen extends Screen {
             int color = argb[i];
             buffer[i] = (color & 0xFF00FF00) | ((color & 0x00FF0000) >>> 16) | ((color & 0x000000FF) << 16);
         }
+        //? if >=26.2 {
         target.getPixelBytes().order(ByteOrder.nativeOrder()).asIntBuffer().put(buffer);
+        //?} else {
+        /*for (int i = 0, width = target.getWidth(); i < buffer.length; i++) {
+            target.setPixelABGR(i % width, i / width, buffer[i]);
+        }
+        *///?}
         return buffer;
     }
 
@@ -4062,7 +4508,7 @@ public final class OrionClickGuiScreen extends Screen {
         if (!fingerprint.equals(layer.fingerprint)) {
             layer.image = renderAccountLayerImage(layer.image, menu, left, top, width, height, pixelWidth, pixelHeight);
             NativeImage nativeImage = layer.texture == null ? null : layer.texture.getPixels();
-            if (nativeImage == null || nativeImage.isClosed() || nativeImage.getWidth() != pixelWidth || nativeImage.getHeight() != pixelHeight) {
+            if (nativeImage == null || ru.orion.client.render.GleamNativeImages.isClosed(nativeImage) || nativeImage.getWidth() != pixelWidth || nativeImage.getHeight() != pixelHeight) {
                 if (layer.texture != null) minecraft.getTextureManager().release(layer.id);
                 nativeImage = new NativeImage(pixelWidth, pixelHeight, true);
                 layer.pixels = copyPixels(layer.image, nativeImage, layer.pixels);
@@ -6833,11 +7279,23 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private void toggle(Action action) {
+        if (!isModuleAvailable(action)) return;
         OrionConfig config = configManager.getConfig();
         switch (action) {
             case WINGS -> configManager.setWingsEnabled(!config.isWingsEnabled());
             case HALO -> configManager.setHaloEnabled(!config.isHaloEnabled());
             case ZOOM -> configManager.setZoomEnabled(!config.isZoomEnabled());
+            case CLEAN_WATER -> configManager.setCleanWaterEnabled(!config.isCleanWaterEnabled());
+            case NAMETAGS -> configManager.setNametagsEnabled(!config.isNametagsEnabled());
+            case FREE_LOOK -> configManager.setFreeLookEnabled(!config.isFreeLookEnabled());
+            case POTIONS -> { config.setPotionsEnabled(!config.isPotionsEnabled()); configManager.save(); }
+            case TARGET_HUD -> { config.setTargetHudEnabled(!config.isTargetHudEnabled()); configManager.save(); }
+            case SOUND_SETTINGS -> {
+                config.setSoundSettingsEnabled(!config.isSoundSettingsEnabled());
+                refreshSoundVolumes();
+                configManager.save();
+            }
+            case NO_RENDER -> { config.setNoRenderEnabled(!config.isNoRenderEnabled()); configManager.save(); }
             case CHAT_FILTER -> configManager.setChatFilterEnabled(!config.isChatFilterEnabled());
             case CHAT_ANIMATION -> { config.setChatAnimationEnabled(!config.isChatAnimationEnabled()); configManager.save(); }
             case CHAT_HIGHLIGHT -> configManager.setChatHighlightEnabled(!config.isChatHighlightEnabled());
@@ -6910,6 +7368,13 @@ public final class OrionClickGuiScreen extends Screen {
             case WINGS -> config.isWingsEnabled();
             case HALO -> config.isHaloEnabled();
             case ZOOM -> config.isZoomEnabled();
+            case CLEAN_WATER -> config.isCleanWaterEnabled();
+            case NAMETAGS -> config.isNametagsEnabled();
+            case FREE_LOOK -> config.isFreeLookEnabled();
+            case POTIONS -> config.isPotionsEnabled();
+            case TARGET_HUD -> config.isTargetHudEnabled();
+            case SOUND_SETTINGS -> config.isSoundSettingsEnabled();
+            case NO_RENDER -> config.isNoRenderEnabled();
             case CHAT_FILTER -> config.isChatFilterEnabled();
             case CHAT_ANIMATION -> config.isChatAnimationEnabled();
             case CHAT_HIGHLIGHT -> config.isChatHighlightEnabled();
@@ -6963,7 +7428,7 @@ public final class OrionClickGuiScreen extends Screen {
             case HIT_BOX -> config.isHitBoxEnabled();
             case HIT_COLOR -> config.isHitColorEnabled();
             case SKIN_LAYERS -> config.isSkinLayersEnabled();
-            case ITEM_SCROLLER -> config.isItemScrollerEnabled();
+            case ITEM_SCROLLER -> OrionItemScroller.isServerAllowed() && config.isItemScrollerEnabled();
             case EMOTES -> config.isEmotesEnabled();
             case HIT_SOUND -> config.isHitSoundEnabled();
             case CROSSHAIR -> config.isCrosshairEnabled();
@@ -6976,6 +7441,7 @@ public final class OrionClickGuiScreen extends Screen {
         if (!searchQuery.isBlank()) {
             String query = searchQuery.toLowerCase(Locale.ROOT).trim();
             return Arrays.stream(ModuleRow.ALL)
+                    .filter(row -> isModuleAvailable(row.action))
                     .filter(row -> row.title.toLowerCase(Locale.ROOT).contains(query)
                             || (row.description.toLowerCase(Locale.ROOT).contains(query) || tr(row.description).toLowerCase(Locale.ROOT).contains(query)))
                     .toArray(ModuleRow[]::new);
@@ -6998,8 +7464,13 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private ModuleRow[] sortedThemeRows(ModuleRow[] rows) {
-        if (!paradox) return rows;
-        return Arrays.stream(rows).sorted(java.util.Comparator.comparing(row -> row.title.toLowerCase(Locale.ROOT))).toArray(ModuleRow[]::new);
+        var visible = Arrays.stream(rows).filter(row -> isModuleAvailable(row.action));
+        if (paradox) visible = visible.sorted(java.util.Comparator.comparing(row -> row.title.toLowerCase(Locale.ROOT)));
+        return visible.toArray(ModuleRow[]::new);
+    }
+
+    private static boolean isModuleAvailable(Action action) {
+        return action != Action.ITEM_SCROLLER || OrionItemScroller.isServerAllowed();
     }
 
     private void updateAnimations() {
@@ -7052,6 +7523,7 @@ public final class OrionClickGuiScreen extends Screen {
 
     private List<Integer> fingerprint(int scale, boolean contentOnly) {
         List<Integer> values = new ArrayList<>(32);
+        values.add(OrionItemScroller.isServerAllowed() ? 1 : 0);
         values.add(scale);
         values.add(OrionGuiLanguage.english() ? 1 : 0);
         values.add(guiDisplayWidth());
@@ -7415,7 +7887,11 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private record SliderSetting(String label, float min, float max, Supplier<Float> get, Consumer<Float> set,
-                                 String suffix, boolean integer) implements Setting {
+                                 String suffix, boolean integer, Identifier sound, String section, String icon) implements Setting {
+        private SliderSetting(String label, float min, float max, Supplier<Float> get, Consumer<Float> set,
+                              String suffix, boolean integer) {
+            this(label, min, max, get, set, suffix, integer, null, null, null);
+        }
         private SliderSetting(String label, float min, float max, Supplier<Float> get, Consumer<Float> set,
                               String suffix) {
             this(label, min, max, get, set, suffix, false);
@@ -7426,13 +7902,17 @@ public final class OrionClickGuiScreen extends Screen {
                                 Consumer<String> set) implements Setting {
     }
 
-    private record ToggleSetting(String label, Supplier<Boolean> get, Consumer<Boolean> set) implements Setting {
+    private record ToggleSetting(String label, Supplier<Boolean> get, Consumer<Boolean> set, String icon) implements Setting {
+        private ToggleSetting(String label, Supplier<Boolean> get, Consumer<Boolean> set) {
+            this(label, get, set, null);
+        }
     }
 
     private enum Action {
         MIRAGE, WINGS, HALO, SKIN_LAYERS, ITEM_SCROLLER, EMOTES, ZOOM, CHAT_FILTER, CHAT_ANIMATION, CHAT_HIGHLIGHT, WAYPOINTS, DEATH_POINT, TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, ITEM_PHYSICS, HIT_PARTICLES, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
         WORLD_PARTICLES, FOOTBALL, BASKETBALL, ANIMATIONS, ENCHANT_GLINT, INVENTORY_HUD, SELF_TAG, ARMOR_INDICATOR, LOCK_SLOT, PVP_SAFE, KEYSTROKES, NO_ANIMATIONS, SATURATION, CHAT_HISTORY, CHAT_TIME, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, NO_PARTICLES, NO_WEATHER, NO_FIRE, WORLD_CHANGER, HEALTH_TAGS, PROTECT_NAME, FAKE_PREFIX,
-        HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW, KILL_EFFECTS, RAGDOLL, FRESH_ANIMATIONS;
+        HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW, KILL_EFFECTS, RAGDOLL, FRESH_ANIMATIONS,
+        NAMETAGS, FREE_LOOK, CLEAN_WATER, POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER;
 
         private static final Action[] VALUES = values();
     }
@@ -7440,6 +7920,7 @@ public final class OrionClickGuiScreen extends Screen {
     private record ModuleRow(String title, String description, Icon icon, Action action) {
         private static final ModuleRow[] COMBAT = {
                 new ModuleRow("TargetEsp", "Эффект на цели под прицелом", Icon.CROSSHAIR, Action.TARGET_ESP),
+                new ModuleRow("TargetHud", "Здоровье и снаряжение цели на экране или в мире", Icon.CROSSHAIR, Action.TARGET_HUD),
                 new ModuleRow("HitBox", "Перекрашивает хитбоксы (F3+B)", Icon.CUBE, Action.HIT_BOX),
                 new ModuleRow("HitColor", "Заливка хитбокса при ударе", Icon.CROSSHAIR, Action.HIT_COLOR),
                 new ModuleRow("HitSound", "Звук подтверждённого попадания", Icon.MUSIC, Action.HIT_SOUND),
@@ -7471,11 +7952,15 @@ public final class OrionClickGuiScreen extends Screen {
         };
         private static final ModuleRow[] RENDER = {
                 new ModuleRow("Zoom", "Управляемое приближение камеры", Icon.EYE, Action.ZOOM),
+                new ModuleRow("FreeLook", "Поворачивает камеру независимо от игрока", Icon.EYE, Action.FREE_LOOK),
+                new ModuleRow("Nametags", "Настраивает фон и тень надписей над головой", Icon.PLAYER, Action.NAMETAGS),
                 new ModuleRow("RainbowColor", "Все цвета переливаются радугой", Icon.SUN, Action.RAINBOW),
                 new ModuleRow("Crosshair", "Свой прицел: рисуется в редакторе", Icon.CROSSHAIR, Action.CROSSHAIR),
                 new ModuleRow("FullBright", "Повышает яркость мира", Icon.SUN, Action.FULL_BRIGHT),
                 new ModuleRow("HUD", "Отображает интерфейс клиента", Icon.MONITOR, Action.HUD),
                 new ModuleRow("Keystrokes", "Показывает нажатые клавиши", Icon.GRID, Action.KEYSTROKES),
+                new ModuleRow("Potions", "Иконки, названия и таймеры активных эффектов", Icon.RINGS, Action.POTIONS),
+                new ModuleRow("NoRender", "Скрывает выбранные модели, частицы и наложения", Icon.EYE, Action.NO_RENDER),
                 new ModuleRow("InventoryHUD", "Содержимое инвентаря на экране", Icon.GRID, Action.INVENTORY_HUD),
                 new ModuleRow("Saturation", "Показывает насыщение и эффект еды", Icon.SUN, Action.SATURATION),
                 new ModuleRow("NoAnimations", "Фиксирует позы других игроков", Icon.PLAYER, Action.NO_ANIMATIONS),
@@ -7491,6 +7976,7 @@ public final class OrionClickGuiScreen extends Screen {
         private static final ModuleRow[] WORLD = {
                 new ModuleRow("Waypoints", "Метки мира и управление ими", Icon.RINGS, Action.WAYPOINTS),
                 new ModuleRow("DeathPoint", "Метка последнего места смерти", Icon.RINGS, Action.DEATH_POINT),
+                new ModuleRow("Cleanwater", "Меняет прозрачность воды и убирает подводный туман", Icon.EYE, Action.CLEAN_WATER),
                 new ModuleRow("NoWeather", "Отключает дождь и снег", Icon.CUBE, Action.NO_WEATHER),
                 new ModuleRow("WorldChanger", "Меняет цвет неба и тумана", Icon.EYE, Action.WORLD_CHANGER),
                 new ModuleRow("CustomTime", "Свое время суток", Icon.SUN, Action.CUSTOM_TIME),
@@ -7500,6 +7986,7 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("ItemPhysics", "Предметы лежат на земле", Icon.CUBE, Action.ITEM_PHYSICS)
         };
         private static final ModuleRow[] MISC = {
+                new ModuleRow("Sound Settings", "Громкость и прослушивание отдельных звуков Minecraft", Icon.MUSIC, Action.SOUND_SETTINGS),
                 new ModuleRow("ChatFilter", "Скрывает сообщения по словам", Icon.CHAT, Action.CHAT_FILTER),
                 new ModuleRow("ChatHighlight", "Подсвечивает слова в чате", Icon.CHAT, Action.CHAT_HIGHLIGHT),
                 new ModuleRow("Basketball", "Клиентский баскетбол", Icon.RINGS, Action.BASKETBALL),

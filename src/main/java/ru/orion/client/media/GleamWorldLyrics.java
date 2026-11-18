@@ -1,5 +1,7 @@
 package ru.orion.client.media;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -112,12 +114,12 @@ public final class GleamWorldLyrics {
             nextAnchorAttempt = 0;
         }
         prefetch(timeline.next(index));
-        if (client.gui.screen() != null || client.gui.overlay() != null || !current.future().isDone()) return;
+        if (GleamMinecraft.screen(client) != null || GleamMinecraft.overlay(client) != null || !current.future().isDone()) return;
         GleamLyricsMesh.Phrase phrase;
         try { phrase = current.future().get(); }
         catch (Exception invalid) { return; }
         if (phrase.pieces().isEmpty()) return;
-        Camera camera = client.gameRenderer.mainCamera();
+        Camera camera = GleamMinecraft.camera(client);
         boolean sky = !settings.getPlacement().equals("Floating");
         boolean minimal = settings.getStyle().equals("Minimal");
         int variant = settings.isRandomizedTransitions() && !minimal
@@ -188,7 +190,7 @@ public final class GleamWorldLyrics {
     private static Anchor place(Minecraft client, Camera camera, boolean sky, int variant) {
         Vec3 eye = camera.position();
         float distance = sky ? 20F : 8F;
-        float tangent = (float) Math.tan(Math.toRadians(Math.clamp(camera.getFov(), 12F, 140F) / 2));
+        float tangent = (float) Math.tan(Math.toRadians(Math.clamp(ru.orion.client.render.GleamCameraMatrices.fov(camera), 12F, 140F) / 2));
         float aspect = Math.clamp(client.getWindow().getWidth() / (float) Math.max(1, client.getWindow().getHeight()), .45F, 3.5F);
         float fractionX = SKY_X[variant] * (sky ? 1 : .60F);
         float fractionY = sky ? SKY_Y[variant] : .12F;
@@ -243,13 +245,13 @@ public final class GleamWorldLyrics {
         stack.pushPose();
         try {
             stack.translate(relative);
-            stack.rotate(anchor.rotation());
+            ru.orion.client.render.GleamPose.rotate(stack, anchor.rotation());
             stack.translate(sign * anchor.halfWidth() * motion * ((1 - in) * -.24F + sweep * .16F),
                     anchor.halfHeight() * motion * ((1 - in) * -.10F + sweep * .44F),
                     anchor.distance() * motion * (progress * .10F + sweep * .22F));
-            stack.rotateDegrees(Axis.ZP, roll);
-            stack.rotateDegrees(Axis.YP, yaw);
-            stack.rotateDegrees(Axis.XP, -motion * sweep * 9F);
+            ru.orion.client.render.GleamPose.rotateDegrees(stack, Axis.ZP, roll);
+            ru.orion.client.render.GleamPose.rotateDegrees(stack, Axis.YP, yaw);
+            ru.orion.client.render.GleamPose.rotateDegrees(stack, Axis.XP, -motion * sweep * 9F);
             stack.scale(size * zoom, size * zoom, size * zoom);
             float dim = settings.getBackgroundDim() / 100F * alpha;
             if (alpha >= .998F) context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.worldLyricsSolid(),

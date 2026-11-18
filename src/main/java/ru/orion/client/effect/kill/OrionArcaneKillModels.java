@@ -55,8 +55,8 @@ public final class OrionArcaneKillModels {
             float x = (float) Math.cos(angle) * radius, z = (float) Math.sin(angle) * radius;
             stack.pushPose();
             stack.translate(x, 4.8F * (1 - fall) - .13F, z);
-            stack.rotate(Axis.YP.rotationDegrees(i * 49 + 18));
-            stack.rotate(Axis.ZP.rotationDegrees(i == 0 ? -4 : i % 2 == 0 ? 9 : -9));
+            ru.orion.client.render.GleamPose.rotate(stack, Axis.YP.rotationDegrees(i * 49 + 18));
+            ru.orion.client.render.GleamPose.rotate(stack, Axis.ZP.rotationDegrees(i == 0 ? -4 : i % 2 == 0 ? 9 : -9));
             float size = i == 0 ? 1.05F : .77F;
             stack.scale(size, size, size);
             sword(stack, vertices, fade);
@@ -106,7 +106,7 @@ public final class OrionArcaneKillModels {
         float turn = t * 180;
         stack.pushPose();
         stack.translate(0, 1.2F, 0);
-        stack.rotate(Axis.YP.rotationDegrees(turn));
+        ru.orion.client.render.GleamPose.rotate(stack, Axis.YP.rotationDegrees(turn));
         stack.pushPose();
         float coreSize = .13F * envelope;
         stack.scale(coreSize, coreSize, coreSize);
@@ -115,8 +115,8 @@ public final class OrionArcaneKillModels {
 
         for (int band = 0; band < 2; band++) {
             stack.pushPose();
-            stack.rotate(Axis.ZP.rotationDegrees(band == 0 ? 24 : -37));
-            stack.rotate(Axis.XP.rotationDegrees(band == 0 ? 18 : 70));
+            ru.orion.client.render.GleamPose.rotate(stack, Axis.ZP.rotationDegrees(band == 0 ? 24 : -37));
+            ru.orion.client.render.GleamPose.rotate(stack, Axis.XP.rotationDegrees(band == 0 ? 18 : 70));
             int blocks = 16 + quality * 4;
             for (int i = 0; i < blocks; i++) {
                 float angle = i * TAU / blocks + turn * .025F * (band == 0 ? 1 : -1);
@@ -138,7 +138,7 @@ public final class OrionArcaneKillModels {
             float size = (.06F + random(seed, i + 300) * .07F) * (1 - progress) * envelope;
             stack.pushPose();
             stack.translate((float) Math.cos(angle) * radius, height, (float) Math.sin(angle) * radius);
-            stack.rotate(Axis.YP.rotationDegrees(i * 17 + turn * 1.7F));
+            ru.orion.client.render.GleamPose.rotate(stack, Axis.YP.rotationDegrees(i * 17 + turn * 1.7F));
             box(stack.last(), vertices, 0, 0, 0, size, size, size,
                     alpha(i % 4 == 0 ? 0xFFB67AF0 : 0xFF39304E, envelope));
             stack.popPose();

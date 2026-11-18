@@ -1,5 +1,7 @@
 package ru.orion.client.config;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -16,6 +18,7 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
 import ru.orion.client.OrionClient;
 import ru.orion.client.command.OrionFakeBanCommand;
+import ru.orion.client.effect.OrionBadgePresence;
 import ru.orion.client.gui.OrionClickGuiScreen;
 import ru.orion.client.gui.OrionChatNotifications;
 import org.slf4j.LoggerFactory;
@@ -26,6 +29,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -62,13 +66,17 @@ public final class OrionAccounts {
     private CompletableFuture<Void> lastWrite = CompletableFuture.completedFuture(null);
     private Path sessionFile;
     private Session active;
+    private String cosmeticOwner = "", cosmeticCookie = "";
+    private JsonObject cosmeticBaseline, cosmeticSeed;
+    private long nextCosmeticPoll, nextCosmeticSample, cosmeticRetry;
+    private boolean cosmeticLoading;
     private final LinkedHashMap<String, Profile> profiles = new LinkedHashMap<>();
     private final LinkedHashMap<String, Session> pendingProfiles = new LinkedHashMap<>();
     private long profileRevision;
     private Session registeredChatSession, notificationSession;
     private long lastNotificationMessage;
     private CompletableFuture<OrionChatCrypto.Identity> registeredChatIdentity;
-    private long notificationCursor = -1, nextNotificationPoll;
+    private long notificationCursor = -1, nextNotificationPoll, nextChatRegistration;
     private boolean notificationLoading;
     private FakePunishmentFeed fakePunishmentFeed;
     private final LinkedHashMap<String, Integer> unreadChats = new LinkedHashMap<>();
@@ -78,12 +86,26 @@ public final class OrionAccounts {
 
     public record Profile(String id, long createdAt, boolean published, BufferedImage avatar) { }
     public record ChatReply(long id, boolean own, String body) { }
+    public record ChatTransfer(String code, long expiresAt) { }
+    private Session transferSession;
+    private ChatTransfer chatTransfer;
+    public static final class ChatRecoveryRequired extends IllegalStateException {
+        private final boolean backupAvailable;
+
+        private ChatRecoveryRequired(boolean backupAvailable) {
+            super(backupAvailable ? "Восстанови ключ чата" : "Сохрани ключ чата там, где открывается переписка");
+            this.backupAvailable = backupAvailable;
+        }
+
+        public boolean backupAvailable() { return backupAvailable; }
+    }
     private boolean busy;
 
     private OrionAccounts() { }
 
     private record Session(String username, String cookie, String csrf, long plusExpiresAt, String role) { }
     private record StoredSessions(List<Session> sessions, String active) { }
+    private record StartupSessions(StoredSessions saved, Session launcher) { }
 
     private static final class FakePunishmentFeed {
         private final Session session;
@@ -106,7 +128,9 @@ public final class OrionAccounts {
         ClientLifecycleEvents.CLIENT_STARTED.register(this::restore);
         ClientTickEvents.END_CLIENT_TICK.register(this::pollChatNotifications);
         ClientTickEvents.END_CLIENT_TICK.register(this::pollFakePunishments);
+        ClientTickEvents.END_CLIENT_TICK.register(this::syncCosmetics);
         OrionChatNotifications.register();
+        ru.orion.client.gui.OrionFriendWorlds.register();
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             try {
                 lastWrite.get(2, TimeUnit.SECONDS);
@@ -122,17 +146,78 @@ public final class OrionAccounts {
 
     private void restore(Minecraft client) {
         busy = true;
-        CompletableFuture.supplyAsync(this::readSessions, storage).whenComplete((stored, failure) ->
+        CompletableFuture.supplyAsync(() -> {
+            Session launcher = readLauncherSession();
+            StoredSessions saved;
+            try {
+                saved = readSessions();
+            } catch (IllegalStateException exception) {
+                LoggerFactory.getLogger("orion-client").warn("Не удалось восстановить сессии GleamClient");
+                saved = new StoredSessions(List.of(), "");
+            }
+            return new StartupSessions(saved, launcher);
+        }, storage).whenComplete((startup, failure) ->
                 client.execute(() -> {
-                    busy = false;
                     if (failure != null) {
+                        busy = false;
                         LoggerFactory.getLogger("orion-client").warn("Не удалось восстановить сессии GleamClient");
                         return;
                     }
+                    StoredSessions stored = startup.saved();
                     for (Session session : stored.sessions()) sessions.put(session.username(), session);
                     active = sessions.get(stored.active());
-                    if (active != null) refresh().thenAccept(update -> client.execute(update));
+                    if (startup.launcher() == null) {
+                        finishRestore(client);
+                        return;
+                    }
+                    verify(startup.launcher(), true).whenComplete((update, error) -> client.execute(() -> {
+                        if (error == null) {
+                            busy = false;
+                            update.run();
+                        } else {
+                            LoggerFactory.getLogger("orion-client").warn("Не удалось подтвердить сессию Gleam из лаунчера");
+                            finishRestore(client);
+                        }
+                    }));
                 }));
+    }
+
+    private void finishRestore(Minecraft client) {
+        busy = false;
+        if (active != null) refresh().thenAccept(update -> client.execute(update));
+    }
+
+    private static Session readLauncherSession() {
+        String handoff = System.getenv("GLEAM_LAUNCH_SESSION");
+        if (handoff == null || handoff.isBlank()) return null;
+        try {
+            Path path = Path.of(handoff).toAbsolutePath().normalize();
+            Path directory = path.getParent();
+            Path gameDir = FabricLoader.getInstance().getGameDir().toAbsolutePath().normalize();
+            if (directory == null || !gameDir.equals(directory.getParent())
+                    || !directory.getFileName().toString().startsWith(".gleam-login-")
+                    || !Path.of("session.bin").equals(path.getFileName())
+                    || !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) return null;
+            try {
+                byte[] encrypted;
+                try (var input = Files.newInputStream(path, LinkOption.NOFOLLOW_LINKS)) {
+                    encrypted = input.readNBytes(4097);
+                }
+                if (encrypted.length == 0 || encrypted.length > 4096) return null;
+                byte[] plain = Crypt32Util.cryptUnprotectData(encrypted, WinCrypt.CRYPTPROTECT_UI_FORBIDDEN);
+                try {
+                    String cookie = new String(plain, StandardCharsets.US_ASCII);
+                    return cookie.matches("[A-Za-z0-9_-]{43}") ? new Session("", cookie, "", 0, null) : null;
+                } finally {
+                    Arrays.fill(plain, (byte) 0);
+                }
+            } finally {
+                Files.deleteIfExists(path);
+            }
+        } catch (Exception exception) {
+            LoggerFactory.getLogger("orion-client").warn("Не удалось прочитать сессию Gleam из лаунчера");
+            return null;
+        }
     }
 
     private StoredSessions readSessions() {
@@ -271,9 +356,93 @@ public final class OrionAccounts {
         if (session == null) return "";
         if ("owner".equals(session.role())) return "Owner";
         if ("admin".equals(session.role())) return "Admin";
+        if ("media".equals(session.role())) return "Media";
         return session.plusExpiresAt() > Instant.now().getEpochSecond() ? "Plus" : "";
     }
     public String sessionCookieHeader() { return active == null ? "" : COOKIE + "=" + active.cookie(); }
+
+    private static JsonObject cosmeticSlots(OrionConfig config) {
+        var slots = new JsonObject();
+        slots.addProperty("wings", !config.isWingsEnabled() ? "" : ru.orion.client.effect.GleamWingModel.IDS.get(config.getWingsStyle()));
+        slots.addProperty("halo", config.isHaloEnabled());
+        slots.addProperty("hat", config.isChinaHeadEnabled());
+        slots.addProperty("dance", config.isEmotesEnabled());
+        slots.addProperty("pet", config.getCosmeticPet());
+        return slots;
+    }
+
+    private static void applyCosmeticSlots(OrionConfigManager manager, JsonObject slots) {
+        OrionConfig config = manager.getConfig();
+        if (cosmeticSlots(config).equals(slots)) return;
+        String wings = slots.get("wings").getAsString();
+        int wingStyle = ru.orion.client.effect.GleamWingModel.IDS.indexOf(wings);
+        config.setWingsEnabled(wingStyle >= 0);
+        if (wingStyle >= 0) config.setWingsStyle(wingStyle);
+        config.setHaloEnabled(slots.get("halo").getAsBoolean());
+        config.setChinaHeadEnabled(slots.get("hat").getAsBoolean());
+        config.setEmotesEnabled(slots.get("dance").getAsBoolean());
+        config.setCosmeticPet(slots.get("pet").getAsString());
+        manager.save();
+        OrionBadgePresence.requestRefresh();
+    }
+
+    private void syncCosmetics(Minecraft client) {
+        if (busy || active == null || OrionClient.getConfigOrNull() == null) return;
+        Session session = active;
+        OrionConfigManager manager = OrionClient.getInstance().getConfigManager();
+        if (!cosmeticCookie.equals(session.cookie())) {
+            if (!cosmeticOwner.isEmpty() && !cosmeticOwner.equals(session.username())) {
+                applyCosmeticSlots(manager, cosmeticSlots(OrionConfig.createDefault()));
+            }
+            cosmeticOwner = session.username();
+            cosmeticCookie = session.cookie();
+            cosmeticBaseline = cosmeticSeed = cosmeticSlots(manager.getConfig());
+            cosmeticLoading = false;
+            nextCosmeticPoll = nextCosmeticSample = cosmeticRetry = 0;
+        }
+        if (cosmeticLoading) return;
+        long now = System.nanoTime();
+        if (now < cosmeticRetry || now < nextCosmeticSample) return;
+        nextCosmeticSample = now + Duration.ofMillis(250).toNanos();
+        JsonObject snapshot = cosmeticSlots(manager.getConfig());
+        JsonObject changes = new JsonObject();
+        for (var entry : snapshot.entrySet()) {
+            if (!entry.getValue().equals(cosmeticBaseline.get(entry.getKey()))) changes.add(entry.getKey(), entry.getValue());
+        }
+        if (now < nextCosmeticPoll && changes.isEmpty()) return;
+        JsonObject body = changes.isEmpty() && cosmeticSeed == null ? null : new JsonObject();
+        if (body != null) {
+            body.add("changes", changes);
+            if (cosmeticSeed != null) body.add("defaults", cosmeticSeed);
+        }
+        cosmeticLoading = true;
+        send("/api/cosmetic-loadout", body, session, body != null).thenApply(response -> {
+            requireSuccess(response.statusCode());
+            return JsonParser.parseString(response.body()).getAsJsonObject().getAsJsonObject("slots");
+        }).whenComplete((slots, failure) -> client.execute(() -> {
+            if (!cosmeticCookie.equals(session.cookie())) return;
+            cosmeticLoading = false;
+            if (active == null || !active.cookie().equals(session.cookie())) return;
+            long finished = System.nanoTime();
+            if (failure != null || slots == null) {
+                cosmeticRetry = finished + Duration.ofSeconds(15).toNanos();
+                return;
+            }
+            nextCosmeticPoll = finished + Duration.ofSeconds(5).toNanos();
+            JsonObject current = cosmeticSlots(manager.getConfig());
+            JsonObject merged = current.deepCopy();
+            for (var entry : snapshot.entrySet()) {
+                String key = entry.getKey();
+                if (slots.has(key) && current.get(key).equals(entry.getValue())) merged.add(key, slots.get(key));
+            }
+            // Keep edits made while the request was in flight queued for the next write.
+            cosmeticSeed = null;
+            cosmeticBaseline = snapshot.deepCopy();
+            for (String key : snapshot.keySet()) if (slots.has(key)) cosmeticBaseline.add(key, slots.get(key));
+            applyCosmeticSlots(manager, merged);
+        }));
+    }
+
     public List<String> usernames() { return List.copyOf(sessions.keySet()); }
     public boolean busy() { return busy; }
     public void setBusy(boolean busy) { this.busy = busy; }
@@ -366,6 +535,21 @@ public final class OrionAccounts {
 
     public CompletableFuture<JsonArray> friends() {
         return loadFriends(active);
+    }
+
+    public void publishFriendAppearance(String hash, boolean slim) {
+        if (active == null) return;
+        var body = new JsonObject();
+        body.addProperty("action", "appearance");
+        body.addProperty("skin", hash);
+        body.addProperty("slim", slim);
+        send("/api/friends", body, active, true);
+    }
+
+    public CompletableFuture<JsonObject> friendWorlds(JsonObject action) {
+        Session session = active;
+        if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
+        return send("/api/friend-worlds?transport=1", action, session, action != null).thenApply(OrionAccounts::friendResponse);
     }
 
     public CompletableFuture<JsonObject> publicProfile(String id) {
@@ -468,13 +652,164 @@ public final class OrionAccounts {
         if (registeredChatSession == session && registeredChatIdentity != null && !registeredChatIdentity.isCompletedExceptionally())
             return registeredChatIdentity;
         registeredChatSession = session;
-        registeredChatIdentity = CompletableFuture.supplyAsync(
-                () -> chatCrypto(() -> OrionChatCrypto.identity(session.username())), storage)
-                .thenCompose(identity -> send("/api/chat/keys", identity.publicKeys(), session, true).thenApply(response -> {
-                    friendResponse(response);
-                    return identity;
-                }));
+        registeredChatIdentity = chatRecoveryState(session).thenCompose(keys ->
+                CompletableFuture.supplyAsync(() -> chatCrypto(() -> {
+                    var local = OrionChatCrypto.localIdentity(session.username(), keys);
+                    if (local != null) return local;
+                    if (keys.has("encryption")) throw new ChatRecoveryRequired(hasChatBackup(keys));
+                    return OrionChatCrypto.newIdentity();
+                }), storage).thenCompose(identity -> CompletableFuture.runAsync(
+                        () -> chatCrypto(() -> { OrionChatCrypto.saveIdentity(session.username(), identity); return null; }), storage)
+                        .thenCompose(ignored -> keys.has("encryption") ? CompletableFuture.completedFuture(identity)
+                                : send("/api/chat/keys", identity.publicKeys(), session, true).thenApply(response -> {
+                                    friendResponse(response);
+                                    return identity;
+                                }))));
         return registeredChatIdentity;
+    }
+
+    public CompletableFuture<String> copyChatRecoveryCode() {
+        var session = active;
+        if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
+        return chatIdentity(session).thenCompose(identity -> chatRecoveryState(session).thenCompose(keys ->
+                CompletableFuture.supplyAsync(() -> chatCrypto(() -> {
+                    if (hasChatBackup(keys)) {
+                        var recovery = OrionChatCrypto.localRecovery(session.username(), keys.get("backup").getAsString());
+                        if (recovery != null) return recovery;
+                        throw new IllegalStateException("Код уже был создан. Используй сохранённый код восстановления");
+                    }
+                    var recovery = OrionChatCrypto.pendingRecovery(session.username());
+                    if (recovery != null) {
+                        try {
+                            OrionChatCrypto.recover(session.username(), recovery, keys);
+                            return recovery;
+                        } catch (java.security.GeneralSecurityException | IllegalArgumentException invalid) {
+                            // The staged copy may be from a prior, unpublished key pair.
+                        }
+                    }
+                    recovery = OrionChatCrypto.createRecovery(session.username(), identity);
+                    OrionChatCrypto.stageRecovery(session.username(), recovery);
+                    return recovery;
+                }), storage).thenCompose(recovery -> {
+                    if (hasChatBackup(keys)) return CompletableFuture.completedFuture(recovery.code());
+                    var body = new JsonObject();
+                    body.addProperty("backup", recovery.backup());
+                    return send("/api/chat/recovery", body, session, true).thenApply(response -> {
+                        friendResponse(response);
+                        return recovery.code();
+                    });
+                })));
+    }
+
+    public CompletableFuture<Runnable> restoreChatKey(String code) {
+        var session = active;
+        if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
+        if (!code.matches("[A-Za-z0-9_-]{43}"))
+            return CompletableFuture.failedFuture(new IllegalStateException("Неверный код восстановления"));
+        return chatRecoveryState(session).thenApplyAsync(keys -> {
+            if (!hasChatBackup(keys)) throw new ChatRecoveryRequired(false);
+            var recovery = new OrionChatCrypto.Recovery(code, keys.get("backup").getAsString());
+            OrionChatCrypto.Identity identity;
+            try {
+                identity = OrionChatCrypto.recover(session.username(), recovery, keys);
+            } catch (java.security.GeneralSecurityException | IllegalArgumentException failure) {
+                throw new IllegalStateException("Неверный код восстановления");
+            }
+            chatCrypto(() -> {
+                OrionChatCrypto.saveIdentity(session.username(), identity);
+                OrionChatCrypto.saveRecovery(session.username(), recovery);
+                return null;
+            });
+            return () -> useChatIdentity(session, identity);
+        }, storage);
+    }
+
+    public ChatTransfer chatTransfer() {
+        return active != null && active == transferSession ? chatTransfer : null;
+    }
+
+    public CompletableFuture<Runnable> startChatTransfer() {
+        Session session = active;
+        if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
+        if (chatTransfer() != null) return CompletableFuture.completedFuture(() -> { });
+        String code = OrionChatCrypto.transferCode();
+        return transferRequest(session, "start", code, null).thenApply(ignored -> () -> {
+            if (active != session) return;
+            transferSession = session;
+            chatTransfer = new ChatTransfer(code, System.nanoTime() + TimeUnit.SECONDS.toNanos(295));
+        });
+    }
+
+    public CompletableFuture<Runnable> pollChatTransfer() {
+        Session session = active;
+        ChatTransfer current = chatTransfer();
+        if (current == null) return CompletableFuture.completedFuture(null);
+        if (System.nanoTime() >= current.expiresAt()) {
+            chatTransfer = null;
+            return CompletableFuture.failedFuture(new IllegalStateException("Срок действия кода истёк"));
+        }
+        return transferRequest(session, "poll", current.code(), null).thenCompose(result -> {
+            if (result == null) return CompletableFuture.completedFuture(() -> {
+                if (chatTransfer == current) chatTransfer = null;
+                throw new IllegalStateException("Срок действия кода истёк");
+            });
+            if (!hasChatBackup(result)) return CompletableFuture.completedFuture(null);
+            return chatRecoveryState(session).thenApplyAsync(keys -> {
+                var identity = chatCrypto(() -> {
+                    var restored = OrionChatCrypto.openTransfer(session.username(), current.code(),
+                            result.get("backup").getAsString(), keys);
+                    OrionChatCrypto.saveIdentity(session.username(), restored);
+                    return restored;
+                });
+                return () -> {
+                    if (active != session || chatTransfer != current) return;
+                    chatTransfer = null;
+                    transferRequest(session, "cancel", current.code(), null);
+                    useChatIdentity(session, identity);
+                };
+            }, storage);
+        });
+    }
+
+    public void cancelChatTransfer() {
+        ChatTransfer current = chatTransfer();
+        if (current == null) return;
+        chatTransfer = null;
+        transferRequest(active, "cancel", current.code(), null);
+    }
+
+    public CompletableFuture<Void> approveChatTransfer(String code) {
+        Session session = active;
+        if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("Войди в аккаунт GleamClient"));
+        if (!code.matches("[A-Za-z0-9_-]{43}"))
+            return CompletableFuture.failedFuture(new IllegalStateException("Неверный код подключения"));
+        return chatIdentity(session).thenApplyAsync(identity -> chatCrypto(
+                () -> OrionChatCrypto.encryptTransfer(session.username(), identity, code)), storage)
+                .thenCompose(backup -> transferRequest(session, "approve", code, backup))
+                .thenAccept(ignored -> { });
+    }
+
+    private static CompletableFuture<JsonObject> transferRequest(Session session, String action, String code, String backup) {
+        JsonObject body = new JsonObject();
+        body.addProperty("action", action);
+        body.addProperty("id", OrionChatCrypto.transferId(code));
+        if (backup != null) body.addProperty("backup", backup);
+        return send("/api/chat/transfer", body, session, true).thenApply(response ->
+                action.equals("poll") && response.statusCode() == 404 ? null : friendResponse(response));
+    }
+
+    private void useChatIdentity(Session session, OrionChatCrypto.Identity identity) {
+        if (active != session) return;
+        registeredChatSession = session;
+        registeredChatIdentity = CompletableFuture.completedFuture(identity);
+    }
+
+    private static CompletableFuture<JsonObject> chatRecoveryState(Session session) {
+        return send("/api/chat/recovery", null, session, false).thenApply(OrionAccounts::friendResponse);
+    }
+
+    private static boolean hasChatBackup(JsonObject keys) {
+        return keys.has("backup") && !keys.get("backup").isJsonNull();
     }
 
     private CompletableFuture<JsonObject> decodeChat(JsonObject result, OrionChatCrypto.Identity identity,
@@ -554,9 +889,14 @@ public final class OrionAccounts {
             unreadChats.clear();
             notificationLoading = false;
             nextNotificationPoll = 0;
+            nextChatRegistration = 0;
         }
         if (active == null || busy || config == null) return;
         long now = System.nanoTime();
+        if (now >= nextChatRegistration) {
+            nextChatRegistration = now + TimeUnit.MINUTES.toNanos(2);
+            chatIdentity(active);
+        }
         if (notificationLoading || now < nextNotificationPoll) return;
         notificationLoading = true;
         nextNotificationPoll = now + TimeUnit.SECONDS.toNanos(6);
@@ -576,7 +916,7 @@ public final class OrionAccounts {
                 for (var entry : result.getAsJsonArray("items")) {
                     var item = entry.getAsJsonObject();
                     String username = item.get("username").getAsString();
-                    if (client.gui.screen() instanceof OrionClickGuiScreen screen && screen.isViewingChat(username)) continue;
+                    if (GleamMinecraft.screen(client) instanceof OrionClickGuiScreen screen && screen.isViewingChat(username)) continue;
                     latest = item;
                     unreadChats.merge(username, 1, Integer::sum);
                 }
@@ -588,7 +928,7 @@ public final class OrionAccounts {
                     var avatar = notificationAvatar(session, sender);
                     chatNotificationPreview(session, sender, latest).whenComplete((preview, error) -> client.execute(() -> {
                         if (active != session || notificationSession != session || lastNotificationMessage != id) return;
-                        if (client.gui.screen() instanceof OrionClickGuiScreen screen && screen.isViewingChat(sender)) return;
+                        if (GleamMinecraft.screen(client) instanceof OrionClickGuiScreen screen && screen.isViewingChat(sender)) return;
                         var settings = OrionClient.getConfigOrNull();
                         if (settings == null || !settings.isChatNotifications()) return;
                         String fallback = ru.orion.client.gui.OrionGuiLanguage.translate("Новое сообщение");
@@ -626,7 +966,7 @@ public final class OrionAccounts {
     }
 
     private static CompletableFuture<JsonArray> loadFriends(Session session) {
-        return send("/api/friends", null, session, false)
+        return send("/api/friends?appearance=1", null, session, false)
                 .thenApply(response -> friendResponse(response).getAsJsonArray("items"));
     }
 
@@ -643,7 +983,14 @@ public final class OrionAccounts {
             case "friend_state" -> "Статус заявки уже изменился";
             case "friend_limit" -> "Достигнут лимит друзей или заявок";
             case "friend_unavailable" -> "Этот аккаунт заблокирован";
-            case "chat_device" -> "Защищённый чат привязан к другому устройству";
+            case "world_unavailable" -> "Мир друга сейчас недоступен";
+            case "world_expired" -> "Приглашение больше не действует";
+            case "world_license" -> "Друг разрешил вход только с лицензией Minecraft";
+            case "chat_device" -> "Синхронизируй ключ чата и попробуй снова";
+            case "chat_recovery_exists" -> "Код уже был создан. Используй сохранённый код восстановления";
+            case "chat_transfer_busy" -> "Запрос на подключение уже обработан или достигнут лимит";
+            case "chat_transfer_expired" -> "Срок действия кода истёк";
+            case "chat_transfer_same_session" -> "Подтверди подключение на другом устройстве";
             case "chat_key_missing" -> "Друг ещё не настроил защищённый чат";
             case "chat_encryption_required" -> "Чат требует обновления клиента";
             default -> "Не удалось выполнить действие";

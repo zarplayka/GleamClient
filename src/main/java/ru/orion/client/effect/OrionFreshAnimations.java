@@ -49,7 +49,11 @@ public final class OrionFreshAnimations {
         model.leftLeg.xRot -= stride * .13F * weight;
 
         // Анимации оружия и использования предметов имеют приоритет над дополнительным взмахом.
+        //? if >=26.3 {
         if (state.isUsingItem || state.swingAnimation > 0F
+        //?} else {
+                /*if (state.isUsingItem || state.attackTime > 0F
+        *///?}
                 || state.rightArmPose.isTwoHanded() || state.leftArmPose.isTwoHanded()) return;
         switch (style) {
             case 1 -> {

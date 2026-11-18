@@ -134,6 +134,12 @@ public final class OrionConfigManager {
     public void setMirageEnabled(boolean value) { config.setMirageEnabled(value); save(); }
 
     public void setZoomEnabled(boolean value) { config.setZoomEnabled(value); save(); }
+    public void setCosmeticPet(String id) {
+        config.setCosmeticPet(id);
+        save();
+        ru.orion.client.effect.OrionBadgePresence.requestRefresh();
+    }
+
     public void setHaloEnabled(boolean value) {
         config.setHaloEnabled(value);
         save();
@@ -285,6 +291,9 @@ public final class OrionConfigManager {
     public void setEnchantGlintMode(int value) { config.setEnchantGlintMode(value); save(); }
     public void setInventoryHudEnabled(boolean value) { config.setInventoryHudEnabled(value); save(); }
     public void setSelfTagEnabled(boolean value) { config.setSelfTagEnabled(value); save(); }
+    public void setCleanWaterEnabled(boolean value) { config.setCleanWaterEnabled(value); save(); }
+    public void setNametagsEnabled(boolean value) { config.setNametagsEnabled(value); save(); }
+    public void setFreeLookEnabled(boolean value) { config.setFreeLookEnabled(value); save(); }
     public void setArmorIndicatorEnabled(boolean value) { config.setArmorIndicatorEnabled(value); save(); }
     public void setLockSlotEnabled(boolean value) { config.setLockSlotEnabled(value); save(); }
     public void setLockSlotMask(long value) { config.setLockSlotMask(value); save(); }

@@ -33,6 +33,8 @@ public final class MultiPlayerGameModeMixin {
         var indicators = OrionClient.getDamageIndicatorsOrNull();
         if (indicators != null) indicators.onAttack(target);
         OrionHealthTags.onAttack(target);
+        var targetHud = OrionClient.getTargetHudOrNull();
+        if (targetHud != null) targetHud.onAttack(target);
 
         var hitParticles = OrionClient.getHitParticlesOrNull();
         if (hitParticles != null) hitParticles.onHit(target);

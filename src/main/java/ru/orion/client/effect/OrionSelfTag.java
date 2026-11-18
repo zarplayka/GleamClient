@@ -33,10 +33,18 @@ public final class OrionSelfTag {
         pose.translate(position.x, position.y, position.z);
         Component score = client.player.belowNameDisplay();
         if (score != null && client.player.getPosition(partial).distanceToSqr(camera.pos) < 100D) {
+            //? if >=26.2 {
             context.submitNodeCollector().submitNameTag(pose, attachment, 0, score, !client.player.isDiscrete(), light, camera);
+            //?} else {
+            /*context.submitNodeCollector().submitNameTag(pose, attachment, 0, score, !client.player.isDiscrete(), light, client.player.getPosition(partial).distanceToSqr(camera.pos), camera);
+            *///?}
             pose.translate(0F, 9F * 1.15F * 0.025F, 0F);
         }
+        //? if >=26.2 {
         context.submitNodeCollector().submitNameTag(pose, attachment, 0, name, !client.player.isDiscrete(), light, camera);
+        //?} else {
+        /*context.submitNodeCollector().submitNameTag(pose, attachment, 0, name, !client.player.isDiscrete(), light, client.player.getPosition(partial).distanceToSqr(camera.pos), camera);
+        *///?}
         pose.popPose();
     }
 }

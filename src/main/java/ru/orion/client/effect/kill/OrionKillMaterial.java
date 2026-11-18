@@ -41,7 +41,7 @@ public final class OrionKillMaterial {
         }
         @Override public VertexConsumer addVertex(float x,float y,float z){return vertex(x,y,z,null);}
         @Override public VertexConsumer addVertex(PoseStack.Pose pose,float x,float y,float z){return vertex(x,y,z,pose.pose());}
-        @Override public VertexConsumer addVertex(PoseStack.Pose pose,Vector3fc v){return vertex(v.x(),v.y(),v.z(),pose.pose());}
+        public VertexConsumer addVertex(PoseStack.Pose pose,Vector3fc v){return vertex(v.x(),v.y(),v.z(),pose.pose());}
         @Override public VertexConsumer addVertex(Matrix4fc pose,float x,float y,float z){return vertex(x,y,z,pose);}
         @Override public VertexConsumer addVertex(Vector3fc v){return vertex(v.x(),v.y(),v.z(),null);}
         @Override public VertexConsumer setColor(int r,int g,int b,int a){return setColor(a<<24|r<<16|g<<8|b);}
@@ -80,7 +80,10 @@ public final class OrionKillMaterial {
         @Override public VertexConsumer setUv(float u,float v){return this;}
         @Override public VertexConsumer setUv1(int u,int v){return this;}
         @Override public VertexConsumer setUv2(int u,int v){return this;}
+        //? if >=26.3 {
         @Override public VertexConsumer setUv3(float u,float v){return this;}
+        //?}
+
         @Override public VertexConsumer setNormal(float x,float y,float z){return this;}
         @Override public VertexConsumer setLineWidth(float width){return this;}
     }

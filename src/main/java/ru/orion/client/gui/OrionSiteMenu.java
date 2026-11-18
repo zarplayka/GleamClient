@@ -7,6 +7,7 @@ import com.paradox.lumen.LumenNative;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.resources.Identifier;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
@@ -19,10 +20,12 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 final class OrionSiteMenu {
     private static final String ROOT = "/assets/orion-client/";
     private static final String MENU = ROOT + "html/menu/";
+    private static final long STATE_REFRESH_NANOS = 50_000_000L;
     private record Avatar(String name, byte[] png) { }
     private static final Map<BufferedImage,Avatar> AVATARS = new java.util.WeakHashMap<>();
     private static Map<String,byte[]> menuImages;
@@ -32,6 +35,8 @@ final class OrionSiteMenu {
     private final Consumer<JsonObject> actions;
     private final OrionLumenView view;
     private JsonObject previous;
+    private long nextStateAt;
+    private float pointerX = Float.NaN, pointerY = Float.NaN;
     private long openedAt;
     private boolean openingFinished;
     private float sx = 1F, sy = 1F;
@@ -48,23 +53,31 @@ final class OrionSiteMenu {
         view.revealTheme(origin.get("x").getAsFloat(),origin.get("y").getAsFloat(),origin.get("radius").getAsFloat());
     }
 
-    boolean render(GuiGraphicsExtractor graphics, int width, int height, int mouseX, int mouseY, JsonObject state) {
+    void invalidateState() { nextStateAt = 0; }
+
+    boolean render(GuiGraphicsExtractor graphics, int width, int height, int mouseX, int mouseY, Supplier<JsonObject> snapshot) {
         var window = Minecraft.getInstance().getWindow();
         int pixelsX = window.getWidth(), pixelsY = window.getHeight();
         if (width < 1 || height < 1 || pixelsX < 1 || pixelsY < 1) return false;
         sx = width/(float)pixelsX;
         sy = height/(float)pixelsY;
-        view.resize(pixelsX,pixelsY,1F);
-        if (!state.equals(previous)) {
-            view.update(state);
-            previous = state;
+        if (view.resize(pixelsX,pixelsY,1F)) pointerX = pointerY = Float.NaN;
+        long now = System.nanoTime();
+        if (nextStateAt == 0 || now - nextStateAt >= 0) {
+            nextStateAt = now + STATE_REFRESH_NANOS;
+            JsonObject state = snapshot.get();
+            if (!state.equals(previous)) {
+                view.update(state);
+                previous = state;
+                pointerX = pointerY = Float.NaN;
+            }
         }
         if (!openingFinished) {
             float progress = openedAt == 0 ? 0F : Math.min(1F, (System.nanoTime() - openedAt) / 205_000_000F);
             view.opening(progress);
             openingFinished = progress == 1F;
         }
-        view.move(mouseX/sx,mouseY/sy);
+        movePointer(mouseX,mouseY);
         view.frame();
         byte[] logs = view.logs();
         if (logs != null && logs.length != 0) {
@@ -90,7 +103,7 @@ final class OrionSiteMenu {
 
     void press(double x, double y, int button, boolean shift) {
         view.pointerModifiers(shift);
-        view.move((float)x/sx,(float)y/sy);
+        movePointer(x,y);
         view.press((float)x/sx,(float)y/sy,button);
         receive();
     }
@@ -100,14 +113,22 @@ final class OrionSiteMenu {
     }
 
     void release(double x, double y, int button) {
-        view.move((float)x/sx,(float)y/sy);
+        movePointer(x,y);
         view.release((float)x/sx,(float)y/sy,button);
         receive();
     }
 
     void move(double x,double y) {
-        view.move((float)x/sx,(float)y/sy);
+        movePointer(x,y);
         receive();
+    }
+
+    private void movePointer(double x, double y) {
+        float px = (float)x/sx, py = (float)y/sy;
+        if (pointerX == px && pointerY == py) return;
+        pointerX = px;
+        pointerY = py;
+        view.move(px,py);
     }
 
     void chatContext(double x, double y) {
@@ -150,7 +171,11 @@ final class OrionSiteMenu {
             case InputConstants.KEY_UP -> "ArrowUp";
             case InputConstants.KEY_DOWN -> "ArrowDown";
             case InputConstants.KEY_SPACE -> " ";
+            //? if >=26.3 {
             default -> event.keycode() >= 32 && event.keycode() < 127 ? Character.toString(event.keycode()) : "";
+            //?} else {
+                        /*default -> event.key() >= 32 && event.key() < 127 ? Character.toString(event.key()) : "";
+            *///?}
         };
         if (key.isEmpty()) return false;
         String code = value >= InputConstants.KEY_A && value <= InputConstants.KEY_Z
@@ -185,6 +210,8 @@ final class OrionSiteMenu {
     void dispose() {
         view.dispose();
         previous = null;
+        invalidateState();
+        pointerX = pointerY = Float.NaN;
         openedAt = 0;
         openingFinished = false;
     }
@@ -196,17 +223,24 @@ final class OrionSiteMenu {
             if (line.isBlank()) continue;
             try {
                 var event = JsonParser.parseString(line);
-                if (event.isJsonObject()) actions.accept(event.getAsJsonObject());
+                if (event.isJsonObject()) dispatch(event.getAsJsonObject());
                 else if (event.isJsonArray()) {
                     for (var item : event.getAsJsonArray()) {
                         var value = item.isJsonPrimitive() ? JsonParser.parseString(item.getAsString()) : item;
-                        if (value.isJsonObject()) actions.accept(value.getAsJsonObject());
+                        if (value.isJsonObject()) dispatch(value.getAsJsonObject());
                     }
                 }
             } catch (RuntimeException failure) {
                 LoggerFactory.getLogger("GleamClient ClickGUI").warn("Не удалось обработать действие меню",failure);
             }
         }
+    }
+
+    private void dispatch(JsonObject event) {
+        var type = event.get("action");
+        if (type != null && type.isJsonPrimitive()
+                && !"cosmetic-preview".equals(type.getAsString()) && !"ui-sound".equals(type.getAsString())) invalidateState();
+        actions.accept(event);
     }
 
     private static byte[] loadDocument(String[] modules) {
@@ -239,9 +273,18 @@ final class OrionSiteMenu {
                         loaded.put("cosmetic-"+names[i]+"-preview", png(atlas.getSubimage(i * width, height, width, height)));
                     }
                 }
+                for (String id : ru.orion.client.effect.GleamWingModel.IDS.subList(2, ru.orion.client.effect.GleamWingModel.IDS.size())) {
+                    String name = "cosmetic-" + id + "-item";
+                    loaded.put(name, read(MENU + "assets/" + name + ".png"));
+                }
+                for (var pet : ru.orion.client.cosmetic.GleamPet.values()) {
+                    String name = "cosmetic-" + pet.id() + "-item";
+                    loaded.put(name, read(MENU + "assets/" + name + ".png"));
+                }
                 menuImages = loaded;
             }
             menuImages.forEach(OrionSiteMenu::registerPng);
+            registerSettingIcons();
             for (Avatar avatar : AVATARS.values()) registerPng(avatar.name(),avatar.png());
             if (document != null) return document;
             // Lumen не применяет селекторы вида :root[data-theme] и :root[data-density].
@@ -283,6 +326,29 @@ final class OrionSiteMenu {
         if (cached == null) return avatar(image);
         registerPng(cached.name(),cached.png());
         return cached.name();
+    }
+
+    private static void registerSettingIcons() {
+        var resources = Minecraft.getInstance().getResourceManager();
+        for (String path : OrionClickGuiScreen.settingIcons()) {
+            var resource = resources.getResource(Identifier.withDefaultNamespace("textures/" + path + ".png"));
+            if (resource.isEmpty()) continue;
+            try (var stream = resource.get().open()) {
+                byte[] data;
+                if (path.equals("entity/player/wide/steve")) {
+                    var skin = ImageIO.read(stream);
+                    if (skin == null || skin.getWidth() < 16 || skin.getHeight() < 16) continue;
+                    int unit = Math.max(1, skin.getWidth() / 8);
+                    if (skin.getHeight() < unit * 2) continue;
+                    data = png(skin.getSubimage(unit, unit, unit, unit));
+                } else {
+                    data = stream.readAllBytes();
+                }
+                registerPng(OrionClickGuiScreen.settingIconName(path), data);
+            } catch (IOException exception) {
+                LoggerFactory.getLogger("GleamClient ClickGUI").debug("Could not load setting icon {}", path, exception);
+            }
+        }
     }
 
     private static byte[] png(BufferedImage image) throws IOException {

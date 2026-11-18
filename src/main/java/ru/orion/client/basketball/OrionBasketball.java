@@ -1,5 +1,7 @@
 package ru.orion.client.basketball;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -23,6 +25,9 @@ public final class OrionBasketball {
     public OrionBasketball(OrionConfigManager manager) { this.manager=manager; }
     public void register() {
         OrionBasketballSettings.bind(manager);
+        //? if <26.1 {
+        /*GleamBasketballHands.register();
+        *///?}
         OrionBasketballInput.register();
         OrionHoopStore.load();migrateLegacyHoops();
         OrionBasketballController.register();OrionBasketballScene.register();
@@ -33,7 +38,11 @@ public final class OrionBasketball {
     }
     private static KeyMapping key(String name,KeyMapping.Category category) {
         return KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.basketball."+name,
+                //? if >=26.3 {
                 InputConstants.Type.KEYBOARD,InputConstants.UNKNOWN.getValue(),category));
+                //?} else {
+                                /*InputConstants.Type.KEYSYM,InputConstants.UNKNOWN.getValue(),category));
+                *///?}
     }
     private void tick(Minecraft client) {
         if(!manager.getConfig().isBasketballEnabled() || client.player==null || client.level==null) {
@@ -49,7 +58,7 @@ public final class OrionBasketball {
         if(wasCharging&&!charging&&OrionBasketballController.mode()==OrionBasketballController.Mode.LOOSE)shotAt=System.nanoTime();
         if(charging)lastCharge=OrionBasketballController.charge(1F);
         wasCharging=charging;
-        if(client.gui.screen()!=null){drain();return;}
+        if(GleamMinecraft.screen(client)!=null){drain();return;}
         while(reset.consumeClick())resetScore();
         while(pickup.consumeClick())OrionBasketballController.pickup();
         while(remove.consumeClick()){var hoop=nearest(client);if(hoop!=null)OrionHoopStore.remove(hoop);}

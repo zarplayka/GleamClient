@@ -23,7 +23,12 @@ public abstract class OrionNoAnimationsMixin {
         state.ageInTicks = 0F;
         state.walkAnimationPos = state.walkAnimationSpeed = 0F;
         state.xRot = state.yRot = 0F;
+        //? if >=26.3 {
         state.swingAnimation = state.swimAmount = state.ticksUsingItem = 0F;
+        //?} else {
+                /*state.attackTime = state.swimAmount = state.ticksUsingItem = 0F;
+        *///?}
+
         state.deathTime = state.fallFlyingTimeInTicks = 0F;
         state.capeFlap = state.capeLean = state.capeLean2 = 0F;
         state.elytraRotX = state.elytraRotY = state.elytraRotZ = 0F;

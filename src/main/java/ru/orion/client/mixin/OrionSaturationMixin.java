@@ -1,8 +1,18 @@
 package ru.orion.client.mixin;
 
+//? if >=26.3 {
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+
+//?} else {
+/*import com.mojang.blaze3d.pipeline.RenderPipeline;
+
+*///?}
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+//? if >=26.2 {
 import net.minecraft.client.gui.Hud;
+//?} else {
+/*import net.minecraft.client.gui.Gui;
+*///?}
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,7 +24,11 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.orion.client.hud.OrionSaturationOverlay;
 
+//? if >=26.2 {
 @Mixin(Hud.class)
+//?} else {
+/*@Mixin(Gui.class)
+*///?}
 public abstract class OrionSaturationMixin {
     @Unique private final OrionSaturationOverlay orion$saturation = new OrionSaturationOverlay();
     @Shadow public abstract int getGuiTicks();
@@ -29,8 +43,13 @@ public abstract class OrionSaturationMixin {
         if (OrionSaturationOverlay.enabled()) orion$saturation.beginFood(context, player, y, right);
     }
 
+    //? if >=26.3 {
     @Redirect(method = "extractFood", at = @At(value = "INVOKE", ordinal = 0,
             target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;blitSprite(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIII)V"))
+    //?} else {
+    /*@Redirect(method = "extractFood", at = @At(value = "INVOKE", ordinal = 0,
+            target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;blitSprite(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIII)V"))
+    *///?}
     private void orion$foodPosition(GuiGraphicsExtractor context, RenderPipeline pipeline, Identifier sprite,
                                     int x, int y, int width, int height,
                                     GuiGraphicsExtractor originalContext, Player player, int top, int right) {
@@ -40,7 +59,7 @@ public abstract class OrionSaturationMixin {
 
     @Inject(method = "extractFood", at = @At("RETURN"))
     private void orion$drawFood(GuiGraphicsExtractor context, Player player, int y, int right, CallbackInfo callback) {
-        if (OrionSaturationOverlay.enabled()) orion$saturation.renderFood(context, player, right);
+        if (OrionSaturationOverlay.enabled()) orion$saturation.extractFood(context, player, right);
     }
 
     @Inject(method = "extractHearts", at = @At("RETURN"))

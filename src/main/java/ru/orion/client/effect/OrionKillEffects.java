@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -302,7 +304,7 @@ public final class OrionKillEffects {
         var ground = client.level.clip(new ClipContext(position.add(0, .5, 0), position.add(0, -6, 0), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, client.player));
         if (!playerVictim && ground.getType() != HitResult.Type.MISS) position = ground.getLocation().add(0, .025, 0);
         if (playerVictim) position = position.add(0, config.getKillEffectsPlayerLift(), 0);
-        Vec3 viewer = client.gameRenderer.mainCamera().position();
+        Vec3 viewer = GleamMinecraft.camera(client).position();
         yaw = (float) Math.toDegrees(Math.atan2(viewer.x - position.x, position.z - viewer.z));
         while (active.size() >= config.getKillEffectsLimit()) OrionKillAudio.stop(active.removeFirst().sound());
         float size = config.getKillEffectsSize();
@@ -324,7 +326,7 @@ public final class OrionKillEffects {
         double distance = manager.getConfig().getKillEffectsDistance();
         for (ActiveEffect effect : active) {
             if (effect.position().distanceToSqr(camera.pos) > distance * distance
-                    || camera.cullFrustum != null && !camera.cullFrustum.isVisible(effect.bounds())) continue;
+                    || !ru.orion.client.render.GleamCameraMatrices.visible(camera, effect.bounds())) continue;
             if (!effect.preview() && !manager.getConfig().isKillEffectsEnabled()) continue;
             float age = effect.age(now);
             if (age >= effect.definition().duration()) continue;
@@ -333,8 +335,8 @@ public final class OrionKillEffects {
             stack.pushPose();
             stack.translate(relative.x, relative.y, relative.z);
             boolean volume = effect.type() == 2 || effect.type() == 4;
-            if (volume) stack.rotate(Axis.YP.rotationDegrees(-effect.yaw()));
-            else stack.rotate(camera.orientation);
+            if (volume) ru.orion.client.render.GleamPose.rotate(stack, Axis.YP.rotationDegrees(-effect.yaw()));
+            else ru.orion.client.render.GleamPose.rotate(stack, camera.orientation);
             stack.scale(effect.size(), effect.size(), effect.size());
             // Данные захвачены неизменяемым снимком, callback не читает мир/игроков.
             int quality = Math.min(effect.quality(), effect.position().distanceToSqr(camera.pos) > 2304 ? 0 : effect.quality());
