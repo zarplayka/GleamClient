@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.MouseButtonInfo;
@@ -13,7 +15,7 @@ public final class OrionClickCounter {
     public static void onButton(MouseButtonInfo button, int action) {
         Minecraft client = Minecraft.getInstance();
         var config = OrionClient.getConfigOrNull();
-        if (config == null || !config.isKeystrokesEnabled() || action != InputConstants.PRESS || client == null || client.player == null || client.gui.screen() != null) return;
+        if (config == null || !config.isKeystrokesEnabled() || action != InputConstants.PRESS || client == null || client.player == null || GleamMinecraft.screen(client) != null) return;
         count(false); count(true);
         if (button.button() == InputConstants.MOUSE_BUTTON_LEFT) LEFT.addLast(System.nanoTime());
         else if (button.button() == InputConstants.MOUSE_BUTTON_RIGHT) RIGHT.addLast(System.nanoTime());

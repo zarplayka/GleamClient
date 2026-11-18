@@ -29,32 +29,42 @@ jobs:
       - name: Verify helpers inside the release JAR and create source archive
         shell: pwsh
         run: |
-          $jar = Get-ChildItem build/libs/*.jar | Where-Object { $_.Name -notmatch '-(sources|dev)\.jar$' }
-          if (@($jar).Count -ne 1) { throw 'Expected exactly one release JAR' }
-          $inspection = New-Item -ItemType Directory -Force build/inspection
-          Push-Location $inspection
-          try { & jar xf $jar.FullName } finally { Pop-Location }
-          if ($LASTEXITCODE -ne 0) { throw 'JAR extraction failed' }
-          $packaged = 'build/inspection/assets/orion-client/media'
-          foreach ($line in Get-Content "$packaged/SHA256SUMS") {
-            $hash, $name = $line -split '  ', 2
-            if ((Get-FileHash "$packaged/$name" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) {
-              throw "Packaged helper checksum mismatch: $name"
+          $targets = @(Get-Content build/supported-versions.json -Raw | ConvertFrom-Json)
+          $jars = @(Get-ChildItem build/libs/*-mc*.jar | Where-Object { $_.Name -notmatch '-sources\.jar$' })
+          if ($jars.Count -ne $targets.Count) { throw 'Release JAR count differs from supported targets' }
+          foreach ($target in $targets) {
+            $releaseJar = Get-Item "build/libs/$($target.jar)"
+            $inspection = New-Item -ItemType Directory -Force "build/inspection/$($target.minecraft)"
+            Push-Location $inspection
+            try {
+              & jar xf $releaseJar.FullName
+              if ($LASTEXITCODE -ne 0) { throw 'JAR extraction failed' }
+            } finally { Pop-Location }
+            $packaged = "$($inspection.FullName)/assets/orion-client/media"
+            foreach ($line in Get-Content "$packaged/SHA256SUMS") {
+              $hash, $name = $line -split '  ', 2
+              if ((Get-FileHash "$packaged/$name" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) {
+                throw "Packaged helper checksum mismatch: $($target.minecraft)/$name"
+              }
             }
+            $sourceKit = "$($inspection.FullName)/META-INF/orion-media-source"
+            Compress-Archive -Path "$sourceKit/*" -DestinationPath "build/libs/orion-media-source-mc$($target.minecraft).zip" -Force
+            # Проверяется комплект исходников из каждого фактически собранного JAR.
+            $rebuilt = "$pwd/build/rebuilt-media/$($target.minecraft)"
+            & "$sourceKit/native/media/build.ps1" -OutputDirectory $rebuilt
+            if ($LASTEXITCODE -ne 0) { throw 'Media helper rebuild failed' }
+            if ((Get-Content "$rebuilt/SHA256SUMS" -Raw) -cne (Get-Content "$packaged/SHA256SUMS" -Raw)) {
+              throw "Packaged sources do not reproduce helpers: $($target.minecraft)"
+            }
+            Copy-Item "$packaged/SHA256SUMS" "build/libs/media-SHA256SUMS-mc$($target.minecraft)"
           }
-          Compress-Archive -Path build/inspection/META-INF/orion-media-source/* -DestinationPath build/libs/orion-media-source.zip -Force
-          # Повторная сборка из тех исходников, которые действительно попали в JAR
-          & ./build/inspection/META-INF/orion-media-source/native/media/build.ps1 -OutputDirectory "$pwd/build/rebuilt-media"
-          if ((Get-Content build/rebuilt-media/SHA256SUMS -Raw) -cne (Get-Content "$packaged/SHA256SUMS" -Raw)) {
-            throw 'Packaged sources do not reproduce packaged media helpers'
-          }
-          Copy-Item "$packaged/SHA256SUMS" build/libs/media-SHA256SUMS
           Get-ChildItem build/libs/*.jar | Get-FileHash -Algorithm SHA256 | Format-Table -AutoSize
       - uses: actions/upload-artifact@v4
         with:
           name: orion-client-verified
           path: |
             build/libs/*.jar
-            build/libs/orion-media-source.zip
-            build/libs/media-SHA256SUMS
+            build/libs/orion-media-source-mc*.zip
+            build/libs/media-SHA256SUMS*
+            build/supported-versions.json
           if-no-files-found: error

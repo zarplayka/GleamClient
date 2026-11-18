@@ -2,12 +2,12 @@ package ru.orion.client;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import ru.orion.client.command.OrionFakeBanCommand;
 import ru.orion.client.basketball.OrionBasketball;
 import ru.orion.client.football.OrionFootball;
 import ru.orion.client.football.OrionFootballHud;
 import ru.orion.client.basketball.OrionBasketballHud;
-import ru.orion.client.command.OrionChatClearCommand;
 import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionAccounts;
 import ru.orion.client.config.OrionConfigManager;
@@ -15,6 +15,7 @@ import ru.orion.client.hud.OrionFoodSync;
 import ru.orion.client.hud.OrionFoodTooltip;
 import ru.orion.client.discord.OrionDiscordPresenceService;
 import ru.orion.client.effect.OrionBreadcrumbs;
+import ru.orion.client.effect.OrionFreeLook;
 import ru.orion.client.effect.OrionChatHistory;
 import ru.orion.client.effect.OrionSelfTag;
 import ru.orion.client.effect.OrionArmorIndicator;
@@ -34,25 +35,27 @@ import ru.orion.client.effect.OrionTargetEsp;
 import ru.orion.client.effect.OrionWorldParticles;
 import ru.orion.client.hud.OrionBetterNearHud;
 import ru.orion.client.hud.OrionCustomCrosshair;
-import ru.orion.client.hud.OrionHudRenderer;
 import ru.orion.client.hud.OrionStatusHud;
 import ru.orion.client.hud.OrionHotbarLocks;
 import ru.orion.client.hud.OrionInventoryHud;
 import ru.orion.client.gui.OrionClickGuiScreen;
+import ru.orion.client.gui.OrionTitleMenu;
 import ru.orion.client.keybind.OrionKeybinds;
 import ru.orion.client.media.OrionMediaController;
 import ru.orion.client.media.OrionMediaPlayerHud;
 
 public final class OrionClient implements ClientModInitializer {
     public static final String MOD_ID = "orion-client";
-    public static final String VERSION_LABEL = "v0.2.1";
-    public static final String VERSION_TEXT = "Orion Client " + VERSION_LABEL;
+    public static final String VERSION_LABEL = FabricLoader.getInstance().getModContainer(MOD_ID)
+            .map(mod -> "v" + mod.getMetadata().getVersion().getFriendlyString()).orElse("dev");
+    public static final String VERSION_TEXT = "GleamClient " + VERSION_LABEL;
 
     private static OrionClient instance;
 
     private final OrionConfigManager configManager = new OrionConfigManager();
     private final ru.orion.client.effect.OrionHalo halo = new ru.orion.client.effect.OrionHalo(configManager);
     private final ru.orion.client.effect.OrionWings wings = new ru.orion.client.effect.OrionWings(configManager);
+    private final ru.orion.client.cosmetic.GleamPetRenderer pets = new ru.orion.client.cosmetic.GleamPetRenderer(configManager);
     private final ru.orion.client.effect.OrionWaypoints waypoints = new ru.orion.client.effect.OrionWaypoints(configManager);
     private final OrionFootball football = new OrionFootball(configManager);
     private final OrionFootballHud footballHud = new OrionFootballHud(football, configManager);
@@ -61,7 +64,7 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionHotbarLocks hotbarLocks = new OrionHotbarLocks(configManager);
     private final OrionInventoryHud inventoryHud = new OrionInventoryHud(configManager);
     private final OrionStatusHud statusHud = new OrionStatusHud(configManager);
-    private final OrionHudRenderer hudRenderer = new OrionHudRenderer(configManager);
+    private final ru.orion.client.hud.OrionTargetHud targetHud = new ru.orion.client.hud.OrionTargetHud(configManager);
     private final OrionKeybinds keybinds = new OrionKeybinds(configManager);
     private final OrionDiscordPresenceService discordPresenceService = new OrionDiscordPresenceService(configManager);
     private final OrionJumpCircleEffect jumpCircleEffect = new OrionJumpCircleEffect(configManager);
@@ -87,16 +90,19 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionHitSound hitSound = new OrionHitSound(configManager);
     private final OrionCustomCrosshair customCrosshair = new OrionCustomCrosshair(configManager);
     private final OrionBetterNearHud betterNearHud = new OrionBetterNearHud(configManager);
-    private final OrionChatClearCommand chatClearCommand = new OrionChatClearCommand();
     private final OrionFakeBanCommand fakeBanCommand = new OrionFakeBanCommand();
 
     @Override
     public void onInitializeClient() {
         OrionAccounts.INSTANCE.register();
+        net.minecraft.client.renderer.rendertype.OrionGlintRenderTypes.register();
         instance = this;
+
+        OrionTitleMenu.register();
 
         OrionClickGuiScreen.prepareInBackground();
         configManager.load();
+        configManager.getConfigLibrary().catalog(0);
         basketball.register();
         football.register();
         footballHud.register();
@@ -104,11 +110,11 @@ public final class OrionClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> OrionChatHistory.ensureLoaded());
         waypoints.register();
         ru.orion.client.effect.OrionBadgePresence.register();
-        hudRenderer.register();
         statusHud.register();
         hotbarLocks.register();
         inventoryHud.register();
         keybinds.register();
+        OrionFreeLook.register();
         ru.orion.client.effect.OrionEmotes.register();
         OrionFoodSync.register();
         OrionFoodTooltip.register();
@@ -118,6 +124,7 @@ public final class OrionClient implements ClientModInitializer {
         chinaHeadRenderer.register();
         halo.register();
         wings.register();
+        pets.register();
         healthTags.register();
         worldParticles.register();
         breadcrumbs.register();
@@ -132,28 +139,38 @@ public final class OrionClient implements ClientModInitializer {
         fullBrightModule.register();
         mediaController.register();
         mediaPlayerHud.register();
+        new ru.orion.client.media.GleamWorldLyrics(configManager, mediaController).register();
         hitColorFlash.register();
+        ru.orion.client.gui.GleamScreenSnow.register();
         hitSound.register();
         customCrosshair.register();
         betterNearHud.register();
+        new ru.orion.client.hud.OrionPotionsHud(configManager).register();
+        targetHud.register();
         fakeBanCommand.register();
-        chatClearCommand.register();
         ru.orion.client.hud.OrionHudDrag.registerOverlay();
     }
 
     public static OrionClient getInstance() {
         if (instance == null) {
-            throw new IllegalStateException("Orion Client is not initialized yet.");
+            throw new IllegalStateException("GleamClient is not initialized yet.");
         }
 
         return instance;
     }
 
+    public static ru.orion.client.hud.OrionTargetHud getTargetHudOrNull() {
+        return instance == null ? null : instance.targetHud;
+    }
+
     /** Safe accessor for mixins/early callers; returns null before init instead of throwing. */
+
     public static OrionConfig getConfigOrNull() {
         OrionClient current = instance;
         return current == null ? null : current.configManager.getConfig();
     }
+
+    public ru.orion.client.cosmetic.GleamPetRenderer getPets() { return pets; }
 
     public OrionConfigManager getConfigManager() {
         return configManager;

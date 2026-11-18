@@ -4,21 +4,78 @@ fn main() {
         build_installer();
         return;
     }
-    println!("cargo:rerun-if-env-changed=GLEAM_CLIENT_JAR");
-    let client_jar = std::env::var_os("GLEAM_CLIENT_JAR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| "../build/launcher-client/gleamclient.jar".into());
-    println!("cargo:rerun-if-changed={}", client_jar.display());
-    let embedded_jar =
-        std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("gleamclient.jar");
-    std::fs::copy(&client_jar, embedded_jar).unwrap_or_else(|error| {
-        panic!(
-            "Could not embed {}: {error}. Set GLEAM_CLIENT_JAR to the built client JAR.",
-            client_jar.display()
-        )
-    });
+    embed_client_jars();
     embed_curseforge_key();
+    export_cosmetic_preview();
     tauri_build::build();
+}
+
+fn export_cosmetic_preview() {
+    use std::{env, fs, path::PathBuf, process::Command};
+
+    let sources = [
+        "ExportCosmeticPreview.java",
+        "../src/main/java/ru/orion/client/effect/OrionWingMesh.java",
+        "../src/main/java/ru/orion/client/effect/OrionEmoteClips.java",
+    ];
+    for source in sources {
+        println!("cargo:rerun-if-changed={source}");
+    }
+    println!("cargo:rerun-if-env-changed=JAVA_HOME");
+    let output = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let classes = output.join("cosmetic-preview-classes");
+    fs::create_dir_all(&classes).expect("create cosmetic preview compiler output");
+    let java_tool = |name: &str| {
+        env::var_os("JAVA_HOME")
+            .map(|home| PathBuf::from(home).join("bin").join(format!("{name}{}", env::consts::EXE_SUFFIX)))
+            .unwrap_or_else(|| PathBuf::from(name))
+    };
+    let compiled = Command::new(java_tool("javac"))
+        .args(["-encoding", "UTF-8", "-d"]).arg(&classes).args(sources)
+        .status().expect("compile cosmetic preview exporter with the project JDK");
+    assert!(compiled.success(), "compile cosmetic preview exporter");
+
+    // Write and publish only a complete asset. The same path is included by Tauri.
+    let target = PathBuf::from("../build/launcher-cosmetics.json");
+    fs::create_dir_all(target.parent().unwrap()).expect("create cosmetic preview asset directory");
+    let staged = tempfile::NamedTempFile::new_in(target.parent().unwrap()).expect("stage cosmetic preview asset");
+    let exported = Command::new(java_tool("java"))
+        .arg("-cp").arg(&classes).arg("ExportCosmeticPreview").arg(staged.path())
+        .status().expect("run cosmetic preview exporter");
+    assert!(exported.success(), "export cosmetic preview geometry");
+    staged.persist(target).expect("publish cosmetic preview geometry locally");
+}
+
+fn embed_client_jars() {
+    use std::{env, fs, path::PathBuf};
+
+    const MANIFEST: &str = "../build/supported-versions.json";
+    let output = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let mut manifest: Option<Vec<serde_json::Value>> = None;
+    for (version, override_var) in [
+        ("1.21.11", "GLEAM_CLIENT_JAR_1_21_11"),
+        ("26.1.2", "GLEAM_CLIENT_JAR_26_1_2"),
+        ("26.2", "GLEAM_CLIENT_JAR_26_2"),
+        ("26.3", "GLEAM_CLIENT_JAR"),
+    ] {
+        println!("cargo:rerun-if-env-changed={override_var}");
+        let jar = env::var_os(override_var).map(PathBuf::from).unwrap_or_else(|| {
+            let targets = manifest.get_or_insert_with(|| {
+                println!("cargo:rerun-if-changed={MANIFEST}");
+                let bytes = fs::read(MANIFEST).expect("Run gradlew.bat build to build the client JARs");
+                serde_json::from_slice(&bytes).expect("Read the supported Minecraft versions")
+            });
+            let name = targets.iter()
+                .find(|target| target["minecraft"] == version)
+                .and_then(|target| target["jar"].as_str())
+                .unwrap_or_else(|| panic!("No client JAR for Minecraft {version} in {MANIFEST}"));
+            PathBuf::from("../build/libs").join(name)
+        });
+        println!("cargo:rerun-if-changed={}", jar.display());
+        fs::copy(&jar, output.join(format!("gleamclient-mc{version}.jar"))).unwrap_or_else(|error| {
+            panic!("Could not embed Minecraft {version} client {}: {error}", jar.display())
+        });
+    }
 }
 
 fn embed_curseforge_key() {

@@ -1,4 +1,6 @@
 package ru.orion.client.mixin;
+import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
+import net.minecraft.client.player.LocalPlayer;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
@@ -13,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.orion.client.OrionClient;
+import ru.orion.client.effect.OrionFreeLook;
 import ru.orion.client.effect.OrionZoom;
 
 @Mixin(MouseHandler.class)
@@ -25,6 +28,13 @@ public abstract class OrionZoomMouseMixin {
                 && OrionZoom.scroll(minecraft, OrionClient.getConfigOrNull(), vertical)) {
             ci.cancel();
         }
+    }
+
+
+    @WrapWithCondition(method = "turnPlayer(D)V", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/player/LocalPlayer;turn(DD)V"))
+    private boolean orion$allowPlayerTurn(LocalPlayer player, double dx, double dy) {
+        return !OrionFreeLook.turn(minecraft, dx, dy);
     }
 
     @Redirect(method = "turnPlayer(D)V", at = @At(value = "FIELD",

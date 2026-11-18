@@ -1,65 +1,102 @@
 package ru.orion.client.football;
 
-import com.mojang.blaze3d.platform.NativeImage;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
-import ru.orion.client.hud.OrionGlassCompositor;
-import ru.orion.client.hud.OrionGlassStyle;
 import ru.orion.client.gui.OrionGuiLanguage;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.geom.Arc2D;
-import java.awt.geom.RoundRectangle2D;
-import java.awt.image.BufferedImage;
-import java.util.List;
+import ru.orion.client.hud.OrionHudDrag;
+import ru.orion.client.hud.OrionHudView;
+
 
 public final class OrionFootballHud {
-    private static final Identifier TEXTURE=Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"football_hud");
-    private final OrionFootball football;private final OrionConfigManager manager;
-    private DynamicTexture texture;private int pixelWidth,pixelHeight;private List<Object> last;
-    public OrionFootballHud(OrionFootball football,OrionConfigManager manager){this.football=football;this.manager=manager;}
-    public void register(){HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"football_hud_element"),this::render);}
-    private void render(GuiGraphicsExtractor context,DeltaTracker delta){
-        Minecraft client=Minecraft.getInstance();var config=manager.getConfig();
-        if(!config.isFootballEnabled()||client.player==null){release();return;}
-        int scale=Math.max(1,Math.min(6,client.getWindow().getGuiScale()));int power=football.charging()?Math.round(football.charge()*100):0;
-        boolean goal=football.goalAt()!=0&&System.nanoTime()-football.goalAt()<1_500_000_000L;
+    private static final Identifier SCORE = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "football_hud");
+    private static final Identifier CHARGE = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "football_charge");
+    private static final int CHARGE_SIZE = 34;
+    private final OrionFootball football;
+    private final OrionConfigManager manager;
+    private final OrionHudDrag drag = new OrionHudDrag(SCORE.getPath());
+    private final OrionHudView scoreView = new OrionHudView(SCORE.getPath());
+    private final OrionHudView chargeView = new OrionHudView(CHARGE.getPath());
+    private OrionHudView.Scene scoreScene;
+    private Score lastScore;
+    private int scoreWidth, scoreHeight;
+
+    public OrionFootballHud(OrionFootball football, OrionConfigManager manager) {
+        this.football = football;
+        this.manager = manager;
+    }
+
+    public void register() {
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"football_hud_element"), this::render);
+    }
+
+    private void render(GuiGraphicsExtractor context, DeltaTracker delta) {
+        Minecraft client = Minecraft.getInstance();
+        var config = manager.getConfig();
+        if (!config.isFootballEnabled() || client.player == null) {
+            release();
+            return;
+        }
+        long goalAt = football.goalAt();
+        boolean goal = goalAt != 0 && System.nanoTime() - goalAt < 1_500_000_000L;
         var match = football.match();
-        List<Object> fp=List.of(scale,power,football.charging(),goal,football.shots(),football.goals(),football.saves(),football.misses(),config.isFootballPenaltyMode(),
-                match.active(), match.red(), match.blue(), match.status(), OrionGuiLanguage.english());
-        if(!fp.equals(last)){update(scale,power,goal,config.isFootballPenaltyMode());last=fp;}
-        if(texture!=null){int x=(context.guiWidth()-160)/2,y=(context.guiHeight()-112)/2;
-            if(!OrionGlassCompositor.INSTANCE.submit(TEXTURE,context,texture,x,y,160,112))context.blit(TEXTURE,x,y,x+160,y+112,0,1,0,1);}
+        int percentage = football.shots() == 0 ? 0 : Math.round(football.goals() * 100F / football.shots());
+        String title = match.active() ? tr("Красные") + " " + match.red() + " : " + match.blue() + " " + tr("Синие")
+                : goal ? "GOAL!  " + football.goals()
+                : config.isFootballPenaltyMode() ? tr("Удары") + " " + football.shots() + "  " + tr("Голы") + " " + football.goals()
+                + "  " + tr("Сейвы") + " " + football.saves() + "  " + tr("Мимо") + " " + football.misses() + "  " + percentage + "%"
+                : tr("Голы") + ": " + football.goals();
+        Score score = new Score(title, match.active() ? tr(match.status()) : "", goal);
+        if (!score.equals(lastScore)) {
+            updateScore(score);
+            lastScore = score;
+        }
+        float size = config.getHudElementScale(SCORE.getPath());
+        int width = Math.min(context.guiWidth(), Math.max(1, Math.round(scoreWidth * size)));
+        int height = Math.min(context.guiHeight(), Math.max(1, Math.round(scoreHeight * size)));
+        int maxX = context.guiWidth() - width, maxY = context.guiHeight() - height;
+        int x = config.getFootballScoreX() < 0 ? maxX / 2 : Math.clamp(config.getFootballScoreX(), 0, maxX);
+        int y = Math.clamp(config.getFootballScoreY() < 0 ? context.guiHeight() / 2 - 53 : config.getFootballScoreY(), 0, maxY);
+        var position = drag.update(context, x, y, width, height, manager, config::setFootballScorePosition);
+        x = position.x();
+        y = position.y();
+        scoreView.draw(context, scoreScene, x, y, width, height);
+        if (football.charging()) {
+            renderCharge(context, Math.round(football.charge() * 100), 255);
+        } else {
+            chargeView.dispose();
+        }
     }
-    private void update(int scale,int power,boolean goal,boolean penalty){
-        int w=160*scale,h=112*scale;BufferedImage image=new BufferedImage(w,h,BufferedImage.TYPE_INT_ARGB);Graphics2D g=image.createGraphics();
-        try{g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,RenderingHints.VALUE_TEXT_ANTIALIAS_ON);g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,RenderingHints.VALUE_FRACTIONALMETRICS_ON);g.setRenderingHint(RenderingHints.KEY_RENDERING,RenderingHints.VALUE_RENDER_QUALITY);g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,RenderingHints.VALUE_STROKE_PURE);g.scale(scale,scale);
-            if(football.charging()){g.setStroke(new BasicStroke(2.3F,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));g.setColor(new Color(10,10,12,140));g.draw(new Arc2D.Float(65,41,30,30,0,360,Arc2D.OPEN));g.setColor(new Color(255,Math.round(185-power*.8F),35,240));g.draw(new Arc2D.Float(65,41,30,30,90,-power*3.6F,Arc2D.OPEN));}
-            Font font=new Font(Font.SANS_SERIF,Font.BOLD,8).deriveFont(8F);g.setFont(font);
-            int percentage=football.shots()==0?0:Math.round(football.goals()*100F/football.shots());
-            var match = football.match();
-            String text=match.active() ? OrionGuiLanguage.translate("Красные") + " " + match.red() + " : " + match.blue() + " " + OrionGuiLanguage.translate("Синие")
-                    : goal?"GOAL!  "+football.goals():penalty?"Удары "+football.shots()+"  Голы "+football.goals()+"  Сейвы "+football.saves()+"  Мимо "+football.misses()+"  "+percentage+"%":"Голы: "+football.goals();
-            Font measuring=font.deriveFont(128F);float tw=(float)g.getFontMetrics(measuring).getStringBounds(text,g).getWidth()/16F;
-            String detail = match.active() ? OrionGuiLanguage.translate(match.status()) : "";
-            float dw = (float)g.getFontMetrics(measuring).getStringBounds(detail,g).getWidth()/16F;
-            float panelWidth = Math.max(tw, dw) + 10, x = 80 - panelWidth / 2, panelHeight = match.active() ? 26 : 15;
-            OrionGlassStyle.drawPanel(g,x,3,panelWidth,panelHeight,8);
-            g.setColor(goal?new Color(255,166,59):Color.WHITE);g.drawString(text,80-tw/2,14F);
-            if (match.active()) g.drawString(detail, 80-dw/2, 24F);
-            OrionGlassCompositor.INSTANCE.updateMask(TEXTURE,new OrionGlassCompositor.MaskLayout(w,h,160,112,List.of(new OrionGlassCompositor.Panel(x,3,panelWidth,panelHeight,8))));
-        }finally{g.dispose();}
-        Minecraft client=Minecraft.getInstance();if(texture==null||pixelWidth!=w||pixelHeight!=h){client.getTextureManager().release(TEXTURE);NativeImage pixels=new NativeImage(w,h,true);copy(image,pixels);texture=new DynamicTexture(()->"orion_football_hud",pixels);client.getTextureManager().register(TEXTURE,texture);pixelWidth=w;pixelHeight=h;}else if(texture.getPixels()!=null&&!texture.getPixels().isClosed()){copy(image,texture.getPixels());texture.upload();}
+
+    private void updateScore(Score score) {
+        var font = Minecraft.getInstance().font;
+        scoreWidth = Math.max(font.width(score.title()), font.width(score.detail())) + 12;
+        scoreHeight = score.detail().isEmpty() ? 15 : 26;
+        scoreScene = new OrionHudView.Scene(scoreWidth, scoreHeight);
+        scoreScene.panel(0, 0, scoreWidth, scoreHeight, 6);
+        String tint = score.highlight() ? "#ffa63b" : "var(--text)";
+        scoreScene.label(score.title(), 4, 0, scoreWidth - 8, 15, 8, tint, "center", true);
+        if (!score.detail().isEmpty()) {
+            scoreScene.label(score.detail(), 4, 13, scoreWidth - 8, 13, 8, "var(--muted)", "center", false);
+        }
     }
-    private static void copy(BufferedImage image,NativeImage pixels){int w=image.getWidth(),h=image.getHeight();int[] data=image.getRGB(0,0,w,h,null,0,w);for(int y=0;y<h;y++)for(int x=0;x<w;x++)pixels.setPixel(x,y,data[y*w+x]);}
-    private void release(){if(texture!=null)Minecraft.getInstance().getTextureManager().release(TEXTURE);OrionGlassCompositor.INSTANCE.releaseMask(TEXTURE);texture=null;last=null;}
+
+    private void renderCharge(GuiGraphicsExtractor context, int percent, int alpha) {
+        var scene = OrionHudView.charge(CHARGE_SIZE, percent, alpha);
+        int x = (context.guiWidth() - CHARGE_SIZE) / 2, y = (context.guiHeight() - CHARGE_SIZE) / 2;
+        chargeView.draw(context, scene, x, y, CHARGE_SIZE, CHARGE_SIZE);
+    }
+
+    private void release() {
+        drag.cancel(manager);
+        scoreView.dispose();
+        chargeView.dispose();
+    }
+
+    private static String tr(String value) { return OrionGuiLanguage.translate(value); }
+    private record Score(String title, String detail, boolean highlight) {}
 }

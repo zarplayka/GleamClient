@@ -14,6 +14,12 @@ public abstract class OrionZoomKeyMixin {
     @Inject(method = "set(Lcom/mojang/blaze3d/platform/InputConstants$Key;Z)V", at = @At("HEAD"))
     private static void orion$zoomKey(InputConstants.Key key, boolean pressed, CallbackInfo ci) {
         KeyMapping zoom = OrionKeybinds.getZoomKey();
+        //? if >=26.2 {
         if (zoom != null && zoom.matches(key)) OrionZoom.keyEvent(pressed);
+        //?} else {
+        /*if (zoom != null && net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper.getBoundKeyOf(zoom).equals(key)) {
+            OrionZoom.keyEvent(pressed);
+        }
+        *///?}
     }
 }

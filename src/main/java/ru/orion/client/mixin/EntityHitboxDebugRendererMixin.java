@@ -1,10 +1,13 @@
 package ru.orion.client.mixin;
 
 import net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer;
+import net.minecraft.client.Minecraft;
 import net.minecraft.gizmos.GizmoStyle;
 import net.minecraft.gizmos.Gizmos;
 import net.minecraft.util.ARGB;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -36,9 +39,27 @@ public abstract class EntityHitboxDebugRendererMixin {
             return; // серверный дубль из дебага не рисуем вовсе
         }
 
-        int color = OrionRainbow.orElse(orion$parseColor(config.getHitBoxColor()));
+        Minecraft client = Minecraft.getInstance();
+        boolean target = client.crosshairPickEntity == entity;
+        if (config.isHitBoxPlayersOnly() && !(entity instanceof Player) || config.isHitBoxTargetOnly() && !target) return;
+        int color = OrionRainbow.orElse(orion$parseColor(target ? config.getHitBoxTargetColor() : config.getHitBoxColor()));
         Vec3 offset = entity.getPosition(partialTick).subtract(entity.position());
-        Gizmos.cuboid(entity.getBoundingBox().move(offset), GizmoStyle.stroke(color));
+        AABB box = entity.getBoundingBox().move(offset);
+        float width = config.getHitBoxWidth();
+        if (config.getHitBoxStyle() == 0) {
+            Gizmos.cuboid(box, GizmoStyle.stroke(color, width));
+        } else {
+            double part = Math.min(box.getXsize(), Math.min(box.getYsize(), box.getZsize())) * .27;
+            for (int i = 0; i < 8; i++) {
+                double x = (i & 1) == 0 ? box.minX : box.maxX;
+                double y = (i & 2) == 0 ? box.minY : box.maxY;
+                double z = (i & 4) == 0 ? box.minZ : box.maxZ;
+                Vec3 corner = new Vec3(x, y, z);
+                Gizmos.line(corner, corner.add((i & 1) == 0 ? part : -part, 0, 0), color, width);
+                Gizmos.line(corner, corner.add(0, (i & 2) == 0 ? part : -part, 0), color, width);
+                Gizmos.line(corner, corner.add(0, 0, (i & 4) == 0 ? part : -part), color, width);
+            }
+        }
     }
 
     private static int orion$parseColor(String hex) {

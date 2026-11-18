@@ -1,7 +1,18 @@
 package ru.orion.client.config;
 
+import ru.orion.client.effect.OrionEmotes;
+
 public final class OrionConfig {
+    public static final int MIN_CLEAN_WATER_OPACITY = 45;
+    private GleamLyricsSettings animatedLyrics = new GleamLyricsSettings();
+
+    public GleamLyricsSettings getAnimatedLyrics() {
+        if (animatedLyrics == null) animatedLyrics = new GleamLyricsSettings();
+        return animatedLyrics;
+    }
+    private static final int[] DEFAULT_EMOTE_SLOTS = {1, 2, 3, 4, 5, 6};
     private boolean emotesEnabled = true;
+    private int[] emoteSlots = DEFAULT_EMOTE_SLOTS.clone();
     private boolean skinLayersEnabled;
     private float skinLayersThickness = .5F;
     private float skinLayersDistance = 12F;
@@ -32,16 +43,56 @@ public final class OrionConfig {
     public void setItemScrollerLimit(float value) { itemScrollerLimit = finiteClamp(value, 1F, 16F, 8F); }
     public boolean isEmotesEnabled() { return emotesEnabled; }
     public void setEmotesEnabled(boolean value) { emotesEnabled = value; }
+
+    public int[] getEmoteSlots() { return emoteSlots.clone(); }
+
+    public void setEmoteSlot(int slot, int id) {
+        if (slot < 0 || slot >= emoteSlots.length || (id != 0 && !OrionEmotes.supports(id))) return;
+        for (int i = 0; id != 0 && i < emoteSlots.length; i++) {
+            if (emoteSlots[i] == id) emoteSlots[i] = emoteSlots[slot];
+        }
+        emoteSlots[slot] = id;
+    }
+
+    public void resetEmoteSlots() { emoteSlots = DEFAULT_EMOTE_SLOTS.clone(); }
+
+    private void sanitizeEmoteSlots() {
+        if (emoteSlots == null || emoteSlots.length != DEFAULT_EMOTE_SLOTS.length) {
+            resetEmoteSlots();
+            return;
+        }
+        boolean[] used = new boolean[OrionEmotes.NAMES.length + 1];
+        for (int id : emoteSlots) {
+            if (id < 0 || id >= used.length || id != 0 && used[id]) {
+                resetEmoteSlots();
+                return;
+            }
+            used[id] = true;
+        }
+    }
     private boolean zoomEnabled;
     private boolean haloEnabled;
     private boolean wingsEnabled;
     private int wingsStyle;
+    private String cosmeticPet = "";
+    public String getCosmeticPet() { return cosmeticPet; }
+    public void setCosmeticPet(String id) {
+        var pet = ru.orion.client.cosmetic.GleamPet.byId(id);
+        cosmeticPet = pet == null ? "" : pet.id();
+    }
+
     public boolean isHaloEnabled() { return haloEnabled; }
     public void setHaloEnabled(boolean value) { haloEnabled = value; }
     public boolean isWingsEnabled() { return wingsEnabled; }
     public void setWingsEnabled(boolean value) { wingsEnabled = value; }
-    public int getWingsStyle() { return wingsStyle; }
-    public void setWingsStyle(int value) { wingsStyle = Math.max(0, Math.min(1, value)); }
+    public int getWingsStyle() {
+        return Math.max(0, ru.orion.client.effect.GleamWingModel.fromWireStyle(wingsStyle + 1));
+    }
+
+    public void setWingsStyle(int value) {
+        int style = Math.clamp(value, 0, ru.orion.client.effect.GleamWingModel.IDS.size() - 1);
+        wingsStyle = ru.orion.client.effect.GleamWingModel.toWireStyle(style) - 1;
+    }
     private float zoomFactor = 4.0F;
     private float zoomInTime = 1F;
     private float zoomOutTime = 0.5F;
@@ -171,6 +222,8 @@ public final class OrionConfig {
     private float footballGoalScale = 1.0F;
     private int footballGoalkeeperDifficulty = 1;
     private boolean footballGoalkeeperEnabled = true;
+    private int footballScoreX = -1;
+    private int footballScoreY = -1;
     private boolean footballPenaltyMode = false;
     private float footballKickPower = 1.0F;
     private float footballChargeSpeed = 1.0F;
@@ -183,6 +236,8 @@ public final class OrionConfig {
     private float basketballBallScale = 1.0F;
     private float basketballVolume = 0.7F;
     private boolean basketballHud = true;
+    private int basketballScoreX = -1;
+    private int basketballScoreY = -1;
     private float basketballPassPower = 13F;
     private float basketballSpin = 1F;
     private boolean basketballAutoCatch = true;
@@ -208,9 +263,38 @@ public final class OrionConfig {
     private int animationsDuration = 180;
     private boolean enchantGlintEnabled = false;
     private int enchantGlintMode = 0;
+    public static final int CUSTOM_GLINT = 5;
+    public static final int GLINT_SLOTS = 4;
+    private GlintPreset customGlint = GlintPreset.DEFAULT;
+    private GlintPreset[] savedGlints = new GlintPreset[GLINT_SLOTS];
     private boolean inventoryHudEnabled = false;
     private boolean selfTagEnabled = false;
+    private boolean nametagsEnabled;
+    private boolean cleanWaterEnabled;
+    private int cleanWaterOpacity = 65;
+    private boolean cleanWaterClearFog = true;
+    private boolean nametagsBackground = true;
+    private boolean nametagsShadow = true;
+    private boolean freeLookEnabled;
+    private boolean freeLookToggle;
+    private boolean potionsEnabled;
+    private boolean potionsHideVanilla = true;
+    private boolean targetHudEnabled;
+    private boolean targetHudWorld;
+    private boolean targetHudAttackOnly;
+    private boolean targetHudPlayersOnly;
+    private boolean targetHudEquipment = true;
+    private boolean targetHudPing = true;
+    private int targetHudHoldSeconds = 3;
+    private boolean soundSettingsEnabled;
+    private java.util.Map<String, Integer> soundVolumes = new java.util.HashMap<>();
+    private boolean noRenderEnabled;
+    private java.util.Set<String> noRenderOptions = new java.util.HashSet<>();
+    private java.util.Set<String> noRenderEntities = new java.util.HashSet<>();
+    private java.util.Set<String> noRenderParticles = new java.util.HashSet<>();
+    private java.util.Map<String, int[]> extraHudPositions = new java.util.HashMap<>();
     private boolean armorIndicatorEnabled = false;
+    private IndicatorOptions armorIndicatorOptions = new IndicatorOptions(false);
     private boolean lockSlotEnabled = false;
     private long lockSlotMask = 0L;
     private boolean pvpSafeEnabled = false;
@@ -244,7 +328,9 @@ public final class OrionConfig {
         hudElementGlass = values == null ? new java.util.HashMap<>() : new java.util.HashMap<>(values);
     }
     public boolean isHudElementGlass(String id) {
-        return hudElementGlass == null || !Boolean.FALSE.equals(hudElementGlass.get(id));
+        if (hudElementGlass == null) return true;
+        Boolean glass = hudElementGlass.get(id);
+        return !Boolean.FALSE.equals(glass);
     }
     public void setHudElementGlass(String id, boolean glass) {
         if (hudElementGlass == null) hudElementGlass = new java.util.HashMap<>();
@@ -267,21 +353,34 @@ public final class OrionConfig {
     private boolean discordRpcEnabled = true;
     private String discordApplicationId = DEFAULT_DISCORD_APPLICATION_ID;
     private String discordLargeImageKey = "orion_icon";
-    private String discordLargeImageText = "Orion Client";
+    private String discordLargeImageText = "GleamClient";
     private boolean jumpCircleEnabled = true;
     private String jumpCircleColor = "#FF7C00";
     private float jumpCircleSize = 1.0F;
     private boolean mediaPlayerEnabled = false;
     private int mediaPlayerX = 8;
     private int mediaPlayerY = 40;
-    private String mediaPlayerCorner = "TOP_LEFT";
+    private String mediaPlayerCorner = "TOP_CENTER";
+    private boolean mediaPlayerIslandMigrated;
     private boolean mediaPlayerAnimated = true;
     private boolean aspectEnabled = false;
     private float aspectStretch = 1.25F;
     private boolean targetEspEnabled = false;
     private int targetEspTexture = 0;
     private String targetEspChainColor = "#F5F5FF";
+    private int targetEspDetail = 1;
+    private boolean targetEspHealthColor;
     private boolean chinaHeadEnabled = false;
+    private String cosmeticHat = "";
+
+    public String getCosmeticHat() {
+        return cosmeticHat == null ? "" : cosmeticHat;
+    }
+
+    public void setCosmeticHat(String id) {
+        cosmeticHat = ru.orion.client.cosmetic.GleamHatModel.IDS.contains(id) ? id : "";
+        if (!cosmeticHat.isEmpty()) chinaHeadEnabled = false;
+    }
     private boolean motionBlurEnabled = false;
     private float motionBlurStrength = 0.5F;
     private boolean blockHighlightEnabled = false;
@@ -358,7 +457,68 @@ public final class OrionConfig {
     private boolean worldChangerEnabled = false;
     private String worldChangerSkyColor = "#64D9FF";
     private String worldChangerFogColor = "#14111F";
+    private boolean worldChangerSkyEnabled = true;
+    private int worldChangerSkyStrength = 100;
+    private boolean worldChangerSunsetEnabled;
+    private String worldChangerSunsetColor = "#FF9365";
+    private int worldChangerStars = 100;
+    private boolean worldChangerFogEnabled = true;
+    private int worldChangerFogStrength = 100;
+    private int worldChangerFogDistance;
+    private int worldChangerFogStart = 25;
+    private boolean worldChangerCloudsEnabled;
+    private String worldChangerCloudColor = "#FFFFFF";
+    private int worldChangerCloudOpacity = 100;
     private int clickGuiTheme = 3;
+    private String clickGuiWindowSize = "normal";
+    private String clickGuiLanguage = "auto";
+    private boolean chatNotifications = true;
+    private boolean chatNotificationSound = true;
+    private boolean interfaceSounds = true;
+    private boolean showFakePunishments;
+
+    public boolean isChatNotifications() { return chatNotifications; }
+    public void setChatNotifications(boolean enabled) { chatNotifications = enabled; }
+    public boolean isChatNotificationSound() { return chatNotificationSound; }
+    public void setChatNotificationSound(boolean enabled) { chatNotificationSound = enabled; }
+    public boolean isInterfaceSounds() { return interfaceSounds; }
+    public void setInterfaceSounds(boolean enabled) { interfaceSounds = enabled; }
+    private int clickGuiWindowX, clickGuiWindowY;
+    private int clickGuiScale = 100;
+    private boolean clickGuiCompactCards;
+    private boolean clickGuiCategoriesExpanded = true;
+    private boolean clickGuiSwitchStyle;
+    private String clickGuiAccent = "";
+
+    public String getClickGuiWindowSize() { return clickGuiWindowSize; }
+    public void setClickGuiWindowSize(String size) { clickGuiWindowSize = normalizeClickGuiSize(size); }
+    public String getClickGuiLanguage() { return clickGuiLanguage; }
+    public void setClickGuiLanguage(String value) {
+        clickGuiLanguage = value != null && value.matches("ru|en|de|es") ? value : "auto";
+    }
+    public int getClickGuiWindowX() { return clickGuiWindowX; }
+    public int getClickGuiWindowY() { return clickGuiWindowY; }
+    public void setClickGuiWindowPosition(int x, int y) {
+        clickGuiWindowX = Math.clamp(x, -1000, 1000);
+        clickGuiWindowY = Math.clamp(y, -1000, 1000);
+    }
+    public int getClickGuiScale() { return clickGuiScale; }
+    public void setClickGuiScale(int scale) { clickGuiScale = Math.clamp(scale, 70, 160); }
+    public boolean isClickGuiCompactCards() { return clickGuiCompactCards; }
+    public void setClickGuiCompactCards(boolean compact) { clickGuiCompactCards = compact; }
+    public boolean isClickGuiCategoriesExpanded() { return clickGuiCategoriesExpanded; }
+    public void setClickGuiCategoriesExpanded(boolean expanded) { clickGuiCategoriesExpanded = expanded; }
+    public boolean isClickGuiSwitchStyle() { return clickGuiSwitchStyle; }
+    public void setClickGuiSwitchStyle(boolean switches) { clickGuiSwitchStyle = switches; }
+    public String getClickGuiAccent() { return clickGuiAccent; }
+    public void setClickGuiAccent(String accent) {
+        clickGuiAccent = accent != null && accent.matches("#[0-9a-fA-F]{6}") ? accent.toLowerCase(java.util.Locale.ROOT) : "";
+    }
+
+    private static String normalizeClickGuiSize(String size) {
+        return "mini".equals(size) || "compact".equals(size) ? size : "normal";
+    }
+
     private String visualPresetSelection = "";
     private String appliedVisualPreset = "";
     public String getVisualPresetSelection() { return visualPresetSelection; }
@@ -375,7 +535,8 @@ public final class OrionConfig {
     private static String normalizeSection(String value) {
         if (value == null) return "ALL";
         return switch (value) {
-            case "ALL", "FAVORITES", "WAYPOINTS", "PRESETS", "CONFIGS", "COMBAT", "PLAYER", "MOVEMENT", "RENDER", "WORLD", "MISC", "SETTINGS" -> value;
+            case "ALL", "FAVORITES", "WAYPOINTS", "PRESETS", "CONFIGS", "COSMETICS", "FRIENDS", "CHAT",
+                    "COMBAT", "PLAYER", "MOVEMENT", "RENDER", "WORLD", "MISC", "SETTINGS" -> value;
             default -> "ALL";
         };
     }
@@ -403,6 +564,7 @@ public final class OrionConfig {
         favoriteModules = new java.util.ArrayList<>(modules);
     }
     private boolean healthTagsEnabled = true;
+    private IndicatorOptions healthIndicatorOptions = new IndicatorOptions(true);
     private boolean protectNameEnabled = false;
     private String protectName = "Player";
     private boolean fakePrefixEnabled = false;
@@ -410,12 +572,25 @@ public final class OrionConfig {
     private String fakePrefixAdditionalNames = "";
     private boolean hitBoxEnabled = false;
     private String hitBoxColor = "#FF7C00";
+    private int hitBoxStyle;
+    private float hitBoxWidth = 1F;
+    private boolean hitBoxPlayersOnly;
+    private boolean hitBoxTargetOnly;
+    private String hitBoxTargetColor = "#F5F5FF";
     private boolean hitColorEnabled = false;
     private String hitColorColor = "#EF4444";
     private int hitColorOpacity = 45;
+    private int hitColorMode;
+    private int hitColorDuration = 350;
+    private boolean hitColorPlayersOnly;
     private boolean crosshairEnabled = false;
     private String crosshairColor = "#F5F5FF";
     private String crosshairPixels = defaultCrosshairPixels();
+    private int crosshairMode;
+    private int crosshairPresetIndex;
+    private int crosshairSize = 100;
+    private int crosshairRotation;
+    private CrosshairPreset[] savedCrosshairs = new CrosshairPreset[CROSSHAIR_SLOTS];
     private boolean betterNearEnabled = false;
     private int betterNearRadius = 50;
     private int betterNearX = -1; // -1 — позиция по умолчанию (правый верхний угол)
@@ -424,12 +599,42 @@ public final class OrionConfig {
     private int rainbowSpeed = 3; // 1..10, период цикла = 12с / скорость
     private boolean hitSoundEnabled = false;
     private int hitSoundIndex = 0; // 0..5 — встроенные, 6 — свои из папки
+    private String hitSoundFile = "";
     private int hitSoundVolume = 70; // 0..100%
     private float hitSoundPitch = 1F;
     private boolean hitSoundPlayersOnly;
     private boolean hitSoundVaryPitch;
 
     public static final int CROSSHAIR_GRID = 15;
+    public static final int CROSSHAIR_SLOTS = 6;
+    public static final int CROSSHAIR_PRESET_COUNT = 5;
+
+    public record CrosshairPreset(String pixels, String color, int size, int rotation) { }
+
+    private static final String[] CROSSHAIR_PRESETS = {
+            defaultCrosshairPixels(), crosshairPattern(1), crosshairPattern(2), crosshairPattern(3), crosshairPattern(4)
+    };
+
+    public static String crosshairPreset(int index) { return CROSSHAIR_PRESETS[index]; }
+
+    private static String crosshairPattern(int preset) {
+        var pixels = new StringBuilder(CROSSHAIR_GRID * CROSSHAIR_GRID);
+        for (int row = 0; row < CROSSHAIR_GRID; row++) {
+            for (int column = 0; column < CROSSHAIR_GRID; column++) {
+                int x = Math.abs(column - CROSSHAIR_GRID / 2), y = Math.abs(row - CROSSHAIR_GRID / 2);
+                int near = Math.min(x, y), far = Math.max(x, y), radius = x * x + y * y;
+                boolean on = switch (preset) {
+                    case 1 -> far <= 1 && near == 0;
+                    case 2 -> near == 0 && far >= 2 && far <= 5;
+                    case 3 -> radius >= 12 && radius <= 20;
+                    case 4 -> far == 4 && near >= 2;
+                    default -> false;
+                };
+                pixels.append(on ? '1' : '0');
+            }
+        }
+        return pixels.toString();
+    }
 
     /** Классический плюс 9x9 по центру сетки 15x15. */
     public static String defaultCrosshairPixels() {
@@ -455,6 +660,9 @@ public final class OrionConfig {
     public void setFootballGoalkeeperDifficulty(int value) { footballGoalkeeperDifficulty = value; }
     public boolean isFootballGoalkeeperEnabled() { return footballGoalkeeperEnabled; }
     public void setFootballGoalkeeperEnabled(boolean value) { footballGoalkeeperEnabled = value; }
+    public int getFootballScoreX() { return footballScoreX; }
+    public int getFootballScoreY() { return footballScoreY; }
+    public void setFootballScorePosition(int x, int y) { footballScoreX = x; footballScoreY = y; }
     public boolean isFootballPenaltyMode() { return footballPenaltyMode; }
     public void setFootballPenaltyMode(boolean value) { footballPenaltyMode = value; }
     public float getFootballKickPower() { return footballKickPower; }
@@ -479,6 +687,12 @@ public final class OrionConfig {
     public void setBasketballVolume(float value) { basketballVolume = value; }
     public boolean isBasketballHud() { return basketballHud; }
     public void setBasketballHud(boolean value) { basketballHud = value; }
+    public int getBasketballScoreX() { return basketballScoreX; }
+    public int getBasketballScoreY() { return basketballScoreY; }
+    public void setBasketballScorePosition(int x, int y) {
+        basketballScoreX = x;
+        basketballScoreY = y;
+    }
     public boolean isAnimationsEnabled() { return animationsEnabled; }
     public void setAnimationsEnabled(boolean value) { animationsEnabled = value; }
     public int getAnimationsDuration() { return animationsDuration; }
@@ -487,12 +701,161 @@ public final class OrionConfig {
     public void setEnchantGlintEnabled(boolean value) { enchantGlintEnabled = value; }
     public int getEnchantGlintMode() { return enchantGlintMode; }
     public void setEnchantGlintMode(int value) { enchantGlintMode = value; }
+    public GlintPreset getCustomGlint() { return customGlint; }
+    public void setCustomGlint(GlintPreset value) { customGlint = value.sanitized(); enchantGlintMode = CUSTOM_GLINT; }
+    public GlintPreset getSavedGlint(int slot) { return savedGlints[slot]; }
+    public void saveGlint(int slot) { savedGlints[slot] = customGlint; }
+    public boolean loadGlint(int slot) {
+        if (savedGlints[slot] == null) return false;
+        setCustomGlint(savedGlints[slot]);
+        return true;
+    }
+
+    public record GlintPreset(String first, String second, int bands, int intensity, int speed) {
+        public static final GlintPreset DEFAULT = new GlintPreset("#7656FF", "#48DBFF", 4, 75, 100);
+        private GlintPreset sanitized() {
+            return new GlintPreset(safeColor(first, DEFAULT.first), safeColor(second, DEFAULT.second),
+                    Math.clamp(bands, 1, 8), Math.clamp(intensity, 0, 100), Math.clamp(speed, 0, 200));
+        }
+        private static String safeColor(String color, String fallback) {
+            return color != null && color.matches("#[0-9a-fA-F]{6}") ? color : fallback;
+        }
+        public GlintPreset withFirst(String value) { return new GlintPreset(value, second, bands, intensity, speed); }
+        public GlintPreset withSecond(String value) { return new GlintPreset(first, value, bands, intensity, speed); }
+        public GlintPreset withBands(int value) { return new GlintPreset(first, second, value, intensity, speed); }
+        public GlintPreset withIntensity(int value) { return new GlintPreset(first, second, bands, value, speed); }
+        public GlintPreset withSpeed(int value) { return new GlintPreset(first, second, bands, intensity, value); }
+    }
     public boolean isInventoryHudEnabled() { return inventoryHudEnabled; }
     public void setInventoryHudEnabled(boolean value) { inventoryHudEnabled = value; }
     public boolean isSelfTagEnabled() { return selfTagEnabled; }
     public void setSelfTagEnabled(boolean value) { selfTagEnabled = value; }
+    public boolean isCleanWaterEnabled() { return cleanWaterEnabled; }
+    public void setCleanWaterEnabled(boolean value) { cleanWaterEnabled = value; }
+    public int getCleanWaterOpacity() { return cleanWaterOpacity; }
+    public void setCleanWaterOpacity(float value) {
+        cleanWaterOpacity = Math.round(finiteClamp(value, MIN_CLEAN_WATER_OPACITY, 100F, 65F));
+    }
+    public boolean isCleanWaterClearFog() { return cleanWaterClearFog; }
+    public void setCleanWaterClearFog(boolean value) { cleanWaterClearFog = value; }
+    public boolean isNametagsEnabled() { return nametagsEnabled; }
+    public void setNametagsEnabled(boolean value) { nametagsEnabled = value; }
+    public boolean isNametagsBackground() { return nametagsBackground; }
+    public void setNametagsBackground(boolean value) { nametagsBackground = value; }
+    public boolean isNametagsShadow() { return nametagsShadow; }
+    public void setNametagsShadow(boolean value) { nametagsShadow = value; }
+    public boolean isFreeLookEnabled() { return freeLookEnabled; }
+    public void setFreeLookEnabled(boolean value) { freeLookEnabled = value; }
+    public boolean isFreeLookToggle() { return freeLookToggle; }
+    public void setFreeLookToggle(boolean value) { freeLookToggle = value; }
+    public boolean isPotionsEnabled() { return potionsEnabled; }
+    public void setPotionsEnabled(boolean value) { potionsEnabled = value; }
+    public boolean isPotionsHideVanilla() { return potionsHideVanilla; }
+    public void setPotionsHideVanilla(boolean value) { potionsHideVanilla = value; }
+    public boolean isTargetHudEnabled() { return targetHudEnabled; }
+    public void setTargetHudEnabled(boolean value) { targetHudEnabled = value; }
+    public boolean isTargetHudWorld() { return targetHudWorld; }
+    public void setTargetHudWorld(boolean value) { targetHudWorld = value; }
+    public boolean isTargetHudAttackOnly() { return targetHudAttackOnly; }
+    public void setTargetHudAttackOnly(boolean value) { targetHudAttackOnly = value; }
+    public boolean isTargetHudPlayersOnly() { return targetHudPlayersOnly; }
+    public void setTargetHudPlayersOnly(boolean value) { targetHudPlayersOnly = value; }
+    public boolean isTargetHudEquipment() { return targetHudEquipment; }
+    public void setTargetHudEquipment(boolean value) { targetHudEquipment = value; }
+    public boolean isTargetHudPing() { return targetHudPing; }
+    public void setTargetHudPing(boolean value) { targetHudPing = value; }
+    public int getTargetHudHoldSeconds() { return targetHudHoldSeconds; }
+    public void setTargetHudHoldSeconds(int value) { targetHudHoldSeconds = Math.clamp(value, 0, 10); }
+    public int getExtraHudPosition(String id, int axis) {
+        int[] position = extraHudPositions.get(id);
+        return position == null || position.length != 2 ? -1 : Math.max(-1, position[axis]);
+    }
+    public void setExtraHudPosition(String id, int x, int y) {
+        extraHudPositions.put(id, new int[]{Math.max(0, x), Math.max(0, y)});
+    }
+    public boolean isSoundSettingsEnabled() { return soundSettingsEnabled; }
+    public void setSoundSettingsEnabled(boolean value) { soundSettingsEnabled = value; }
+    public int getSoundVolume(String id) { return soundVolumes.getOrDefault(id, 100); }
+    public void setSoundVolume(String id, int value) {
+        value = Math.clamp(value, 0, 100);
+        if (value == 100) soundVolumes.remove(id);
+        else soundVolumes.put(id, value);
+    }
+    public boolean isNoRenderEnabled() { return noRenderEnabled; }
+    public void setNoRenderEnabled(boolean value) { noRenderEnabled = value; }
+    public boolean hasNoRenderOption(String id) { return noRenderOptions.contains(id); }
+    public void setNoRenderOption(String id, boolean value) {
+        if (value) noRenderOptions.add(id);
+        else noRenderOptions.remove(id);
+    }
+    public boolean hidesRenderType(boolean particle, String id) {
+        return (particle ? noRenderParticles : noRenderEntities).contains(id);
+    }
+    public boolean hasHiddenRenderTypes(boolean particle) {
+        return !(particle ? noRenderParticles : noRenderEntities).isEmpty();
+    }
+    public String getHiddenRenderTypes(boolean particle) {
+        return (particle ? noRenderParticles : noRenderEntities).stream().sorted().collect(java.util.stream.Collectors.joining(", "));
+    }
+    public void setHiddenRenderTypes(boolean particle, String ids) {
+        var target = particle ? noRenderParticles : noRenderEntities;
+        target.clear();
+        for (String value : ids.toLowerCase(java.util.Locale.ROOT).split("[,;\\s]+")) {
+            if (value.matches("(?:[a-z0-9_.-]+:)?[a-z0-9_./-]+"))
+                target.add(value.indexOf(':') < 0 ? "minecraft:" + value : value);
+        }
+    }
     public boolean isArmorIndicatorEnabled() { return armorIndicatorEnabled; }
     public void setArmorIndicatorEnabled(boolean value) { armorIndicatorEnabled = value; }
+    public IndicatorOptions getArmorIndicatorOptions() { return armorIndicatorOptions; }
+    public IndicatorOptions getHealthIndicatorOptions() { return healthIndicatorOptions; }
+    public boolean isShowFakePunishments() { return showFakePunishments; }
+    public void setShowFakePunishments(boolean value) { showFakePunishments = value; }
+
+    public static final class IndicatorOptions {
+        private static final String HEALTH_VALUE_COLOR = "#FF737A", ARMOR_VALUE_COLOR = "#B6D9FF";
+        public int mode;
+        public float scale = 1F;
+        public float offset;
+        public int distance = 64;
+        public boolean players = true, passive, hostile, self, targetOnly, attackedOnly, changedOnly;
+        public String hidden = "";
+        private String valueColor;
+        private transient int valueArgb;
+
+        private IndicatorOptions(boolean mobs) {
+            passive = hostile = mobs;
+            changedOnly = !mobs;
+            setValueColor(defaultValueColor(mobs));
+        }
+
+        public String getValueColor() { return valueColor; }
+        public int getValueArgb() { return valueArgb; }
+
+        public void setValueColor(String value) {
+            if (!validValueColor(value)) return;
+            valueColor = value.toUpperCase(java.util.Locale.ROOT);
+            valueArgb = 0xFF000000 | Integer.parseInt(value.substring(1), 16);
+        }
+
+        private static boolean validValueColor(String value) {
+            return value != null && value.matches("#[0-9a-fA-F]{6}");
+        }
+
+        private static String defaultValueColor(boolean health) {
+            return health ? HEALTH_VALUE_COLOR : ARMOR_VALUE_COLOR;
+        }
+
+        private void sanitize(boolean health) {
+            mode = Math.clamp(mode, 0, 2);
+            scale = finiteClamp(scale, .4F, 2F, 1F);
+            offset = finiteClamp(offset, -.5F, 2F, 0F);
+            distance = Math.clamp(distance, 8, 96);
+            if (hidden == null) hidden = "";
+            if (hidden.length() > 256) hidden = hidden.substring(0, 256);
+            setValueColor(validValueColor(valueColor) ? valueColor : defaultValueColor(health));
+        }
+    }
     public boolean isLockSlotEnabled() { return lockSlotEnabled; }
     public void setLockSlotEnabled(boolean value) { lockSlotEnabled = value; }
     public long getLockSlotMask() { return lockSlotMask; }
@@ -723,6 +1086,26 @@ public final class OrionConfig {
     public void setTargetEspChainColor(String targetEspChainColor) {
         this.targetEspChainColor = targetEspChainColor;
     }
+    public int getTargetEspDetail() { return targetEspDetail; }
+    public void setTargetEspDetail(int value) { targetEspDetail = Math.clamp(value, 0, 2); }
+    public boolean isTargetEspHealthColor() { return targetEspHealthColor; }
+    public void setTargetEspHealthColor(boolean value) { targetEspHealthColor = value; }
+    public int getHitBoxStyle() { return hitBoxStyle; }
+    public void setHitBoxStyle(int value) { hitBoxStyle = Math.clamp(value, 0, 1); }
+    public float getHitBoxWidth() { return hitBoxWidth; }
+    public void setHitBoxWidth(float value) { hitBoxWidth = finiteClamp(value, .5F, 4F, 1F); }
+    public boolean isHitBoxPlayersOnly() { return hitBoxPlayersOnly; }
+    public void setHitBoxPlayersOnly(boolean value) { hitBoxPlayersOnly = value; }
+    public boolean isHitBoxTargetOnly() { return hitBoxTargetOnly; }
+    public void setHitBoxTargetOnly(boolean value) { hitBoxTargetOnly = value; }
+    public String getHitBoxTargetColor() { return hitBoxTargetColor; }
+    public void setHitBoxTargetColor(String value) { hitBoxTargetColor = value; }
+    public int getHitColorMode() { return hitColorMode; }
+    public void setHitColorMode(int value) { hitColorMode = Math.clamp(value, 0, 2); }
+    public int getHitColorDuration() { return hitColorDuration; }
+    public void setHitColorDuration(int value) { hitColorDuration = Math.clamp(value, 100, 1000); }
+    public boolean isHitColorPlayersOnly() { return hitColorPlayersOnly; }
+    public void setHitColorPlayersOnly(boolean value) { hitColorPlayersOnly = value; }
 
     public boolean isChinaHeadEnabled() {
         return chinaHeadEnabled;
@@ -730,6 +1113,7 @@ public final class OrionConfig {
 
     public void setChinaHeadEnabled(boolean chinaHeadEnabled) {
         this.chinaHeadEnabled = chinaHeadEnabled;
+        if (chinaHeadEnabled) cosmeticHat = "";
     }
 
     public boolean isMotionBlurEnabled() { return motionBlurEnabled; }
@@ -931,6 +1315,31 @@ public final class OrionConfig {
         this.worldChangerFogColor = worldChangerFogColor;
     }
 
+    public boolean isWorldChangerSkyEnabled() { return worldChangerSkyEnabled; }
+    public void setWorldChangerSkyEnabled(boolean value) { worldChangerSkyEnabled = value; }
+    public int getWorldChangerSkyStrength() { return worldChangerSkyStrength; }
+    public void setWorldChangerSkyStrength(int value) { worldChangerSkyStrength = Math.clamp(value, 0, 100); }
+    public boolean isWorldChangerSunsetEnabled() { return worldChangerSunsetEnabled; }
+    public void setWorldChangerSunsetEnabled(boolean value) { worldChangerSunsetEnabled = value; }
+    public String getWorldChangerSunsetColor() { return worldChangerSunsetColor; }
+    public void setWorldChangerSunsetColor(String value) { worldChangerSunsetColor = value; }
+    public int getWorldChangerStars() { return worldChangerStars; }
+    public void setWorldChangerStars(int value) { worldChangerStars = Math.clamp(value, 0, 200); }
+    public boolean isWorldChangerFogEnabled() { return worldChangerFogEnabled; }
+    public void setWorldChangerFogEnabled(boolean value) { worldChangerFogEnabled = value; }
+    public int getWorldChangerFogStrength() { return worldChangerFogStrength; }
+    public void setWorldChangerFogStrength(int value) { worldChangerFogStrength = Math.clamp(value, 0, 100); }
+    public int getWorldChangerFogDistance() { return worldChangerFogDistance; }
+    public void setWorldChangerFogDistance(int value) { worldChangerFogDistance = Math.clamp(value, 0, 256); }
+    public int getWorldChangerFogStart() { return worldChangerFogStart; }
+    public void setWorldChangerFogStart(int value) { worldChangerFogStart = Math.clamp(value, 0, 95); }
+    public boolean isWorldChangerCloudsEnabled() { return worldChangerCloudsEnabled; }
+    public void setWorldChangerCloudsEnabled(boolean value) { worldChangerCloudsEnabled = value; }
+    public String getWorldChangerCloudColor() { return worldChangerCloudColor; }
+    public void setWorldChangerCloudColor(String value) { worldChangerCloudColor = value; }
+    public int getWorldChangerCloudOpacity() { return worldChangerCloudOpacity; }
+    public void setWorldChangerCloudOpacity(int value) { worldChangerCloudOpacity = Math.clamp(value, 0, 100); }
+
     public int getClickGuiTheme() {
         return clickGuiTheme;
     }
@@ -1051,6 +1460,42 @@ public final class OrionConfig {
         this.crosshairPixels = crosshairPixels;
     }
 
+    public int getCrosshairMode() { return crosshairMode; }
+    public void setCrosshairMode(int value) { crosshairMode = Math.clamp(value, 0, 2); }
+    public int getCrosshairPresetIndex() { return crosshairPresetIndex; }
+    public void setCrosshairPresetIndex(int value) { crosshairPresetIndex = Math.clamp(value, 0, CROSSHAIR_PRESET_COUNT - 1); }
+    public int getCrosshairSize() { return crosshairSize; }
+    public void setCrosshairSize(int value) { crosshairSize = Math.clamp(value, 25, 200); }
+    public int getCrosshairRotation() { return crosshairRotation; }
+    public void setCrosshairRotation(int value) { crosshairRotation = Math.clamp(value, 0, 359); }
+
+    public String activeCrosshairPixels() {
+        return crosshairMode == 1 ? crosshairPreset(crosshairPresetIndex) : crosshairPixels;
+    }
+
+    public static boolean validCrosshairPixels(String pixels) {
+        return pixels != null && pixels.length() == CROSSHAIR_GRID * CROSSHAIR_GRID && pixels.matches("[01]+");
+    }
+
+    public CrosshairPreset getSavedCrosshair(int slot) {
+        return savedCrosshairs[slot];
+    }
+
+    public void saveCrosshair(int slot) {
+        savedCrosshairs[slot] = new CrosshairPreset(crosshairPixels, crosshairColor, crosshairSize, crosshairRotation);
+    }
+
+    public boolean loadCrosshair(int slot) {
+        CrosshairPreset preset = savedCrosshairs[slot];
+        if (preset == null) return false;
+        crosshairPixels = preset.pixels();
+        crosshairColor = preset.color();
+        setCrosshairSize(preset.size() == 0 ? 100 : preset.size());
+        setCrosshairRotation(preset.rotation());
+        crosshairMode = 0;
+        return true;
+    }
+
     public boolean isBetterNearEnabled() {
         return betterNearEnabled;
     }
@@ -1114,6 +1559,11 @@ public final class OrionConfig {
     public void setHitSoundIndex(int hitSoundIndex) {
         this.hitSoundIndex = hitSoundIndex;
     }
+    public String getHitSoundFile() { return hitSoundFile; }
+    public void setHitSoundFile(String value) {
+        hitSoundFile = value != null && value.length() <= 160 && !value.contains("/") && !value.contains("\\")
+                && !value.contains(":") && !value.chars().anyMatch(Character::isISOControl) ? value : "";
+    }
 
     public int getHitSoundVolume() {
         return hitSoundVolume;
@@ -1131,6 +1581,8 @@ public final class OrionConfig {
     }
 
     public void sanitize() {
+        getAnimatedLyrics().sanitize();
+        sanitizeEmoteSlots();
         visualPresetSelection = normalizePreset(visualPresetSelection);
         appliedVisualPreset = normalizePreset(appliedVisualPreset);
         clickGuiLastSection = normalizeSection(clickGuiLastSection);
@@ -1140,11 +1592,24 @@ public final class OrionConfig {
         if (waypointQuickPrefix.isEmpty()) waypointQuickPrefix = "Метка";
         if (waypointQuickColor == null || !waypointQuickColor.matches("^#[0-9a-fA-F]{6}$")) waypointQuickColor = "#FF9B38";
         waypointVisibleLimit = Math.max(1, Math.min(64, waypointVisibleLimit));
-        wingsStyle = Math.max(0, Math.min(1, wingsStyle));
+        if (ru.orion.client.effect.GleamWingModel.fromWireStyle(wingsStyle + 1) < 0) {
+            wingsStyle = 0;
+            wingsEnabled = false;
+        }
+        setCosmeticPet(cosmeticPet);
+        setCosmeticHat(getCosmeticHat());
         setSkinLayersThickness(skinLayersThickness);
         setSkinLayersDistance(skinLayersDistance);
         setItemScrollerLimit(itemScrollerLimit);
         setZoomFactor(zoomFactor);
+        setCleanWaterOpacity(cleanWaterOpacity);
+        setTargetHudHoldSeconds(targetHudHoldSeconds);
+        if (extraHudPositions == null) extraHudPositions = new java.util.HashMap<>();
+        if (soundVolumes == null) soundVolumes = new java.util.HashMap<>();
+        soundVolumes.values().removeIf(value -> value == null || value < 0 || value >= 100);
+        if (noRenderOptions == null) noRenderOptions = new java.util.HashSet<>();
+        if (noRenderEntities == null) noRenderEntities = new java.util.HashSet<>();
+        if (noRenderParticles == null) noRenderParticles = new java.util.HashSet<>();
         setZoomInTime(zoomInTime);
         setZoomOutTime(zoomOutTime);
         setZoomScrollStep(zoomScrollStep);
@@ -1180,11 +1645,20 @@ public final class OrionConfig {
         basketballPassPower=finiteClamp(basketballPassPower,6F,30F,13F);
         basketballSpin=finiteClamp(basketballSpin,0F,3F,1F);
         animationsDuration = Math.max(50, Math.min(600, animationsDuration));
-        enchantGlintMode = Math.max(0, Math.min(4, enchantGlintMode));
+        enchantGlintMode = Math.clamp(enchantGlintMode, 0, CUSTOM_GLINT);
+        customGlint = customGlint == null ? GlintPreset.DEFAULT : customGlint.sanitized();
+        savedGlints = savedGlints == null ? new GlintPreset[GLINT_SLOTS] : java.util.Arrays.copyOf(savedGlints, GLINT_SLOTS);
+        for (int slot = 0; slot < savedGlints.length; slot++) {
+            if (savedGlints[slot] != null) savedGlints[slot] = savedGlints[slot].sanitized();
+        }
         lockSlotMask &= (1L << 41) - 1L;
         keystrokesX = Math.max(-1, keystrokesX); keystrokesY = Math.max(-1, keystrokesY);
         inventoryHudX = Math.max(-1, inventoryHudX); inventoryHudY = Math.max(-1, inventoryHudY);
         pvpSafeSeconds = Math.max(1, Math.min(300, pvpSafeSeconds));
+        if (healthIndicatorOptions == null) healthIndicatorOptions = new IndicatorOptions(true);
+        if (armorIndicatorOptions == null) armorIndicatorOptions = new IndicatorOptions(false);
+        healthIndicatorOptions.sanitize(true);
+        armorIndicatorOptions.sanitize(false);
         customTimeTicks = Math.max(0, Math.min(23999, customTimeTicks));
         itemScaling = Float.isFinite(itemScaling) ? clamp(itemScaling, 0.2F, 2.0F) : 1.0F;
         smallShieldScale = Float.isFinite(smallShieldScale) ? clamp(smallShieldScale, 0.2F, 1.0F) : 0.65F;
@@ -1198,6 +1672,11 @@ public final class OrionConfig {
         if (hudElementGlass == null) hudElementGlass = new java.util.HashMap<>();
         hudElementGlass.entrySet().removeIf(entry -> entry.getKey() == null || entry.getValue() == null);
         clickGuiTheme = clickGuiTheme == 4 ? 4 : 3;
+        clickGuiWindowSize = normalizeClickGuiSize(clickGuiWindowSize);
+        setClickGuiLanguage(clickGuiLanguage);
+        setClickGuiWindowPosition(clickGuiWindowX, clickGuiWindowY);
+        setClickGuiScale(clickGuiScale);
+        setClickGuiAccent(clickGuiAccent);
         if (favoriteModules == null) favoriteModules = new java.util.ArrayList<>();
         favoriteModules.removeIf(value -> value == null || value.length() > 64);
 
@@ -1213,8 +1692,9 @@ public final class OrionConfig {
             discordLargeImageKey = "orion_icon";
         }
 
-        if (discordLargeImageText == null || discordLargeImageText.isBlank()) {
-            discordLargeImageText = "Orion Client";
+        if (discordLargeImageText == null || discordLargeImageText.isBlank()
+                || "Orion Client".equals(discordLargeImageText)) {
+            discordLargeImageText = "GleamClient";
         }
 
         if (jumpCircleColor == null || !jumpCircleColor.matches("^#[0-9a-fA-F]{6}$")) {
@@ -1225,11 +1705,23 @@ public final class OrionConfig {
 
         mediaPlayerX = Math.max(0, mediaPlayerX);
         mediaPlayerY = Math.max(0, mediaPlayerY);
-        if (!"TOP_LEFT".equals(mediaPlayerCorner) && !"TOP_RIGHT".equals(mediaPlayerCorner)) {
-            mediaPlayerCorner = "TOP_LEFT";
+        if (!mediaPlayerIslandMigrated) {
+            if (!mediaPlayerPositionCustom && mediaPlayerX == 8 && mediaPlayerY == 40 && "TOP_LEFT".equals(mediaPlayerCorner)) {
+                mediaPlayerCorner = "TOP_CENTER";
+            }
+            mediaPlayerIslandMigrated = true;
+        }
+        if (!"TOP_LEFT".equals(mediaPlayerCorner) && !"TOP_RIGHT".equals(mediaPlayerCorner) && !"TOP_CENTER".equals(mediaPlayerCorner)) {
+            mediaPlayerCorner = "TOP_CENTER";
         }
         aspectStretch = clamp(aspectStretch, 0.05F, 2.0F);
-        targetEspTexture = Math.max(0, targetEspTexture);
+        targetEspTexture = targetEspTexture == 5 ? 1 : Math.clamp(targetEspTexture, 0, 4);
+        setTargetEspDetail(targetEspDetail);
+        setHitBoxStyle(hitBoxStyle);
+        setHitBoxWidth(hitBoxWidth);
+        setHitColorMode(hitColorMode);
+        setHitColorDuration(hitColorDuration);
+        if (hitBoxTargetColor == null || !hitBoxTargetColor.matches("#[0-9a-fA-F]{6}")) hitBoxTargetColor = "#F5F5FF";
         if (targetEspChainColor == null || !targetEspChainColor.matches("^#[0-9a-fA-F]{6}$")) {
             targetEspChainColor = "#F5F5FF";
         }
@@ -1289,6 +1781,14 @@ public final class OrionConfig {
         if (worldChangerFogColor == null || !worldChangerFogColor.matches("^#[0-9a-fA-F]{6}$")) {
             worldChangerFogColor = "#14111F";
         }
+        if (worldChangerSunsetColor == null || !worldChangerSunsetColor.matches("#[0-9a-fA-F]{6}")) worldChangerSunsetColor = "#FF9365";
+        if (worldChangerCloudColor == null || !worldChangerCloudColor.matches("#[0-9a-fA-F]{6}")) worldChangerCloudColor = "#FFFFFF";
+        setWorldChangerSkyStrength(worldChangerSkyStrength);
+        setWorldChangerFogStrength(worldChangerFogStrength);
+        setWorldChangerFogDistance(worldChangerFogDistance);
+        setWorldChangerFogStart(worldChangerFogStart);
+        setWorldChangerStars(worldChangerStars);
+        setWorldChangerCloudOpacity(worldChangerCloudOpacity);
 
         if (hitBoxColor == null || !hitBoxColor.matches("^#[0-9a-fA-F]{6}$")) {
             hitBoxColor = "#FF7C00";
@@ -1303,9 +1803,19 @@ public final class OrionConfig {
             crosshairColor = "#F5F5FF";
         }
 
-        if (crosshairPixels == null || crosshairPixels.length() != CROSSHAIR_GRID * CROSSHAIR_GRID
-                || !crosshairPixels.matches("^[01]+$")) {
+        if (!validCrosshairPixels(crosshairPixels)) {
             crosshairPixels = defaultCrosshairPixels();
+        }
+        setCrosshairMode(crosshairMode);
+        setCrosshairPresetIndex(crosshairPresetIndex);
+        setCrosshairSize(crosshairSize == 0 ? 100 : crosshairSize);
+        setCrosshairRotation(crosshairRotation);
+        savedCrosshairs = savedCrosshairs == null ? new CrosshairPreset[CROSSHAIR_SLOTS]
+                : java.util.Arrays.copyOf(savedCrosshairs, CROSSHAIR_SLOTS);
+        for (int slot = 0; slot < savedCrosshairs.length; slot++) {
+            CrosshairPreset preset = savedCrosshairs[slot];
+            if (preset != null && (!validCrosshairPixels(preset.pixels()) || preset.color() == null
+                    || !preset.color().matches("#[0-9a-fA-F]{6}"))) savedCrosshairs[slot] = null;
         }
 
         betterNearRadius = Math.max(10, Math.min(200, betterNearRadius));
@@ -1319,6 +1829,7 @@ public final class OrionConfig {
             default -> Math.clamp(hitSoundIndex, 0, 6);
         };
         hitSoundVolume = Math.max(0, Math.min(100, hitSoundVolume));
+        setHitSoundFile(hitSoundFile);
         setHitSoundPitch(hitSoundPitch);
 
         if (protectName == null) {

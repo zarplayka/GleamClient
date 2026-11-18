@@ -53,7 +53,11 @@ public record OrionFoodTooltip(int nutrition, float saturation, boolean rotten)
             context.blitSprite(RenderPipelines.GUI_TEXTURED, sprites[Math.abs((long) nutrition) == i * 2L + 1 ? 1 : 2],
                     iconX, y, 9, 9);
         }
+        //? if >=26.1 {
         if (count > 10) context.text(font, "x" + count, x + 11, y + 1, 0xFFAAAAAA);
+        //?} else {
+        /*if (count > 10) context.drawString(font, "x" + count, x + 11, y + 1, 0xFFAAAAAA);
+        *///?}
 
         count = saturationIcons();
         displayed = count == 0 || count > 10 ? 1 : count;
@@ -64,7 +68,11 @@ public record OrionFoodTooltip(int nutrition, float saturation, boolean rotten)
             context.blit(RenderPipelines.GUI_TEXTURED, OrionSaturationOverlay.ICONS, x + (displayed - 1 - i) * 7, y + 10,
                     u, v, 7, 7, 256, 256, fill > 0F ? 0xFFFFFFFF : 0x80FFFFFF);
         }
+        //? if >=26.1 {
         if (count == 0 || count > 10) context.text(font, "x" + count, x + 9, y + 10, 0xFFAAAAAA);
+        //?} else {
+        /*if (count == 0 || count > 10) context.drawString(font, "x" + count, x + 9, y + 10, 0xFFAAAAAA);
+        *///?}
     }
 
     private int hungerIcons() { return (int) Math.ceil(Math.abs(nutrition / 2D)); }

@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -43,7 +45,7 @@ public final class OrionChinaHeadRenderer {
             return;
         }
 
-        Camera camera = client.gameRenderer.mainCamera();
+        Camera camera = GleamMinecraft.camera(client);
         float tickDelta = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
         Vec3 playerPosition = interpolatedPosition(player, tickDelta);
         Vec3 cameraPosition = camera.position();
@@ -77,6 +79,11 @@ public final class OrionChinaHeadRenderer {
             float z = Mth.cos(angle) * RADIUS;
             vc.addVertex(pose, x, 0.0F, z).setColor(edgeColor);
         }
+    }
+
+    public static void submitPreview(PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector, float eyeHeight, int accent) {
+        pose.translate(0F, eyeHeight + HEAD_OFFSET, 0F);
+        collector.submitCustomGeometry(pose, RenderTypes.debugTriangleFan(), (current, vertices) -> buildHat(current, vertices, accent));
     }
 
     private static Vec3 interpolatedPosition(Entity entity, float tickDelta) {

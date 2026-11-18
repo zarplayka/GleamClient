@@ -32,21 +32,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Проверяет пользователей Orion в фоне, не задерживая игровой поток. */
 public final class OrionBadgePresence {
-    private static final String BASE = "https://orion-cosmetics.51-250-32-198.sslip.io";
+    private static final String BASE = OrionAccounts.ORIGIN;
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(task -> {
-        Thread thread = new Thread(task, "Orion Badge Sync");
+        Thread thread = new Thread(task, "GleamClient Badge Sync");
         thread.setDaemon(true);
         return thread;
     });
     private static final ExecutorService WATCHER = Executors.newSingleThreadExecutor(task -> {
-        Thread thread = new Thread(task, "Orion Cosmetics Watch");
+        Thread thread = new Thread(task, "GleamClient Cosmetics Watch");
         thread.setDaemon(true);
         return thread;
     });
     private static volatile Set<UUID> online = Set.of();
     private static volatile Set<UUID> halos = Set.of();
     private static volatile Map<UUID, Integer> wings = Map.of();
+    private static volatile Map<UUID, ru.orion.client.cosmetic.GleamPet> pets = Map.of();
     public record Emote(int id, double started, long localStart) {}
     private static volatile Map<UUID, Emote> emotes = Map.of();
     private static volatile boolean pending;
@@ -72,11 +73,12 @@ public final class OrionBadgePresence {
 
     public static boolean hasHalo(UUID uuid) { return uuid != null && halos.contains(uuid); }
     public static int wingsStyle(UUID uuid) { return wings.getOrDefault(uuid, 0); }
+    public static ru.orion.client.cosmetic.GleamPet pet(UUID uuid) { return pets.get(uuid); }
     public static Emote emote(UUID uuid) { return emotes.get(uuid); }
 
     public static void sendEmote(int id) {
         Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.isLocalServer()) return;
+        if (multiplayerConnection(client) == null) return;
         UUID uuid = client.player.getUUID();
         String name = client.getUser().getName();
         long currentGeneration = generation;
@@ -96,8 +98,13 @@ public final class OrionBadgePresence {
     }
     public static void requestRefresh() { refreshRequested.set(true); }
 
+    private static ClientPacketListener multiplayerConnection(Minecraft client) {
+        var server = client.getSingleplayerServer();
+        return client.player != null && (server == null || server.isPublished()) ? client.getConnection() : null;
+    }
+
     private static void tick(Minecraft client) {
-        ClientPacketListener current = client.player == null || client.isLocalServer() ? null : client.getConnection();
+        ClientPacketListener current = multiplayerConnection(client);
         if (connection != current) {
             connection = current;
             generation++;
@@ -106,6 +113,7 @@ public final class OrionBadgePresence {
             online = Set.of();
             halos = Set.of();
             wings = Map.of();
+            pets = Map.of();
             emotes = Map.of();
             trackedPlayers = Set.of();
             token = null;
@@ -124,9 +132,10 @@ public final class OrionBadgePresence {
         List<UUID> ids = List.copyOf(trackedPlayers);
         UUID uuid = client.player.getUUID();
         String name = client.getUser().getName();
-        boolean halo = OrionClient.getConfigOrNull() != null && OrionClient.getConfigOrNull().isHaloEnabled();
-        int wingsValue = OrionClient.getConfigOrNull() != null && OrionClient.getConfigOrNull().isWingsEnabled()
-                ? OrionClient.getConfigOrNull().getWingsStyle() + 1 : 0;
+        var config = OrionClient.getConfigOrNull();
+        boolean halo = config != null && config.isHaloEnabled();
+        int wingsValue = config != null && config.isWingsEnabled() ? GleamWingModel.toWireStyle(config.getWingsStyle()) : 0;
+        String petId = config == null ? "" : config.getCosmeticPet();
         long requestGeneration = generation;
         pending = true;
         WORKER.execute(() -> {
@@ -138,6 +147,7 @@ public final class OrionBadgePresence {
                 if (requestGeneration != generation) return;
                 Set<UUID> found = new HashSet<>(), foundHalos = new HashSet<>();
                 Map<UUID, Integer> foundWings = new HashMap<>();
+                Map<UUID, ru.orion.client.cosmetic.GleamPet> foundPets = new HashMap<>();
                 Map<UUID, Emote> foundEmotes = new HashMap<>();
                 long firstRevision = Long.MAX_VALUE;
                 for (int start = 0; start < Math.max(1, ids.size()); start += 100) {
@@ -148,6 +158,7 @@ public final class OrionBadgePresence {
                     request.add("players", players);
                     request.addProperty("halo", halo);
                     request.addProperty("wings", wingsValue);
+                    request.addProperty("pet", petId);
                     JsonObject response = post("/v1/presence", request, activeToken);
                     if (response.has("revision")) firstRevision = Math.min(firstRevision, response.get("revision").getAsLong());
                     response.getAsJsonArray("online").forEach(value -> found.add(parseUuid(value.getAsString())));
@@ -155,8 +166,13 @@ public final class OrionBadgePresence {
                     if (haloResult != null) haloResult.forEach(value -> foundHalos.add(parseUuid(value.getAsString())));
                     JsonObject wingResult = response.getAsJsonObject("wings");
                     if (wingResult != null) wingResult.entrySet().forEach(entry -> {
-                        int style = entry.getValue().getAsInt();
-                        if (style >= 1 && style <= 2) foundWings.put(parseUuid(entry.getKey()), style);
+                        int style = GleamWingModel.fromWireStyle(entry.getValue().getAsInt());
+                        if (style >= 0) foundWings.put(parseUuid(entry.getKey()), style + 1);
+                    });
+                    JsonObject petResult = response.getAsJsonObject("pets");
+                    if (petResult != null) petResult.entrySet().forEach(entry -> {
+                        var pet = ru.orion.client.cosmetic.GleamPet.byId(entry.getValue().getAsString());
+                        if (pet != null) foundPets.put(parseUuid(entry.getKey()), pet);
                     });
                     JsonObject emoteResult = response.getAsJsonObject("emotes");
                     if (emoteResult != null) emoteResult.entrySet().forEach(entry -> {
@@ -164,7 +180,7 @@ public final class OrionBadgePresence {
                         int id = value.get("id").getAsInt();
                         double started = value.get("started").getAsDouble();
                         double elapsed = value.get("elapsed").getAsDouble();
-                        if (id < 1 || id > 6 || !Double.isFinite(started) || !Double.isFinite(elapsed) || elapsed < 0 || elapsed >= 12) return;
+                        if (!OrionEmotes.supports(id) || !Double.isFinite(started) || !Double.isFinite(elapsed) || elapsed < 0 || elapsed >= OrionEmotes.DURATION) return;
                         UUID player = parseUuid(entry.getKey());
                         Emote old = emotes.get(player);
                         foundEmotes.put(player, old != null && old.id() == id && old.started() == started ? old
@@ -176,6 +192,7 @@ public final class OrionBadgePresence {
                     online = Set.copyOf(found);
                     halos = Set.copyOf(foundHalos);
                     wings = Map.copyOf(foundWings);
+                    pets = Map.copyOf(foundPets);
                     emotes = Map.copyOf(foundEmotes);
                     if (firstRevision != Long.MAX_VALUE) startWatcher(requestGeneration, activeToken, firstRevision);
                 }
@@ -348,7 +365,7 @@ public final class OrionBadgePresence {
         HttpResponse<java.io.InputStream> response = HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
         try (var stream = response.body()) {
             if (response.statusCode() == 429) throw new IllegalStateException("Лимит публикаций исчерпан");
-            if (response.statusCode() == 401 && !orionCookie.isEmpty()) throw new IllegalStateException("Войди в аккаунт Orion заново");
+            if (response.statusCode() == 401 && !orionCookie.isEmpty()) throw new IllegalStateException("Войди в аккаунт GleamClient заново");
             if (response.statusCode() == 403) throw new IllegalStateException("Изменять публикацию может только автор");
             if (response.statusCode() == 404) throw new IllegalStateException("Публикация уже удалена");
             if (response.statusCode() == 409) throw new IllegalStateException("Конфиг изменился — обнови список");

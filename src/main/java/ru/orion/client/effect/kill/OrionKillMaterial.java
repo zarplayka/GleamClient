@@ -19,18 +19,7 @@ public final class OrionKillMaterial {
 
     private static int material(int type,int argb) {
         int r=argb>>16&255,g=argb>>8&255,b=argb&255,max=Math.max(r,Math.max(g,b));
-        boolean gold=r>g*1.08F&&g>b*1.13F;
-        return switch(type) {
-            case 0 -> max<90?12:g>220&&r<g*.9F?15:0;
-            case 1 -> r>100&&g>100&&b<g*.94F&&r>g*.96F?10:1;
-            case 2 -> gold?3:max<105?9:g>r*1.35F?4:2;
-            case 3,6 -> gold?3:max<100?12:7;
-            case 4 -> max<55?12:15;
-            case 5 -> gold?3:8;
-            case 7 -> g>r*1.08F?4:3;
-            case 8 -> max<70?12:r>g*.82F&&g>130?10:r>g*.7F&&g>r&&max>95?6:5;
-            default -> 15;
-        };
+        return type == 4 && max < 55 ? 12 : 15;
     }
 
     private static final class TexturedVertices implements VertexConsumer {
@@ -52,7 +41,7 @@ public final class OrionKillMaterial {
         }
         @Override public VertexConsumer addVertex(float x,float y,float z){return vertex(x,y,z,null);}
         @Override public VertexConsumer addVertex(PoseStack.Pose pose,float x,float y,float z){return vertex(x,y,z,pose.pose());}
-        @Override public VertexConsumer addVertex(PoseStack.Pose pose,Vector3fc v){return vertex(v.x(),v.y(),v.z(),pose.pose());}
+        public VertexConsumer addVertex(PoseStack.Pose pose,Vector3fc v){return vertex(v.x(),v.y(),v.z(),pose.pose());}
         @Override public VertexConsumer addVertex(Matrix4fc pose,float x,float y,float z){return vertex(x,y,z,pose);}
         @Override public VertexConsumer addVertex(Vector3fc v){return vertex(v.x(),v.y(),v.z(),null);}
         @Override public VertexConsumer setColor(int r,int g,int b,int a){return setColor(a<<24|r<<16|g<<8|b);}
@@ -91,7 +80,10 @@ public final class OrionKillMaterial {
         @Override public VertexConsumer setUv(float u,float v){return this;}
         @Override public VertexConsumer setUv1(int u,int v){return this;}
         @Override public VertexConsumer setUv2(int u,int v){return this;}
+        //? if >=26.3 {
         @Override public VertexConsumer setUv3(float u,float v){return this;}
+        //?}
+
         @Override public VertexConsumer setNormal(float x,float y,float z){return this;}
         @Override public VertexConsumer setLineWidth(float width){return this;}
     }

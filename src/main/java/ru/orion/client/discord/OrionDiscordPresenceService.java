@@ -113,7 +113,7 @@ public final class OrionDiscordPresenceService {
 
         running = true;
         startedAt = System.currentTimeMillis() / 1000L;
-        workerThread = new Thread(() -> runDiscordLoop(applicationId), "Orion Client Discord RPC");
+        workerThread = new Thread(() -> runDiscordLoop(applicationId), "GleamClient Discord RPC");
         workerThread.setDaemon(true);
         workerThread.start();
     }

@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -77,7 +79,7 @@ public final class OrionProjectileTrail {
         Minecraft client = Minecraft.getInstance();
         if (!config.isProjectileTrailEnabled() || client.level == null || level != client.level || trails.isEmpty()) return;
         long now = System.nanoTime();
-        Vec3 camera = client.gameRenderer.mainCamera().position();
+        Vec3 camera = GleamMinecraft.camera(client).position();
         float partial = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
         float duration = config.getProjectileTrailDuration();
         int rgb = OrionRainbow.orElse(OrionWorldChanger.parseOpaqueColor(config.getProjectileTrailColor()));

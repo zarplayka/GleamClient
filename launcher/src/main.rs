@@ -6,6 +6,8 @@ mod auth;
 mod catalog;
 mod game;
 mod minecraft;
+mod profile_content;
+mod profile_import;
 mod settings_sync;
 mod updater;
 
@@ -19,8 +21,10 @@ fn configure_storage(context: &mut tauri::Context<tauri::Wry>) {
     let legacy_name = &context.config().identifier;
     let legacy_data = roaming.join(legacy_name);
     let legacy_local = local.join(legacy_name);
-    let game_dir = legacy_data.join("instances").join(game::VERSION);
-    if game::check_storage_idle(&game_dir).is_err() {
+    let instances = legacy_data.join("instances");
+    if game::supported_versions().map(|version| instances.join(version))
+        .chain(profile_import::stored_profiles(&instances).map(|(_, path)| path))
+        .any(|path| game::check_storage_idle(&path).is_err()) {
         return;
     }
     let data = migrate_storage(&legacy_data, roaming.join("GleamClient"));
@@ -142,11 +146,25 @@ fn main() {
             catalog::open_instance_folder,
             open_project_link,
             auth::gleam_auth,
+            auth::cosmetic_loadout,
+            auth::gleam_friends,
             minecraft::minecraft_account,
             game::launch_minecraft,
             game::minecraft_running,
             game::minecraft_activity,
+            profile_content::profile_content,
+            profile_content::profile_server_status,
+            profile_content::profile_toggle_mod,
+            profile_content::open_profile_content,
+            profile_import::discover_profiles,
+            profile_import::imported_profiles,
+            profile_import::create_profile,
+            profile_import::import_profiles,
+            profile_import::dismiss_profile_import,
+            game::memory_limits,
             updater::check_launcher_update,
+            updater::install_launcher_update,
+            updater::restart_launcher_update,
             updater::cancel_launcher_update,
             game::stop_minecraft,
             game::cancel_minecraft_install
@@ -204,7 +222,7 @@ mod tests {
         fs::create_dir_all(legacy.join("instances/26.3/saves")).unwrap();
         fs::write(legacy.join("minecraft-accounts.dat"), b"test account").unwrap();
         fs::write(legacy.join("instances/26.3/saves/test"), b"test world").unwrap();
-        let game_dir = legacy.join("instances").join(super::game::VERSION);
+        let game_dir = legacy.join("instances/26.3");
         let lock = fs::File::create(game_dir.join(".gleam-launch.lock")).unwrap();
         lock.try_lock().unwrap();
         assert!(super::game::check_storage_idle(&game_dir).is_err());

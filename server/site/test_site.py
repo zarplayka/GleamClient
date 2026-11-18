@@ -45,6 +45,96 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
                 'Cookie': app.COOKIE + '=' + response.cookies[app.COOKIE].value,
                 'X-CSRF-Token': (await response.json())['csrf']}
 
+    async def test_friend_world_invitation_scopes_direct_connection_to_the_two_players(self):
+        host = await self.account_headers('WorldHost')
+        guest = await self.account_headers('WorldGuest')
+        other = await self.account_headers('WorldOther')
+        path = '/api/friend-worlds'
+
+        async def send(headers, action, transport=False, **values):
+            return await self.client.post(path + ('?transport=1' if transport else ''), headers=headers,
+                                          json={'action': action, **values})
+
+        first = {'port': 25566, 'pin': '1' * 64, 'addresses': ['192.168.0.4', '8.8.8.8']}
+        second = {'port': 25567, 'pin': '2' * 64, 'addresses': ['9.9.9.9']}
+        self.assertEqual((await send(host, 'presence', device='game', world='World', version='26.3', **first)).status, 200)
+        self.assertEqual((await send(host, 'invite', username='WorldGuest')).status, 409)
+        for headers, action, username in [(host, 'request', 'WorldGuest'), (guest, 'accept', 'WorldHost')]:
+            self.assertEqual((await self.client.post('/api/friends', headers=headers,
+                                                   json={'username': username, 'action': action})).status, 200)
+        invited = await send(host, 'invite', username='WorldGuest')
+        self.assertEqual(invited.status, 200)
+        invitation = (await invited.json())['items'][0]
+        key = invitation['id']
+        self.assertLessEqual(invitation['remaining'], 15000)
+        self.assertNotIn('endpoint', invitation)
+        self.assertEqual((await send(other, 'accept', id=key, name='Guest', **second)).status, 409)
+        self.assertEqual((await send(guest, 'accept', id=key, name='Guest', offline=True, **second)).status, 409)
+        self.assertEqual((await send(host, 'presence', device='game', world='World', version='26.3', offline=True, **first)).status, 200)
+        reserved = await send(guest, 'reserve', id=key, autojoin=True)
+        self.assertTrue((await reserved.json())['items'][0]['autojoin'])
+        accepted = await send(guest, 'accept', True, id=key, name='Guest', offline=True, **second)
+        self.assertEqual(accepted.status, 200)
+        peer = (await accepted.json())['items'][0]
+        self.assertEqual(peer['endpoint'], {'port': 25566, 'pin': first['pin'], 'addresses': ['8.8.8.8']})
+        self.assertTrue(peer['offline'])
+        response = await self.client.get(path, headers=host)
+        self.assertNotIn('endpoint', (await response.json())['items'][0])
+        response = await self.client.get(path + '?transport=1', headers=host)
+        self.assertEqual((await response.json())['items'][0]['endpoint']['pin'], second['pin'])
+        response = await self.client.get(path + '?transport=1', headers=other)
+        self.assertEqual((await response.json())['items'], [])
+        self.assertEqual((await send(host, 'connected', id=key)).status, 200)
+        self.assertEqual((await send(guest, 'decline', id=key)).status, 409)
+        self.assertEqual((await send(host, 'presence', device='game')).status, 200)
+        response = await self.client.get(path, headers=guest)
+        self.assertEqual((await response.json())['items'], [])
+
+    async def test_direct_ice_signals_are_invite_scoped_and_retry_clears_them(self):
+        host = await self.account_headers('IceHost')
+        guest = await self.account_headers('IceGuest')
+        other = await self.account_headers('IceOther')
+
+        async def send(headers, action, **values):
+            return await self.client.post('/api/friend-worlds?transport=1', headers=headers,
+                                          json={'action': action, **values})
+
+        for headers, action, username in [(host, 'request', 'IceGuest'), (guest, 'accept', 'IceHost')]:
+            self.assertEqual((await self.client.post('/api/friends', headers=headers,
+                                                   json={'username': username, 'action': action})).status, 200)
+        self.assertEqual((await send(host, 'presence', device='game', world='Ice World', version='26.3',
+                                     port=25566, pin='1' * 64, addresses=[], directIce=True)).status, 200)
+        outgoing = await send(host, 'invite', username='IceGuest')
+        invite = (await outgoing.json())['items'][0]
+        self.assertTrue(invite['directIce'])
+        key = invite['id']
+        endpoint = dict(id=key, name='IceGuest', port=25567, pin='2' * 64, addresses=[])
+        offer = 'v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=fingerprint:sha-256 AA\r\n'
+        answer = offer.replace('AA', 'BB')
+        relay = offer + 'a=candidate:1 1 udp 100 8.8.8.8 2048 typ relay\r\n'
+        self.assertEqual((await send(guest, 'accept', iceOffer=relay, **endpoint)).status, 400)
+        self.assertEqual((await send(other, 'accept', iceOffer=offer, **endpoint)).status, 409)
+        accepted = await send(guest, 'accept', iceOffer=offer, **endpoint)
+        self.assertEqual(accepted.status, 200)
+        self.assertNotIn('iceOffer', (await accepted.json())['items'][0])
+        public = await self.client.get('/api/friend-worlds', headers=host)
+        self.assertNotIn('iceOffer', (await public.json())['items'][0])
+        topology = await self.client.get('/api/friend-worlds?transport=1', headers=host)
+        self.assertEqual((await topology.json())['items'][0]['iceOffer'], offer)
+        self.assertEqual((await send(guest, 'ice-answer', id=key, iceAnswer=answer)).status, 409)
+        self.assertEqual((await send(host, 'ice-answer', id=key, iceAnswer=answer)).status, 200)
+        self.assertEqual((await send(host, 'ice-answer', id=key, iceAnswer=offer)).status, 400)
+        topology = await self.client.get('/api/friend-worlds?transport=1', headers=guest)
+        self.assertEqual((await topology.json())['items'][0]['iceAnswer'], answer)
+        retry = await send(guest, 'retry', id=key)
+        self.assertEqual(retry.status, 200)
+        data = await retry.json()
+        self.assertNotEqual(data['retryId'], key)
+        self.assertEqual(data['items'][0]['id'], data['retryId'])
+        self.assertEqual(data['items'][0]['state'], 'reserved')
+        self.assertNotIn('iceAnswer', data['items'][0])
+        self.assertEqual((await send(host, 'ice-answer', id=key, iceAnswer=answer)).status, 409)
+
     async def test_launcher_browser_approval_is_csrf_protected_and_single_use(self):
         headers = await self.account_headers('LauncherUser')
         native = {'Origin': NEW, 'X-Orion-Request': '1', 'User-Agent': 'Gleam-Launcher/0.1.0'}
@@ -128,6 +218,20 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await action(bob, 'AlicePlayer', 'accept'), 200)
         friends = await (await self.client.get('/api/friends', headers=alice)).json()
         self.assertEqual(friends['items'], [{'username': 'BobPlayer', 'role': 'member', 'public_id': None, 'status': 'friend'}])
+        with app.connect() as db:
+            db.execute("UPDATE users SET is_media=1 WHERE username='BobPlayer'")
+        friends = await (await self.client.get('/api/friends?appearance=1', headers=alice)).json()
+        self.assertEqual(friends['items'], [{'username': 'BobPlayer', 'role': 'media', 'public_id': None, 'status': 'friend'}])
+        with app.connect() as db:
+            alice_id = db.execute("SELECT id FROM users WHERE username='AlicePlayer'").fetchone()[0]
+            db.execute('ALTER TABLE users DROP COLUMN is_media')
+        # Production resolves the session using the older user schema.
+        with patch.object(app, 'session', return_value={'id': alice_id}):
+            result = await self.client.get('/api/friends?appearance=1', headers=alice)
+            self.assertEqual(result.status, 200)
+            self.assertEqual((await result.json())['items'][0]['role'], 'member')
+        with app.connect() as db:
+            db.execute('ALTER TABLE users ADD COLUMN is_media INTEGER NOT NULL DEFAULT 0')
         self.assertEqual(await action(alice, 'BobPlayer', 'remove'), 200)
         self.assertEqual((await (await self.client.get('/api/friends', headers=bob)).json())['items'], [])
         self.assertEqual(await action(alice, 'BobPlayer', 'request'), 200)
@@ -191,6 +295,51 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
         second_device = {'Cookie': app.COOKIE + '=' + login.cookies[app.COOKIE].value}
         restored = await (await self.client.get(path, headers=second_device)).json()
         self.assertEqual(restored, saved)
+
+    async def test_cosmetic_loadout_preserves_separate_slots_and_legacy_defaults(self):
+        launcher = await self.account_headers('CosmeticPlayer')
+        other = await self.account_headers('OtherCosmetic')
+        login = await self.client.post('/api/login', headers={'Origin': NEW, 'X-Orion-Request': '1'},
+                                       json={'username': 'CosmeticPlayer', 'password': PASSWORD})
+        self.assertEqual(login.status, 200)
+        client = launcher | {'Cookie': app.COOKIE + '=' + login.cookies[app.COOKIE].value,
+                             'X-CSRF-Token': (await login.json())['csrf']}
+        path = '/api/cosmetic-loadout'
+        self.assertEqual((await self.client.get(path)).status, 401)
+        self.assertEqual(await (await self.client.get(path, headers=launcher)).json(), {'slots': {}})
+        first = await self.client.post(path, headers=launcher, json={'changes': {'wings': 'dragon', 'pet': ''}})
+        self.assertEqual(first.status, 200)
+        migrated = await self.client.post(path, headers=client,
+            json={'defaults': {'wings': 'angel', 'pet': 'ember_fox', 'halo': True, 'hat': False, 'dance': False}})
+        self.assertEqual((await migrated.json())['slots'],
+                         {'wings': 'dragon', 'pet': '', 'halo': True, 'hat': False, 'dance': False})
+        self.assertEqual((await self.client.post(path, headers=client, json={'changes': {'pet': 'space_slime'}})).status, 200)
+        self.assertEqual((await self.client.post(path, headers=launcher, json={'changes': {'wings': '', 'dance': True}})).status, 200)
+        for pet in ('bell_fawn', 'gingerbread_pup', 'space_slime'):
+            self.assertEqual((await self.client.post(path, headers=launcher, json={'changes': {'pet': pet}})).status, 200)
+            equipped = await (await self.client.get(path, headers=client)).json()
+            self.assertEqual(equipped['slots']['pet'], pet)
+        expected = {'slots': {'wings': '', 'pet': 'space_slime', 'halo': True, 'hat': False, 'dance': True}}
+        self.assertEqual(await (await self.client.get(path, headers=client)).json(), expected)
+        self.assertEqual(await (await self.client.get(path, headers=other)).json(), {'slots': {}})
+        for invalid in ({'pet': 'alien'}, {'pet': []}, {'halo': 1}, {'wings': 'halo'}, {'name': 'hat'}):
+            self.assertEqual((await self.client.post(path, headers=client, json={'changes': invalid})).status, 400)
+        hat_names = ('santa_hat', 'fawn_hood', 'snowman_top_hat', 'gingerbread_house_hat',
+                     'newsboy_cap', 'aviator_helmet', 'traveller_hat')
+        for name in hat_names:
+            picked = await self.client.post(path, headers=launcher, json={'changes': {'headwear': name}})
+            self.assertEqual(picked.status, 200)
+            self.assertEqual((await picked.json())['slots'], expected['slots'] | {'headwear': name, 'hat': False})
+        self.assertEqual((await self.client.post(path, headers=launcher,
+                         json={'changes': {'headwear': 'missing'}})).status, 400)
+        old_client = await self.client.post(path, headers=client, json={'changes': {'hat': True}})
+        self.assertEqual((await old_client.json())['slots'], expected['slots'] | {'headwear': '', 'hat': True})
+        cleared = await self.client.post(path, headers=client, json={'changes': {'hat': False}})
+        expected = {'slots': expected['slots'] | {'headwear': '', 'hat': False}}
+        self.assertEqual(await cleared.json(), expected)
+        unsafe = {key: value for key, value in client.items() if key != 'X-CSRF-Token'}
+        self.assertEqual((await self.client.post(path, headers=unsafe, json={'changes': {'hat': True}})).status, 401)
+        self.assertEqual(await (await self.client.get(path, headers=launcher)).json(), expected)
 
     async def test_admin_permissions_and_role_changes_apply_to_existing_sessions(self):
         owner = await self.account_headers('FirstOwner')

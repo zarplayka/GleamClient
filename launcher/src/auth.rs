@@ -74,13 +74,17 @@ impl Auth {
 }
 
 impl GameAuth {
-    pub(crate) fn settings_request(&self, method: Method) -> RequestBuilder {
-        self.client.request(method, format!("{ORIGIN}/api/game-settings"))
+    fn account_request(&self, method: Method, path: &str) -> RequestBuilder {
+        self.client.request(method, format!("{ORIGIN}{path}"))
             .header("Origin", ORIGIN)
             .header("X-Orion-Request", "1")
             .header("X-CSRF-Token", &self.csrf)
             .header("Cookie", format!("{COOKIE}={}", self.token))
             .timeout(Duration::from_secs(3))
+    }
+
+    pub(crate) fn settings_request(&self, method: Method) -> RequestBuilder {
+        self.account_request(method, "/api/game-settings")
     }
 
     pub(crate) fn stage_game_session(&self, game_dir: &Path) -> Result<tempfile::TempDir, String> {
@@ -94,11 +98,79 @@ impl GameAuth {
     }
 }
 
+#[tauri::command]
+pub async fn cosmetic_loadout(
+    auth: tauri::State<'_, Auth>,
+    slot: Option<String>,
+    value: Option<Value>,
+) -> Result<Value, String> {
+    let state = auth.inner().clone();
+    let generation = state.1.load(Ordering::SeqCst);
+    tauri::async_runtime::spawn_blocking(move || {
+        let session = state.game_auth()?.ok_or("auth")?;
+        let path = "/api/cosmetic-loadout";
+        let request = match (slot, value) {
+            (None, None) => session.account_request(Method::GET, path),
+            (Some(slot), Some(value)) => session.account_request(Method::POST, path)
+                .json(&json!({"changes": { (slot): value }})),
+            _ => return Err("server".into()),
+        };
+        let result = response(request.send().map_err(|_| "network")?)?;
+        if generation != state.1.load(Ordering::SeqCst) { return Err("auth".into()); }
+        Ok(result)
+    }).await.map_err(|_| "server")?
+}
+
 fn valid_secret(value: &str) -> bool {
     value.len() == 43
         && value
             .bytes()
             .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
+}
+
+#[tauri::command]
+pub async fn gleam_friends(
+    auth: tauri::State<'_, Auth>,
+    action: String,
+    target: Option<String>,
+    autojoin: Option<bool>,
+    slim: Option<bool>,
+) -> Result<Value, String> {
+    let state = auth.inner().clone();
+    let generation = state.1.load(Ordering::SeqCst);
+    tauri::async_runtime::spawn_blocking(move || {
+        let session = state.game_auth()?.ok_or("auth")?;
+        let target = target.unwrap_or_default();
+        let valid = target.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_');
+        let invite_id = target.len() == 32
+            && target.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-');
+        let request = match action.as_str() {
+            "list" => session.account_request(Method::GET, "/api/friends?appearance=1"),
+            "appearance" if target.len() <= 64 && target.bytes().all(|c| c.is_ascii_hexdigit()) =>
+                session.account_request(Method::POST, "/api/friends")
+                    .json(&json!({"action": "appearance", "skin": target.to_ascii_lowercase(), "slim": slim.unwrap_or(false)})),
+            "presence" => session.account_request(Method::POST, "/api/friend-worlds")
+                .json(&json!({"action": "presence", "device": "launcher"})),
+            "worlds" => session.account_request(Method::GET, "/api/friend-worlds"),
+            "profile" if target.len() == 16 && target.bytes().all(|c| c.is_ascii_hexdigit()) =>
+                session.account_request(Method::GET, &format!("/api/profile/{target}")),
+            "world-invite" if valid && (3..=24).contains(&target.len()) =>
+                session.account_request(Method::POST, "/api/friend-worlds")
+                    .json(&json!({"action": "invite", "username": target})),
+            "world-reserve" | "world-decline" | "world-cancel" if invite_id =>
+                session.account_request(Method::POST, "/api/friend-worlds")
+                    .json(&json!({"action": &action[6..], "id": target, "autojoin": autojoin.unwrap_or(false)})),
+            "request" | "accept" | "decline" | "cancel" | "remove" if valid && (3..=24).contains(&target.len()) =>
+                session.account_request(Method::POST, "/api/friends")
+                    .json(&json!({"action": action, "username": target})),
+            _ => return Err("invalid".into()),
+        };
+        let result = response(request.send().map_err(|_| "network")?)?;
+        if generation != state.1.load(Ordering::SeqCst) {
+            return Err("auth".into());
+        }
+        Ok(result)
+    }).await.map_err(|_| "server")?
 }
 
 fn response(response: Response) -> Result<Value, String> {
@@ -119,6 +191,8 @@ fn response(response: Response) -> Result<Value, String> {
             .unwrap_or("server");
         return Err(match code {
             "credentials" | "banned" | "rate" | "auth" | "launcher_expired" => code,
+            "friend_missing" | "friend_self" | "friend_state" | "friend_limit" | "friend_unavailable"
+            | "world_expired" | "world_unavailable" | "world_license" => code,
             _ => "server",
         }
         .into());
@@ -297,7 +371,7 @@ pub async fn gleam_auth(
                     .header("Cookie", format!("{COOKIE}={}", session.token));
                 drop(inner);
                 let data = response(request.send().map_err(|_| "network")?)?;
-                Ok(json!({"id":data["id"]}))
+                Ok(json!({"id":data["id"], "created_at":data["created_at"]}))
             }
             "restore" => {
                 let target = path(&app)?;

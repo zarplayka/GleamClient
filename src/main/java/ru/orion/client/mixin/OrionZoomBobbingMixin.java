@@ -1,3 +1,4 @@
+//? if >=26.1 {
 package ru.orion.client.mixin;
 
 import net.minecraft.client.renderer.GameRenderer;
@@ -17,3 +18,4 @@ public abstract class OrionZoomBobbingMixin {
         return config != null && config.isZoomRelativeBobbing() ? state.bob / OrionZoom.current() : state.bob;
     }
 }
+//?}

@@ -42,7 +42,7 @@ public final class OrionWings {
             if (local && client.options.getCameraType().isFirstPerson()) continue;
             int style = local ? (manager.getConfig().isWingsEnabled() ? manager.getConfig().getWingsStyle() + 1 : 0)
                     : OrionBadgePresence.wingsStyle(player.getUUID());
-            if (style < 1 || style > 2) continue;
+            if (style < 1 || style > GleamWingModel.IDS.size()) continue;
             if(player.position().distanceToSqr(camera.pos)>16384D) continue;
             visible.add(player.getUUID());
             OrionWingMotion motion=motions.computeIfAbsent(player.getUUID(),ignored->new OrionWingMotion());
@@ -56,15 +56,20 @@ public final class OrionWings {
             PoseStack pose = context.poseStack();
             pose.pushPose();
             pose.translate(relative.x, relative.y + motion.rootHeight, relative.z);
-            pose.rotate(Axis.YP.rotationDegrees(180F - bodyYaw));
-            pose.rotate(Axis.XP.rotationDegrees(motion.bodyPitch));
+            ru.orion.client.render.GleamPose.rotate(pose, Axis.YP.rotationDegrees(180F - bodyYaw));
+            ru.orion.client.render.GleamPose.rotate(pose, Axis.XP.rotationDegrees(motion.bodyPitch));
             pose.translate(0F, 0F, .16F);
+            if (style > 2) {
+                GleamWingModel.submit(pose, context.submitNodeCollector(), style);
+                pose.popPose();
+                continue;
+            }
             for (int side = -1; side <= 1; side += 2) {
                 pose.pushPose();
                 pose.scale(side, 1F, 1F);
                 // Положительный Z — за спиной. При складывании кончики уходят назад.
-                pose.rotate(Axis.YP.rotationDegrees(-motion.rootFold));
-                pose.rotate(Axis.ZP.rotationDegrees(motion.flap));
+                ru.orion.client.render.GleamPose.rotate(pose, Axis.YP.rotationDegrees(-motion.rootFold));
+                ru.orion.client.render.GleamPose.rotate(pose, Axis.ZP.rotationDegrees(motion.flap));
                 context.submitNodeCollector().submitCustomGeometry(pose, OrionEspRenderTypes.cosmeticWings(),
                         (currentPose, vertices) -> draw(currentPose, vertices, style, detail,cy,sy,cz,sz));
                 pose.popPose();
@@ -80,6 +85,22 @@ public final class OrionWings {
             vertex(pose, vc, face.b(), face.color(),cy,sy,cz,sz);
             vertex(pose, vc, face.c(), face.color(),cy,sy,cz,sz);
             vertex(pose, vc, face.d(), face.color(),cy,sy,cz,sz);
+        }
+    }
+
+    public static void submitPreview(PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector, int style) {
+        pose.translate(0F, 1.37F, .16F);
+        if (style > 2) {
+            GleamWingModel.submit(pose, collector, style);
+            return;
+        }
+        for (int side : new int[]{-1, 1}) {
+            pose.pushPose();
+            pose.scale(side, 1F, 1F);
+            ru.orion.client.render.GleamPose.rotate(pose, Axis.YP.rotationDegrees(-13F));
+            collector.submitCustomGeometry(pose, OrionEspRenderTypes.cosmeticWings(),
+                    (current, vertices) -> draw(current, vertices, style, true, 1F, 0F, 1F, 0F));
+            pose.popPose();
         }
     }
     private static void vertex(PoseStack.Pose pose, VertexConsumer vc, OrionWingMesh.Point p, int color,float cy,float sy,float cz,float sz) {

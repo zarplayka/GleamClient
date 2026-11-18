@@ -1,5 +1,7 @@
 package ru.orion.client.keybind;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -24,6 +26,7 @@ public final class OrionKeybinds {
     private KeyMapping openClickGuiKey;
     private static KeyMapping lockSlotKey;
     private static KeyMapping zoomKey;
+    private static KeyMapping freeLookKey;
     private static KeyMapping secondaryZoomKey;
     private static KeyMapping waypointKey;
     private static KeyMapping emoteKey;
@@ -35,21 +38,52 @@ public final class OrionKeybinds {
     public void register() {
         openClickGuiKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 OPEN_CLICK_GUI_TRANSLATION_KEY,
+                //? if >=26.3 {
                 InputConstants.Type.KEYBOARD,
+                //?} else {
+                                /*InputConstants.Type.KEYSYM,
+                *///?}
                 InputConstants.KEY_RSHIFT,
                 CATEGORY
         ));
 
         lockSlotKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                //? if >=26.3 {
                 "key.orion-client.lock_slot", InputConstants.Type.KEYBOARD, InputConstants.KEY_L, CATEGORY));
+                //?} else {
+                                /*"key.orion-client.lock_slot", InputConstants.Type.KEYSYM, InputConstants.KEY_L, CATEGORY));
+                *///?}
         zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                //? if >=26.3 {
                 "key.orion-client.zoom", InputConstants.Type.KEYBOARD, InputConstants.KEY_C, CATEGORY));
+                //?} else {
+                                /*"key.orion-client.zoom", InputConstants.Type.KEYSYM, InputConstants.KEY_C, CATEGORY));
+                *///?}
+
+        freeLookKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                //? if >=26.3 {
+                "key.orion-client.freelook", InputConstants.Type.KEYBOARD, InputConstants.KEY_LALT, CATEGORY));
+                //?} else {
+                /*"key.orion-client.freelook", InputConstants.Type.KEYSYM, InputConstants.KEY_LALT, CATEGORY));
+                *///?}
         secondaryZoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                //? if >=26.3 {
                 "key.orion-client.secondary_zoom", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY));
+                //?} else {
+                                /*"key.orion-client.secondary_zoom", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY));
+                *///?}
         waypointKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                //? if >=26.3 {
                 "key.orion-client.add_waypoint", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY));
+                //?} else {
+                                /*"key.orion-client.add_waypoint", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY));
+                *///?}
         emoteKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                //? if >=26.3 {
                 "key.orion-client.emotes", InputConstants.Type.KEYBOARD, InputConstants.KEY_V, CATEGORY));
+                //?} else {
+                                /*"key.orion-client.emotes", InputConstants.Type.KEYSYM, InputConstants.KEY_V, CATEGORY));
+                *///?}
         ClientTickEvents.END_CLIENT_TICK.register(this::handleClientTick);
     }
 
@@ -57,6 +91,7 @@ public final class OrionKeybinds {
     public static KeyMapping getWaypointKey() { return waypointKey; }
     public static KeyMapping getEmoteKey() { return emoteKey; }
     public static KeyMapping getZoomKey() { return zoomKey; }
+    public static KeyMapping getFreeLookKey() { return freeLookKey; }
     public static boolean isZoomDown() { return zoomKey != null && zoomKey.isDown(); }
     public static KeyMapping getSecondaryZoomKey() { return secondaryZoomKey; }
     public static boolean isSecondaryZoomDown() { return secondaryZoomKey != null && secondaryZoomKey.isDown(); }
@@ -66,32 +101,33 @@ public final class OrionKeybinds {
     }
 
     private void handleClientTick(Minecraft client) {
+        while (freeLookKey.consumeClick()) { /* FreeLook reads the held state. */ }
         while (emoteKey.consumeClick()) {
-            if (configManager.getConfig().isEmotesEnabled() && client.gui.screen() == null
-                    && OrionEmotes.canDance(client.player)) client.gui.setScreen(new OrionEmoteWheelScreen());
+            if (configManager.getConfig().isEmotesEnabled() && GleamMinecraft.screen(client) == null
+                    && OrionEmotes.canDance(client.player)) GleamMinecraft.setScreen(client, new OrionEmoteWheelScreen());
         }
         while (lockSlotKey.consumeClick()) {
-            if (client.player != null && client.gui.screen() == null && configManager.getConfig().isLockSlotEnabled()) {
+            if (client.player != null && GleamMinecraft.screen(client) == null && configManager.getConfig().isLockSlotEnabled()) {
                 OrionLockSlot.toggleIndex(client.player.getInventory().getSelectedSlot());
             }
         }
         while (waypointKey.consumeClick()) {
-            if (client.player == null || client.level == null || client.gui.screen() != null) continue;
+            if (client.player == null || client.level == null || GleamMinecraft.screen(client) != null) continue;
             var point = ru.orion.client.effect.OrionWaypoints.addAtPlayer(configManager, client);
             if (point == null) {
-                client.gui.hud.setOverlayMessage(net.minecraft.network.chat.Component.literal("Ƴ Достигнут предел меток")
+                GleamMinecraft.setOverlayMessage(client, net.minecraft.network.chat.Component.literal("Ƴ Достигнут предел меток")
                         .withStyle(net.minecraft.ChatFormatting.WHITE), false);
             } else if (configManager.getConfig().isWaypointEditAfterCreate()) {
-                client.gui.setScreen(OrionClickGuiScreen.withWaypointSettings(configManager, point));
+                GleamMinecraft.setScreen(client, OrionClickGuiScreen.withWaypointSettings(configManager, point));
             } else {
-                client.gui.hud.setOverlayMessage(net.minecraft.network.chat.Component.literal("Ʋ Метка ")
+                GleamMinecraft.setOverlayMessage(client, net.minecraft.network.chat.Component.literal("Ʋ Метка ")
                         .withStyle(net.minecraft.ChatFormatting.WHITE)
                         .append(net.minecraft.network.chat.Component.literal(point.name).withStyle(net.minecraft.ChatFormatting.GOLD))
                         .append(net.minecraft.network.chat.Component.literal(" добавлена").withStyle(net.minecraft.ChatFormatting.WHITE)), false);
             }
         }
         while (openClickGuiKey.consumeClick()) {
-            client.gui.setScreen(new OrionClickGuiScreen(configManager));
+            GleamMinecraft.setScreen(client, new OrionClickGuiScreen(configManager));
         }
     }
 }

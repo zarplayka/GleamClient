@@ -22,14 +22,28 @@ const MAX_BINARY: u64 = 128 * 1024 * 1024;
 const UPDATE_LOCK: &str = ".gleam-update.lock";
 type Result<T> = std::result::Result<T, &'static str>;
 
-#[derive(Clone, Default)]
-pub struct Updater(Arc<Mutex<Option<Arc<AtomicBool>>>>);
+#[derive(Clone)]
+pub struct Updater {
+    active: Arc<Mutex<Option<Arc<AtomicBool>>>>,
+    #[cfg(windows)]
+    executable: Option<std::path::PathBuf>,
+}
+
+impl Default for Updater {
+    fn default() -> Self {
+        Self {
+            active: Arc::new(Mutex::new(None)),
+            #[cfg(windows)]
+            executable: std::env::current_exe().ok(),
+        }
+    }
+}
 
 struct ActiveUpdate(Updater);
 
 impl Drop for ActiveUpdate {
     fn drop(&mut self) {
-        if let Ok(mut active) = self.0 .0.lock() {
+        if let Ok(mut active) = self.0.active.lock() {
             *active = None;
         }
     }
@@ -53,6 +67,7 @@ struct Manifest {
 pub enum UpdateResult {
     Current,
     Unavailable,
+    Available { version: String },
     Installed { version: String },
 }
 
@@ -131,12 +146,27 @@ fn download(
     Ok(())
 }
 
-fn asset(client: &Client, path: &str) -> Result<Response> {
+fn asset(client: &Client, path: &str, timeout: Duration) -> Result<Response> {
     client
         .get(format!("{RELEASES}/{path}"))
         .header("Cache-Control", "no-cache")
+        .timeout(timeout)
         .send()
         .map_err(|_| "network")
+}
+
+#[cfg(windows)]
+fn verify_staged_version(
+    staged: tempfile::NamedTempFile,
+    expected: [u16; 3],
+) -> Result<tempfile::TempPath> {
+    staged.as_file().sync_all().map_err(|_| "storage")?;
+    // Win32 cannot read version resources while the staged file is open for writing.
+    let staged = staged.into_temp_path();
+    if windows::file_version(&staged).map_err(|_| "verification")? != expected {
+        return Err("verification");
+    }
+    Ok(staged)
 }
 
 #[cfg(windows)]
@@ -144,11 +174,12 @@ fn check(
     app: &tauri::AppHandle,
     updater: &Updater,
     cancelled: &AtomicBool,
+    requested: Option<&str>,
 ) -> Result<UpdateResult> {
     let current = version(env!("CARGO_PKG_VERSION")).ok_or("verification")?;
-    let executable = std::env::current_exe().map_err(|_| "storage")?;
+    let executable = updater.executable.as_deref().ok_or("storage")?;
     let directory = executable.parent().ok_or("storage")?;
-    let disk_version = windows::file_version(&executable)?;
+    let disk_version = windows::installed_version(executable)?;
     if disk_version > current {
         let [major, minor, patch] = disk_version;
         return Ok(UpdateResult::Installed {
@@ -161,10 +192,9 @@ fn check(
         .redirect(reqwest::redirect::Policy::none())
         .user_agent(concat!("Gleam-Launcher/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(8))
-        .timeout(Duration::from_secs(120))
         .build()
         .map_err(|_| "network")?;
-    let response = asset(&client, "launcher-update.json")?;
+    let response = asset(&client, "launcher-update.json", Duration::from_secs(5))?;
     if response.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(UpdateResult::Unavailable);
     }
@@ -186,10 +216,13 @@ fn check(
     if next <= current {
         return Ok(UpdateResult::Current);
     }
+    if requested != Some(manifest.version.as_str()) {
+        return Ok(UpdateResult::Available { version: manifest.version });
+    }
     check_cancelled(cancelled)?;
-    let response = asset(&client, &format!("{}/Gleam.Launcher.exe", manifest.version))?
-    .error_for_status()
-    .map_err(|_| "network")?;
+    let response = asset(&client, &format!("{}/Gleam.Launcher.exe", manifest.version), Duration::from_secs(120))?
+        .error_for_status()
+        .map_err(|_| "network")?;
     if response
         .content_length()
         .is_some_and(|length| length != manifest.size)
@@ -203,11 +236,7 @@ fn check(
     download(response, &mut staged, &manifest, cancelled, |percent| {
         let _ = app.emit("launcher-update-progress", percent);
     })?;
-    staged.as_file().sync_all().map_err(|_| "storage")?;
-    if windows::file_version(staged.path()).map_err(|_| "verification")? != next {
-        return Err("verification");
-    }
-    let staged = staged.into_temp_path();
+    let staged = verify_staged_version(staged, next)?;
     let lock = OpenOptions::new()
         .read(true)
         .write(true)
@@ -216,16 +245,16 @@ fn check(
         .open(directory.join(UPDATE_LOCK))
         .map_err(|_| "storage")?;
     lock.try_lock().map_err(|_| "busy")?;
-    let _active = updater.0.lock().map_err(|_| "busy")?;
+    let _active = updater.active.lock().map_err(|_| "busy")?;
     check_cancelled(cancelled)?;
-    let disk_version = windows::file_version(&executable)?;
+    let disk_version = windows::installed_version(executable)?;
     if disk_version >= next {
         let [major, minor, patch] = disk_version;
         return Ok(UpdateResult::Installed {
             version: format!("{major}.{minor}.{patch}"),
         });
     }
-    windows::replace(&executable, &staged)?;
+    windows::replace(executable, &staged)?;
     Ok(UpdateResult::Installed {
         version: manifest.version,
     })
@@ -236,17 +265,36 @@ pub async fn check_launcher_update(
     app: tauri::AppHandle,
     updater: tauri::State<'_, Updater>,
 ) -> Result<UpdateResult> {
+    run_update(app, updater.inner().clone(), None).await
+}
+
+#[tauri::command]
+pub async fn install_launcher_update(
+    app: tauri::AppHandle,
+    updater: tauri::State<'_, Updater>,
+    requested: String,
+) -> Result<UpdateResult> {
+    if version(&requested).is_none() {
+        return Err("verification");
+    }
+    run_update(app, updater.inner().clone(), Some(requested)).await
+}
+
+async fn run_update(
+    app: tauri::AppHandle,
+    updater: Updater,
+    requested: Option<String>,
+) -> Result<UpdateResult> {
     #[cfg(not(windows))]
     {
-        let _ = (app, updater);
+        let _ = (app, updater, requested);
         Ok(UpdateResult::Unavailable)
     }
     #[cfg(windows)]
     {
-        let updater = updater.inner().clone();
         let cancelled = Arc::new(AtomicBool::new(false));
         {
-            let mut active = updater.0.lock().map_err(|_| "busy")?;
+            let mut active = updater.active.lock().map_err(|_| "busy")?;
             if active.is_some() {
                 return Err("busy");
             }
@@ -255,7 +303,7 @@ pub async fn check_launcher_update(
         let guard = ActiveUpdate(updater.clone());
         tauri::async_runtime::spawn_blocking(move || {
             let _guard = guard;
-            check(&app, &updater, &cancelled)
+            check(&app, &updater, &cancelled, requested.as_deref())
         })
         .await
         .map_err(|_| "storage")?
@@ -263,8 +311,45 @@ pub async fn check_launcher_update(
 }
 
 #[tauri::command]
+pub async fn restart_launcher_update(
+    app: tauri::AppHandle,
+    updater: tauri::State<'_, Updater>,
+    game: tauri::State<'_, crate::game::Game>,
+) -> Result<()> {
+    #[cfg(not(windows))]
+    {
+        let _ = (app, updater, game);
+        Err("unavailable")
+    }
+    #[cfg(windows)]
+    {
+        let active = updater.active.lock().map_err(|_| "busy")?;
+        if active.is_some() {
+            return Err("busy");
+        }
+        let executable = updater.executable.as_deref().ok_or("storage")?;
+        let current = version(env!("CARGO_PKG_VERSION")).ok_or("verification")?;
+        if windows::installed_version(executable)? <= current {
+            return Err("verification");
+        }
+        game.restart_when_idle(|| {
+            if crate::game::running_game_version(&app).map_err(|_| "game_busy")?.is_some() {
+                return Err("game_busy");
+            }
+            std::process::Command::new(executable)
+                .args(std::env::args_os().skip(1))
+                .spawn()
+                .map_err(|_| "restart")?;
+            Ok(())
+        })?;
+        app.exit(0);
+        Ok(())
+    }
+}
+
+#[tauri::command]
 pub fn cancel_launcher_update(updater: tauri::State<'_, Updater>) {
-    if let Ok(active) = updater.0.lock() {
+    if let Ok(active) = updater.active.lock() {
         if let Some(cancelled) = &*active {
             cancelled.store(true, Ordering::Relaxed);
         }
@@ -302,6 +387,19 @@ mod windows {
 
     fn wide(path: &Path) -> Vec<u16> {
         path.as_os_str().encode_wide().chain([0]).collect()
+    }
+
+    pub(super) fn installed_version(executable: &Path) -> Result<[u16; 3]> {
+        // Querying the loaded executable's original path can return its old
+        // version resource after ReplaceFileW. Read a snapshot under a fresh name.
+        let mut snapshot = tempfile::Builder::new()
+            .suffix(".exe")
+            .tempfile()
+            .map_err(|_| "storage")?;
+        let mut file = fs::File::open(executable).map_err(|_| "storage")?;
+        std::io::copy(&mut file, &mut snapshot).map_err(|_| "storage")?;
+        let snapshot = snapshot.into_temp_path();
+        file_version(&snapshot)
     }
 
     pub(super) fn file_version(path: &Path) -> Result<[u16; 3]> {
@@ -414,12 +512,17 @@ mod tests {
         };
         let directory = tempfile::tempdir().unwrap();
         let executable = directory.path().join("running.exe");
-        let staged = directory.path().join("staged.exe");
         let shell = std::env::var_os("ComSpec").unwrap();
         fs::copy(shell, &executable).unwrap();
-        fs::copy(std::env::current_exe().unwrap(), &staged).unwrap();
+        let test_binary = std::env::current_exe().unwrap();
+        let updated_version = windows::file_version(&test_binary).unwrap();
+        let mut staged = tempfile::Builder::new()
+            .suffix(".exe")
+            .tempfile_in(directory.path())
+            .unwrap();
+        std::io::copy(&mut fs::File::open(test_binary).unwrap(), &mut staged).unwrap();
+        let staged = verify_staged_version(staged, updated_version).unwrap();
         let original_version = windows::file_version(&executable).unwrap();
-        let updated_version = windows::file_version(&staged).unwrap();
         let mut child = Command::new(&executable)
             .args(["/d", "/c", "pause"])
             .stdin(Stdio::piped())
@@ -434,6 +537,7 @@ mod tests {
         assert!(still_running);
         result.unwrap();
         assert_eq!(windows::file_version(&executable).unwrap(), updated_version);
+        assert_eq!(windows::installed_version(&executable).unwrap(), updated_version);
         let backup = directory.path().join(".gleam-launcher.previous.exe");
         assert_eq!(windows::file_version(&backup).unwrap(), original_version);
     }

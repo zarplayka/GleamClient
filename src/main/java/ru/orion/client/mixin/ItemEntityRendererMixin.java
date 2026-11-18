@@ -89,9 +89,9 @@ public abstract class ItemEntityRendererMixin {
                 + Math.min(bounds.minZ * z, bounds.maxZ * z);
         pose.pushPose();
         pose.translate(0, Math.max(0.02D, -minY + 0.02D), 0);
-        pose.rotate(Axis.YP.rotationDegrees(rotation.orion$getPhysicsYaw()));
-        pose.rotate(Axis.XP.rotationDegrees(pitch));
-        pose.rotate(Axis.ZP.rotationDegrees(roll));
+        ru.orion.client.render.GleamPose.rotate(pose, Axis.YP.rotationDegrees(rotation.orion$getPhysicsYaw()));
+        ru.orion.client.render.GleamPose.rotate(pose, Axis.XP.rotationDegrees(pitch));
+        ru.orion.client.render.GleamPose.rotate(pose, Axis.ZP.rotationDegrees(roll));
         ItemEntityRenderer.submitMultipleFromCount(pose, collector, state.lightCoords, state, random, bounds);
         pose.popPose();
     }

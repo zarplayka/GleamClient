@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -59,10 +61,11 @@ public final class OrionKillEffects {
         for (int i = 0; i < 9; i++) {
             if (i == 7) continue;
             final int type = i;
-            boolean organic = i == 0 || i == 5 || i == 7 || i == 8;
-            registerEffect(i, new Definition(5F, (stack, vertices, age, quality, particles, seed) -> {
-                if (organic) OrionSoulKillModels.render(type, stack, vertices, age, quality, particles, seed);
-                else OrionArcaneKillModels.render(type, stack, vertices, age, quality, particles, seed);
+            boolean volume = i == 2 || i == 4;
+            float duration = volume ? OrionArcaneKillModels.duration(i) : OrionSoulKillModels.duration(i);
+            registerEffect(i, new Definition(duration, (stack, vertices, age, quality, particles, seed) -> {
+                if (volume) OrionArcaneKillModels.render(type, stack, vertices, age, quality, particles, seed);
+                else OrionSoulKillModels.render(type, stack, vertices, age, quality, particles, seed);
             }));
         }
     }
@@ -301,7 +304,7 @@ public final class OrionKillEffects {
         var ground = client.level.clip(new ClipContext(position.add(0, .5, 0), position.add(0, -6, 0), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, client.player));
         if (!playerVictim && ground.getType() != HitResult.Type.MISS) position = ground.getLocation().add(0, .025, 0);
         if (playerVictim) position = position.add(0, config.getKillEffectsPlayerLift(), 0);
-        Vec3 viewer = client.gameRenderer.mainCamera().position();
+        Vec3 viewer = GleamMinecraft.camera(client).position();
         yaw = (float) Math.toDegrees(Math.atan2(viewer.x - position.x, position.z - viewer.z));
         while (active.size() >= config.getKillEffectsLimit()) OrionKillAudio.stop(active.removeFirst().sound());
         float size = config.getKillEffectsSize();
@@ -323,7 +326,7 @@ public final class OrionKillEffects {
         double distance = manager.getConfig().getKillEffectsDistance();
         for (ActiveEffect effect : active) {
             if (effect.position().distanceToSqr(camera.pos) > distance * distance
-                    || camera.cullFrustum != null && !camera.cullFrustum.isVisible(effect.bounds())) continue;
+                    || !ru.orion.client.render.GleamCameraMatrices.visible(camera, effect.bounds())) continue;
             if (!effect.preview() && !manager.getConfig().isKillEffectsEnabled()) continue;
             float age = effect.age(now);
             if (age >= effect.definition().duration()) continue;
@@ -331,13 +334,14 @@ public final class OrionKillEffects {
             PoseStack stack = context.poseStack();
             stack.pushPose();
             stack.translate(relative.x, relative.y, relative.z);
-            stack.rotate(Axis.YP.rotationDegrees(-effect.yaw()));
+            boolean volume = effect.type() == 2 || effect.type() == 4;
+            if (volume) ru.orion.client.render.GleamPose.rotate(stack, Axis.YP.rotationDegrees(-effect.yaw()));
+            else ru.orion.client.render.GleamPose.rotate(stack, camera.orientation);
             stack.scale(effect.size(), effect.size(), effect.size());
             // Данные захвачены неизменяемым снимком, callback не читает мир/игроков.
             int quality = Math.min(effect.quality(), effect.position().distanceToSqr(camera.pos) > 2304 ? 0 : effect.quality());
-            boolean translucentModel = effect.type() == 0 || effect.type() == 5 || effect.type() == 8;
             context.submitNodeCollector().submitCustomGeometry(stack,
-                    translucentModel ? OrionEspRenderTypes.killEffects() : OrionEspRenderTypes.killModels(), (pose, vertices) -> {
+                    volume ? OrionEspRenderTypes.killModels() : OrionEspRenderTypes.killEffects(), (pose, vertices) -> {
                 PoseStack model = new PoseStack();
                 model.last().pose().set(pose.pose());
                 effect.definition().renderer().render(model, OrionKillMaterial.textured(vertices, effect.type()),

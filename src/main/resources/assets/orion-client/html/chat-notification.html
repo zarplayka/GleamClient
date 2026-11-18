@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" data-hud-theme href="hud-theme.css">
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; overflow: hidden; font-size: 14px; }
+.toast {
+  display: flex; align-items: center; gap: 10px; margin: 4px; min-height: 60px;
+  padding: 8px 11px;
+  opacity: 0; transform: translateY(18px);
+}
+.icon {
+  display: flex; align-items: center; justify-content: center; flex: 0 0 32px;
+  height: 32px; border: 1px solid var(--line); border-radius: var(--hud-inner-radius); color: var(--accent); overflow: hidden;
+}
+.icon img { display: block; width: 30px; height: 30px; }
+[hidden] { display: none !important; }
+.label { min-width: 0; flex: 1; }
+.sender, .caption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sender { font-size: 14px; font-weight: bold; }
+.caption { margin-top: 3px; padding-top: 3px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.arrow { flex: none; color: var(--muted); }
+</style>
+</head>
+<body class="gleam-hud">
+  <div class="toast gleam-hud-panel" id="toast">
+    <span class="icon"><img id="avatar" alt="" hidden><svg id="fallback" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 5h16v12H9l-5 3zM8 9h8m-8 4h5"/>
+    </svg></span>
+    <div class="label"><div class="sender" id="sender"></div><div class="caption" id="caption"></div></div>
+    <svg class="arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+  </div>
+  <script>
+  const toast = document.getElementById('toast');
+  window.paradox = {
+    update({title,detail,avatar,light,accent}) {
+      document.getElementById('sender').textContent = title;
+      document.getElementById('caption').textContent = detail;
+      const portrait = document.getElementById('avatar');
+      portrait.hidden = !avatar;
+      document.getElementById('fallback').hidden = !!avatar;
+      if (avatar) portrait.src = 'assets/' + avatar + '.png';
+      const root = document.documentElement;
+      root.toggleAttribute('data-light',light);
+      if (/^#[0-9a-f]{6}$/i.test(accent)) root.style.setProperty('--accent',accent);
+      else root.style.removeProperty('--accent');
+    },
+    opening(progress) {
+      const ease = 1 - (1 - progress) ** 3;
+      toast.style.setProperty('opacity',String(ease));
+      toast.style.setProperty('transform','translateY(' + (1 - ease) * 18 + 'px)');
+    }
+  };
+  </script>
+</body>
+</html>

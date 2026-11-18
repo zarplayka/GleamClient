@@ -5,7 +5,7 @@ The Windows-only media integration uses two first-party .NET Framework 4.8 execu
 | File inside `assets/orion-client/media/` | Complete source |
 | --- | --- |
 | `OrionThumbnail.exe` | `src/main/resources/assets/orion-client/orion-thumbnail.cs` |
-| `OrionVolume.exe` | `src/main/resources/assets/orion-client/orion-volume.cs` |
+| `OrionVolume.exe` | `src/main/resources/assets/orion-client/orion-volume.cs`, `src/main/resources/assets/orion-client/gleam-beat.cs` |
 
 Both sources are included in every mod JAR. A complete standalone build kit is also
 included under `META-INF/orion-media-source/`: extract that directory and run its
@@ -38,8 +38,8 @@ the build fails if SHA-256 differs. Output:
 
 `build/generated/mediaResources/assets/orion-client/media/`
 
-The directory contains both executables and `SHA256SUMS`; Gradle packages those
-exact files. Compare these hashes with the same directory extracted from the mod
+The directory contains both executables and `SHA256SUMS`; the root Gradle task builds
+them once and every Stonecutter Minecraft target packages those exact files. Compare these hashes with the same directory extracted from the mod
 JAR. `.github/workflows/build.yml` automates the complete build, extracts the
 sources from the release JAR, rebuilds them at another path, compares their hashes
 with the packaged binaries, and uploads the mod, source archive and checksums.
@@ -60,17 +60,25 @@ temporary executables are scheduled for deletion on normal JVM exit. Missing
 helpers disable the corresponding feature and are logged; there is no compilation
 fallback.
 
-`OrionThumbnail.exe` reads the current Windows media session and writes its cover
-to the path passed by Java. `OrionVolume.exe` reads the Windows master volume or
-sets it to a scalar argument from 0 to 1. Neither helper uses the network. The
-existing embedded PowerShell scripts query/control media sessions using Windows
-APIs; `Add-Type -AssemblyName` loads a system assembly and does not compile source.
+`OrionThumbnail.exe snapshot` reads the selected Windows media session as JSON.
+Playback commands and cover extraction receive its source application ID, so a
+change in the foreground application cannot redirect a pending command.
+`OrionVolume.exe <source-app-id> [0..1]` reads or changes only matching application
+audio sessions through `ISimpleAudioVolume`. It reports unavailable when the
+application cannot be identified. Neither helper accesses master endpoint volume
+or uses the network. Java executes both helpers outside the render thread.
+
+`OrionVolume.exe --beat <java-pid>` analyzes the default Windows render endpoint
+in WASAPI loopback mode for Animated Lyrics. It emits only level, bass energy and
+an onset counter at up to 25 Hz. The analyzer uses the system output mix and never
+opens the microphone or stores PCM. The Java reader stops the helper when beat
+response is disabled, playback pauses or the client shuts down.
 
 ## Modrinth submission
 
 Publish the updated source commit (or give ModrinthModeration access to the private
 repository), run **Verified release build** for that commit/tag, and submit the JAR
-from its `orion-client-verified` artifact. Give moderators the commit URL, workflow
+for the required Minecraft version from its `orion-client-verified` artifact. Give moderators the commit URL, workflow
 run URL, `orion-media-source.zip` and `media-SHA256SUMS`. Do not submit an older JAR
 or claim a local build came from GitHub Actions.
 

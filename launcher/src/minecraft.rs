@@ -1,9 +1,10 @@
-//! Microsoft device login and Xbox SISU exchange, following AWLauncher's title_auth flow.
+//! Minecraft profiles and Microsoft device login through Xbox SISU.
 use base64::{
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
     Engine,
 };
 use p256::ecdsa::{signature::Signer, Signature, SigningKey};
+use md5::{Digest, Md5};
 use reqwest::{
     blocking::{Client, Response},
     Url,
@@ -75,6 +76,8 @@ struct Profile {
     name: String,
     skin_url: Option<String>,
     slim: bool,
+    #[serde(default)]
+    offline: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -83,6 +86,41 @@ struct Account {
     access_token: String,
     refresh_token: String,
     expires_at: u64,
+}
+
+impl Account {
+    fn offline(name: &str) -> Result<Self> {
+        let name = name.trim();
+        if !(3..=16).contains(&name.len())
+            || !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+        {
+            return Err("mc_offline_name".into());
+        }
+        // Use the same name-based UUID as Minecraft's offline servers.
+        let mut bytes: [u8; 16] = Md5::digest(format!("OfflinePlayer:{name}").as_bytes()).into();
+        bytes[6] = (bytes[6] & 0x0f) | 0x30;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        Ok(Self {
+            profile: Profile {
+                id: uuid::Uuid::from_bytes(bytes).simple().to_string(),
+                name: name.to_owned(),
+                skin_url: None,
+                slim: false,
+                offline: true,
+            },
+            access_token: String::new(),
+            refresh_token: String::new(),
+            expires_at: 0,
+        })
+    }
+
+    fn game_session(&self) -> GameSession {
+        GameSession {
+            name: self.profile.name.clone(),
+            uuid: self.profile.id.clone(),
+            token: if self.profile.offline { "0".into() } else { self.access_token.clone() },
+        }
+    }
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -123,7 +161,9 @@ impl Minecraft {
         let mut accounts = load_accounts(&path)?;
         let index = accounts.accounts.iter().position(|account| account.profile.id == id)
             .ok_or("mc_account_required")?;
-        if accounts.accounts[index].expires_at <= unix_time().saturating_add(120) {
+        if !accounts.accounts[index].profile.offline
+            && accounts.accounts[index].expires_at <= unix_time().saturating_add(120)
+        {
             let client = self.client.as_ref().as_ref().map_err(Clone::clone)?;
             let refresh = &accounts.accounts[index].refresh_token;
             let reply = send(client.post(TOKEN_URL).form(&[
@@ -154,16 +194,17 @@ impl Minecraft {
             accounts.accounts[index] = updated;
             save_accounts(&path, &accounts)?;
         }
-        let account = &accounts.accounts[index];
-        Ok(GameSession {
-            name: account.profile.name.clone(),
-            uuid: account.profile.id.clone(),
-            token: account.access_token.clone(),
-        })
+        Ok(accounts.accounts[index].game_session())
     }
 }
 
 impl Accounts {
+    fn add_selected(&mut self, account: Account) {
+        self.accounts.retain(|old| old.profile.id != account.profile.id);
+        self.selected = Some(account.profile.id.clone());
+        self.accounts.push(account);
+    }
+
     fn public(&self) -> Value {
         json!({"selected":self.selected,"accounts":self.accounts.iter()
             .map(|account| &account.profile).collect::<Vec<_>>()})
@@ -427,6 +468,7 @@ fn finish(client: &Client, token: Value, stage: impl Fn(&str) -> Result<()>) -> 
                 .and_then(|skin| skin["url"].as_str())
                 .and_then(skin_url),
             slim: active.is_some_and(|skin| skin["variant"] == "SLIM"),
+            offline: false,
         },
         access_token: access.to_owned(),
         refresh_token: refresh.to_owned(),
@@ -440,6 +482,7 @@ pub async fn minecraft_account(
     minecraft: tauri::State<'_, Minecraft>,
     action: String,
     id: Option<String>,
+    name: Option<String>,
 ) -> Result<Value> {
     let state = minecraft.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -463,13 +506,28 @@ pub async fn minecraft_account(
                 super::open_browser(&url)?;
                 return Ok(Value::Null);
             }
-            "select" => {
+            "select" | "remove" => {
                 let _storage = state.storage.lock().map_err(|_| "storage")?;
                 let mut accounts = load()?;
                 let id = id
                     .filter(|id| accounts.accounts.iter().any(|a| a.profile.id == *id))
                     .ok_or("mc_service")?;
-                accounts.selected = Some(id);
+                if action == "select" {
+                    accounts.selected = Some(id);
+                } else {
+                    accounts.accounts.retain(|account| account.profile.id != id);
+                    if accounts.selected.as_ref() == Some(&id) {
+                        accounts.selected = accounts.accounts.first().map(|account| account.profile.id.clone());
+                    }
+                }
+                save(&accounts)?;
+                return Ok(accounts.public());
+            }
+            "offline" => {
+                let account = Account::offline(name.as_deref().ok_or("mc_offline_name")?)?;
+                let _storage = state.storage.lock().map_err(|_| "storage")?;
+                let mut accounts = load()?;
+                accounts.add_selected(account);
                 save(&accounts)?;
                 return Ok(accounts.public());
             }
@@ -582,14 +640,40 @@ pub async fn minecraft_account(
         }
         let _storage = state.storage.lock().map_err(|_| "storage")?;
         let mut accounts = load()?;
-        accounts
-            .accounts
-            .retain(|old| old.profile.id != account.profile.id);
-        accounts.selected = Some(account.profile.id.clone());
-        accounts.accounts.push(account);
+        accounts.add_selected(account);
         save(&accounts)?;
         Ok(accounts.public())
     })
     .await
     .map_err(|_| "mc_service".to_owned())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn offline_profile_uses_minecraft_uuid_and_no_account_token() {
+        let mut accounts = Accounts::default();
+        accounts.add_selected(Account::offline(" Notch ").unwrap());
+        accounts.add_selected(Account::offline("Notch").unwrap());
+        assert_eq!(accounts.accounts.len(), 1);
+        let session = accounts.accounts[0].game_session();
+        assert_eq!(session.name, "Notch");
+        assert_eq!(session.uuid, "b50ad385829d3141a2167e7d7539ba7f");
+        assert_eq!(session.token, "0");
+        assert_eq!(accounts.public()["accounts"][0]["offline"], true);
+        assert!(Account::offline("Player-name").is_err());
+        assert!(Account::offline("Игрок").is_err());
+    }
+
+    #[test]
+    fn existing_microsoft_profiles_load_as_online() {
+        let account: Account = serde_json::from_value(json!({
+            "profile":{"id":"id","name":"Player","skin_url":null,"slim":false},
+            "access_token":"test-token","refresh_token":"test-refresh","expires_at":0
+        })).unwrap();
+        assert!(!account.profile.offline);
+        assert_eq!(account.game_session().token, "test-token");
+    }
 }

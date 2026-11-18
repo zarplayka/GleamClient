@@ -14,7 +14,7 @@ public final class OrionWorldChanger {
 
     public static String colorName(String color) {
         return switch (normalize(color)) {
-            case "#FF7C00" -> "Orion";
+            case "#FF7C00" -> "GleamClient";
             case "#64D9FF" -> "Cyan";
             case "#8A5CFF" -> "Violet";
             case "#FF5DAA" -> "Pink";

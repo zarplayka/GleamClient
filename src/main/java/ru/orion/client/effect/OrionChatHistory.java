@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
@@ -7,7 +9,11 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.multiplayer.chat.GuiMessage;
+//? if >=26.1 {
 import net.minecraft.client.multiplayer.chat.GuiMessageSource;
+//?} else {
+/*
+*///?}
 import net.minecraft.client.multiplayer.chat.GuiMessageTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
@@ -55,7 +61,7 @@ public final class OrionChatHistory {
         var config = OrionClient.getConfigOrNull();
         if (config == null || !config.isChatHistoryEnabled() || loadRequested
                 || Minecraft.getInstance() == null || Minecraft.getInstance().gui == null
-                || Minecraft.getInstance().gui.hud == null) return;
+                || GleamMinecraft.chat(Minecraft.getInstance()) == null) return;
         loadRequested = true;
         long requestedRevision = revision;
         IO.execute(() -> {
@@ -80,12 +86,16 @@ public final class OrionChatHistory {
         var config = OrionClient.getConfigOrNull();
         if (revision != requestedRevision) return;
         if (config == null || !config.isChatHistoryEnabled()) { loadRequested = false; return; }
-        ChatComponent chat = Minecraft.getInstance().gui.hud.getChat();
+        ChatComponent chat = GleamMinecraft.chat(Minecraft.getInstance());
         List<GuiMessage> existing = ((OrionChatHistoryAccessor) (Object) chat).orion$getMessages();
         Collections.reverse(messages);
-        int oldTick = Minecraft.getInstance().gui.hud.getGuiTicks() - 500;
+        int oldTick = GleamMinecraft.guiTicks(Minecraft.getInstance()) - 500;
+    //? if >=26.1 {
         for (Component message : messages) existing.add(new GuiMessage(oldTick, message, null,
                 GuiMessageSource.SYSTEM_CLIENT, GuiMessageTag.systemSinglePlayer()));
+    //?} else {
+    /*for (Component message : messages) existing.add(new GuiMessage(oldTick, message, null, GuiMessageTag.systemSinglePlayer()));
+    *///?}
         ((OrionChatHistoryAccessor) (Object) chat).orion$refreshMessages();
     }
     public static void record(Component message) {

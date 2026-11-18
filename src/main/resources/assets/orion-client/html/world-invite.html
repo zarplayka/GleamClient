@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" data-hud-theme href="hud-theme.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;overflow:hidden}
+[hidden]{display:none!important}
+.invite{position:relative;margin:5px 2px 0;width:324px;height:69px;padding:8px 57px 9px 10px;opacity:0}
+.invite[data-click]{padding-right:79px}
+.main{display:flex;align-items:center;gap:9px}
+.face{display:flex;align-items:center;justify-content:center;width:34px;height:34px;flex:none;overflow:hidden;border:1px solid var(--line);border-radius:var(--hud-inner-radius);color:var(--accent);background:var(--well);font-size:13px}
+.face img{width:32px;height:32px;object-fit:cover}
+.copy{min-width:0;flex:1}
+.copy>*{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#title{font-size:13px;font-weight:700;line-height:16px}
+#world,#hint{font-size:11px;line-height:13px}
+#world{margin-top:2px;color:var(--muted)}
+#hint{margin-top:2px;color:var(--accent)}
+.hold-key{position:absolute;top:22px;right:16px;width:34px;height:28px;padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:11px}
+.invite[data-click] .hold-key{width:56px}
+.hold-key span{position:relative}
+#fill{position:absolute;bottom:0;left:0;width:100%;height:0;background:var(--accent);opacity:.36}
+.dismiss{position:absolute;top:2px;right:3px;color:var(--muted);width:18px;height:18px;display:flex;justify-content:center;align-items:center;font-size:15px;line-height:1}
+.countdown{position:absolute;left:10px;right:10px;bottom:6px;height:2px;overflow:hidden;border-radius:1px}
+#remaining{height:2px;background:var(--accent)}
+</style>
+</head>
+<body class="gleam-hud">
+<article class="invite gleam-hud-panel" id="card">
+  <div class="main">
+    <div class="face"><img id="avatar" alt="" hidden><b id="initial"></b></div>
+    <div class="copy"><div id="title"></div><div id="world"></div><div id="hint"></div></div>
+  </div>
+  <div class="hold-key gleam-hud-key" id="key"><i id="fill"></i><span id="keyLabel">Y</span></div>
+  <div class="dismiss" aria-hidden="true">×</div>
+  <div class="countdown gleam-hud-divider"><div id="remaining"></div></div>
+</article>
+<script>
+const $ = id => document.getElementById(id);
+window.paradox = {
+  update(state) {
+    document.documentElement.toggleAttribute('data-light',state.light);
+    for (const key of ['title','world','hint','initial','keyLabel']) $(key).textContent = state[key];
+    $('avatar').hidden = !state.avatar;
+    $('initial').hidden = !!state.avatar;
+    if (state.avatar) {
+      const src = 'assets/' + state.avatar + '.png';
+      if ($('avatar').getAttribute('src') !== src) $('avatar').setAttribute('src',src);
+    }
+    $('key').hidden = !state.key;
+    $('card').toggleAttribute('data-click',state.key && !state.keyboard);
+    $('key').toggleAttribute('data-holding',state.hold > 0);
+    $('fill').style.setProperty('height',state.hold * 100 + '%');
+    $('remaining').style.setProperty('width',state.remaining * 100 + '%');
+    $('card').style.setProperty('opacity',String(state.opacity));
+    $('card').style.setProperty('transform','translateY(' + state.offset + 'px)');
+  }
+};
+</script>
+</body>
+</html>

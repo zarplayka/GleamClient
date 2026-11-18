@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -43,7 +45,7 @@ public final class OrionBlockHighlight {
             else box = blend(box, target, 1.0 - Math.exp(-config.getBlockHighlightMoveSpeed() * dt));
         }
         if (box == null || opacity < 0.01F) return;
-        Vec3 camera = client.gameRenderer.mainCamera().position();
+        Vec3 camera = GleamMinecraft.camera(client).position();
         AABB relative = box.move(-camera.x, -camera.y, -camera.z);
         int rgb = OrionRainbow.orElse(OrionWorldChanger.parseOpaqueColor(configManager.getConfig().getBlockHighlightColor()));
         int color = ARGB.color(Math.round(opacity * 255 * config.getBlockHighlightOpacity() / 100F), ARGB.red(rgb), ARGB.green(rgb), ARGB.blue(rgb));

@@ -27,6 +27,9 @@ public final class OrionBasketballHands {
    }
 
    public static boolean renderHands(float var0, PoseStack var1, SubmitNodeCollector var2, LocalPlayer var3, int var4) {
+      //? if <26.1 {
+      /*return GleamBasketballHands.render(var0, var1, var2, var3, var4);
+      *///?} else {
       OrionBasketballSettings var5 = OrionBasketballSettings.get();
       if (var5.basket && var5.basketHands && OrionBasketballController.localHolding() && var3 != null) {
          Minecraft var6 = Minecraft.getInstance();
@@ -47,6 +50,7 @@ public final class OrionBasketballHands {
       } else {
          return false;
       }
+      //?}
    }
 
    private static void helper92(PoseStack var0, SubmitNodeCollector var1, int var2, Identifier var3, boolean var4, float var5) {
@@ -91,7 +95,7 @@ public final class OrionBasketballHands {
          float var18 = (float)Math.clamp(var14, 0.35, 1.05);
          var0.pushPose();
          var0.translate(var6.x, var6.y, var6.z);
-         var0.rotate(new Quaternionf().rotationTo(0.0F, -1.0F, 0.0F, (float)(var8 / var14), (float)(var10 / var14), (float)(var12 / var14)));
+         ru.orion.client.render.GleamPose.rotate(var0, new Quaternionf().rotationTo(0.0F, -1.0F, 0.0F, (float)(var8 / var14), (float)(var10 / var14), (float)(var12 / var14)));
          var0.translate(0.0F, -var18 * 0.5F, 0.0F);
          float var19 = var18 * 0.5F;
          int var20 = var5 ? 40 : 32;
@@ -116,8 +120,8 @@ public final class OrionBasketballHands {
    private static void helper95(PoseStack var0, SubmitNodeCollector var1, int var2, Vec3 var3, double var4) {
       var0.pushPose();
       var0.translate(var3.x, var3.y, var3.z);
-      var0.rotate(Axis.YP.rotationDegrees(28.0F));
-      var0.rotate(Axis.XP.rotationDegrees(-16.0F));
+      ru.orion.client.render.GleamPose.rotate(var0, Axis.YP.rotationDegrees(28.0F));
+      ru.orion.client.render.GleamPose.rotate(var0, Axis.XP.rotationDegrees(-16.0F));
       var0.scale((float)var4, (float)var4, (float)var4);
       var1.submitCustomGeometry(
          var0,

@@ -1,15 +1,32 @@
 #version 330
 #extension GL_ARB_separate_shader_objects : require
+//? if >=26.3 {
 layout(std140) uniform DynamicTransforms {
     mat4 ModelViewMat;
     mat4 TextureMat;
     vec4 ColorModulator;
     vec3 ModelOffset;
 };
+//?} else {
+/*layout(std140) uniform DynamicTransforms {
+    mat4 ModelViewMat;
+    vec4 ColorModulator;
+    vec3 ModelOffset;
+    mat4 TextureMat;
+};
+*///?}
 uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
+//? if >=26.3 {
 layout(location = 0) in vec2 texCoord;
+//?} else {
+/*in vec2 texCoord;
+*///?}
+//? if >=26.3 {
 layout(location = 0) out vec4 fragColor;
+//?} else {
+/*out vec4 fragColor;
+*///?}
 vec3 positionAt(vec2 uv, float depth) {
     vec2 ndc = uv * 2.0 - 1.0;
     ndc.y *= ModelOffset.y;
@@ -27,7 +44,11 @@ void main() {
     fragColor = vec4(0.0);
     vec2 uv = texCoord;
     float depth = texture(Sampler1, uv).r;
+    //? if >=26.2 {
     if (depth <= 0.000001 || ColorModulator.x <= 0.0001) return;
+    //?} else {
+    /*if (depth >= 0.999999 || ColorModulator.x <= 0.0001) return;
+    *///?}
     vec2 pixel = 1.0 / vec2(textureSize(Sampler1, 0));
     vec3 p = positionAt(uv, depth);
     if (p.z >= -0.05 || length(p) > 180.0) return;
@@ -57,7 +78,11 @@ void main() {
         vec2 sampleUv = projected(q);
         if (any(lessThan(sampleUv, vec2(0.01))) || any(greaterThan(sampleUv, vec2(0.99)))) break;
         float sceneDepth = texture(Sampler1, sampleUv).r;
+        //? if >=26.2 {
         if (sceneDepth > 0.000001) {
+        //?} else {
+        /*if (sceneDepth < 0.999999) {
+        *///?}
             vec3 scenePosition = positionAt(sampleUv, sceneDepth);
             float delta = scenePosition.z - q.z;
             float thickness = max(0.08, -q.z * 0.025);

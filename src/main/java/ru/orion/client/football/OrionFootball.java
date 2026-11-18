@@ -1,5 +1,7 @@
 package ru.orion.client.football;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -39,7 +41,7 @@ public final class OrionFootball {
     private boolean loaded,ballExists,placing,charging,spinCharge,suppressRelease,shotActive,shotSaved;
     private ClientLevel level;private String worldKey;
     private int movingIndex=-1,shots,score,saves,misses;
-    private long chargeAt,goalAt,netAt,lastSound,shotAt,kickAt,lastDribble;
+    private long chargeAt,goalAt,netAt,lastSound,shotAt,kickAt;
     private float yawOffset,oldRoll,newRoll;private OrionFootballGoal preview;
     private OrionBasketballVector previous=OrionBasketballVector.ZERO,current=OrionBasketballVector.ZERO;
     private KeyMapping ballKey,goalKey,moveKey,removeKey,keeperKey,rotateLeft,rotateRight,penaltyKey;
@@ -52,7 +54,11 @@ public final class OrionFootball {
         storage.load(map->{stored=map;loaded=true;worldKey=null;});
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);LevelRenderEvents.COLLECT_SUBMITS.register(this::render);
     }
+    //? if >=26.3 {
     private static KeyMapping key(String id,int defaultKey){return KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.football."+id,InputConstants.Type.KEYBOARD,defaultKey,CATEGORY));}
+    //?} else {
+        /*private static KeyMapping key(String id,int defaultKey){return KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.football."+id,InputConstants.Type.KEYSYM,defaultKey,CATEGORY));}
+    *///?}
     public KeyMapping getBallKey() { return ballKey; }
     public KeyMapping getGoalKey() { return goalKey; }
     public KeyMapping getMoveKey() { return moveKey; }
@@ -93,7 +99,7 @@ public final class OrionFootball {
             clear();level=client.level;worldKey=key;
             if(loaded){List<OrionFootballGoal> saved=stored.get(key);if(saved!=null)for(var goal:saved)if(goal!=null&&goals.size()<32)addGoal(goal);}
         }
-        if(client.gui.screen()!=null){charging=false;drain();return;}
+        if(GleamMinecraft.screen(client)!=null){charging=false;drain();return;}
         if (match.active()) {
             ballExists = placing = false;
             if (!match.playable()) charging = false;
@@ -105,7 +111,7 @@ public final class OrionFootball {
             if(!loaded){message(client,"Дождитесь загрузки ворот");continue;}
             if(!placing){
                 placing=true;movingIndex=-1;yawOffset=0;
-                client.gui.hud.getChat().addClientSystemMessage(Component.literal("[Футбол] Наведи на землю и нажми ")
+                GleamMinecraft.addChatMessage(client, Component.literal("[Футбол] Наведи на землю и нажми ")
                         .withStyle(ChatFormatting.WHITE)
                         .append(Component.literal(goalKey.getTranslatedKeyMessage().getString()).withStyle(ChatFormatting.GOLD))
                         .append(" ещё раз"));
@@ -122,22 +128,14 @@ public final class OrionFootball {
         for(var keeper:keepers){keeper.setEnabled(config.isFootballGoalkeeperEnabled());keeper.setDifficulty(OrionGoalkeeperAI.Difficulty.values()[config.getFootballGoalkeeperDifficulty()]);}
         if(ballExists){
             previous=ball.position();oldRoll=newRoll;
-            var result=ball.advance(.05,new OrionFootballWorld(client.level),goals,keepers,(kind,p,speed)->sound(client,kind,p,speed));
+            var bodies = client.player.isSpectator() ? List.<OrionFootballPhysics.PlayerBody>of()
+                    : List.of(OrionFootballWorld.playerBody(client.player, OrionBasketballVector.ZERO));
+            var result=ball.advance(.05,new OrionFootballWorld(client.level),goals,keepers,bodies,(kind,p,speed)->sound(client,kind,p,speed));
             current=ball.position();newRoll=(float)ball.roll();
             if(result.goals()>0){score+=result.goals();goalAt=System.nanoTime();shotActive=false;client.level.playLocalSound(current.x(),current.y(),current.z(),SoundEvents.NOTE_BLOCK_PLING.value(),SoundSource.PLAYERS,.7F,1.4F,false);}
             if(result.saves()>0 && shotActive && !shotSaved){saves++;shotSaved=true;shotActive=false;}
             if(shotActive && System.nanoTime()-shotAt>4_000_000_000L){misses++;shotActive=false;}
-            if(!charging)dribble(client);
         }
-    }
-    private void dribble(Minecraft client){
-        long now=System.nanoTime();if(now-lastDribble<250_000_000L)return;
-        Vec3 point=client.player.position();OrionBasketballVector diff=current.subtract(new OrionBasketballVector(point.x,point.y,point.z));
-        Vec3 velocity=client.player.getDeltaMovement();if(diff.lengthSquared()>1.2||velocity.horizontalDistance()<.015||Math.abs(diff.y())>.9)return;
-        Vec3 motion=new Vec3(velocity.x,0,velocity.z).normalize();
-        if(diff.x()*motion.x+diff.z()*motion.z<-.10)return;
-        double power=Math.min(2.5,.6+velocity.horizontalDistance()*12);
-        ball.kick(new OrionBasketballVector(motion.x*power,.08,motion.z*power),new OrionBasketballVector(-motion.z*8,0,motion.x*8));lastDribble=now;kickAt=now;
     }
     private void resetBall(Minecraft client){
         if(manager.getConfig().isFootballPenaltyMode()&&!goals.isEmpty()){setupPenalty(client);return;}
@@ -171,7 +169,7 @@ public final class OrionFootball {
     public boolean button(int button,boolean press,boolean shift){Minecraft c=Minecraft.getInstance();
         if(button==InputConstants.MOUSE_BUTTON_RIGHT&&!press&&suppressRelease){suppressRelease=false;if(!charging)return true;}
         if(!manager.getConfig().isFootballEnabled()||!(match.active() ? match.playable() : ballExists)
-                ||c.player==null||c.level==null||c.gui.screen()!=null)return false;
+                ||c.player==null||c.level==null||GleamMinecraft.screen(c)!=null)return false;
         if(OrionClient.getBasketballOrNull()!=null && OrionClient.getBasketballOrNull().holdingBall())return false;
         var p=c.player.position();
         boolean near = match.active() ? match.canReach(p)
@@ -201,7 +199,7 @@ public final class OrionFootball {
     private void sound(Minecraft c,OrionFootballPhysics.Contact kind,OrionBasketballVector p,double speed){long now=System.nanoTime();if(kind==OrionFootballPhysics.Contact.NET)netAt=now;if(now-lastSound<100_000_000)return;lastSound=now;
         var sound=kind==OrionFootballPhysics.Contact.POST?SoundEvents.METAL_HIT:SoundEvents.WOOL_HIT;
         c.level.playLocalSound(p.x(),p.y(),p.z(),sound,SoundSource.PLAYERS,(float)Math.min(1,speed/8),.8F,false);}
-    private static void message(Minecraft c,String text){c.gui.hud.getChat().addClientSystemMessage(Component.literal("[Футбол] "+text));}
+    private static void message(Minecraft c,String text){GleamMinecraft.addChatMessage(c, Component.literal("[Футбол] "+text));}
     private void clear(){level=null;worldKey=null;goals.clear();keepers.clear();ballExists=false;placing=false;charging=false;shotActive=false;preview=null;score=shots=saves=misses=0;goalAt=netAt=0;}
     private void drain(){if(ballKey==null)return;for(var key:new KeyMapping[]{ballKey,goalKey,moveKey,removeKey,keeperKey,rotateLeft,rotateRight,penaltyKey})while(key.consumeClick()){} }
 }

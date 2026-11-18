@@ -1,5 +1,7 @@
 package ru.orion.client.basketball.engine;
 
+import ru.orion.client.GleamMinecraft;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
@@ -11,8 +13,8 @@ import net.minecraft.network.chat.Component;
 /** Общие обращения к клиенту через API целевой версии. */
 public final class OrionBasketballClientAccess {
     private OrionBasketballClientAccess() { }
-    public static Screen screen(Minecraft client) { return client.gui.screen(); }
-    public static void message(LocalPlayer player, Component message) { Minecraft.getInstance().gui.hud.setOverlayMessage(message,false); }
+    public static Screen screen(Minecraft client) { return GleamMinecraft.screen(client); }
+    public static void message(LocalPlayer player, Component message) { GleamMinecraft.setOverlayMessage(Minecraft.getInstance(), message,false); }
     public static int light(ClientLevel level, BlockPos position) {
         return level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK,position)<<4
                 | level.getBrightness(net.minecraft.world.level.LightLayer.SKY,position)<<20;

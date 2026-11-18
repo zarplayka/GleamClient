@@ -21,10 +21,13 @@
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Windows.SDK.Contracts" Version="10.0.26100.1" GeneratePathProperty="true" ExcludeAssets="all" PrivateAssets="all" />
     <Reference Include="System.Runtime" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web.Extensions" />
     <Reference Include="$(PkgMicrosoft_Windows_SDK_Contracts)/ref/netstandard2.0/*.winmd">
       <Private>false</Private>
     </Reference>
     <Compile Include="../../src/main/resources/assets/orion-client/orion-thumbnail.cs" Condition="'$(HelperName)' == 'OrionThumbnail'" />
     <Compile Include="../../src/main/resources/assets/orion-client/orion-volume.cs" Condition="'$(HelperName)' == 'OrionVolume'" />
+    <Compile Include="../../src/main/resources/assets/orion-client/gleam-beat.cs" Condition="'$(HelperName)' == 'OrionVolume'" />
   </ItemGroup>
 </Project>

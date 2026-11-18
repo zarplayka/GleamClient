@@ -1,14 +1,37 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.systems.RenderSystem;
+//? if >=26.3 {
 import com.mojang.renderpearl.api.pipeline.ColorTargetState;
 import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
+
+//?} else {
+/*//? if >=26.1 {
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+//?} else {
+/^
+^///?}
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.blaze3d.textures.GpuTextureView;
+
+*///?}
 import net.minecraft.client.Minecraft;
+//? if >=26.2 <26.3 {
+/*import com.mojang.blaze3d.PrimitiveTopology;
+*///?}
+//? if >=26.2 {
 import net.minecraft.client.renderer.BindGroupLayouts;
+//?} else {
+/*import com.mojang.blaze3d.shaders.UniformType;
+*///?}
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
@@ -31,12 +54,30 @@ public final class OrionMotionBlur {
                     .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/motion_blur"))
                     .withVertexShader("core/screenquad")
                     .withFragmentShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/motion_blur"))
+                    //? if >=26.2 {
                     .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+                    //?} else {
+                    /*.withVertexFormat(com.mojang.blaze3d.vertex.DefaultVertexFormat.EMPTY, com.mojang.blaze3d.vertex.VertexFormat.Mode.TRIANGLES)
+                    *///?}
                     .withCull(false)
+                    //? if >=26.1 {
                     .withDepthStencilState(Optional.empty())
+                    //?} else {
+                    /*.withDepthTestFunction(com.mojang.blaze3d.platform.DepthTestFunction.NO_DEPTH_TEST).withDepthWrite(false)
+                    *///?}
+                    //? if >=26.1 {
                     .withColorTargetState(ColorTargetState.DEFAULT)
+                    //?} else {
+                    /*.withoutBlend()
+                    *///?}
+                    //? if >=26.2 {
                     .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
-                    .withBindGroupLayout(BindGroupLayouts.SAMPLER0).build();
+                    .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+                    //?} else {
+                    /*.withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+                    .withSampler("Sampler0")
+                    *///?}
+                    .build();
     }
     private final OrionConfigManager configManager;
     // Регистрируем до первой загрузки ресурсов: кеш не компилирует pipeline по запросу.
@@ -54,15 +95,20 @@ public final class OrionMotionBlur {
     public void applyBeforeGui() {
         Minecraft client = Minecraft.getInstance();
         boolean active = configManager.getConfig().isMotionBlurEnabled() && client.player != null && client.level != null
-                && client.gameRenderer.gameRenderState().shouldRenderLevel && client.gui.screen() == null;
+                //? if >=26.3 {
+                && GleamMinecraft.shouldRenderLevel(client) && GleamMinecraft.screen(client) == null;
+                //?} else {
+                                /*&& GleamMinecraft.screen(client) == null;
+                *///?}
+
         if (!active) {
             lastNanos = 0; smoothX = smoothY = smoothSpeed = 0; lastPosition = null;
             release();
             return;
         }
         long now = System.nanoTime();
-        float yaw = client.gameRenderer.mainCamera().yRot(), pitch = client.gameRenderer.mainCamera().xRot();
-        Vec3 position = client.gameRenderer.mainCamera().position();
+        float yaw = GleamMinecraft.camera(client).yRot(), pitch = GleamMinecraft.camera(client).xRot();
+        Vec3 position = GleamMinecraft.camera(client).position();
         if (lastNanos == 0) { lastNanos = now; lastYaw = yaw; lastPitch = pitch; lastPosition = position; return; }
         float dt = Math.min(0.1F, Math.max(0.001F, (now-lastNanos)/1_000_000_000F));
         float speedX = Mth.clamp(Mth.wrapDegrees(yaw-lastYaw) / dt / 500F, -1, 1);
@@ -78,12 +124,12 @@ public final class OrionMotionBlur {
         blurY = Mth.clamp(smoothY * strength, -1, 1);
         radialBlur = Mth.clamp(smoothSpeed * strength, 0, 1);
         if (Math.abs(blurX) + Math.abs(blurY) + radialBlur < 0.015F) return;
-        var target = Minecraft.getInstance().gameRenderer.mainRenderTarget();
+        var target = GleamMinecraft.mainTarget(Minecraft.getInstance());
         GpuTexture source = target.getColorTexture();
         if (source == null || source.isClosed() || target.getColorTextureView() == null
                 || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0) return;
         try {
-            var compiled = RenderSystem.getCompiledPipelineNullable(pipeline);
+            var compiled = ru.orion.client.render.GleamGpu.pipelineOrNull(pipeline);
             if (compiled == null) {
                 warnShaderUnavailable(null);
                 return;
@@ -99,14 +145,32 @@ public final class OrionMotionBlur {
             }
             var encoder = RenderSystem.getDevice().createCommandEncoder();
             encoder.copyTextureToTexture(source, texture, 0, 0, 0, 0, 0, texture.getWidth(0), texture.getHeight(0));
+            //? if >=26.2 {
             var transforms = RenderSystem.getDynamicUniforms().writeTransform(new Matrix4f(),
                     new Vector4f(blurX, blurY, radialBlur, 1));
-            try (var pass = encoder.createRenderPass(() -> "Orion motion blur", target.getColorTextureView(), Optional.empty())) {
+            //?} else {
+            /*var transforms = RenderSystem.getDynamicUniforms().writeTransform(new Matrix4f(),
+                    new Vector4f(blurX, blurY, radialBlur, 1), new org.joml.Vector3f(), new Matrix4f());
+            *///?}
+            //? if >=26.2 {
+            try (var pass = encoder.createRenderPass(() -> "GleamClient motion blur", target.getColorTextureView(), Optional.empty())) {
+            //?} else {
+            /*try (var pass = encoder.createRenderPass(() -> "GleamClient motion blur", target.getColorTextureView(), java.util.OptionalInt.empty())) {
+            *///?}
                 pass.setPipeline(compiled);
                 pass.setUniform("DynamicTransforms", transforms);
+                //? if >=26.3 {
                 pass.setUniform("Sampler0", view, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+                //?} else {
+                                /*pass.bindTexture("Sampler0", view, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+                *///?}
+
                 pass.disableScissor();
+                //? if >=26.2 {
                 pass.draw(3, 1, 0, 0);
+                //?} else {
+                /*pass.draw(0, 3);
+                *///?}
             }
             shaderWarningLogged = false;
             // submit() выполняет сам движок в конце кадра: здесь нельзя вращать transient-memory.

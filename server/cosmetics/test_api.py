@@ -203,17 +203,32 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cosmetics_and_java_uuid_contract(self):
         player, headers, _ = await self.login()
-        response = await self.client.post("/v1/presence", headers=headers, json={"players": [player], "halo": True, "wings": 2})
+        response = await self.client.post("/v1/presence", headers=headers, json={"players": [player], "halo": True, "wings": 7, "pet": "moon_moth"})
         self.assertEqual(response.status, 200)
         result = await response.json()
         compact = uuid.UUID(player).hex
         self.assertEqual(result["online"], [compact])
         self.assertEqual(result["halos"], [compact])
-        self.assertEqual(result["wings"], {compact: 2})
+        self.assertEqual(result["wings"], {compact: 7})
+        self.assertEqual(result["pets"], {compact: "moon_moth"})
         self.assertGreater(result["revision"], 0)
         _, other, _ = await self.login("OtherProbe")
         response = await self.client.post("/v1/presence", headers=other, json={"players": [player], "halo": False, "wings": 0})
-        self.assertEqual((await response.json())["wings"], {compact: 2})
+        result = await response.json()
+        self.assertEqual(result["wings"], {compact: 7})
+        self.assertEqual(result["pets"], {compact: "moon_moth"})
+        for pet in ("snow_ferret", "space_slime", "tracked_scout", "bell_fawn", "gingerbread_pup"):
+            with self.subTest(pet=pet):
+                response = await self.client.post("/v1/presence", headers=headers, json={"pet": pet})
+                self.assertEqual(response.status, 200)
+                response = await self.client.post("/v1/presence", headers=other, json={"players": [player]})
+                self.assertEqual(response.status, 200)
+                result = await response.json()
+                self.assertEqual(result["pets"], {compact: pet})
+        response = await self.client.post("/v1/presence", headers=headers, json={"players": [player], "halo": True, "wings": 2, "pet": ""})
+        cleared = await response.json()
+        self.assertEqual(cleared["pets"], {})
+        self.assertGreater(cleared["revision"], result["revision"])
 
     async def test_signed_challenge_is_single_use(self):
         _, _, payload = await self.login()
@@ -314,18 +329,22 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
     async def test_emote_lifecycle_and_legacy_presence(self):
         player, headers, _ = await self.login()
         await self.client.post("/v1/presence", headers=headers, json={"players": []})
-        for invalid in (-1, 7, True, "1"):
+        for invalid in (-1, 10, True, "1"):
             response = await self.client.post("/v1/emote", headers=headers, json={"emote": invalid})
             self.assertEqual(response.status, 400)
         response = await self.client.post("/v1/emote", json={"emote": 1})
         self.assertEqual(response.status, 401)
         revision = self.app[STORE].revision
-        response = await self.client.post("/v1/emote", headers=headers, json={"emote": 4})
+        for emote in (7, 8, 9):
+            response = await self.client.post("/v1/emote", headers=headers, json={"emote": emote})
+            self.assertEqual(response.status, 200)
+            state = await (await self.client.post("/v1/presence", headers=headers, json={"players": [player]})).json()
+            self.assertEqual(state["emotes"][uuid.UUID(player).hex]["id"], emote)
         self.assertEqual(response.status, 200)
         self.assertGreater(self.app[STORE].revision, revision)
         self.now += 2
         state = await (await self.client.post("/v1/presence", headers=headers, json={"players": [player]})).json()
-        self.assertEqual(state["emotes"][uuid.UUID(player).hex]["id"], 4)
+        self.assertEqual(state["emotes"][uuid.UUID(player).hex]["id"], 9)
         self.assertEqual(state["emotes"][uuid.UUID(player).hex]["elapsed"], 2)
         self.now += 11
         state = await (await self.client.post("/v1/presence", headers=headers, json={"players": [player]})).json()
@@ -372,7 +391,8 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.get("/healthz")
         self.assertEqual((await response.json())["protocol"], 1)
         _, headers, _ = await self.login()
-        for payload in ({"players": ["bad"]}, {"players": [str(uuid.uuid4())] * 101}, {"players": [], "wings": 3}, {"players": [], "halo": "yes"}):
+        for payload in ({"players": ["bad"]}, {"players": [str(uuid.uuid4())] * 101}, {"players": [], "wings": 8},
+                        {"players": [], "halo": "yes"}, {"pet": "unknown"}, {"pet": ["moon_moth"]}):
             response = await self.client.post("/v1/presence", headers=headers, json=payload)
             self.assertEqual(response.status, 400)
         response = await self.client.post("/v1/presence", headers=headers, json={"padding": "x" * 70000})

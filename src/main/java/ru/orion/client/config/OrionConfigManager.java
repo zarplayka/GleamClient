@@ -19,12 +19,17 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
 
 public final class OrionConfigManager {
+    public void updateAnimatedLyrics(java.util.function.Consumer<GleamLyricsSettings> change) {
+        change.accept(config.getAnimatedLyrics());
+        config.getAnimatedLyrics().sanitize();
+        save();
+    }
     private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
     static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String CONFIG_FILE_NAME = "orion-client.json";
 
     private final Path configPath;
-    private OrionConfig config = OrionConfig.createDefault();
+    private volatile OrionConfig config = OrionConfig.createDefault();
     private OrionVisualPresets visualPresets;
     private OrionConfigLibrary configLibrary;
 
@@ -39,7 +44,15 @@ public final class OrionConfigManager {
 
     public void applyProfile(JsonObject profile) throws IOException {
         JsonObject combined = GSON.toJsonTree(config).getAsJsonObject();
-        OrionConfigLibrary.shareable(profile).entrySet().forEach(entry -> combined.add(entry.getKey(), entry.getValue()));
+        OrionConfigLibrary.shareable(profile).entrySet().forEach(entry -> {
+            String key = entry.getKey();
+            var value = entry.getValue();
+            if (key.equals("healthIndicatorOptions") || key.equals("armorIndicatorOptions") || key.equals("customGlint")) {
+                value.getAsJsonObject().entrySet().forEach(member -> combined.getAsJsonObject(key).add(member.getKey(), member.getValue()));
+            } else {
+                combined.add(key, value);
+            }
+        });
         OrionConfig replacement = GSON.fromJson(combined, OrionConfig.class);
         replacement.setAppliedVisualPreset("");
         replacement.setVisualPresetSelection("");
@@ -91,7 +104,7 @@ public final class OrionConfigManager {
             config = loadedConfig;
             save();
         } catch (Exception exception) {
-            LOGGER.warn("Failed to load Orion Client config. Restoring default config.", exception);
+            LOGGER.warn("Failed to load GleamClient config. Restoring default config.", exception);
             config = OrionConfig.createDefault();
             save();
         }
@@ -105,7 +118,7 @@ public final class OrionConfigManager {
                 GSON.toJson(config, writer);
             }
         } catch (IOException exception) {
-            LOGGER.error("Failed to save Orion Client config.", exception);
+            LOGGER.error("Failed to save GleamClient config.", exception);
         }
     }
 
@@ -121,6 +134,12 @@ public final class OrionConfigManager {
     public void setMirageEnabled(boolean value) { config.setMirageEnabled(value); save(); }
 
     public void setZoomEnabled(boolean value) { config.setZoomEnabled(value); save(); }
+    public void setCosmeticPet(String id) {
+        config.setCosmeticPet(id);
+        save();
+        ru.orion.client.effect.OrionBadgePresence.requestRefresh();
+    }
+
     public void setHaloEnabled(boolean value) {
         config.setHaloEnabled(value);
         save();
@@ -272,6 +291,9 @@ public final class OrionConfigManager {
     public void setEnchantGlintMode(int value) { config.setEnchantGlintMode(value); save(); }
     public void setInventoryHudEnabled(boolean value) { config.setInventoryHudEnabled(value); save(); }
     public void setSelfTagEnabled(boolean value) { config.setSelfTagEnabled(value); save(); }
+    public void setCleanWaterEnabled(boolean value) { config.setCleanWaterEnabled(value); save(); }
+    public void setNametagsEnabled(boolean value) { config.setNametagsEnabled(value); save(); }
+    public void setFreeLookEnabled(boolean value) { config.setFreeLookEnabled(value); save(); }
     public void setArmorIndicatorEnabled(boolean value) { config.setArmorIndicatorEnabled(value); save(); }
     public void setLockSlotEnabled(boolean value) { config.setLockSlotEnabled(value); save(); }
     public void setLockSlotMask(long value) { config.setLockSlotMask(value); save(); }

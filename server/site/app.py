@@ -6,6 +6,7 @@ import base64
 import binascii
 import smtplib
 import ssl
+import ipaddress
 from html import escape
 from collections import defaultdict, deque
 from contextlib import contextmanager
@@ -15,6 +16,7 @@ from aiohttp import ClientError, web
 from account_mail import account_mail
 from local_pricing import pricing_for_ip
 from profile_oauth import PROVIDERS, authorization_url, configuration, verified_identity
+import funpay_sales
 
 BASE = Path(__file__).resolve().parent
 DB_PATH = os.environ.get('ORION_SITE_DB', str(BASE / 'site.db'))
@@ -35,6 +37,10 @@ MAIL_QUEUE = web.AppKey('mail_queue', asyncio.Queue)
 FAKE_PUNISHMENTS = web.AppKey('fake_punishments', deque)
 FAKE_PUNISHMENT_EPOCH = web.AppKey('fake_punishment_epoch', str)
 LAUNCHER_REQUESTS = web.AppKey('launcher_requests', dict)
+CHAT_TRANSFERS = web.AppKey('chat_transfers', dict)
+WORLD_PRESENCE = web.AppKey('world_presence', dict)
+WORLD_INVITES = web.AppKey('world_invites', dict)
+WORLD_VERSIONS = frozenset(('1.21.11', '26.1.2', '26.2', '26.3'))
 MAIL_TOKEN = re.compile(r'[A-Za-z0-9_-]{43}')
 logger = logging.getLogger(__name__)
 
@@ -75,6 +81,14 @@ def init_db():
         db.execute('''CREATE TABLE IF NOT EXISTS game_settings (
             user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
             revision INTEGER NOT NULL, minecraft TEXT, modules TEXT
+        )''')
+        db.execute('''CREATE TABLE IF NOT EXISTS cosmetic_loadouts (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            slots TEXT NOT NULL
+        )''')
+        db.execute('''CREATE TABLE IF NOT EXISTS friend_appearances (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            skin TEXT NOT NULL, slim INTEGER NOT NULL
         )''')
         session_columns = {column['name'] for column in db.execute('PRAGMA table_info(sessions)')}
         if 'device' not in session_columns:
@@ -123,6 +137,8 @@ def init_db():
             user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
             encryption TEXT NOT NULL, signing TEXT NOT NULL
         )''')
+        if 'recovery' not in {column['name'] for column in db.execute('PRAGMA table_info(chat_keys)')}:
+            db.execute('ALTER TABLE chat_keys ADD COLUMN recovery TEXT')
         db.execute('''CREATE TABLE IF NOT EXISTS friend_message_reactions (
             message_id INTEGER NOT NULL REFERENCES friend_messages(id) ON DELETE CASCADE,
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -377,6 +393,48 @@ async def game_settings(request):
                 ON CONFLICT(user_id) DO UPDATE SET revision=excluded.revision,minecraft=excluded.minecraft,modules=excluded.modules''',
                 (user['id'], current['revision'], minecraft, modules))
     return web.json_response({'account_id': user['id'], **current}, dumps=lambda value: json.dumps(value, ensure_ascii=False))
+
+COSMETIC_PETS = {'', 'ember_fox', 'moon_moth', 'moss_turtle', 'rhm_tarnkappe',
+                 'snow_ferret', 'space_slime', 'tracked_scout', 'bell_fawn', 'gingerbread_pup'}
+
+COSMETIC_HATS = {'', 'santa_hat', 'fawn_hood', 'snowman_top_hat', 'gingerbread_house_hat', 'newsboy_cap', 'aviator_helmet', 'traveller_hat'}
+
+def valid_cosmetic_slots(slots):
+    if not isinstance(slots, dict): return False
+    for key, value in slots.items():
+        if key in ('halo', 'hat', 'dance') and type(value) is bool: continue
+        if key == 'wings' and value in ('', 'angel', 'dragon', 'midnight', 'evergreen', 'first_salvo', 'ash_phoenix', 'lunar_moth'): continue
+        if key == 'pet' and isinstance(value, str) and value in COSMETIC_PETS: continue
+        if key == 'headwear' and isinstance(value, str) and value in COSMETIC_HATS: continue
+        return False
+    return True
+
+async def cosmetic_loadout(request):
+    writing = request.method == 'POST'
+    user = auth_csrf(request) if writing else session(request)
+    if not user: return error('auth', 401)
+    if not limit(request, ('cosmetic-loadout', user['id']), 120, 60): return error('rate', 429)
+    if writing:
+        data = await json_body(request)
+        changes, defaults = data.get('changes', {}), data.get('defaults', {})
+        if (set(data) - {'changes', 'defaults'} or not (changes or defaults)
+                or not valid_cosmetic_slots(changes) or not valid_cosmetic_slots(defaults)):
+            return error('invalid')
+    with connect() as db:
+        if writing: db.execute('BEGIN IMMEDIATE')
+        row = db.execute('SELECT slots FROM cosmetic_loadouts WHERE user_id=?', (user['id'],)).fetchone()
+        slots = json.loads(row['slots']) if row else {}
+        if writing:
+            updated = defaults | slots | changes
+            if changes.get('hat') is True and 'headwear' in updated:
+                updated['headwear'] = ''
+            elif updated.get('headwear'):
+                updated['hat'] = False
+            if updated != slots:
+                db.execute('''INSERT INTO cosmetic_loadouts (user_id,slots) VALUES (?,?)
+                    ON CONFLICT(user_id) DO UPDATE SET slots=excluded.slots''', (user['id'], json.dumps(updated)))
+            slots = updated
+    return web.json_response({'slots': slots})
 
 async def me(request):
     return web.json_response(session_payload(request))
@@ -661,7 +719,9 @@ def plus_status(db, user):
     if user['role'] in ('owner', 'admin'):
         return True, None
     entitlement = db.execute('SELECT expires_at FROM plus_access WHERE user_id=?', (user['id'],)).fetchone()
-    expires_at = entitlement['expires_at'] if entitlement else None
+    expires_at = funpay_sales.plus_expiry(db, user['id'], entitlement['expires_at'] if entitlement else None)
+    if expires_at is not None and expires_at >= funpay_sales.PERMANENT:
+        return True, None
     return expires_at is not None and expires_at > int(time.time()), expires_at
 
 async def catalog_access(request):
@@ -742,14 +802,29 @@ async def friends_list(request):
     if not user: return error('auth', 401)
     uid = user['id']
     with connect() as db:
-        rows = db.execute('''SELECT u.username,
-            CASE WHEN u.role='member' AND u.is_media=1 THEN 'media' ELSE u.role END AS role,
+        columns = {column['name'] for column in db.execute('PRAGMA table_info(users)')}
+        role = "CASE WHEN u.role='member' AND u.is_media=1 THEN 'media' ELSE u.role END" if 'is_media' in columns else 'u.role'
+        rows = db.execute(f'''SELECT u.username, {role} AS role,
             CASE WHEN p.published=1 THEN p.public_id END AS public_id,
             CASE WHEN f.accepted=1 THEN 'friend' WHEN f.sender_id=:uid THEN 'outgoing' ELSE 'incoming' END AS status
             FROM friendships f JOIN users u ON u.id=CASE WHEN f.low_id=:uid THEN f.high_id ELSE f.low_id END
             LEFT JOIN profiles p ON p.user_id=u.id
             WHERE f.low_id=:uid OR f.high_id=:uid ORDER BY u.username_key''', {'uid': uid}).fetchall()
-    return web.json_response({'items': [dict(row) for row in rows]})
+        items = [dict(row) for row in rows]
+        if request.query.get('appearance') == '1':
+            appearances = db.execute('''SELECT u.username,a.skin,a.slim,c.slots,p.avatar IS NOT NULL AS has_avatar
+                FROM friendships f JOIN users u ON u.id=CASE WHEN f.low_id=:uid THEN f.high_id ELSE f.low_id END
+                JOIN profiles p ON p.user_id=u.id AND p.published=1
+                LEFT JOIN friend_appearances a ON a.user_id=u.id
+                LEFT JOIN cosmetic_loadouts c ON c.user_id=u.id
+                WHERE f.accepted=1 AND (f.low_id=:uid OR f.high_id=:uid) AND u.banned_at IS NULL''', {'uid': uid}).fetchall()
+            by_name = {row['username']: row for row in appearances}
+            for item in items:
+                row = by_name.get(item['username'])
+                if row:
+                    item['appearance'] = {'skin': row['skin'], 'slim': bool(row['slim']), 'avatar': bool(row['has_avatar']),
+                                          'slots': json.loads(row['slots']) if row['slots'] else {}}
+    return web.json_response({'items': items}, dumps=lambda value: json.dumps(value, ensure_ascii=False))
 
 async def friends_update(request):
     user = auth_csrf(request)
@@ -757,6 +832,15 @@ async def friends_update(request):
     if not limit(request, 'friends-update', 50, 60): return error('rate', 429)
     data = await json_body(request)
     username, action = data.get('username'), data.get('action')
+    if action == 'appearance':
+        skin, slim = data.get('skin'), data.get('slim')
+        if not isinstance(skin, str) or not re.fullmatch(r'(?:[a-f0-9]{1,64})?', skin) or type(slim) is not bool:
+            return error('invalid')
+        with connect() as db:
+            db.execute('''INSERT INTO friend_appearances(user_id,skin,slim) VALUES (?,?,?)
+                ON CONFLICT(user_id) DO UPDATE SET skin=excluded.skin,slim=excluded.slim
+                WHERE skin<>excluded.skin OR slim<>excluded.slim''', (user['id'], skin, int(slim)))
+        return web.json_response({'ok': True})
     if not valid_username(username) or action not in ('request', 'accept', 'decline', 'cancel', 'remove'):
         return error('invalid')
     uid = user['id']
@@ -791,6 +875,200 @@ async def friends_update(request):
             db.execute('DELETE FROM friendships WHERE low_id=? AND high_id=?', pair)
     return web.json_response({'ok': True})
 
+
+def world_endpoint(request, data):
+    port, pin, addresses = data.get('port'), data.get('pin'), data.get('addresses')
+    if type(port) is not int or not 1024 <= port <= 65535 or not isinstance(pin, str) or not re.fullmatch(r'[0-9a-f]{64}', pin):
+        return None
+    if not isinstance(addresses, list) or len(addresses) > 8:
+        return None
+    result = []
+    local = []
+    observed = None
+    for index, raw in enumerate([request.headers.get('X-Real-IP', request.remote), *addresses]):
+        try:
+            if not isinstance(raw, str) or len(raw) > 45 or '%' in raw:
+                continue
+            ip = ipaddress.ip_address(raw)
+        except ValueError:
+            continue
+        if ip.is_global and not ip.is_multicast and not ip.is_reserved:
+            if index == 0:
+                observed = str(ip)
+            if str(ip) not in result:
+                result.append(str(ip))
+        elif index and (ip in ipaddress.ip_network('10.0.0.0/8') or ip in ipaddress.ip_network('172.16.0.0/12')
+                        or ip in ipaddress.ip_network('192.168.0.0/16')) and str(ip) not in local:
+            local.append(str(ip))
+    return {'port': port, 'pin': pin, 'addresses': result, 'observed': observed, 'local': local}
+
+
+def direct_ice_description(value):
+    return (isinstance(value, str) and len(value) <= 3000 and value.isascii()
+            and value.startswith('v=0\r\n') and '\r\nm=application ' in value
+            and '\r\na=fingerprint:' in value
+            and not any(line.startswith('a=candidate:') and ' typ relay' in line for line in value.splitlines()))
+
+
+async def friend_worlds(request):
+    writing = request.method == 'POST'
+    user = auth_csrf(request) if writing else session(request)
+    if not user:
+        return error('auth', 401)
+    if not limit(request, 'friend-worlds-write' if writing else 'friend-worlds-read', 100 if writing else 140, 60):
+        return error('rate', 429)
+    data = await json_body(request) if writing else {}
+    uid, now = user['id'], time.monotonic()
+    presence, invites = request.app[WORLD_PRESENCE], request.app[WORLD_INVITES]
+    for key, entry in list(presence.items()):
+        if entry['until'] <= now:
+            del presence[key]
+    with connect() as db:
+        rows = db.execute('''SELECT u.id,u.username,CASE WHEN p.published=1 THEN p.public_id END AS public_id
+            FROM friendships f JOIN users u ON u.id=CASE WHEN f.low_id=:uid THEN f.high_id ELSE f.low_id END
+            LEFT JOIN profiles p ON p.user_id=u.id WHERE (f.low_id=:uid OR f.high_id=:uid)
+            AND f.accepted=1 AND u.banned_at IS NULL''', {'uid': uid}).fetchall()
+    friends = {row['id']: row for row in rows}
+    for key, entry in list(invites.items()):
+        open_world = presence.get((entry['host'], 'game'), {}).get('game')
+        if entry['until'] <= now or not open_world:
+            del invites[key]
+        elif uid in (entry['host'], entry['guest']) and (entry['guest'] if uid == entry['host'] else entry['host']) not in friends:
+            del invites[key]
+    action = data.get('action')
+    retry_id = None
+    if action == 'presence':
+        device = data.get('device')
+        if device not in ('launcher', 'game'):
+            return error('invalid')
+        entry = {'until': now + 15}
+        world = data.get('world')
+        if device == 'game' and world is not None:
+            version, name = data.get('version'), data.get('world')
+            endpoint = world_endpoint(request, data)
+            if not endpoint or not isinstance(version, str) or version not in WORLD_VERSIONS \
+                    or not isinstance(name, str) or not 1 <= len(name) <= 80 or not name.isprintable():
+                return error('invalid')
+            entry['game'] = {'world': name, 'version': version, 'offline': data.get('offline') is True,
+                             'endpoint': endpoint, 'directIce': data.get('directIce') is True}
+        previous = presence.get((uid, device), {})
+        old = previous.get('game')
+        current = entry.get('game')
+        if device == 'game' and old and (not current or old['endpoint']['pin'] != current['endpoint']['pin']):
+            for key, invite in list(invites.items()):
+                if invite['host'] == uid:
+                    del invites[key]
+        elif old and current and old['offline'] != current['offline']:
+            for invite in invites.values():
+                if invite['host'] == uid:
+                    invite['world'] = current
+        presence[uid, device] = entry
+        if current:
+            for invite in invites.values():
+                if invite['host'] == uid and invite['state'] == 'connected':
+                    invite['until'] = now + 15
+    elif action == 'invite':
+        name = data.get('username')
+        guest = next((row['id'] for row in friends.values() if row['username'] == name), None)
+        world = presence.get((uid, 'game'), {}).get('game')
+        if guest is None or not world:
+            return error('world_unavailable', 409)
+        if not limit(request, 'friend-world-invite', 12, 60):
+            return error('rate', 429)
+        if len(invites) >= 2000 or sum(entry['host'] == uid for entry in invites.values()) >= 12:
+            return error('rate', 429)
+        if any(e['host'] == uid and e['guest'] == guest and e['state'] != 'pending' for e in invites.values()):
+            return error('world_unavailable', 409)
+        for key, entry in list(invites.items()):
+            if entry['host'] == uid and entry['guest'] == guest:
+                del invites[key]
+        invites[secrets.token_urlsafe(24)] = {'host': uid, 'guest': guest, 'world': world,
+                                             'state': 'pending', 'until': now + 15}
+    elif action in ('reserve', 'accept', 'ice-answer', 'retry', 'connected', 'decline', 'cancel', 'finish'):
+        key = data.get('id')
+        entry = invites.get(key) if isinstance(key, str) else None
+        if not entry:
+            return error('world_expired', 409)
+        host, guest = entry['host'] == uid, entry['guest'] == uid
+        if action == 'reserve' and guest and entry['state'] == 'pending':
+            entry.update(state='reserved', until=now + 180, autojoin=data.get('autojoin') is True)
+        elif action == 'accept' and guest and entry['state'] in ('pending', 'reserved'):
+            endpoint = world_endpoint(request, data)
+            name, offline = data.get('name'), data.get('offline') is True
+            if not endpoint or not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9_]{1,16}', name):
+                return error('invalid')
+            if offline and not entry['world']['offline']:
+                return error('world_license', 409)
+            offer = data.get('iceOffer')
+            if offer is not None:
+                if not direct_ice_description(offer):
+                    return error('invalid')
+                if entry['world'].get('directIce'):
+                    entry['iceOffer'] = offer
+            entry.update(state='accepted', until=now + 180, endpoint=endpoint, name=name, offline=offline)
+        elif action == 'ice-answer' and host and entry['state'] == 'accepted' and 'iceOffer' in entry:
+            answer = data.get('iceAnswer')
+            if not direct_ice_description(answer) or entry.get('iceAnswer', answer) != answer:
+                return error('invalid')
+            entry['iceAnswer'] = answer
+        elif action == 'retry' and guest and entry['state'] == 'accepted':
+            retry_id = secrets.token_urlsafe(24)
+            invites[retry_id] = {'host': entry['host'], 'guest': uid, 'world': entry['world'],
+                                 'state': 'reserved', 'until': now + 180, 'autojoin': False}
+            del invites[key]
+        elif action == 'connected' and host and entry['state'] == 'accepted':
+            entry.update(state='connected', until=now + 15)
+        elif ((action == 'decline' and guest and entry['state'] in ('pending', 'reserved'))
+              or (action == 'cancel' and host) or (action == 'finish' and (host or guest) and entry['state'] in ('accepted', 'connected'))):
+            del invites[key]
+        else:
+            return error('world_expired', 409)
+    elif writing:
+        return error('invalid')
+
+    people = {}
+    for friend_id, row in friends.items():
+        game = presence.get((friend_id, 'game'))
+        launcher = presence.get((friend_id, 'launcher'))
+        world = game.get('game') if game else None
+        people[row['username']] = {
+            'status': 'world' if world else 'game' if game else 'launcher' if launcher else 'offline',
+            'world': world['world'] if world else None,
+            'version': world['version'] if world else None,
+        }
+    items = []
+    for key, entry in invites.items():
+        host = entry['host'] == uid
+        peer = friends.get(entry['guest'] if host else entry['host']) if host or entry['guest'] == uid else None
+        if peer is None:
+            continue
+        world = entry['world']
+        item = {'id': key, 'username': peer['username'], 'public_id': peer['public_id'],
+                'incoming': not host, 'state': entry['state'], 'remaining': max(0, int((entry['until'] - now) * 1000)),
+                'world': world['world'], 'version': world['version'], 'allowOffline': world['offline']}
+        if world.get('directIce'):
+            item['directIce'] = True
+        if not host and entry['state'] == 'reserved':
+            item['autojoin'] = entry.get('autojoin', False)
+        if entry['state'] == 'accepted' and request.query.get('transport') == '1':
+            remote, own = (entry['endpoint'], world['endpoint']) if host else (world['endpoint'], entry['endpoint'])
+            same_network = own['observed'] and own['observed'] == remote['observed']
+            item['endpoint'] = {'port': remote['port'], 'pin': remote['pin'],
+                                'addresses': (remote['local'] if same_network else []) + remote['addresses']}
+            item['player'] = entry['name']
+            item['offline'] = entry['offline']
+            if host:
+                item['guestId'] = entry['guest']
+                if 'iceOffer' in entry:
+                    item['iceOffer'] = entry['iceOffer']
+            elif 'iceAnswer' in entry:
+                item['iceAnswer'] = entry['iceAnswer']
+        items.append(item)
+    response = {'items': items, 'people': people, 'hosting': 'game' in presence.get((uid, 'game'), {})}
+    if retry_id is not None:
+        response['retryId'] = retry_id
+    return web.json_response(response)
+
 async def chat_keys(request):
     writing = request.method == 'POST'
     user = auth_csrf(request) if writing else session(request)
@@ -807,7 +1085,7 @@ async def chat_keys(request):
         except (ValueError, binascii.Error):
             return error('invalid')
         with connect() as db:
-            db.execute('INSERT OR IGNORE INTO chat_keys VALUES (?,?,?)', (uid, *keys))
+            db.execute('INSERT OR IGNORE INTO chat_keys(user_id,encryption,signing) VALUES (?,?,?)', (uid, *keys))
             row = db.execute('SELECT encryption,signing FROM chat_keys WHERE user_id=?', (uid,)).fetchone()
             if tuple(row) != keys: return error('chat_device', 409)
         return web.json_response({'ok': True})
@@ -820,6 +1098,73 @@ async def chat_keys(request):
                          (uid, uid, peer.lower())).fetchone()
     if not row: return error('chat_key_missing', 404)
     return web.json_response(dict(row), headers={'Cache-Control': 'no-store'})
+
+async def chat_recovery(request):
+    writing = request.method == 'POST'
+    user = auth_csrf(request) if writing else session(request)
+    if not user: return error('auth', 401)
+    if not limit(request, 'chat-recovery', 30, 60): return error('rate', 429)
+    uid = user['id']
+    if writing:
+        data = await json_body(request)
+        backup = data.get('backup')
+        if not isinstance(backup, str) or len(backup) > 3800: return error('invalid')
+        try:
+            packet = base64.b64decode(backup, validate=True)
+            if not 1700 <= len(packet) <= 2850 or packet[0] != 1: return error('invalid')
+        except (ValueError, binascii.Error):
+            return error('invalid')
+        with connect() as db:
+            db.execute('UPDATE chat_keys SET recovery=? WHERE user_id=? AND recovery IS NULL', (backup, uid))
+            stored = db.execute('SELECT recovery FROM chat_keys WHERE user_id=?', (uid,)).fetchone()
+            if not stored: return error('chat_key_missing', 409)
+            if stored['recovery'] != backup: return error('chat_recovery_exists', 409)
+        return web.json_response({'ok': True})
+    with connect() as db:
+        row = db.execute('SELECT encryption,signing,recovery AS backup FROM chat_keys WHERE user_id=?', (uid,)).fetchone()
+    return web.json_response(dict(row) if row else {})
+
+async def chat_transfer(request):
+    user = auth_csrf(request)
+    if not user: return error('auth', 401)
+    data = await json_body(request)
+    action, key = data.get('action'), data.get('id')
+    if action not in ('start', 'approve', 'poll', 'cancel') or not isinstance(key, str) or not re.fullmatch(r'[0-9a-f]{64}', key):
+        return error('invalid')
+    if not limit(request, 'chat-transfer-'+action, 75 if action == 'poll' else 12, 60):
+        return error('rate', 429)
+    transfers, now = request.app[CHAT_TRANSFERS], time.monotonic()
+    for stale in [key for key, item in transfers.items() if item['expires'] <= now]:
+        del transfers[stale]
+    scope = (user['id'], key)
+    session_id = digest(request.cookies[COOKIE])
+    entry = transfers.get(scope)
+    if action == 'start':
+        if entry or sum(uid == user['id'] for uid, _ in transfers) >= 5 or len(transfers) >= 1024:
+            return error('chat_transfer_busy', 409)
+        with connect() as db:
+            if not db.execute('SELECT 1 FROM chat_keys WHERE user_id=?', (user['id'],)).fetchone():
+                return error('chat_key_missing', 409)
+        transfers[scope] = {'expires': now + 300, 'session': session_id, 'backup': None}
+        return web.json_response({'ok': True})
+    if not entry: return error('chat_transfer_expired', 404)
+    if action == 'approve':
+        if entry['session'] == session_id: return error('chat_transfer_same_session', 409)
+        backup = data.get('backup')
+        if not isinstance(backup, str) or len(backup) > 3800: return error('invalid')
+        try:
+            packet = base64.b64decode(backup, validate=True)
+            if not 1700 <= len(packet) <= 2850 or packet[0] != 2: return error('invalid')
+        except (ValueError, binascii.Error):
+            return error('invalid')
+        if entry['backup'] is not None: return error('chat_transfer_busy', 409)
+        entry['backup'] = backup
+        return web.json_response({'ok': True})
+    if entry['session'] != session_id: return error('auth', 401)
+    if action == 'cancel':
+        del transfers[scope]
+        return web.json_response({'ok': True})
+    return web.json_response({'backup': entry['backup']})
 
 async def chat_updates(request):
     user = session(request)
@@ -1315,24 +1660,37 @@ async def account_page(request): return web.FileResponse(BASE/'static'/'account.
 async def health(request): return web.json_response({'status':'ok','service':'orion-site'})
 def create_app():
     init_db(); app=web.Application(middlewares=[security],client_max_size=4096)
+    with connect() as db:
+        funpay_sales.initialize(db)
+    app.add_routes(funpay_sales.routes(connect, session, auth_csrf, limit, json_body, error))
     app[FAKE_PUNISHMENTS] = deque(maxlen=256)
     app[FAKE_PUNISHMENT_EPOCH] = secrets.token_hex(8)
     app[LAUNCHER_REQUESTS] = {}
+    app[CHAT_TRANSFERS] = {}
+    app[WORLD_PRESENCE] = {}
+    app[WORLD_INVITES] = {}
     app.router.add_post('/api/launcher-auth/start', launcher_start)
     app.router.add_post('/api/launcher-auth/approve', launcher_approve)
     app.router.add_post('/api/launcher-auth/poll', launcher_poll)
     app.router.add_get('/api/game-settings', game_settings)
     app.router.add_post('/api/game-settings', game_settings)
+    app.router.add_get('/api/cosmetic-loadout', cosmetic_loadout)
+    app.router.add_post('/api/cosmetic-loadout', cosmetic_loadout)
     app.add_routes([web.get('/',index),web.get('/account',account_page),web.get('/health',health),web.get('/api/me',me),web.post('/api/register',register),web.post('/api/login',login),web.post('/api/logout',logout),web.post('/api/orders',order),web.post('/api/password',password_change),web.static('/static/',BASE/'static',show_index=False)])
     app.router.add_post('/api/email', update_email)
     app.router.add_get('/api/profile-page', profile_page)
     app.router.add_get('/auth.html', profile_page)
     app.router.add_get('/api/friends', friends_list)
     app.router.add_post('/api/friends', friends_update)
+    app.router.add_get('/api/friend-worlds', friend_worlds)
+    app.router.add_post('/api/friend-worlds', friend_worlds)
     app.router.add_get('/api/friends/{username}/chat', friend_chat)
     app.router.add_post('/api/friends/{username}/chat', friend_chat)
     app.router.add_post('/api/chat/keys', chat_keys)
     app.router.add_get('/api/chat/keys/{username}', chat_keys)
+    app.router.add_route('GET', '/api/chat/recovery', chat_recovery)
+    app.router.add_route('POST', '/api/chat/recovery', chat_recovery)
+    app.router.add_post('/api/chat/transfer', chat_transfer)
     app.router.add_get('/api/chat/updates', chat_updates)
     app.router.add_get('/api/admin/accounts', admin_accounts)
     app.router.add_post('/api/admin/accounts', admin_update)

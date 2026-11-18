@@ -1,5 +1,7 @@
 package ru.orion.client.effect;
 
+import ru.orion.client.GleamMinecraft;
+
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -183,8 +185,8 @@ public final class OrionDamageIndicators {
         Minecraft client = Minecraft.getInstance();
         OrionConfig config = configManager.getConfig();
         if (!config.isDamageIndicatorsEnabled() || client.level == null || client.level != level || indicators.isEmpty()) return;
-        Vec3 camera = client.gameRenderer.mainCamera().position();
-        var cameraRotation = client.gameRenderer.mainCamera().rotation();
+        Vec3 camera = GleamMinecraft.camera(client).position();
+        var cameraRotation = GleamMinecraft.camera(client).rotation();
         int low = OrionWorldChanger.parseOpaqueColor(config.getDamageIndicatorsLowColor());
         int high = OrionWorldChanger.parseOpaqueColor(config.getDamageIndicatorsHighColor());
         long now = System.nanoTime();
@@ -208,7 +210,7 @@ public final class OrionDamageIndicators {
             float width = height * label.width() / label.height();
             stack.pushPose();
             stack.translate(pos.x, pos.y, pos.z);
-            stack.rotate(cameraRotation);
+            ru.orion.client.render.GleamPose.rotate(stack, cameraRotation);
             stack.translate(indicator.spread() * (1F + progress), 0, 0);
             context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.texturedDepthTested(label.id()),
                     (pose, vertices) -> quad(pose, vertices, width, height, color));

@@ -12,10 +12,12 @@ import ru.orion.client.effect.OrionLockSlot;
 
 @Mixin(MultiPlayerGameMode.class)
 public abstract class LockSlotDropMixin {
+    //? if >=26.3 {
     @Inject(method = "dropItem(Lnet/minecraft/client/player/LocalPlayer;Z)V", at = @At("HEAD"), cancellable = true)
     private void orion$protectHotbar(LocalPlayer player, boolean all, CallbackInfo callback) {
         if (OrionLockSlot.isLocked(player.getInventory().getSelectedSlot())) callback.cancel();
     }
+    //?}
     @Inject(method = "handleContainerInput(IIILnet/minecraft/world/inventory/ContainerInput;Lnet/minecraft/world/entity/player/Player;)V", at = @At("HEAD"), cancellable = true)
     private void orion$protectInventory(int id, int slot, int button, ContainerInput action, Player player, CallbackInfo callback) {
         if (action == ContainerInput.THROW && player.containerMenu.containerId == id && slot >= 0 && slot < player.containerMenu.slots.size()

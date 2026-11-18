@@ -1,5 +1,6 @@
 package ru.orion.client.mixin;
 
+//? if >=26.3 {
 import net.minecraft.client.renderer.feature.ItemFeatureRenderer;
 import net.minecraft.client.renderer.rendertype.OrionGlintRenderTypes;
 import net.minecraft.client.renderer.rendertype.RenderType;
@@ -24,3 +25,5 @@ public abstract class EnchantGlintItemMixin {
                 ? OrionGlintRenderTypes.item(material.sprite().atlasLocation(), material.layer().translucent(), true) : material.itemGlintSpecialRenderType();
     }
 }
+
+//?}

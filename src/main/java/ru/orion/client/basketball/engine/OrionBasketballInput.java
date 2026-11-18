@@ -12,8 +12,16 @@ public final class OrionBasketballInput {
     private OrionBasketballInput() { }
     public static void register() {
         var category=KeyMapping.Category.register(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"basketball"));
+        //? if >=26.3 {
         take=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.basketball.ball",InputConstants.Type.KEYBOARD,InputConstants.KEY_B,category));
+        //?} else {
+                /*take=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.basketball.ball",InputConstants.Type.KEYSYM,InputConstants.KEY_B,category));
+        *///?}
+        //? if >=26.3 {
         hoop=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.basketball.place",InputConstants.Type.KEYBOARD,InputConstants.KEY_N,category));
+        //?} else {
+                /*hoop=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.basketball.place",InputConstants.Type.KEYSYM,InputConstants.KEY_N,category));
+        *///?}
     }
     public static KeyMapping ballKey() { return take; }
     public static KeyMapping hoopKey() { return hoop; }
