@@ -1,0 +1,60 @@
+plugins {
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.21'
+}
+
+version = '0.2.0-alpha.1+mc1.21.4'
+base {
+    archivesName = 'orion-client'
+}
+
+dependencies {
+    minecraft 'com.mojang:minecraft:1.21.4'
+    mappings loom.officialMojangMappings()
+    modImplementation 'net.fabricmc:fabric-loader:0.19.5'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.119.4+1.21.4'
+}
+
+loom {
+    accessWidenerPath = file('src/main/resources/orion-client.accesswidener')
+}
+
+sourceSets.main.java {
+    srcDir '../../src/main/java'
+    // The frozen config in this port keeps its JSON schema and has no
+    // dependency on the newer game's cosmetic, emote or media classes.
+    exclude { it.file == rootProject.file('../../src/main/java/ru/orion/client/config/OrionConfig.java') }
+    include 'ru/orion/client/legacy/**'
+    include 'ru/orion/client/effect/OrionLegacy*.java'
+    include 'ru/orion/client/effect/OrionEspRenderTypes.java'
+    include 'ru/orion/client/effect/OrionWorldGeometry.java'
+    include 'ru/orion/client/effect/OrionRibbon.java'
+    include 'ru/orion/client/config/OrionConfig.java'
+    include 'ru/orion/client/gui/OrionBrandMark.java'
+    include 'ru/orion/client/hud/OrionGlassStyle.java'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+    from('../../LICENSE') {
+        rename { 'LICENSE_orion-client' }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+processResources {
+    from('../../src/main/resources') {
+        include 'assets/orion-client/textures/targetesp/**'
+    }
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand version: project.version
+    }
+}
