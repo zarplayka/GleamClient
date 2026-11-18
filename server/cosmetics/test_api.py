@@ -9,9 +9,63 @@ from aiohttp.test_utils import TestClient, TestServer
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from app import create_app, BASKETBALL, FOOTBALL, STORE, Store
+from basketball import BasketballRooms
+from football import FootballRooms
 
 def encode(value):
     return base64.urlsafe_b64encode(value).decode().rstrip("=")
+
+class RematchTests(unittest.TestCase):
+    def room(self, service, size):
+        self.now = 1000
+        service.clock = lambda: self.now
+        actors = [uuid.UUID(int=i + 1).hex for i in range(size * 2)]
+        created = service.handle(actors[0], {"action": "create", "scope": "a" * 64, "origin": [0, 64, 0], "size": size})
+        replies = [created] + [service.handle(actor, {"action": "join", "scope": "a" * 64,
+                    "code": created["code"], "position": [0, 64, 0]}) for actor in actors[1:]]
+        payloads = [{"action": "sync", "scope": "a" * 64, "code": created["code"], "key": reply["key"],
+                     "position": reply["spawn"], "round": 1} for reply in replies]
+        for actor, payload in zip(actors, payloads):
+            service.handle(actor, payload | {"ready": True})
+        self.now += 1
+        service.handle(actors[0], payloads[0])
+        return actors, payloads, service.rooms[created["code"]]
+
+    def test_ready_starts_another_match_in_same_party(self):
+        for sport in ("football", "basketball"):
+            for size in (1, 2):
+                with self.subTest(sport=sport, size=size):
+                    service = FootballRooms() if sport == "football" else BasketballRooms()
+                    actors, payloads, room = self.room(service, size)
+                    room.score = [4, 0] if sport == "football" else [10, 0]
+                    if sport == "football":
+                        frame = {"ball": [0, .5, 14.3], "velocity": [0, 0, 6], "roll": 0, "goal": 0}
+                    else:
+                        ball = service.balls[payloads[0]["code"]]
+                        ball.live_shot, ball.shooter = True, actors[0]
+                        frame = {"revision": ball.revision, "ball": [0, 3.05, 12], "velocity": [0, -4, 0],
+                                 "spin": [0, 0, 0], "turn": [0, 0, 0, 1], "goal": 0}
+                    finish = service.handle(actors[0], payloads[0] | {"frame": frame})
+                    self.assertEqual(finish["phase"], "finished")
+                    self.assertTrue(all(not member.ready for member in room.players.values()))
+                    old_round = finish["round"]
+                    members = {actor: member.key for actor, member in room.players.items()}
+                    first = service.handle(actors[0], payloads[0] | {"round": old_round, "ready": True})
+                    self.assertEqual(first["phase"], "finished")
+                    self.assertEqual(room.score, finish["score"])
+                    for actor, payload in zip(actors[1:], payloads[1:]):
+                        reply = service.handle(actor, payload | {"round": old_round, "ready": True})
+                    self.assertEqual(reply["phase"], "kickoff")
+                    self.assertEqual(reply["score"], [0, 0])
+                    self.assertEqual(reply["round"], old_round + 1)
+                    self.assertEqual({actor: member.key for actor, member in room.players.items()}, members)
+                    if sport == "basketball":
+                        self.assertEqual(reply["owner"], "")
+                        self.assertGreater(reply["ballRevision"], finish["ballRevision"])
+                    self.now += 1
+                    started = service.handle(actors[0], payloads[0] | {"round": reply["round"]})
+                    self.assertEqual(started["phase"], "play")
+                    self.assertEqual(started["score"], [0, 0])
 
 class ApiTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -64,14 +118,22 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.now += 1
         self.assertEqual((await self.basketball(host, red))["phase"], "play")
         blue["position"] = [0, 0, 1]
+        blue["look"] = [0, -.8, -.6]
         blue["round"] = 1
-        pickup = {"id": 1, "kind": "pickup"}
+        missed = await self.basketball(guest, blue | {"look": [0, 1, 0], "command": {"id": 1, "kind": "pickup"}})
+        self.assertEqual(missed["owner"], "")
+        self.now += .26
+        pickup = {"id": 2, "kind": "pickup"}
         result = await self.basketball(guest, blue | {"command": pickup})
         self.assertEqual(result["owner"], uuid.UUID(guest_id).hex)
         red["position"] = [0, 0, -.5]
         red["round"] = 1
         self.assertEqual((await self.basketball(host, red | {"command": pickup}))["owner"], uuid.UUID(guest_id).hex)
-        shot = {"id": 2, "kind": "shoot", "position": [0, 1.3, .4],
+        dribble = {"id": 3, "kind": "dribble"}
+        await self.basketball(guest, blue | {"command": dribble})
+        await self.basketball(guest, blue | {"held": [0, .31, .9]})
+        await self.basketball(guest, blue | {"held": [0, .31, .9]})
+        shot = {"id": 4, "kind": "shoot", "position": [0, 1.3, .4],
                 "velocity": [0, .2, -13], "spin": [6, 0, 0]}
         self.assertEqual((await self.basketball(host, red | {"command": shot}))["velocity"], [0, 0, 0])
         shot["kind"] = "pass"
@@ -82,12 +144,18 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.now += .4
         frame = {"revision": passed["ballRevision"], "ball": [0, .5, -2], "velocity": [0, -2, -12],
                  "spin": [5, 0, 0], "turn": [0, 0, 0, 1]}
-        await self.basketball(guest, blue | {"frame": frame})
+        frame["sounds"] = [{"id": 1, "kind": 0, "point": [0, .5, -2], "speed": 7}]
+        ignored = await self.basketball(guest, blue | {"frame": frame})
+        self.assertEqual([sound["kind"] for sound in ignored["sounds"]], [4, 6, 5])
         self.assertEqual(service.balls[room["code"]].point, [0, 1.3, .4])
         free = await self.basketball(host, red | {"frame": frame})
         self.assertEqual(free["ball"], [0, .5, -2])
         self.assertEqual(free["sport"], "basketball")
         self.assertEqual(free["score"], [0, 0])
+        await self.basketball(host, red | {"frame": frame})
+        heard = await self.basketball(guest, blue)
+        self.assertEqual([sound["kind"] for sound in heard["sounds"]], [4, 6, 5, 0])
+        self.assertEqual(heard["sounds"][-1]["point"], [0, .5, -2])
         await self.basketball(host, red | {"action": "leave"})
         await self.basketball(guest, blue, 404)
 
@@ -110,11 +178,20 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         ball.point, ball.velocity = [0, 3.2, 12], [0, -4, 0]
         ball.live_shot, ball.shooter, ball.points = True, uuid.UUID(players[2][0]).hex, 3
         self.now += .05
+        defender = payloads[1] | {"round": 1, "position": [0, 0, 12], "look": [0, 1, 0]}
+        for sequence in range(1, 4):
+            attempt = {"id": sequence, "kind": "pickup", "revision": ball.revision}
+            contested = await self.basketball(players[1][1], defender | {"command": attempt})
+            self.assertEqual(contested["owner"], "")
+            self.assertTrue(contested["liveShot"])
+            self.now += .26
         frame = {"revision": ball.revision, "ball": [0, 3.05, 12], "velocity": [0, -4, 0],
                  "spin": [0, 0, 0], "turn": [0, 0, 0, 1], "goal": 0}
         result = await self.basketball(players[0][1], payloads[0] | {"round": 1, "frame": frame})
         self.assertEqual((result["phase"], result["score"], result["round"]), ("kickoff", [3, 0], 2))
         self.assertEqual(result["ball"], [0, .121*2.1, 0])
+        heard = await self.basketball(players[1][1], payloads[1])
+        self.assertEqual([sound["kind"] for sound in heard["sounds"]], [3])
         self.now += 1
         for player, payload in zip(players, payloads):
             await self.basketball(player[1], payload)
@@ -133,13 +210,14 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_football_duel_shared_ball_score_and_leave(self):
         self.app[FOOTBALL].clock = lambda: self.now
-        _, host, _ = await self.login("Red")
-        _, guest, _ = await self.login("Blue")
+        host_id, host, _ = await self.login("Red")
+        guest_id, guest, _ = await self.login("Blue")
         await self.football({}, {"action": "create", "origin": [0, 64, 0], "size": 1}, 401)
         room = await self.football(host, {"action": "create", "origin": [0, 64, 0], "size": 1})
         code = room["code"]
         await self.football(guest, {"action": "join", "code": code, "scope": "b" * 64, "position": [0, 64, 0]}, 403)
         visitor = await self.football(guest, {"action": "join", "code": code, "position": [0, 64, 0]})
+        self.assertEqual(visitor["playerIds"], [uuid.UUID(host_id).hex, uuid.UUID(guest_id).hex])
         red = {"action": "sync", "code": code, "key": room["key"], "position": room["spawn"]}
         blue = {"action": "sync", "code": code, "key": visitor["key"], "position": visitor["spawn"]}
         self.assertEqual((await self.football(host, red | {"ready": True}))["phase"], "lobby")
@@ -151,8 +229,11 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         shot = {"id": 1, "power": .7, "look": [0, 0, -1], "curve": False}
         await self.football(guest, blue | {"round": 1, "kick": shot})
         self.assertEqual((await self.football(host, red))["kicks"], [])
-        moving = {"ball": [0, .25, 4.5], "roll": .5, "velocity": [0, 0, 15]}
+        keeper_poses = [[1.1, 0, 0, .7, 1], [-1.5, .5, -.7, 1.9, 3]]
+        moving = {"ball": [0, .25, 4.5], "roll": .5, "velocity": [0, 0, 15], "keeperPoses": keeper_poses}
+        await self.football(host, red | {"round": 1, "frame": moving | {"keeperPoses": [[0, 0, 0, 0, 99]]}}, 400)
         await self.football(host, red | {"round": 1, "frame": moving})
+        await self.football(guest, blue | {"round": 1, "frame": moving | {"keeperPoses": []}})
         shot["id"] = 2
         near = blue | {"position": [0, 0, 1], "round": 1, "kick": shot}
         await self.football(guest, near)
@@ -162,11 +243,13 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["kicks"][0]["power"], .7)
         observed = await self.football(guest, blue)
         self.assertEqual((observed["roll"], observed["velocity"]), (.5, [0, 0, 15]))
+        self.assertEqual(observed["keeperPoses"], keeper_poses)
         await self.football(guest, red, 403)
         goal = red | {"round": 1, "ack": result["kicks"][0]["seq"],
                       "frame": {"ball": [0, .35, 14.3], "roll": 1, "goal": 0}}
         scored = await self.football(host, goal)
         self.assertEqual((scored["score"], scored["phase"], scored["ball"]), ([1, 0], "kickoff", [0, .25, 0]))
+        self.assertEqual(scored["keeperPoses"], [])
         self.assertEqual((await self.football(host, goal))["score"], [1, 0])
         self.assertEqual((await self.football(guest, blue))["score"], [1, 0])
         self.now += 1
@@ -310,8 +393,10 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_legacy_catalog_migrates_without_data_loss(self):
         import sqlite3
+        from contextlib import closing
+
         path = str(Path(self.directory.name) / "legacy.db")
-        with sqlite3.connect(path) as db:
+        with closing(sqlite3.connect(path)) as db, db:
             db.execute("CREATE TABLE shared_configs(id INTEGER PRIMARY KEY, owner TEXT, author TEXT, name TEXT, settings TEXT, created_at REAL)")
             db.execute("INSERT INTO shared_configs VALUES (1, 'owner', 'Author', 'Legacy', '{}', 100)")
         store = Store(path)
@@ -340,7 +425,6 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(response.status, 200)
             state = await (await self.client.post("/v1/presence", headers=headers, json={"players": [player]})).json()
             self.assertEqual(state["emotes"][uuid.UUID(player).hex]["id"], emote)
-        self.assertEqual(response.status, 200)
         self.assertGreater(self.app[STORE].revision, revision)
         self.now += 2
         state = await (await self.client.post("/v1/presence", headers=headers, json={"players": [player]})).json()
