@@ -234,21 +234,13 @@
         const name = 'wing_' + wing;
         const image = new Image();
         image.src = assetUrl(name+'.png',resources+'textures/cosmetics/wings/');
-        const request = Promise.all([asset(name+'.json',resources+'cosmetics/wings/').then(r=>r.json()),image.decode()])
-          .then(([roots])=>{
-            const bake = bone => {
-              const vertices = [], faces = bone.faces;
-              for (let f=0; f<faces.length; f+=23) {
-                const points=[], uv=[];
-                for (let i=f+3; i<f+23; i+=5) {
-                  points.push(faces.slice(i,i+3));
-                  uv.push(faces.slice(i+3,i+5));
-                }
-                quad(vertices,points,uv,undefined,.88+.12*Math.abs(faces[f+2]));
-              }
-              return {...bone,faces:undefined,mesh:vertices.length?this.mesh(vertices):null,children:bone.children.map(bake)};
-            };
-            this.cosmetics[wing]={roots:roots.map(bake),texture:this.texture(image)};
+        const request = image.decode().then(()=>{
+            const vertices=[];
+            const points=[[-32,-36.5,3],[32,-36.5,3],[32,3.5,3],[-32,3.5,3]];
+            const uv=[[0,0],[1,0],[1,1],[0,1]];
+            quad(vertices,points,uv);
+            quad(vertices,[...points].reverse(),[...uv].reverse());
+            this.cosmetics[wing]={plane:this.mesh(vertices),texture:this.texture(image)};
           }).catch(error=>{this.wingRequests.delete(wing);throw error;});
         this.wingRequests.set(wing,request);
       }
@@ -348,15 +340,15 @@
       gl.clearColor(0,0,0,0);
       gl.depthMask(true);
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-      const widthUnits = (this.cosmetics[icon]?.roots || icon==='angel'||icon==='dragon') ? 5.55 : icon==='halo'||icon==='hat' ? 1.37
+      const widthUnits = (this.cosmetics[icon]?.plane || icon==='angel'||icon==='dragon') ? 5.55 : icon==='halo'||icon==='hat' ? 1.37
         : !player && pet ? (pet.rigid ? 1.15 : 1.30)
         : slots.wings ? (portrait ? (slots.wings === 'dragon' ? 4.7 : 4.45)
           : home ? (slots.wings === 'dragon' ? 4.45 : 4.22) : 5.45)
         : pet ? (home ? 2.04 : 2.70) : (home ? 1.23 : 1.46);
-      const heightUnits = !player ? ((this.cosmetics[icon]?.roots || icon==='angel'||icon==='dragon') ? 2.5 : widthUnits*.82)
+      const heightUnits = !player ? ((this.cosmetics[icon]?.plane || icon==='angel'||icon==='dragon') ? 2.5 : widthUnits*.82)
         : home ? (slots.hat ? 2.60 : slots.halo || slots.wings ? 2.36 : 2.09) : (slots.hat ? 2.68 : 2.46);
       const ratio = Math.min(width/widthUnits,height/heightUnits)*zoom;
-      const centerY = (this.cosmetics[icon]?.roots || icon==='angel'||icon==='dragon') ? -1.35 : icon==='halo' ? -2.01 : icon==='hat' ? -2.08
+      const centerY = (this.cosmetics[icon]?.plane || icon==='angel'||icon==='dragon') ? -1.35 : icon==='halo' ? -2.01 : icon==='hat' ? -2.08
         : !player && pet ? (pet.rigid ? -.12 : -.28) : slots.hat || portrait && slots.wings ? -1.14
         : home && slots.halo ? -1.04 : -.96;
       const centerX = player && pet && !slots.wings ? (home ? -.42 : -.25) : 0;
@@ -370,29 +362,8 @@
         this.drawPet(pet,position,time,after);
       }
       const wings = this.cosmetics[slots.wings ?? icon];
-      if (wings?.roots) {
-        const phase = icon ? 1.1 : time%2;
-        const values = (keys, fallback) => {
-          if (!keys) return fallback;
-          let i=0;
-          while(i+4<keys.length && keys[i+4]<=phase)i+=4;
-          const a=keys.slice(i+1,i+4);
-          if(i+4===keys.length)return a;
-          const f=Math.max(0,(phase-keys[i])/(keys[i+4]-keys[i]));
-          return a.map((v,j)=>v+(keys[i+5+j]-v)*f);
-        };
-        const draw = (bone,parent) => {
-          const p=bone.pivot;
-          let m=multiply(parent,translate(...values(bone.position,[0,0,0])));
-          m=multiply(m,translate(...p));
-          m=multiply(m,rotation(values(bone.rotation,[0,0,0])));
-          m=multiply(m,scale(...values(bone.scale,[1,1,1])));
-          m=multiply(m,translate(-p[0],-p[1],-p[2]));
-          if(bone.mesh)this.drawMesh(bone.mesh,wings.texture,m);
-          for(const child of bone.children)draw(child,m);
-        };
-        const model=scale(1.8/32,-1.8/32,1.8/32);
-        for(const root of wings.roots)draw(root,model);
+      if (wings?.plane) {
+        this.drawMesh(wings.plane,wings.texture,scale(1.8/32,1.8/32,1.8/32));
       } else if (wings && !['halo','hat'].includes(icon)) this.drawMesh(wings,this.white,identity);
       if (slots.halo || icon==='halo') after.push(()=>this.drawMesh(this.cosmetics.halo,this.white,identity,true));
       if (slots.hat || icon==='hat') after.push(()=>this.drawMesh(this.cosmetics.hat,this.white,identity,true));

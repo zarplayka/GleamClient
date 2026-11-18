@@ -1,6 +1,6 @@
 {
   "productName": "Gleam Launcher",
-  "version": "0.1.57",
+  "version": "0.1.58",
   "identifier": "xyz.gleamclient.launcher",
   "build": {
     "frontendDist": [
@@ -14,15 +14,10 @@
       "../website/tools/launcher-cosmetics.js",
       "../website/tools/launcher-default-skin.png",
       "../build/launcher-cosmetics.json",
-      "../src/main/resources/assets/orion-client/cosmetics/wings/wing_midnight.json",
       "../src/main/resources/assets/orion-client/textures/cosmetics/wings/wing_midnight.png",
-      "../src/main/resources/assets/orion-client/cosmetics/wings/wing_evergreen.json",
       "../src/main/resources/assets/orion-client/textures/cosmetics/wings/wing_evergreen.png",
-      "../src/main/resources/assets/orion-client/cosmetics/wings/wing_first_salvo.json",
       "../src/main/resources/assets/orion-client/textures/cosmetics/wings/wing_first_salvo.png",
-      "../src/main/resources/assets/orion-client/cosmetics/wings/wing_ash_phoenix.json",
       "../src/main/resources/assets/orion-client/textures/cosmetics/wings/wing_ash_phoenix.png",
-      "../src/main/resources/assets/orion-client/cosmetics/wings/wing_lunar_moth.json",
       "../src/main/resources/assets/orion-client/textures/cosmetics/wings/wing_lunar_moth.png",
       "../src/main/resources/assets/orion-client/cosmetics/pets/ember_fox.json",
       "../src/main/resources/assets/orion-client/cosmetics/pets/moon_moth.json",

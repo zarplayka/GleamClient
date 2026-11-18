@@ -24,7 +24,7 @@ public final class OrionWings {
     private final Map<UUID, OrionWingMotion> motions = new HashMap<>();
     private long lastFrame;
     public OrionWings(OrionConfigManager manager) { this.manager = manager; }
-    public void register() { GleamWingModel.load(); LevelRenderEvents.COLLECT_SUBMITS.register(this::render); }
+    public void register() { LevelRenderEvents.COLLECT_SUBMITS.register(this::render); }
 
     private void render(LevelRenderContext context) {
         Minecraft client = Minecraft.getInstance();
@@ -60,8 +60,7 @@ public final class OrionWings {
             ru.orion.client.render.GleamPose.rotate(pose, Axis.XP.rotationDegrees(motion.bodyPitch));
             pose.translate(0F, 0F, .16F);
             if (style > 2) {
-                float time = style == 3 || style == 5 ? motion.deployment() : (now % 2_000_000_000L) / 1_000_000_000F;
-                GleamWingModel.submit(pose, context.submitNodeCollector(), style, time);
+                GleamWingModel.submit(pose, context.submitNodeCollector(), style);
                 pose.popPose();
                 continue;
             }
@@ -92,7 +91,7 @@ public final class OrionWings {
     public static void submitPreview(PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector, int style) {
         pose.translate(0F, 1.37F, .16F);
         if (style > 2) {
-            GleamWingModel.submit(pose, collector, style, (System.nanoTime() % 2_000_000_000L) / 1_000_000_000F);
+            GleamWingModel.submit(pose, collector, style);
             return;
         }
         for (int side : new int[]{-1, 1}) {
