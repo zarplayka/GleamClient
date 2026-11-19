@@ -2,9 +2,11 @@ package ru.orion.client.effect;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.sounds.JOrbisAudioStream;
 import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -49,10 +51,10 @@ public final class OrionHitSound {
     private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
 
     /** Порядок совпадает с индексом hitSoundIndex в конфиге. */
-    public static final String[] SOUND_NAMES = {"Snap", "Knock", "Clang", "Glass", "Pulse", "Thud", "Свои (случайно)"};
+    public static final String[] SOUND_NAMES = {"PvP Tap", "Critical Hit", "Arrow Ping", "Soft Click", "Pling", "XP Pop", "Свои (случайно)"};
     public static final int CUSTOM_INDEX = 6;
 
-    private static final String[] BUILTIN_FILES = {"snap.wav", "knock.wav", "clang.wav", "glass.wav", "pulse.wav", "thud.wav"};
+    private static final String[] TAP_FILES = {"pvp-tap-1.ogg", "pvp-tap-2.ogg", "pvp-tap-3.ogg"};
     private static final String RESOURCE_DIR = "/assets/orion-client/sounds/hitsounds/";
     private static final long MIN_INTERVAL_NANOS = 40_000_000L;
     private static final long MAX_CUSTOM_BYTES = 4 * 1024 * 1024L;
@@ -236,6 +238,17 @@ public final class OrionHitSound {
         Minecraft client = Minecraft.getInstance();
         float volume = volumePercent / 100F;
         volume *= volume;
+        if (index > 0 && index < CUSTOM_INDEX) {
+            var event = switch (index) {
+                case 1 -> SoundEvents.PLAYER_ATTACK_CRIT;
+                case 2 -> SoundEvents.ARROW_HIT_PLAYER;
+                case 3 -> SoundEvents.UI_BUTTON_CLICK.value();
+                case 4 -> SoundEvents.NOTE_BLOCK_PLING.value();
+                default -> SoundEvents.EXPERIENCE_ORB_PICKUP;
+            };
+            client.getSoundManager().play(SimpleSoundInstance.forUI(event, pitch, volume * .8F));
+            return;
+        }
         float clipVolume = volume * client.options.getSoundSourceVolume(SoundSource.MASTER)
                 * client.options.getSoundSourceVolume(SoundSource.UI);
         if (clipVolume <= 0F) return;
@@ -259,14 +272,12 @@ public final class OrionHitSound {
         if (index == CUSTOM_INDEX) {
             SoundData custom = resolveCustomBytes(selected);
             if (custom != null) return custom;
-            index = 0;
         }
-        byte[] builtin = builtinBytes(Math.clamp(index, 0, BUILTIN_FILES.length - 1));
-        return builtin == null ? null : new SoundData(builtin, false);
+        byte[] builtin = builtinBytes(TAP_FILES[random.nextInt(TAP_FILES.length)]);
+        return builtin == null ? null : new SoundData(builtin, true);
     }
 
-    private byte[] builtinBytes(int index) throws IOException {
-        String name = BUILTIN_FILES[index];
+    private byte[] builtinBytes(String name) throws IOException {
         byte[] cached = cache.get(name);
         if (cached != null) {
             return cached;

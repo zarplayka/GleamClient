@@ -330,7 +330,10 @@ fn set_activity(ipc: &mut Transport, pid: u32, activity: Option<&Activity>) -> i
             "type": 0, "details": activity.details, "state": activity.state,
             "timestamps": {"start": activity.started},
             "assets": {"large_image": ART, "large_text": "GleamClient", "large_url": SITE},
-            "buttons": [{"label": "Сайт GleamClient", "url": SITE}],
+            "buttons": [
+                {"label": "Купить", "url": "https://gleamclient.xyz/#plus"},
+                {"label": "Telegram", "url": "https://t.me/OrionClientick"},
+            ],
         })
     });
     write_frame(
