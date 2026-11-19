@@ -10,7 +10,6 @@ import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Entity;
@@ -62,8 +61,10 @@ public final class OrionHitSound {
     public static final String[] SOUND_NAMES = {"PvP Tap", "Critical Hit", "Arrow Ping", "Soft Click", "Pling", "XP Pop", "Свои (случайно)"};
     public static final int CUSTOM_INDEX = 6;
 
-    private static final SoundEvent PVP_TAP = SoundEvent.createVariableRangeEvent(
-            Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "hit.pvp_tap"));
+    private static final SoundEvent[] BUILTIN_SOUNDS = {
+            sound("pvp_tap"), sound("critical"), sound("arrow_ping"),
+            sound("soft_click"), sound("pling"), sound("xp_pop")
+    };
     private static final long MIN_INTERVAL_NANOS = 20_000_000L;
     private static final long ATTACK_WINDOW_NANOS = 750_000_000L;
     private static final long MAX_CUSTOM_BYTES = 4 * 1024 * 1024L;
@@ -306,16 +307,8 @@ public final class OrionHitSound {
         if (volumePercent <= 0) return;
         Minecraft client = Minecraft.getInstance();
         float volume = volumePercent / 100F;
-        volume *= volume;
         if (index != CUSTOM_INDEX) {
-            var event = switch (index) {
-                case 1 -> SoundEvents.PLAYER_ATTACK_CRIT;
-                case 2 -> SoundEvents.ARROW_HIT_PLAYER;
-                case 3 -> SoundEvents.UI_BUTTON_CLICK.value();
-                case 4 -> SoundEvents.NOTE_BLOCK_PLING.value();
-                case 5 -> SoundEvents.EXPERIENCE_ORB_PICKUP;
-                default -> PVP_TAP;
-            };
+            SoundEvent event = BUILTIN_SOUNDS[Math.clamp(index, 0, BUILTIN_SOUNDS.length - 1)];
             client.getSoundManager().play(SimpleSoundInstance.forUI(event, pitch, volume));
             return;
         }
@@ -336,6 +329,10 @@ public final class OrionHitSound {
                 client.execute(() -> play(0, volumePercent, pitch));
             }
         });
+    }
+
+    private static SoundEvent sound(String path) {
+        return SoundEvent.createVariableRangeEvent(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "hit." + path));
     }
 
     private record SoundData(byte[] bytes, boolean ogg) { }
