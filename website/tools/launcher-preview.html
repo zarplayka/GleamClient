@@ -2362,6 +2362,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             </div>
           </div>
           <div class="settings-panel">
+            <div class="setting">
+              <div class="setting-caption">
+                <label class="setting-label" for="launcher-discord-presence">Discord в лаунчере</label>
+                <small>Показывает выбранную сборку и переход в игру</small>
+              </div>
+              <label class="switch"><input id="launcher-discord-presence" type="checkbox" role="switch" checked><span class="switch-track"><span class="switch-thumb"></span></span></label>
+            </div>
             <div class="setting setting-community">
               <div class="setting-caption">
                 <strong class="setting-label">Сообщество</strong>
@@ -2420,7 +2427,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     const themeChoices = ['auto','light','dark'];
     const systemTheme = matchMedia('(prefers-color-scheme: dark)');
     const appearanceChoices = {theme:$('theme-setting'), language:$('language-setting')};
-    const defaults = {memory:null, windowMode:'windowed', motion:true, installationNotices:true,
+    const defaults = {memory:null, windowMode:'windowed', motion:true, installationNotices:true, discordPresence:true,
       theme:'auto', language:'auto', sounds:true, sidebarWidth:null, sidebarCompact:null, autoUpdate:true,
       gameWidth:1280, gameHeight:720, fabricLoader:'auto', installOptimizers:false, jvmArguments:''};
     const memory = $('memory');
@@ -2479,6 +2486,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           motion: saved.motion !== false,
           installationNotices: saved.installationNotices !== false,
           autoUpdate: saved.autoUpdate !== false,
+          discordPresence: saved.discordPresence !== false,
           theme: themeChoices.includes(saved.theme) ? saved.theme : defaults.theme,
           language: localeChoices.includes(saved.language) ? saved.language : defaults.language,
           sounds: saved.sounds !== false,
@@ -2521,6 +2529,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       $('sound-setting').checked = settings.sounds;
       $('installation-notices').checked = settings.installationNotices;
       $('launcher-auto-update').checked = settings.autoUpdate;
+      $('launcher-discord-presence').checked = settings.discordPresence;
       launcher.dataset.motion = settings.motion ? 'on' : 'off';
       document.documentElement.dataset.theme = settings.theme === 'auto' ? (systemTheme.matches ? 'dark' : 'light') : settings.theme;
       renderSidebarWidth();
@@ -2656,6 +2665,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Имя пользователя':['Username','Benutzername','Nombre de usuario'],
       'Пароль':['Password','Passwort','Contraseña'],
       'Назад':['Back','Zurück','Volver'],
+      'Discord в лаунчере':['Discord in the launcher','Discord im Launcher','Discord en el lanzador'],
+      'Показывает выбранную сборку и переход в игру':['Shows the selected build and game launch','Zeigt den ausgewählten Build und den Spielstart','Muestra la versión elegida y el inicio del juego'],
       'Создать аккаунт на сайте':['Create an account on the website','Konto auf der Website erstellen','Crear una cuenta en el sitio'],
       'Подтверди вход в браузере':['Confirm sign-in in your browser','Anmeldung im Browser bestätigen','Confirma el acceso en el navegador'],
       'Подтверждение входа':['Confirm sign-in','Anmeldung bestätigen','Confirma el acceso'],
@@ -3301,8 +3312,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       $('version-unavailable').hidden = available || active;
     }
     let backdropRequest = 0;
+    function syncDiscordPresence() {
+      void window.__TAURI__?.core.invoke('discord_presence_selection', {
+        version: selectedVersion, enabled: settings.discordPresence
+      }).catch(() => {});
+    }
     function selectVersion(tile) {
       selectedVersion = tile.dataset.version;
+      syncDiscordPresence();
       $('profile-version').textContent = selectedVersion;
       for (const choice of versionTiles) choice.setAttribute('aria-pressed', String(choice === tile));
       renderLaunchAvailability();
@@ -4446,6 +4463,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
       if (restart) return restartLauncherUpdate();
     }
+    $('launcher-discord-presence').addEventListener('change',event => {
+      changeSettings({discordPresence:event.target.checked});
+      syncDiscordPresence();
+    });
     $('launcher-auto-update').addEventListener('change',event => {
       changeSettings({autoUpdate:event.target.checked});
     });

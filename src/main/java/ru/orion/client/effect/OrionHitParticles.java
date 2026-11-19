@@ -21,6 +21,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /** Искры с мягким свечением, затуханием и отскоком от поверхности мира. */
 public final class OrionHitParticles {
+    public static final String[] SHAPES = {"Искра", "Ромб", "Круг", "Кольцо", "Звезда", "Сердце", "Крест", "Осколок", "Лепесток"};
     private static final int LIMIT = 256;
     private final OrionConfigManager configManager;
     private final List<Particle> particles = new ArrayList<>();
@@ -117,20 +118,56 @@ public final class OrionHitParticles {
             triangle(pose, vc, 0, 0, glow, (float) Math.cos(a) * size * 2, (float) Math.sin(a) * size * 2, clear,
                     (float) Math.cos(b) * size * 2, (float) Math.sin(b) * size * 2, clear);
         }
-        int points = shape == 0 ? 8 : shape == 1 ? 4 : 12;
+        int points = switch (shape) {
+            case 0, 7 -> 8;
+            case 1 -> 4;
+            case 3, 5 -> 20;
+            case 4 -> 10;
+            default -> 12;
+        };
         int core = ARGB.color(Math.round(fade * 235), (ARGB.red(rgb) + 510) / 3, (ARGB.green(rgb) + 510) / 3, (ARGB.blue(rgb) + 510) / 3);
         int edge = alpha(rgb, Math.round(fade * 170));
+        double turn = shape == 5 ? angle * .1 : angle;
+        float rotationX = (float) Math.cos(turn), rotationY = (float) Math.sin(turn);
         for (int i = 0; i < points; i++) {
-            double a = angle + i * Math.PI * 2 / points, b = angle + (i + 1) * Math.PI * 2 / points;
-            float ra = shape == 0 && (i & 1) != 0 ? size * .23F : size;
-            float rb = shape == 0 && (i & 1) == 0 ? size * .23F : size;
-            float ax = (float) Math.cos(a) * ra, ay = (float) Math.sin(a) * ra;
-            float bx = (float) Math.cos(b) * rb, by = (float) Math.sin(b) * rb;
-            triangle(pose, vc, 0, 0, core, ax, ay, edge, bx, by, edge);
+            Point next = silhouette(shape, i, points, size, rotationX, rotationY);
+            Point end = silhouette(shape, i + 1, points, size, rotationX, rotationY);
+            float ax = next.x, ay = next.y, bx = end.x, by = end.y;
+            if (shape == 3) {
+                vertex(pose, vc, ax, ay, edge); vertex(pose, vc, bx, by, edge);
+                vertex(pose, vc, bx * .66F, by * .66F, core); vertex(pose, vc, ax * .66F, ay * .66F, core);
+            } else {
+                triangle(pose, vc, 0, 0, core, ax, ay, edge, bx, by, edge);
+            }
             vertex(pose, vc, ax, ay, edge); vertex(pose, vc, bx, by, edge);
             vertex(pose, vc, bx * 1.22F, by * 1.22F, clear); vertex(pose, vc, ax * 1.22F, ay * 1.22F, clear);
         }
     }
+
+    private static Point silhouette(int shape, int vertex, int points, float size, float rx, float ry) {
+        double phase = vertex * Math.PI * 2 / points;
+        double radius = switch (shape) {
+            case 0 -> (vertex & 1) == 0 ? 1 : .23;
+            case 4 -> (vertex & 1) == 0 ? 1 : .46;
+            case 6 -> (vertex % 3) == 1 ? .42 : 1;
+            case 8 -> .65 + .32 * Math.cos(phase);
+            default -> 1;
+        };
+        double x = Math.cos(phase) * radius, y = Math.sin(phase) * radius;
+        if (shape == 5) {
+            double heart = Math.PI / 2 - phase;
+            x = Math.pow(Math.sin(heart), 3);
+            y = (13 * Math.cos(heart) - 5 * Math.cos(2 * heart) - 2 * Math.cos(3 * heart) - Math.cos(4 * heart) + 1) / 17;
+        } else if (shape == 7) {
+            x *= .38;
+            y *= 1.45;
+        } else if (shape == 8) {
+            y *= .57;
+        }
+        return new Point(size * (float) (x * rx - y * ry), size * (float) (x * ry + y * rx));
+    }
+
+    private record Point(float x, float y) {}
 
     private static int alpha(int rgb, int alpha) { return ARGB.color(alpha, ARGB.red(rgb), ARGB.green(rgb), ARGB.blue(rgb)); }
     private static void triangle(PoseStack.Pose pose, VertexConsumer vc, float x, float y, int c, float ax, float ay, int ac, float bx, float by, int bc) {

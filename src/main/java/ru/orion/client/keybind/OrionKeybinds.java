@@ -16,6 +16,8 @@ import ru.orion.client.gui.OrionClickGuiScreen;
 import ru.orion.client.gui.OrionEmoteWheelScreen;
 import ru.orion.client.effect.OrionEmotes;
 
+import java.util.Locale;
+
 public final class OrionKeybinds {
     private static final String OPEN_CLICK_GUI_TRANSLATION_KEY = "key.orion-client.open_click_gui";
     private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
@@ -95,6 +97,33 @@ public final class OrionKeybinds {
     public static boolean isZoomDown() { return zoomKey != null && zoomKey.isDown(); }
     public static KeyMapping getSecondaryZoomKey() { return secondaryZoomKey; }
     public static boolean isSecondaryZoomDown() { return secondaryZoomKey != null && secondaryZoomKey.isDown(); }
+
+    public static String keyLabel(KeyMapping key) {
+        return key == null || key.isUnbound() ? "" : keyLabel(key.saveString());
+    }
+
+    public static String keyLabel(String key) {
+        return switch (key) {
+            case "key.mouse.left" -> "LMB";
+            case "key.mouse.right" -> "RMB";
+            case "key.mouse.middle" -> "MMB";
+            case "key.keyboard.unknown" -> "";
+            case "key.keyboard.left.shift" -> "L Shift";
+            case "key.keyboard.right.shift" -> "R Shift";
+            case "key.keyboard.left.control" -> "L Ctrl";
+            case "key.keyboard.right.control" -> "R Ctrl";
+            case "key.keyboard.left.alt" -> "L Alt";
+            case "key.keyboard.right.alt" -> "R Alt";
+            case "key.keyboard.page.up" -> "Page Up";
+            case "key.keyboard.page.down" -> "Page Down";
+            default -> {
+                if (key.startsWith("key.mouse.")) yield "Mouse " + key.substring("key.mouse.".length());
+                if (key.startsWith("scancode.")) yield "Scan " + key.substring("scancode.".length());
+                String keyboard = key.replaceFirst("^key\\.keyboard\\.", "").replace(".", " ");
+                yield keyboard.isBlank() ? "" : keyboard.substring(0, 1).toUpperCase(Locale.ROOT) + keyboard.substring(1);
+            }
+        };
+    }
 
     public static boolean isLockSlotKey(KeyEvent event) {
         return lockSlotKey != null && lockSlotKey.matches(event);

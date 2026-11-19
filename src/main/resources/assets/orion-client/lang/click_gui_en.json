@@ -1256,5 +1256,19 @@
   "Контур и заливка": "Outline and fill",
   "Грань под прицелом": "Targeted face",
   "Непрозрачность заливки": "Fill opacity",
-  "Объединять быстрые попадания": "Combine rapid hits"
+  "Объединять быстрые попадания": "Combine rapid hits",
+  "Профиль префикса": "Prefix profile",
+  "Общий": "Default",
+  "Адрес сервера": "Server address",
+  "Заполнить адрес": "Fill server address",
+  "Текущий сервер": "Use current server",
+  "Звезда": "Star",
+  "Сердце": "Heart",
+  "Крест": "Cross",
+  "Осколок": "Shard",
+  "Лепесток": "Petal",
+  "Сервер 1": "Server 1",
+  "Сервер 2": "Server 2",
+  "Сервер 3": "Server 3",
+  "Сервер 4": "Server 4"
 }

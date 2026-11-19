@@ -67,6 +67,7 @@
     "ItemEntityRenderStateMixin",
     "ItemEntityRendererMixin",
     "BlockOutlineMixin",
+    "OrionVoxelShapeAccessor",
     "ParticleEngineMixin",
     "ClientExplosionParticlesMixin",
     "ChatTimeMixin",

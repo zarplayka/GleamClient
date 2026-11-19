@@ -4,6 +4,7 @@ use tauri::{LogicalSize, Manager, PhysicalPosition};
 
 mod auth;
 mod catalog;
+mod discord;
 mod game;
 mod minecraft;
 mod profile_content;
@@ -55,7 +56,7 @@ fn migrate_storage(legacy: &std::path::Path, destination: std::path::PathBuf) ->
 }
 
 #[tauri::command]
-fn open_project_link(link: &str) -> Result<(), String> {
+fn open_project_link(link: &str, presence: tauri::State<'_, discord::Presence>) -> Result<(), String> {
     let url = match link {
         "site" => "https://gleamclient.xyz/",
         "discord" => "https://discord.gg/JMjFrMWsku",
@@ -66,7 +67,11 @@ fn open_project_link(link: &str) -> Result<(), String> {
         "plus" => "https://gleamclient.xyz/#plus",
         _ => return Err("Неизвестная ссылка".into()),
     };
-    open_browser(url)
+    open_browser(url)?;
+    if link == "site" || link == "plus" {
+        presence.site_opened();
+    }
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -135,6 +140,7 @@ fn main() {
     configure_storage(&mut context);
     tauri::Builder::default()
         .manage(catalog::Catalog::new())
+        .manage(discord::Presence::default())
         .manage(auth::Auth::new())
         .manage(minecraft::Minecraft::default())
         .manage(game::Game::default())
@@ -145,6 +151,7 @@ fn main() {
             catalog::instance_storage,
             catalog::open_instance_folder,
             open_project_link,
+            discord::discord_presence_selection,
             auth::gleam_auth,
             auth::cosmetic_loadout,
             auth::gleam_friends,
@@ -169,7 +176,13 @@ fn main() {
             game::stop_minecraft,
             game::cancel_minecraft_install
         ])
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Focused(true)) {
+                window.state::<discord::Presence>().focused();
+            }
+        })
         .setup(|app| {
+            app.state::<discord::Presence>().start();
             let window = app
                 .get_webview_window("main")
                 .ok_or("main launcher window is missing")?;
@@ -201,6 +214,9 @@ fn main() {
         .build(context)
         .expect("failed to build Gleam Launcher")
         .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                app.state::<discord::Presence>().stop();
+            }
             if let tauri::RunEvent::ExitRequested { code: None, api, .. } = event {
                 if app.state::<game::Game>().is_syncing_settings() {
                     api.prevent_exit();

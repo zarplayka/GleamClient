@@ -795,5 +795,19 @@
   "Контур и заливка": "Contorno y relleno",
   "Грань под прицелом": "Cara apuntada",
   "Непрозрачность заливки": "Opacidad del relleno",
-  "Объединять быстрые попадания": "Combinar golpes rápidos"
+  "Объединять быстрые попадания": "Combinar golpes rápidos",
+  "Профиль префикса": "Perfil del prefijo",
+  "Общий": "Predeterminado",
+  "Адрес сервера": "Dirección del servidor",
+  "Заполнить адрес": "Rellenar la dirección",
+  "Текущий сервер": "Usar el servidor actual",
+  "Звезда": "Estrella",
+  "Сердце": "Corazón",
+  "Крест": "Cruz",
+  "Осколок": "Fragmento",
+  "Лепесток": "Pétalo",
+  "Сервер 1": "Servidor 1",
+  "Сервер 2": "Servidor 2",
+  "Сервер 3": "Servidor 3",
+  "Сервер 4": "Servidor 4"
 }
