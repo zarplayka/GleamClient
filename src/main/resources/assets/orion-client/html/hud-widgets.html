@@ -7,14 +7,16 @@ html,body{margin:0;padding:0;background:transparent;color:var(--text)}
 .label{display:flex;align-items:center;overflow:hidden;white-space:nowrap}
 .panel{background:var(--hud-panel)}
 html[data-glass] .panel{background:var(--hud-glass)}
-.well,.key{background:var(--well);border:1px solid var(--line)}
+.well{background:var(--well);border:1px solid var(--line)}
 .divider{background:var(--line)}
-.key{display:flex;align-items:center;justify-content:center;gap:4px;padding:0 2px;font-size:8px;line-height:1;transition:background-color .13s,border-color .13s}
-.key>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8px;font-weight:bold}
-.key[data-pressed]{border-color:var(--accent);background:var(--hud-selected)}
-.key[data-pressed]>strong{color:var(--accent)}
-.key .mouse{min-width:8px;color:var(--muted);font-size:6px}
-.key .key-unit{color:var(--muted);font-size:5px}
+.key{display:flex;align-items:center;justify-content:center;gap:3px;padding:0 2px;background:var(--well);border-bottom:1px solid var(--line);color:var(--muted);line-height:1;transition:background-color .1s,border-color .1s,color .1s}
+.key>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8px;font-weight:700}
+.key[data-long-label]>strong,.key[data-bar]>strong{font-size:6px}
+.key[data-pressed]{border-bottom-color:var(--accent);background:var(--hud-selected);color:var(--text)}
+.key[data-counter]{justify-content:space-between;padding:0 4px;background:transparent;font-variant-numeric:tabular-nums}
+.key[data-counter][data-pressed]{background:var(--hud-selected)}
+.key[data-counter]>strong{font-size:7px;color:var(--text)}
+.key .mouse,.key .key-unit{font-size:5px}
 @media(prefers-reduced-motion:reduce){.key{transition:none}}
 svg{display:block;width:100%;height:100%}
 </style></head><body class="gleam-hud"><div id="hud"></div><script>
@@ -33,7 +35,8 @@ window.paradox = {update(state) {
   else theme.style.removeProperty('--accent');
   if (state.parts.some(part => part.kind === 'key')) {
     if (root.children.length !== state.parts.length || !root.querySelector('.key')) {
-      root.innerHTML = state.parts.map(part => '<div class="part '+part.kind+'" style="'+geometry(part)+'">'
+      root.innerHTML = state.parts.map(part => '<div class="part '+part.kind+'" style="'+geometry(part)+'"'
+        +(part.kind === 'key' && part.mouse ? ' data-counter' : part.kind === 'key' && part.h <= 10 ? ' data-bar' : '')+'>'
         +(part.kind === 'key' ? (part.mouse ? '<span class="mouse">'+escapeHtml(part.mouse)+'</span>' : '')
           +'<strong></strong>'+(part.mouse ? '<span class="key-unit">CPS</span>' : '') : '')+'</div>').join('');
     }
@@ -41,6 +44,7 @@ window.paradox = {update(state) {
       const part = state.parts[i], key = root.children[i], label = key.querySelector('strong');
       if (!label) continue;
       key.toggleAttribute('data-pressed',part.pressed);
+      key.toggleAttribute('data-long-label',part.text.length > 3);
       if (label.textContent !== part.text) label.textContent = part.text;
     }
     return;

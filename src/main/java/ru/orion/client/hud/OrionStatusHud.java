@@ -10,8 +10,10 @@ import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.effect.OrionClickCounter;
 
+import java.util.List;
+
 public final class OrionStatusHud {
-    private static final int WIDTH = 83, HEIGHT = 86;
+    private static final int WIDTH = 74, HEIGHT = 67;
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView("hud_status_panels");
     private final OrionHudDrag drag = new OrionHudDrag("keystrokes");
@@ -37,16 +39,16 @@ public final class OrionStatusHud {
                 options.keyJump, options.keyAttack, options.keyUse};
         int pressed = 0;
         for (int i = 0; i < keys.length; i++) if (keys[i].isDown()) pressed |= 1 << i;
-        State state = new State(pressed, OrionClickCounter.count(false), OrionClickCounter.count(true));
+        var labels = List.of(keyLabel(keys[0]), keyLabel(keys[1]), keyLabel(keys[2]), keyLabel(keys[3]), keyLabel(keys[4]));
+        State state = new State(pressed, OrionClickCounter.count(false), OrionClickCounter.count(true), labels);
         if (!state.equals(previous)) {
             scene = new OrionHudView.Scene(WIDTH, HEIGHT);
-            scene.panel(0, 0, WIDTH, HEIGHT, 7);
-            key(state, 0, keyLabel(keys[0]), "", 30, 4, 23, 21);
-            for (int i = 1; i <= 3; i++) key(state, i, keyLabel(keys[i]), "", 4 + (i - 1) * 26, 28, 23, 21);
-            key(state, 4, keyLabel(keys[4]), "", 4, 52, WIDTH - 8, 10);
-            scene.divider(4, 65, WIDTH - 8);
-            key(state, 5, Integer.toString(state.leftCps), "L", 4, 69, 36, 13);
-            key(state, 6, Integer.toString(state.rightCps), "R", 43, 69, 36, 13);
+            scene.panel(0, 0, WIDTH, HEIGHT, 6);
+            key(state, 0, labels.getFirst(), "", 27, 4, 20, 16);
+            for (int i = 1; i <= 3; i++) key(state, i, labels.get(i), "", 4 + (i - 1) * 23, 23, 20, 16);
+            key(state, 4, labels.get(4), "", 4, 42, WIDTH - 8, 8);
+            key(state, 5, Integer.toString(state.leftCps), "L", 4, 53, 32, 10);
+            key(state, 6, Integer.toString(state.rightCps), "R", 38, 53, 32, 10);
             previous = state;
         }
         float scale = config.getHudScale() * config.getHudElementScale("keystrokes");
@@ -70,5 +72,5 @@ public final class OrionStatusHud {
         scene.key(x, y, w, h, label, mouse, (state.pressed & 1 << index) != 0);
     }
 
-    private record State(int pressed, int leftCps, int rightCps) {}
+    private record State(int pressed, int leftCps, int rightCps, List<String> labels) {}
 }

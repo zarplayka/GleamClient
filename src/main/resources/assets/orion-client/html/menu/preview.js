@@ -452,6 +452,11 @@ function worldPreview(module) {
 }
 let soundLookupOpen = false;
 let soundPreviewEnabled = false;
+function moduleEnableControl(module,enabled) {
+  return '<button type="button" class="button module-enable" role="switch" aria-label="' + text(t('Модуль')) + ' '
+    + text(module.name) + '" aria-checked="' + enabled + '" data-module-toggle="' + module.id + '">'
+    + '<span class="module-state">' + (enabled ? t('Включён') : t('Выключен')) + '</span>' + toggleMarkup + '</button>';
+}
 function renderSoundSettings(module,enabled) {
   const groups = new Map();
   const lookup = [];
@@ -465,10 +470,10 @@ function renderSoundSettings(module,enabled) {
   });
   return '<div class="sound-mixer"><div class="sound-mixer-head"><div class="sound-mixer-title">' + itemArt(module)
     + '<h1>Sound Settings</h1></div><div class="sound-mixer-actions">'
-    + '<button type="button" class="sound-module-switch" role="switch" aria-checked="' + enabled
-    + '" data-module-toggle="' + module.id + '" aria-label="Sound Settings">' + toggleMarkup + '</button>'
+    + moduleEnableControl(module,enabled)
     + '<button type="button" class="button sound-preview-mode" data-sound-preview-mode aria-pressed="' + soundPreviewEnabled
-    + '">' + icon('speaker') + ' ' + text(t('Предпросмотр')) + '</button></div></div>'
+    + '" title="' + text(t('Проигрывать звук после изменения громкости')) + '">' + icon('speaker') + ' '
+    + text(t('Звук при настройке')) + '</button></div></div>'
     + '<div class="sound-mixer-body">' + [...groups].map(([title,rows]) =>
       '<section class="sound-group"><h2>' + text(title) + '</h2><div class="sound-group-list">' + rows + '</div></section>').join('')
     + '<div class="sound-lookup"><button type="button" class="sound-lookup-button" data-sound-lookup aria-expanded="'
@@ -488,9 +493,7 @@ function renderModule() {
     + '</nav>' : '';
   return '<div class="page-head module-settings-head"><div class="module-head"><span class="module-head-art">' + itemArt(module)
     + '</span><div><div class="module-category">' + text(t(names[module.category])) + '</div><h1>' + text(module.name)
-    + '</h1><p>' + text(module.description) + '</p></div></div><button type="button" class="button module-enable" role="switch" aria-label="' + text(t('Модуль')) + ' '
-    + text(module.name) + '" aria-checked="' + enabled + '" data-module-toggle="' + module.id + '">'
-    + '<span class="module-state">' + (enabled ? t('Включён') : t('Выключен')) + '</span>' + toggleMarkup + '</button></div>'
+    + '</h1><p>' + text(module.description) + '</p></div></div>' + moduleEnableControl(module,enabled) + '</div>'
     + '<div class="module-settings' + (contents ? ' with-toc' : '') + '">' + contents + '<div class="settings-groups">'
     + groups.map(({start,title,rows},i) => '<section class="settings-group" id="settings-group-' + i + '">'
       + (module.id === 'CROSSHAIR' ? '' : '<div class="settings-group-title"><h2>' + text(t(title)) + '</h2>'

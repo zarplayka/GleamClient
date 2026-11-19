@@ -3774,6 +3774,8 @@ public final class OrionClickGuiScreen extends Screen {
                     new ToggleSetting("Цвет по здоровью цели", config::isTargetEspHealthColor, config::setTargetEspHealthColor)
             };
             case JUMP_CIRCLE -> new Setting[]{
+                    new ChoiceSetting("Эффект", ru.orion.client.effect.OrionJumpCircleEffect.STYLES,
+                            config::getJumpCircleStyle, config::setJumpCircleStyle),
                     new ColorSetting("Цвет кольца", COLOR_PRESETS,
                             config::getJumpCircleColor, config::setJumpCircleColor),
                     new SliderSetting("Размер", 0.25F, 3.0F,
@@ -7980,7 +7982,7 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("SelfTag", "Ник над вами в третьем лице", Icon.PLAYER, Action.SELF_TAG)
         };
         private static final ModuleRow[] MOVEMENT = {
-                new ModuleRow("JumpCircle", "Кольцо на земле при прыжке", Icon.RINGS, Action.JUMP_CIRCLE),
+                new ModuleRow("JumpCircle", "Эффект на земле при прыжке", Icon.RINGS, Action.JUMP_CIRCLE),
                 new ModuleRow("Breadcrumbs", "Светящийся след за игроком", Icon.RINGS, Action.BREADCRUMBS)
         };
         private static final ModuleRow[] RENDER = {
