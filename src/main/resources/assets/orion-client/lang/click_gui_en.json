@@ -1279,5 +1279,11 @@
   "Ручной": "Manual",
   "Ручной префикс / JSON": "Manual prefix / JSON",
   "Дополнительные ники": "Additional usernames",
-  "Глушить ванильные удары": "Mute vanilla attack sounds"
+  "Глушить ванильные удары": "Mute vanilla attack sounds",
+  "Рябь": "Ripples",
+  "Руны": "Runes",
+  "Всплеск": "Burst",
+  "Эффект на земле при прыжке": "A ground effect when you jump",
+  "Звук при настройке": "Preview on change",
+  "Проигрывать звук после изменения громкости": "Play the sound after changing its volume"
 }

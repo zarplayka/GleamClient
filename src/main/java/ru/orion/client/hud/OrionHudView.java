@@ -180,7 +180,7 @@ public final class OrionHudView {
 
         void key(float x, float y, float w, float h, String text, String mouse, boolean pressed) {
             var part = part("key", x, y, w, h);
-            part.addProperty("radius", 4);
+            part.addProperty("radius", h <= 10 ? 2 : 3);
             part.addProperty("text", text);
             part.addProperty("mouse", mouse);
             part.addProperty("pressed", pressed);

@@ -242,10 +242,7 @@ button.module-toggle[data-toggle-style="label"][aria-checked="true"]:hover{backg
 .sound-mixer-title{gap:9px}
 .sound-mixer-title h1{margin:0;font-size:19px;font-weight:650;white-space:nowrap}
 .sound-mixer-title .item-art{width:23px;height:23px;flex:none}
-.sound-mixer-actions{gap:10px}
-.sound-module-switch{display:flex;align-items:center;padding:5px 0}
-.sound-module-switch[aria-checked=true] .switch{background:var(--accent)}
-.sound-module-switch[aria-checked=true] .switch::before{transform:translateX(15px);background:var(--accent-ink)}
+.sound-mixer-actions{flex-wrap:wrap;justify-content:flex-end;gap:8px}
 .sound-mixer-actions .sound-preview-mode{min-height:29px;gap:6px;padding:4px 8px}
 .sound-preview-mode[aria-pressed=true]{background:var(--hover);color:var(--accent);border-color:var(--accent)}
 .sound-mixer-body{padding:18px 16px 12px}

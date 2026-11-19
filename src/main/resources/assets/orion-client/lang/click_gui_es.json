@@ -818,5 +818,11 @@
   "Ручной": "Manual",
   "Ручной префикс / JSON": "Prefijo manual / JSON",
   "Дополнительные ники": "Nombres de jugador adicionales",
-  "Глушить ванильные удары": "Silenciar golpes de Minecraft"
+  "Глушить ванильные удары": "Silenciar golpes de Minecraft",
+  "Рябь": "Ondas",
+  "Руны": "Runas",
+  "Всплеск": "Estallido",
+  "Эффект на земле при прыжке": "Efecto en el suelo al saltar",
+  "Звук при настройке": "Sonido al ajustar",
+  "Проигрывать звук после изменения громкости": "Reproducir el sonido al cambiar su volumen"
 }
