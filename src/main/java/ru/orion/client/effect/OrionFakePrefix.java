@@ -28,6 +28,7 @@ public final class OrionFakePrefix {
     private static Component cachedComponent = Component.empty();
     private static String cachedPlayerName;
     private static String cachedDetectedPrefix;
+    private static Object cachedConnection;
 
     private OrionFakePrefix() {
     }
@@ -158,6 +159,7 @@ public final class OrionFakePrefix {
             return null;
         }
 
+        resetDetectionOnServerChange();
         String text = decode(sequence).plainText();
         String playerName = playerName();
         String detected = null;
@@ -216,6 +218,7 @@ public final class OrionFakePrefix {
             return null;
         }
 
+        resetDetectionOnServerChange();
         String playerName = playerName();
         List<String> playerNames = configuredPlayerNames();
         if (playerName.isBlank() || playerNames.isEmpty()) {
@@ -227,7 +230,7 @@ public final class OrionFakePrefix {
             return null;
         }
 
-        Component fake = parse(config.getFakePrefix());
+        Component fake = parse(activePreset(config).prefix());
         // Одинаковый символ может отображать совершенно разные bitmap-глифы в разных JSON-шрифтах.
         // Поэтому сравнивать исходный и поддельный префиксы только по getString() нельзя.
         if (fake.getString().isEmpty()) {
@@ -413,7 +416,7 @@ public final class OrionFakePrefix {
         }
 
         OrionConfig config = OrionClient.getConfigOrNull();
-        String configured = config == null ? "" : config.getFakePrefixAdditionalNames();
+        String configured = config == null ? "" : activePreset(config).names();
         for (String candidate : configured.split("[,;\\s]+")) {
             if (!candidate.matches("[A-Za-z0-9_]{1,16}")) {
                 continue;
@@ -434,7 +437,23 @@ public final class OrionFakePrefix {
 
     public static Component configuredPrefixComponent() {
         OrionConfig config = OrionClient.getConfigOrNull();
-        return config == null || !config.isFakePrefixEnabled() ? Component.empty() : parse(config.getFakePrefix());
+        return config == null || !config.isFakePrefixEnabled() ? Component.empty() : parse(activePreset(config).prefix());
+    }
+
+    private static OrionConfig.FakePrefixPreset activePreset(OrionConfig config) {
+        var client = Minecraft.getInstance();
+        var server = client == null ? null : client.getCurrentServer();
+        return config.fakePrefixForServer(server == null ? "" : server.ip);
+    }
+
+    private static void resetDetectionOnServerChange() {
+        var client = Minecraft.getInstance();
+        var connection = client == null ? null : client.getConnection();
+        if (connection != cachedConnection) {
+            cachedConnection = connection;
+            cachedPlayerName = null;
+            cachedDetectedPrefix = null;
+        }
     }
 
     private static boolean matchesAnyName(String text, int index, List<String> playerNames) {

@@ -342,6 +342,7 @@
       const pose = dance && this.dance ? this.dance[Math.floor(time*50)%this.dance.length] : null;
       const [sway,rise] = pose ?? [0,0];
       const body = pose ? rotation(pose.slice(2,5)) : identity;
+      let headMotion = identity;
       for (const [i,part] of this.player.entries()) {
         const [x,y,z] = part.pivot;
         const offset = [x,y,z];
@@ -360,10 +361,12 @@
           }
         }
         const local = multiply(translate(offset[0],offset[1]-32,offset[2]),turn);
+        if (i === 0 && pose) headMotion = multiply(local,translate(-x,32-y,-z));
         const model = multiply(scale(1.8/32,1.8/32,1.8/32),part.mirrored ? multiply(local,scale(-1,1,1)) : local);
         this.drawMesh(part.base,this.skin,model);
         if (part.outer) this.drawMesh(part.outer,this.skin,model);
       }
+      return headMotion;
     }
 
     draw({yaw = -.55,pitch = .16,slots = {},pet,player = true,time = 0,icon,home = false,portrait = false,zoom = 1} = {}) {
@@ -388,7 +391,7 @@
       const centerZ = slots.wings ? (portrait ? .72 : home ? 1.1 : 0) : 0;
       this.view = multiply(scale(2*ratio/width,-2*ratio/height,.19),
         multiply(rotateX(pitch),multiply(rotateY(yaw),translate(-centerX,-centerY,-centerZ))));
-      if (player && this.skin) this.drawPlayer(Boolean(slots.dance),time);
+      const headMotion = player && this.skin ? this.drawPlayer(Boolean(slots.dance),time) : identity;
       const after = [];
       if (pet) {
         const position = player ? translate(-.89,pet.id==='moon_moth'?-.86:0,.10) : identity;
@@ -399,7 +402,7 @@
         this.drawMesh(wings.plane,wings.texture,scale(1.8/32,1.8/32,1.8/32));
       } else if (wings && !['halo','hat'].includes(icon)) this.drawMesh(wings,this.white,identity);
       if (slots.halo || icon==='halo') after.push(()=>this.drawMesh(this.cosmetics.halo,this.white,identity,true));
-      if (headwear) this.drawMesh(headwear.geometry,headwear.texture,scale(1.8/32,1.8/32,1.8/32));
+      if (headwear) this.drawMesh(headwear.geometry,headwear.texture,multiply(scale(1.8/32,1.8/32,1.8/32),headMotion));
       else if (slots.hat || icon==='hat') after.push(()=>this.drawMesh(this.cosmetics.hat,this.white,identity,true));
       for (const draw of after) draw();
       gl.depthMask(true);

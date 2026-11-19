@@ -113,7 +113,7 @@ public final class OrionFootball {
                 placing=true;movingIndex=-1;yawOffset=0;
                 GleamMinecraft.addChatMessage(client, Component.literal("[Футбол] Наведи на землю и нажми ")
                         .withStyle(ChatFormatting.WHITE)
-                        .append(Component.literal(goalKey.getTranslatedKeyMessage().getString()).withStyle(ChatFormatting.GOLD))
+                        .append(Component.literal(ru.orion.client.keybind.OrionKeybinds.keyLabel(goalKey)).withStyle(ChatFormatting.GOLD))
                         .append(" ещё раз"));
             }
             else if(preview!=null){if(movingIndex>=0){goals.set(movingIndex,preview);keepers.get(movingIndex).reset();}else if(goals.size()<32)addGoal(preview);persist();placing=false;movingIndex=-1;}

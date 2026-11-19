@@ -63,7 +63,7 @@ public final class OrionStatusHud {
     }
 
     private static String keyLabel(KeyMapping key) {
-        return key.getTranslatedKeyMessage().getString();
+        return ru.orion.client.keybind.OrionKeybinds.keyLabel(key);
     }
 
     private void key(State state, int index, String label, String mouse, float x, float y, float w, float h) {

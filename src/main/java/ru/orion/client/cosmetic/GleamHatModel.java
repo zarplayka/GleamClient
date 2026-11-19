@@ -47,9 +47,9 @@ public final class GleamHatModel {
         pose.pushPose();
         player.root().translateAndRotate(pose);
         player.translateToHead(pose);
-        // The editable models are posed on a standing player, in pixels with Y up and +Z forward.
+        // The hat mesh is measured from the feet. The player head pivots at the neck, 24 pixels up.
         pose.scale(1F/16F, -1F/16F, -1F/16F);
-        pose.translate(0F, -32F, 0F);
+        pose.translate(0F, -24F, 0F);
         collector.submitCustomGeometry(pose, RenderTypes.entityCutout(hat.texture), (matrix, vertices) -> {
             float[] data = hat.faces;
             for (int f = 0; f < data.length; f += FACE_SIZE) {

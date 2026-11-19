@@ -1892,6 +1892,7 @@ pub async fn launch_minecraft(
                 command.env("GLEAM_WORLD_INVITE", invite);
             }
         }
+        let _discord = app.state::<crate::discord::Presence>().game(&mut command, version);
         let mut child = {
             let mut status = game.status.lock().map_err(|_| "game_install")?;
             installer.check()?;
