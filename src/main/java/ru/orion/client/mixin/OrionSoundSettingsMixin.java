@@ -11,7 +11,16 @@ import ru.orion.client.OrionClient;
 
 @Mixin(SoundEngine.class)
 public abstract class OrionSoundSettingsMixin {
-    @WrapOperation(method = {"play", "calculateVolume(Lnet/minecraft/client/resources/sounds/SoundInstance;)F"},
+    @WrapOperation(method = "play",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/sounds/SoundEngine;calculateVolume(FLnet/minecraft/sounds/SoundSource;)F"))
+    private float orion$replaceCombatCue(SoundEngine engine, float volume, SoundSource source, Operation<Float> original,
+                                         SoundInstance sound) {
+        var hitSound = OrionClient.getHitSoundOrNull();
+        if (hitSound != null && hitSound.replaceCombatCue(sound)) return 0F;
+        return orion$eventVolume(engine, volume, source, original, sound);
+    }
+
+    @WrapOperation(method = "calculateVolume(Lnet/minecraft/client/resources/sounds/SoundInstance;)F",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/sounds/SoundEngine;calculateVolume(FLnet/minecraft/sounds/SoundSource;)F"))
     private float orion$eventVolume(SoundEngine engine, float volume, SoundSource source, Operation<Float> original,
                                     SoundInstance sound) {
