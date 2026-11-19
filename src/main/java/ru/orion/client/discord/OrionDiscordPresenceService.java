@@ -154,11 +154,15 @@ public final class OrionDiscordPresenceService {
             assets.addProperty("large_image", image);
             assets.addProperty("large_text", snapshot.tooltip());
             assets.addProperty("large_url", SITE);
-            JsonObject site = new JsonObject();
-            site.addProperty("label", "Сайт GleamClient");
-            site.addProperty("url", SITE);
+            JsonObject buy = new JsonObject();
+            buy.addProperty("label", "Купить");
+            buy.addProperty("url", SITE + "#plus");
+            JsonObject telegram = new JsonObject();
+            telegram.addProperty("label", "Telegram");
+            telegram.addProperty("url", "https://t.me/OrionClientick");
             JsonArray buttons = new JsonArray();
-            buttons.add(site);
+            buttons.add(buy);
+            buttons.add(telegram);
 
             JsonObject activity = new JsonObject();
             activity.addProperty("type", 0);

@@ -4045,10 +4045,17 @@ public final class OrionClickGuiScreen extends Screen {
             case PROTECT_NAME -> new Setting[]{
                     new TextSetting("Ник", config::getProtectName, configManager::setProtectName, 16)
             };
-            case FAKE_PREFIX -> Arrays.stream(ru.orion.client.effect.OrionFakePrefix.ServerPreset.values())
-                    .map(server -> new ChoiceSetting(server.label(), server.choices(), () -> server.selected(config),
-                            value -> config.setFakePrefixRank(server.ordinal(), value)))
-                    .toArray(Setting[]::new);
+            case FAKE_PREFIX -> {
+                var rows = new ArrayList<Setting>();
+                for (var server : ru.orion.client.effect.OrionFakePrefix.ServerPreset.values()) {
+                    rows.add(new ChoiceSetting(server.label(), server.choices(), () -> server.selected(config),
+                            value -> server.select(config, value)));
+                }
+                rows.add(new TextSetting("Ручной префикс / JSON", config::getFakePrefix, configManager::setFakePrefix, 2048));
+                rows.add(new TextSetting("Дополнительные ники", config::getFakePrefixAdditionalNames,
+                        configManager::setFakePrefixAdditionalNames, 512));
+                yield rows.toArray(Setting[]::new);
+            }
             case HIT_BOX -> new Setting[]{
                     new ChoiceSetting("Рамка хитбокса", new String[]{"Полная", "Уголки"}, config::getHitBoxStyle, config::setHitBoxStyle),
                     new ColorSetting("Цвет хитбоксов", COLOR_PRESETS,

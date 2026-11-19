@@ -27,11 +27,30 @@ import java.util.Optional;
 public final class OrionFakePrefix {
     public enum ServerPreset {
         REALLY_WORLD("ReallyWorld", List.of("reallyworld.me", "reallyworld.ru", "reallyworld.online", "reallyworld.org", "playrw.ru"),
-                List.of(Rank.of("HERO", "#55FF55"), Rank.of("TITAN", "#FFAA00"), Rank.of("DRAGON", "#FF5555"))),
-        FUN_TIME("FunTime", List.of("funtime.su"),
-                List.of(Rank.of("ГЕРОЙ", "#55FF55"), Rank.of("АСПИД", "#55FFFF"), Rank.of("ТИТАН", "#FFAA00"))),
-        HOLY_WORLD("HolyWorld", List.of("holyworld.ru"),
-                List.of(Rank.of("GLADIATOR", "#FFAA00"), Rank.of("DRAGON", "#FF5555")));
+                List.of(Rank.of("HERO", "#55FF55"), Rank.of("TITAN", "#FFAA00"), Rank.of("DRAGON", "#FF5555"),
+                        Rank.of("AVENGER", "#55FFFF"), Rank.of("OVERLORD", "#FF55FF"), Rank.of("MAGISTER", "#A680FF"),
+                        Rank.of("IMPERATOR", "#FFC868"), Rank.of("HELPER", "#4DE394"), Rank.of("DIABLO", "#E83E58"),
+                        Rank.of("GOD", "#FFE789"))),
+        FUN_TIME("FunTime", List.of("funtime.su", "funtime.me"),
+                List.of(Rank.of("ГЕРОЙ", "#55FF55"), Rank.of("АСПИД", "#55FFFF"), Rank.of("ТИТАН", "#FFAA00"),
+                        Rank.of("БАРОН", "#E0B75F"), Rank.of("СТРАЖ", "#8BD4A9"), Rank.of("СКВИД", "#F68BC7"),
+                        Rank.of("ГЛАВА", "#58BCFF"), Rank.of("ЭЛИТА", "#AE87FF"), Rank.of("ПРИНЦ", "#EF717C"),
+                        Rank.of("КНЯЗЬ", "#FF9B51"), Rank.of("ГЕРЦОГ", "#FFE789"))),
+        HOLY_WORLD("HolyWorld", List.of("holyworld.ru", "holyworld.me"),
+                List.of(Rank.of("GLADIATOR", "#FFAA00"), Rank.of("DRAGON", "#FF5555"),
+                        Rank.of("HOLY", "#F8E277"), Rank.of("PALADIN", "#71DAFF"), Rank.of("MASTER", "#75E0AE"),
+                        Rank.of("OVERLORD", "#FC72C7"), Rank.of("ELDER", "#B38AFF"), Rank.of("PHANTOM", "#7E9AEB"),
+                        Rank.of("KING", "#FFB65A"), Rank.of("GRIEFER", "#5DDF8F"), Rank.of("MUSTANG", "#F2AC60"),
+                        Rank.of("GHAST", "#E3EDF5"), Rank.of("WITHER", "#A992D6"), Rank.of("KRAKEN", "#54CADA"),
+                        Rank.of("STINGER", "#FFB04F"), Rank.of("ETERNITY", "#E284FF"), Rank.of("СТАЖЁР", "#4DE394"),
+                        Rank.of("КАСТОМ", "#F9B1FF"), Rank.of("GOLEM", "#D6D2BE"), Rank.of("CREEPER", "#86D86F"),
+                        Rank.of("LORD", "#F3B562"), Rank.of("ORACLE", "#73DBE8"), Rank.of("ENDER", "#DB83ED"),
+                        Rank.of("BEDROCK", "#ACC4DA"), Rank.of("PRIME", "#F2CA76"), Rank.of("LITE", "#86E6AC"),
+                        Rank.of("PLUS", "#77C5F5"), Rank.of("ULTRA", "#ECA8FA"), Rank.of("PLATINUM", "#DAF4FF"))),
+        ARES_MINE("AresMine", List.of("aresmine.ru", "aresmine.me"),
+                List.of(Rank.of("ГИДРА", "#64DC96"), Rank.of("ЦЕРБЕР", "#EF7A71"), Rank.of("ТРИТОН", "#67DAED"),
+                        Rank.of("ФЕНИКС", "#FF9953"), Rank.of("ПАНДАР", "#F4BDC9"), Rank.of("КРОНОС", "#9F9CF2"),
+                        Rank.of("ФОБОС", "#DA86FA"), Rank.of("АРЕС", "#FF6A70"), Rank.of("АРИСТОКРАТ", "#F8DF89")));
 
         private final String label;
         private final List<String> domains;
@@ -44,8 +63,21 @@ public final class OrionFakePrefix {
         }
 
         public String label() { return label; }
-        public String[] choices() { return ranks.stream().map(Rank::text).toArray(String[]::new); }
-        public int selected(OrionConfig config) { return Math.clamp(config.getFakePrefixRank(ordinal()), 0, ranks.size() - 1); }
+        public String[] choices() {
+            var options = new String[ranks.size() + 1];
+            for (int i = 0; i < ranks.size(); i++) options[i] = ranks.get(i).text();
+            options[ranks.size()] = "Ручной";
+            return options;
+        }
+
+        public int selected(OrionConfig config) {
+            int saved = config.getFakePrefixRank(ordinal());
+            return saved == OrionConfig.MANUAL_FAKE_PREFIX ? ranks.size() : Math.clamp(saved, 0, ranks.size() - 1);
+        }
+
+        public void select(OrionConfig config, int choice) {
+            config.setFakePrefixRank(ordinal(), choice == ranks.size() ? OrionConfig.MANUAL_FAKE_PREFIX : choice);
+        }
 
         private boolean includes(String host) {
             return domains.stream().anyMatch(domain -> host.equals(domain) || host.endsWith("." + domain));
@@ -489,7 +521,11 @@ public final class OrionFakePrefix {
         if (port >= 0) host = host.substring(0, port);
         for (ServerPreset server : ServerPreset.values()) {
             if (server.includes(host)) {
-                return new OrionConfig.FakePrefixPreset(address, server.ranks.get(server.selected(config)).component(),
+                int selected = server.selected(config);
+                if (selected == server.ranks.size()) {
+                    return new OrionConfig.FakePrefixPreset("", config.getFakePrefix(), config.getFakePrefixAdditionalNames());
+                }
+                return new OrionConfig.FakePrefixPreset(address, server.ranks.get(selected).component(),
                         config.getFakePrefixAdditionalNames());
             }
         }
