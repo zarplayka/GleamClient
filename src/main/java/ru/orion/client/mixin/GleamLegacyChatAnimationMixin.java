@@ -40,7 +40,7 @@ public abstract class GleamLegacyChatAnimationMixin {
     private void orion$recordMessage(Component content, MessageSignature signature,
                                      GuiMessageTag tag, CallbackInfo callback) {
         var config = OrionClient.getConfigOrNull();
-        if (config == null || !config.isChatAnimationEnabled() || !config.isChatAnimationMessages()) return;
+        if (config == null || !config.isAnimationsEnabled() || !config.isChatAnimationEnabled()) return;
         var messages = ((OrionChatHistoryAccessor) this).orion$getMessages();
         if (messages.isEmpty()) return;
         if (orion$messageTimes.size() >= 512) orion$messageTimes.clear();
@@ -53,12 +53,12 @@ public abstract class GleamLegacyChatAnimationMixin {
     private void orion$slideChat(GuiGraphicsExtractor graphics, Font font, int ticks, int mouseX, int mouseY,
                                  boolean focused, boolean insertion, CallbackInfo callback) {
         var config = OrionClient.getConfigOrNull();
-        orion$drawing = config != null && config.isChatAnimationEnabled() && config.isChatAnimationMessages()
+        orion$drawing = config != null && config.isAnimationsEnabled() && config.isChatAnimationEnabled()
                 && chatScrollbarPos == 0;
-        if (!orion$drawing || orion$lastMessageTime == 0L) return;
+        if (!orion$drawing || !config.isChatAnimationMessages() || orion$lastMessageTime == 0L) return;
         float progress = Math.clamp((System.nanoTime() - orion$lastMessageTime)
                 / (config.getChatAnimationMessageTime() * 1_000_000F), 0F, 1F);
-        if (progress < 1F) graphics.pose().translate(0F, getLineHeight() * .8F * (1F - progress));
+        if (progress < 1F) graphics.pose().translate(0F, getLineHeight() * config.getChatAnimationSlideDistance() * (1F - progress) * (1F - progress));
     }
 
     @Inject(method = "render(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/gui/Font;IIIZZ)V",
@@ -78,7 +78,7 @@ public abstract class GleamLegacyChatAnimationMixin {
         Long added = orion$messageTimes.get(line.addedTime());
         if (added == null) return;
         float progress = Math.clamp((System.nanoTime() - added)
-                / (config.getChatAnimationMessageTime() * 1_000_000F), 0F, 1F);
+                / (config.getChatAnimationFadeTime() * 1_000_000F), 0F, 1F);
         if (progress < 1F) args.set(2, args.<Float>get(2) * (float) Math.sin(progress * Math.PI / 2D));
     }
 }
