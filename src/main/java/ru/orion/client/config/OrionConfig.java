@@ -362,6 +362,7 @@ public final class OrionConfig {
     private boolean jumpCircleEnabled = true;
     private String jumpCircleColor = "#FF7C00";
     private float jumpCircleSize = 1.0F;
+    private int jumpCircleStyle;
     private boolean mediaPlayerEnabled = false;
     private int mediaPlayerX = 8;
     private int mediaPlayerY = 40;
@@ -1077,6 +1078,14 @@ public final class OrionConfig {
 
     public float getJumpCircleSize() {
         return jumpCircleSize;
+    }
+
+    public int getJumpCircleStyle() {
+        return jumpCircleStyle;
+    }
+
+    public void setJumpCircleStyle(int style) {
+        jumpCircleStyle = Math.clamp(style, 0, 3);
     }
 
     public void setJumpCircleSize(float jumpCircleSize) {
@@ -1802,6 +1811,7 @@ public final class OrionConfig {
         }
 
         jumpCircleSize = clamp(jumpCircleSize, 0.25F, 3.0F);
+        setJumpCircleStyle(jumpCircleStyle);
 
         mediaPlayerX = Math.max(0, mediaPlayerX);
         mediaPlayerY = Math.max(0, mediaPlayerY);

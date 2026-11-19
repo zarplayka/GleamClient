@@ -818,5 +818,11 @@
   "Ручной": "Manuell",
   "Ручной префикс / JSON": "Manuelles Präfix / JSON",
   "Дополнительные ники": "Weitere Spielernamen",
-  "Глушить ванильные удары": "Vanilla-Angriffsgeräusche stummschalten"
+  "Глушить ванильные удары": "Vanilla-Angriffsgeräusche stummschalten",
+  "Рябь": "Wellenringe",
+  "Руны": "Runen",
+  "Всплеск": "Funkenkranz",
+  "Эффект на земле при прыжке": "Bodeneffekt beim Springen",
+  "Звук при настройке": "Ton bei Änderung",
+  "Проигрывать звук после изменения громкости": "Den Ton nach einer Lautstärkeänderung abspielen"
 }

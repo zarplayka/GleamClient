@@ -10,6 +10,10 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
 import ru.orion.client.GleamMinecraft;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
@@ -21,7 +25,7 @@ import java.util.List;
 public final class OrionPotionsHud {
     public static final String ID = "potions_hud";
     private static final int WIDTH = 150, HEADER = 22, ROW = 18;
-    private static final String ICON = "M8 2h4m-3 0v6l-5 6a3 3 0 0 0 3 4h6a3 3 0 0 0 3-4l-5-6V2M6 13h8";
+    private final ItemStack headerPotion = PotionContents.createItemStack(Items.POTION, Potions.HEALING);
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView(ID);
     private final OrionHudDrag drag = new OrionHudDrag(ID);
@@ -61,7 +65,6 @@ public final class OrionPotionsHud {
             emptyText = empty;
             scene = new OrionHudView.Scene(WIDTH, height);
             scene.panel(0, 0, WIDTH, height, 7);
-            scene.icon(ICON, 7, 5, 11, "var(--accent)", false);
             scene.label("Potions", 22, 2, WIDTH - 30, 17, 8.5F, "var(--text)", "left", true);
             scene.divider(7, HEADER - 2, WIDTH - 14);
             if (effects.isEmpty()) scene.label(empty, 7, HEADER, WIDTH - 14, ROW, 8, "var(--muted)", "left", false);
@@ -79,13 +82,23 @@ public final class OrionPotionsHud {
         var pos = drag.placeWidget(graphics, w, h, graphics.guiWidth() - w - 8, 68, manager);
         if (pos == null) return;
         view.draw(graphics, scene, pos.x(), pos.y(), w, h);
-        if (effects.isEmpty()) return;
         graphics.nextStratum();
         var pose = graphics.pose();
         pose.pushMatrix();
         try {
             pose.translate(pos.x(), pos.y());
             pose.scale(w / (float) WIDTH, h / (float) height);
+            pose.pushMatrix();
+            try {
+                pose.translate(7, 4).scale(.75F, .75F);
+                //? if >=26.1 {
+                graphics.item(headerPotion, 0, 0);
+                //?} else {
+                /*graphics.renderItem(headerPotion, 0, 0);
+                *///?}
+            } finally {
+                pose.popMatrix();
+            }
             for (int i = 0; i < effects.size(); i++) {
                 graphics.blitSprite(RenderPipelines.GUI_TEXTURED, effects.get(i).sprite, 7, HEADER + i * ROW + 2, 14, 14);
             }

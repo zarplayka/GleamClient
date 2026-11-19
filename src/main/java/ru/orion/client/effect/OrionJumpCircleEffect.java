@@ -7,11 +7,10 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
-import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.rendertype.OrionEspRenderTypes;
 import net.minecraft.util.ARGB;
 import net.minecraft.world.phys.Vec3;
 import ru.orion.client.config.OrionConfigManager;
@@ -24,8 +23,11 @@ import java.util.List;
  * Reimplemented for the MC 26.3 submit/extraction pipeline (no external code or assets).
  */
 public final class OrionJumpCircleEffect {
+    public static final String[] STYLES = {"Кольцо", "Рябь", "Руны", "Всплеск"};
+    private static final int RIPPLES = 1, RUNES = 2, BURST = 3;
     private static final double JUMP_VELOCITY_THRESHOLD = 0.08; // tells a jump apart from walking off a ledge
-    private static final float ANIM_DURATION = 0.60F;           // seconds for the full ring animation
+    private static final float RING_DURATION = 0.60F;
+    private static final float RIPPLE_DELAY = 0.11F;
     private static final float MIN_RADIUS = 0.15F;
     private static final float MAX_RADIUS = 0.55F; // итоговый диаметр ~1.1 блока
     private static final float RING_THICKNESS = 0.18F;          // inner edge = outer * (1 - thickness)
@@ -36,8 +38,9 @@ public final class OrionJumpCircleEffect {
 
     private final OrionConfigManager configManager;
     private final List<Circle> circles = new ArrayList<>();
+    private ClientLevel level;
     private boolean wasOnGround = true;
-    private double lastGroundY;
+    private Vec3 lastGroundPosition;
 
     public OrionJumpCircleEffect(OrionConfigManager configManager) {
         this.configManager = configManager;
@@ -50,76 +53,107 @@ public final class OrionJumpCircleEffect {
 
     private void tick(Minecraft client) {
         LocalPlayer player = client.player;
-
-        if (player == null) {
+        if (client.level != level) {
+            level = client.level;
             wasOnGround = true;
+            lastGroundPosition = null;
+            circles.clear();
+        }
+        var config = configManager.getConfig();
+        if (player == null || !config.isJumpCircleEnabled()) {
+            wasOnGround = true;
+            lastGroundPosition = null;
             circles.clear();
             return;
         }
 
         long now = System.nanoTime();
-        circles.removeIf(circle -> circle.age(now) >= ANIM_DURATION);
+        circles.removeIf(circle -> circle.age(now) >= circle.duration());
 
         boolean onGround = player.onGround();
 
         if (onGround) {
-            // Remember the real ground height: the jump is only detected one tick later,
-            // by which point the player has already risen off the floor.
-            lastGroundY = player.getY();
+            lastGroundPosition = player.position();
         }
 
-        if (configManager.getConfig().isJumpCircleEnabled()
-                && wasOnGround
-                && !onGround
+        if (wasOnGround && !onGround && lastGroundPosition != null
                 && player.getDeltaMovement().y > JUMP_VELOCITY_THRESHOLD) {
             if (circles.size() >= MAX_ACTIVE_CIRCLES) {
                 circles.remove(0);
             }
-            circles.add(new Circle(player.getX(), lastGroundY + 0.02, player.getZ(), now));
+            circles.add(new Circle(lastGroundPosition.add(0, .025, 0), config.getJumpCircleStyle(), now));
         }
 
         wasOnGround = onGround;
     }
 
     private void collectSubmits(LevelRenderContext context) {
-        if (circles.isEmpty()) {
-            return;
-        }
-
         Minecraft client = Minecraft.getInstance();
-        Camera camera = GleamMinecraft.camera(client);
-        Vec3 cam = camera.position();
+        var config = configManager.getConfig();
+        if (circles.isEmpty() || client.level != level || !config.isJumpCircleEnabled()) return;
+        Vec3 cam = GleamMinecraft.camera(client).position();
         PoseStack poseStack = context.poseStack();
-        RenderType renderType = RenderTypes.debugQuads();
-        int rgb = OrionRainbow.orElse(parseColor(configManager.getConfig().getJumpCircleColor()));
-        float size = configManager.getConfig().getJumpCircleSize();
+        var renderType = OrionEspRenderTypes.translucentColorQuadsDepthTested();
+        int rgb = OrionRainbow.orElse(parseColor(config.getJumpCircleColor()));
+        float size = config.getJumpCircleSize();
 
         long now = System.nanoTime();
         for (Circle circle : circles) {
-            float progress = Math.min(1.0F, circle.age(now) / ANIM_DURATION);
-            float radius = (MIN_RADIUS + (MAX_RADIUS - MIN_RADIUS) * easeOutCubic(progress)) * size;
-            int alpha = Math.round(BASE_ALPHA * fade(progress));
-            int color = ARGB.color(alpha, ARGB.red(rgb), ARGB.green(rgb), ARGB.blue(rgb));
-
+            float age = circle.age(now);
+            if (age >= circle.duration()) continue;
+            Vec3 origin = circle.origin().subtract(cam);
             poseStack.pushPose();
-            poseStack.translate(circle.x - cam.x, circle.y - cam.y, circle.z - cam.z);
-
-            float outer = radius;
-            float inner = radius * (1.0F - RING_THICKNESS);
+            poseStack.translate(origin.x, origin.y, origin.z);
             context.submitNodeCollector().submitCustomGeometry(
                     poseStack,
                     renderType,
-                    (pose, vertexConsumer) -> buildRing(pose, vertexConsumer, inner, outer, color)
+                    (pose, vertexConsumer) -> draw(pose, vertexConsumer, circle, age, size, rgb)
             );
 
             poseStack.popPose();
         }
     }
 
-    private static void buildRing(PoseStack.Pose pose, VertexConsumer vc, float inner, float outer, int color) {
-        for (int i = 0; i < SEGMENTS; i++) {
-            double a0 = (Math.PI * 2.0 / SEGMENTS) * i;
-            double a1 = (Math.PI * 2.0 / SEGMENTS) * (i + 1);
+    private static void draw(PoseStack.Pose pose, VertexConsumer vc, Circle circle, float age, float size, int rgb) {
+        float progress = age / circle.duration();
+        float radius = (MIN_RADIUS + (MAX_RADIUS - MIN_RADIUS) * easeOutCubic(progress)) * size;
+        int color = tint(rgb, BASE_ALPHA * fade(progress));
+        switch (circle.style()) {
+            case RIPPLES -> {
+                for (int i = 0; i < 3; i++) {
+                    float t = (age - i * RIPPLE_DELAY) / RING_DURATION;
+                    if (t <= 0 || t >= 1) continue;
+                    float edge = (.10F + .65F * easeOutCubic(t)) * size;
+                    float width = (.049F - .026F * t) * size;
+                    ring(pose, vc, edge - width, edge, 0, Math.TAU, SEGMENTS, tint(rgb, (200F - 32 * i) * fade(t)));
+                }
+            }
+            case RUNES -> {
+                ring(pose, vc, radius * .60F, radius * .65F, 0, Math.TAU, SEGMENTS, tint(rgb, 110 * fade(progress)));
+                for (int i = 0; i < 8; i++) {
+                    double angle = progress * .48 + i * Math.TAU / 8;
+                    ring(pose, vc, radius * .94F, radius, angle - .21, .42, 5, color);
+                    diamond(pose, vc, radius * .79F, radius * (i % 2 == 0 ? .12F : .08F), radius * .04F, angle, color);
+                }
+            }
+            case BURST -> {
+                for (int i = 0; i < 12; i++) {
+                    double angle = i * Math.TAU / 12 + (i % 3 - 1) * .10;
+                    float distance = (.09F + (.59F + i % 3 * .10F) * easeOutCubic(progress)) * size;
+                    float length = (.084F + i % 2 * .041F) * (1F - progress * .7F) * size;
+                    diamond(pose, vc, distance, length, .025F * size * (1F - progress * .72F),
+                            angle, tint(rgb, 230 * fade(progress) * (1F - progress * .25F)));
+                }
+            }
+            default -> ring(pose, vc, radius * (1.0F - RING_THICKNESS), radius, 0, Math.TAU, SEGMENTS, color);
+        }
+    }
+
+    private static void ring(PoseStack.Pose pose, VertexConsumer vc, float inner, float outer,
+                             double start, double arc, int segments, int color) {
+        for (int i = 0; i < segments; i++) {
+            double a0 = start + arc * i / segments;
+            double a1 = start + arc * (i + 1) / segments;
             float cos0 = (float) Math.cos(a0);
             float sin0 = (float) Math.sin(a0);
             float cos1 = (float) Math.cos(a1);
@@ -131,6 +165,19 @@ public final class OrionJumpCircleEffect {
             vc.addVertex(pose, outer * cos1, 0.0F, outer * sin1).setColor(color);
             vc.addVertex(pose, inner * cos1, 0.0F, inner * sin1).setColor(color);
         }
+    }
+
+    private static void diamond(PoseStack.Pose pose, VertexConsumer vc, float distance, float length,
+                                float width, double angle, int color) {
+        float x = (float) Math.cos(angle), z = (float) Math.sin(angle);
+        vc.addVertex(pose, x * (distance - length), 0, z * (distance - length)).setColor(color);
+        vc.addVertex(pose, x * distance + z * width, 0, z * distance - x * width).setColor(color);
+        vc.addVertex(pose, x * (distance + length), 0, z * (distance + length)).setColor(color);
+        vc.addVertex(pose, x * distance - z * width, 0, z * distance + x * width).setColor(color);
+    }
+
+    private static int tint(int rgb, float alpha) {
+        return ARGB.color(Math.round(alpha), ARGB.red(rgb), ARGB.green(rgb), ARGB.blue(rgb));
     }
 
     private static float easeOutCubic(float t) {
@@ -160,17 +207,14 @@ public final class OrionJumpCircleEffect {
         }
     }
 
-    private static final class Circle {
-        private final double x;
-        private final double y;
-        private final double z;
-        private final long spawnNanos;
-
-        private Circle(double x, double y, double z, long spawnNanos) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.spawnNanos = spawnNanos;
+    private record Circle(Vec3 origin, int style, long spawnNanos) {
+        private float duration() {
+            return switch (style) {
+                case RIPPLES -> RING_DURATION + RIPPLE_DELAY * 2;
+                case RUNES -> .79F;
+                case BURST -> .46F;
+                default -> RING_DURATION;
+            };
         }
 
         private float age(long now) {

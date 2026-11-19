@@ -70,6 +70,7 @@ public final class OrionHitSound {
     private static final long MIN_INTERVAL_NANOS = 20_000_000L;
     private static final long ATTACK_WINDOW_NANOS = 750_000_000L;
     private static final long REPLACEMENT_WINDOW_NANOS = 180_000_000L;
+    private static final long COMBAT_SOUND_WINDOW_NANOS = 350_000_000L;
     private static final Identifier ARES_CRIT = Identifier.withDefaultNamespace("aresmine.cosmetic.crit.steel_clash");
     private static final long MAX_CUSTOM_BYTES = 4 * 1024 * 1024L;
     private static final int CACHE_LIMIT = 16;
@@ -90,6 +91,7 @@ public final class OrionHitSound {
     private int lastEstimatedTarget = -1;
     private int lastHitTarget = -1;
     private boolean replacingHurtSound;
+    private boolean handlingDamage;
 
     public OrionHitSound(OrionConfigManager configManager) {
         this.configManager = configManager;
@@ -227,11 +229,14 @@ public final class OrionHitSound {
     public void handleDamage(ClientboundDamageEventPacket packet, Runnable applyDamage) {
         boolean ownHit = confirmDamage(packet);
         boolean previous = replacingHurtSound;
+        boolean wasHandlingDamage = handlingDamage;
+        handlingDamage = true;
         replacingHurtSound = ownHit && configManager.getConfig().isHitSoundMuteVanilla();
         try {
             applyDamage.run();
         } finally {
             replacingHurtSound = previous;
+            handlingDamage = wasHandlingDamage;
         }
     }
 
@@ -286,32 +291,51 @@ public final class OrionHitSound {
 
     /** Called once when Minecraft starts a sound, on the client thread. */
     public boolean replaceCombatCue(SoundInstance sound) {
-        if (!replacingHurtSound && !ARES_CRIT.equals(sound.getIdentifier())) return false;
+        Identifier id = sound.getIdentifier();
+        if (!id.getNamespace().equals("minecraft")) return false;
+        String path = id.getPath();
+        boolean victimSound = path.startsWith("entity.") && path.endsWith(".hurt");
+        boolean vanillaAttack = path.startsWith("entity.player.attack.");
+        if (!handlingDamage && !victimSound && !vanillaAttack && !ARES_CRIT.equals(id)) return false;
         Minecraft client = Minecraft.getInstance();
         if (!client.isSameThread()) return false;
-        if (replacingHurtSound) return true;
+        if (handlingDamage) return replacingHurtSound;
         var config = configManager.getConfig();
         if (!config.isHitSoundEnabled() || client.player == null || attackLevel == null || attackLevel != client.level) return false;
+        // Relative hurt sounds are local feedback. Only positional victim sounds can identify our target.
+        if (victimSound && sound.isRelative()) return false;
 
         long now = System.nanoTime();
         Vec3 origin = new Vec3(sound.getX(), sound.getY(), sound.getZ());
-        boolean nearPlayer = sound.isRelative() || client.player.distanceToSqr(origin) <= 4D;
-        if (now - lastPlay < REPLACEMENT_WINDOW_NANOS && attackLevel.getEntity(lastHitTarget) instanceof LivingEntity target
-                && (nearPlayer || target.distanceToSqr(origin) <= 4D)) return config.isHitSoundMuteVanilla();
+        double playerDistance = client.player.distanceToSqr(origin);
+        boolean nearPlayer = sound.isRelative() || playerDistance <= 4D;
+        if (now - lastPlay < COMBAT_SOUND_WINDOW_NANOS && attackLevel.getEntity(lastHitTarget) instanceof LivingEntity target
+                && matchesCombatSound(target, origin, victimSound, nearPlayer, playerDistance)) {
+            return config.isHitSoundMuteVanilla();
+        }
 
         int targetId = -1;
         long latest = 0L;
         for (var entry : pendingAttacks.entrySet()) {
             var attack = entry.getValue();
             if (now - attack.started() <= ATTACK_WINDOW_NANOS && (targetId < 0 || attack.started() - latest >= 0L)
-                    && (nearPlayer || attack.target().distanceToSqr(origin) <= 4D)) {
+                    && matchesCombatSound(attack.target(), origin, victimSound, nearPlayer, playerDistance)) {
                 latest = attack.started();
                 targetId = entry.getKey();
             }
         }
         if (targetId < 0) return false;
-        hurtWithoutSource.add(targetId);
+        if (!vanillaAttack) hurtWithoutSource.add(targetId);
         return config.isHitSoundMuteVanilla();
+    }
+
+    private static boolean matchesCombatSound(LivingEntity target, Vec3 origin, boolean victimSound,
+                                              boolean nearPlayer, double playerDistance) {
+        if (victimSound) {
+            return target.getBoundingBox().inflate(.4D).contains(origin)
+                    && target.distanceToSqr(origin) < playerDistance;
+        }
+        return nearPlayer || target.distanceToSqr(origin) <= 4D;
     }
 
     private static float effectiveHealth(LivingEntity entity) {
