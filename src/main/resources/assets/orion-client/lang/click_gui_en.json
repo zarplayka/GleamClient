@@ -1278,5 +1278,6 @@
   "Ударная волна": "Shockwave",
   "Ручной": "Manual",
   "Ручной префикс / JSON": "Manual prefix / JSON",
-  "Дополнительные ники": "Additional usernames"
+  "Дополнительные ники": "Additional usernames",
+  "Глушить ванильные удары": "Mute vanilla attack sounds"
 }

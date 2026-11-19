@@ -2,6 +2,13 @@
   "ui.click": { "sounds": [{"name": "orion-client:ui/click", "preload": true}] },
   "ui.success": { "sounds": [{"name": "orion-client:ui/success", "preload": true}] },
   "ui.error": { "sounds": [{"name": "orion-client:ui/error", "preload": true}] },
+  "hit.pvp_tap": {
+    "sounds": [
+      {"name": "orion-client:hitsounds/pvp-tap-1", "preload": true},
+      {"name": "orion-client:hitsounds/pvp-tap-2", "preload": true},
+      {"name": "orion-client:hitsounds/pvp-tap-3", "preload": true}
+    ]
+  },
   "kill.sword_rain": {
     "sounds": [{"name": "orion-client:kill/sword_rain", "preload": true, "attenuation_distance": 64}]
   },

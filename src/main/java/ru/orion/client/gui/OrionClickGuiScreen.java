@@ -4088,6 +4088,7 @@ public final class OrionClickGuiScreen extends Screen {
                     new SliderSetting("Высота звука", .5F, 2F, config::getHitSoundPitch, config::setHitSoundPitch, "x"),
                     new ToggleSetting("Варьировать высоту", config::isHitSoundVaryPitch, config::setHitSoundVaryPitch),
                     new ToggleSetting("Только по игрокам", config::isHitSoundPlayersOnly, config::setHitSoundPlayersOnly),
+                    new ToggleSetting("Глушить ванильные удары", config::isHitSoundMuteVanilla, config::setHitSoundMuteVanilla),
                     new ButtonSetting("Проверка звука", "Прослушать",
                             () -> OrionClient.getInstance().getHitSound().preview()),
                     new ButtonSetting("Загрузить свой звук", "Выбрать файл", this::chooseHitSound),
