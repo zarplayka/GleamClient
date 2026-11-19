@@ -25,13 +25,13 @@ import java.util.List;
 public final class OrionPotionsHud {
     public static final String ID = "potions_hud";
     private static final int WIDTH = 150, HEADER = 22, ROW = 18;
-    private final ItemStack headerPotion = PotionContents.createItemStack(Items.POTION, Potions.HEALING);
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView(ID);
     private final OrionHudDrag drag = new OrionHudDrag(ID);
     private List<Effect> shown;
     private String emptyText;
     private OrionHudView.Scene scene;
+    private ItemStack headerPotion;
 
     private record Effect(Identifier sprite, String name, String duration, boolean expiring) {}
 
@@ -81,6 +81,9 @@ public final class OrionPotionsHud {
         int w = Math.max(1, Math.round(WIDTH * fit)), h = Math.max(1, Math.round(height * fit));
         var pos = drag.placeWidget(graphics, w, h, graphics.guiWidth() - w - 8, 68, manager);
         if (pos == null) return;
+        if (headerPotion == null) {
+            headerPotion = PotionContents.createItemStack(Items.POTION, Potions.HEALING);
+        }
         view.draw(graphics, scene, pos.x(), pos.y(), w, h);
         graphics.nextStratum();
         var pose = graphics.pose();
