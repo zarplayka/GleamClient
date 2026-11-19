@@ -35,6 +35,7 @@ import ru.orion.client.effect.OrionSkinLayers;
 import ru.orion.client.effect.OrionItemScroller;
 import ru.orion.client.effect.OrionZoom;
 import ru.orion.client.effect.OrionTargetEsp;
+import ru.orion.client.effect.OrionHitParticles;
 import ru.orion.client.keybind.OrionKeybinds;
 import net.minecraft.client.KeyMapping;
 
@@ -360,6 +361,7 @@ public final class OrionClickGuiScreen extends Screen {
     private boolean draggingModuleScroll;
     private ModuleRow settingsFor;
     private Setting[] settingsRows = new Setting[0];
+    private int fakePrefixSlot;
     private String soundQuery = "";
     private SimpleSoundInstance soundPreview;
     private record SoundPreset(String group, String id, String label, String icon, String... variants) {}
@@ -3625,6 +3627,15 @@ public final class OrionClickGuiScreen extends Screen {
         return rows.toArray(Setting[]::new);
     }
 
+    private void changeFakePrefixServer(OrionConfig config, int slot, String address, String prefix, String names) {
+        var previous = config.getFakePrefixServer(slot);
+        config.setFakePrefixServer(slot, new OrionConfig.FakePrefixPreset(
+                address == null ? previous.address() : address,
+                prefix == null ? previous.prefix() : prefix,
+                names == null ? previous.names() : names));
+        configManager.save();
+    }
+
     private Setting[] buildSettings(Action action) {
         OrionConfig config = configManager.getConfig();
         return switch (action) {
@@ -3839,9 +3850,9 @@ public final class OrionClickGuiScreen extends Screen {
                         new ButtonSetting("Выйти из комнаты", "Выйти", () -> { if (football != null) football.leaveMatch(); }),
                         new KeybindSetting("Установить ворота", () -> football == null ? null : football.getGoalKey()),
                         new KeybindSetting("Создать или вернуть мяч", () -> football == null ? null : football.getBallKey()),
-                        new ValueSetting("Быстрый удар", () -> InputConstants.Type.MOUSE.getOrCreate(InputConstants.MOUSE_BUTTON_LEFT).getDisplayName().getString()),
-                        new ValueSetting("Зарядить удар", () -> InputConstants.Type.MOUSE.getOrCreate(InputConstants.MOUSE_BUTTON_RIGHT).getDisplayName().getString()),
-                        new ValueSetting("Подкрутить мяч", () -> "Shift + " + InputConstants.Type.MOUSE.getOrCreate(InputConstants.MOUSE_BUTTON_RIGHT).getDisplayName().getString()),
+                        new ValueSetting("Быстрый удар", () -> OrionKeybinds.keyLabel("key.mouse.left")),
+                        new ValueSetting("Зарядить удар", () -> OrionKeybinds.keyLabel("key.mouse.right")),
+                        new ValueSetting("Подкрутить мяч", () -> "Shift + " + OrionKeybinds.keyLabel("key.mouse.right")),
                         new KeybindSetting("Переместить ворота", () -> football == null ? null : football.getMoveKey()),
                         new KeybindSetting("Удалить ворота", () -> football == null ? null : football.getRemoveKey()),
                         new KeybindSetting("Поворот ворот влево", () -> football == null ? null : football.getRotateLeftKey()),
@@ -3978,7 +3989,7 @@ public final class OrionClickGuiScreen extends Screen {
                     new SliderSetting("Количество", 1.0F, 64.0F, () -> (float) config.getHitParticlesCount(),
                             value -> config.setHitParticlesCount(Math.round(value)), "", true),
                     new SliderSetting("Размер", 0.03F, 0.3F, config::getHitParticlesSize, config::setHitParticlesSize, "м"),
-                    new ChoiceSetting("Форма", new String[]{"Искра", "Ромб", "Круг"}, config::getHitParticlesShape, config::setHitParticlesShape)
+                    new ChoiceSetting("Форма", OrionHitParticles.SHAPES, config::getHitParticlesShape, config::setHitParticlesShape)
             };
             case PROJECTILE_TRAIL -> new Setting[]{
                     new ColorSetting("Цвет следа", COLOR_PRESETS, config::getProjectileTrailColor, config::setProjectileTrailColor),
@@ -4044,11 +4055,35 @@ public final class OrionClickGuiScreen extends Screen {
             case PROTECT_NAME -> new Setting[]{
                     new TextSetting("Ник", config::getProtectName, configManager::setProtectName, 16)
             };
-            case FAKE_PREFIX -> new Setting[]{
-                    new TextSetting("Префикс / JSON", config::getFakePrefix, configManager::setFakePrefix, 2048),
-                    new TextSetting("Доп. ники через запятую", config::getFakePrefixAdditionalNames,
-                            configManager::setFakePrefixAdditionalNames, 512)
-            };
+            case FAKE_PREFIX -> {
+                var preset = new ChoiceSetting("Профиль префикса",
+                        new String[]{"Общий", "Сервер 1", "Сервер 2", "Сервер 3", "Сервер 4"}, () -> fakePrefixSlot, value -> {
+                    fakePrefixSlot = value;
+                    settingsRows = buildSettings(Action.FAKE_PREFIX);
+                });
+                if (fakePrefixSlot == 0) {
+                    yield new Setting[]{
+                            preset,
+                            new TextSetting("Префикс / JSON", config::getFakePrefix, configManager::setFakePrefix, 2048),
+                            new TextSetting("Доп. ники через запятую", config::getFakePrefixAdditionalNames,
+                                    configManager::setFakePrefixAdditionalNames, 512)
+                    };
+                }
+                int slot = fakePrefixSlot - 1;
+                yield new Setting[]{
+                        preset,
+                        new TextSetting("Адрес сервера", () -> config.getFakePrefixServer(slot).address(),
+                                value -> changeFakePrefixServer(config, slot, value, null, null), 255),
+                        new ButtonSetting("Заполнить адрес", "Текущий сервер", () -> {
+                            var server = minecraft == null ? null : minecraft.getCurrentServer();
+                            if (server != null) changeFakePrefixServer(config, slot, server.ip, null, null);
+                        }),
+                        new TextSetting("Префикс / JSON", () -> config.getFakePrefixServer(slot).prefix(),
+                                value -> changeFakePrefixServer(config, slot, null, value, null), 2048),
+                        new TextSetting("Доп. ники через запятую", () -> config.getFakePrefixServer(slot).names(),
+                                value -> changeFakePrefixServer(config, slot, null, null, value), 512)
+                };
+            }
             case HIT_BOX -> new Setting[]{
                     new ChoiceSetting("Рамка хитбокса", new String[]{"Полная", "Уголки"}, config::getHitBoxStyle, config::setHitBoxStyle),
                     new ColorSetting("Цвет хитбоксов", COLOR_PRESETS,
@@ -6396,7 +6431,7 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private String keybindLabel(KeyMapping key) {
-        return key == null || key.isUnbound() ? tr("Не назначена") : key.getTranslatedKeyMessage().getString();
+        return key == null || key.isUnbound() ? tr("Не назначена") : OrionKeybinds.keyLabel(key);
     }
 
     private String sportSettingDescription(Setting setting) {

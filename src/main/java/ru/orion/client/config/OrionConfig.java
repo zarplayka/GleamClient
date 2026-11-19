@@ -2,6 +2,9 @@ package ru.orion.client.config;
 
 import ru.orion.client.effect.OrionEmotes;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class OrionConfig {
     public static final int MIN_CLEAN_WATER_OPACITY = 45;
     private GleamLyricsSettings animatedLyrics = new GleamLyricsSettings();
@@ -578,6 +581,50 @@ public final class OrionConfig {
     private boolean fakePrefixEnabled = false;
     private String fakePrefix = "{\"text\":\"ORION \",\"color\":\"#FF7C00\",\"bold\":true}";
     private String fakePrefixAdditionalNames = "";
+    private List<FakePrefixPreset> fakePrefixServers = new ArrayList<>();
+
+    public static final int FAKE_PREFIX_SERVER_SLOTS = 4;
+
+    public record FakePrefixPreset(String address, String prefix, String names) {
+        private FakePrefixPreset normalized() {
+            return new FakePrefixPreset(normalizeFakePrefixAddress(address), boundedText(prefix, 2048), boundedText(names, 512));
+        }
+    }
+
+    public static String normalizeFakePrefixAddress(String address) {
+        if (address == null) return "";
+        String value = address.strip().toLowerCase(java.util.Locale.ROOT);
+        if (value.length() > 255 || !value.matches("[a-z0-9.\\-:\\[\\]_]+")) return "";
+        if (value.endsWith(":25565") && (value.indexOf(':') == value.lastIndexOf(':') || value.startsWith("["))) {
+            value = value.substring(0, value.length() - 6);
+        }
+        return value.endsWith(".") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    public FakePrefixPreset getFakePrefixServer(int slot) {
+        if (fakePrefixServers != null && slot >= 0 && slot < fakePrefixServers.size()) {
+            FakePrefixPreset preset = fakePrefixServers.get(slot);
+            if (preset != null) return preset;
+        }
+        return new FakePrefixPreset("", "", "");
+    }
+
+    public void setFakePrefixServer(int slot, FakePrefixPreset preset) {
+        if (slot < 0 || slot >= FAKE_PREFIX_SERVER_SLOTS) return;
+        while (fakePrefixServers.size() <= slot) fakePrefixServers.add(new FakePrefixPreset("", "", ""));
+        fakePrefixServers.set(slot, preset.normalized());
+    }
+
+    public FakePrefixPreset fakePrefixForServer(String address) {
+        String key = normalizeFakePrefixAddress(address);
+        if (!key.isEmpty()) {
+            for (int i = 0; i < FAKE_PREFIX_SERVER_SLOTS; i++) {
+                var preset = getFakePrefixServer(i);
+                if (key.equals(preset.address()) && !preset.prefix().isBlank()) return preset;
+            }
+        }
+        return new FakePrefixPreset("", getFakePrefix(), getFakePrefixAdditionalNames());
+    }
     private boolean hitBoxEnabled = false;
     private String hitBoxColor = "#FF7C00";
     private int hitBoxStyle;
@@ -1197,7 +1244,7 @@ public final class OrionConfig {
     public float getHitParticlesSize() { return hitParticlesSize; }
     public void setHitParticlesSize(float value) { hitParticlesSize = value; }
     public int getHitParticlesShape() { return hitParticlesShape; }
-    public void setHitParticlesShape(int value) { hitParticlesShape = value; }
+    public void setHitParticlesShape(int value) { hitParticlesShape = Math.clamp(value, 0, 8); }
 
     public boolean isProjectileTrailEnabled() { return projectileTrailEnabled; }
     public void setProjectileTrailEnabled(boolean value) { projectileTrailEnabled = value; }
@@ -1792,7 +1839,7 @@ public final class OrionConfig {
         if (hitParticlesColor == null || !hitParticlesColor.matches("^#[0-9a-fA-F]{6}$")) hitParticlesColor = "#FF7C00";
         hitParticlesCount = Math.max(1, Math.min(64, hitParticlesCount));
         hitParticlesSize = Float.isFinite(hitParticlesSize) ? clamp(hitParticlesSize, 0.03F, 0.3F) : 0.10F;
-        hitParticlesShape = Math.max(0, Math.min(2, hitParticlesShape));
+        setHitParticlesShape(hitParticlesShape);
         if (projectileTrailColor == null || !projectileTrailColor.matches("^#[0-9a-fA-F]{6}$")) projectileTrailColor = "#FF7C00";
         projectileTrailDuration = Float.isFinite(projectileTrailDuration) ? clamp(projectileTrailDuration, 0.25F, 5.0F) : 2.0F;
         if (damageIndicatorsLowColor == null || !damageIndicatorsLowColor.matches("^#[0-9a-fA-F]{6}$")) damageIndicatorsLowColor = "#FFFFFF";
@@ -1894,6 +1941,9 @@ public final class OrionConfig {
         } else if (fakePrefixAdditionalNames.length() > 512) {
             fakePrefixAdditionalNames = fakePrefixAdditionalNames.substring(0, 512);
         }
+        var presets = new ArrayList<FakePrefixPreset>(FAKE_PREFIX_SERVER_SLOTS);
+        for (int i = 0; i < FAKE_PREFIX_SERVER_SLOTS; i++) presets.add(getFakePrefixServer(i).normalized());
+        fakePrefixServers = presets;
     }
 
     private static boolean validWaypoint(Waypoint point) {

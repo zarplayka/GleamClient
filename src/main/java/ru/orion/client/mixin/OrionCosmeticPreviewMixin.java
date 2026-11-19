@@ -38,8 +38,7 @@ abstract class OrionCosmeticPreviewMixin {
             var client = Minecraft.getInstance();
             var player = client.player;
             var config = OrionClient.getConfigOrNull();
-            if (player == null || avatar.id != player.getId() || client.options.getCameraType().isFirstPerson()
-                    || config == null) return;
+            if (player == null || avatar.id != player.getId() || config == null) return;
             id = config.getCosmeticHat();
         }
         if (!id.isEmpty()) GleamHatModel.submit(playerModel, pose, collector, id, avatar.lightCoords);

@@ -795,5 +795,19 @@
   "Контур и заливка": "Kontur und Füllung",
   "Грань под прицелом": "Anvisierte Seite",
   "Непрозрачность заливки": "Deckkraft der Füllung",
-  "Объединять быстрые попадания": "Schnelle Treffer zusammenfassen"
+  "Объединять быстрые попадания": "Schnelle Treffer zusammenfassen",
+  "Профиль префикса": "Präfixprofil",
+  "Общий": "Standard",
+  "Адрес сервера": "Serveradresse",
+  "Заполнить адрес": "Serveradresse eintragen",
+  "Текущий сервер": "Aktuellen Server übernehmen",
+  "Звезда": "Stern",
+  "Сердце": "Herz",
+  "Крест": "Kreuz",
+  "Осколок": "Splitter",
+  "Лепесток": "Blütenblatt",
+  "Сервер 1": "Server 1",
+  "Сервер 2": "Server 2",
+  "Сервер 3": "Server 3",
+  "Сервер 4": "Server 4"
 }

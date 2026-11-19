@@ -5,6 +5,7 @@ import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.ModifyArgs;
 import org.spongepowered.asm.mixin.injection.Slice;
 import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
@@ -25,8 +26,19 @@ public abstract class OrionFreeLookCameraMixin {
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setRotation(FF)V"))
     private void orion$freeLookRotation(Args rotation) {
         if (OrionFreeLook.isActive(entity)) {
-            rotation.set(0, OrionFreeLook.yaw());
-            rotation.set(1, OrionFreeLook.pitch());
+            rotation.set(0, OrionFreeLook.yaw(rotation.<Float>get(0)));
+            rotation.set(1, OrionFreeLook.pitch(rotation.<Float>get(1)));
         }
+    }
+
+    @ModifyArg(
+            //? if >=26.1 {
+            method = "alignWithEntity(F)V",
+            //?} else {
+            /*method = "setup(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/Entity;ZZF)V",
+            *///?}
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;getMaxZoom(F)F"))
+    private float gleam$smoothOrbitDistance(float distance) {
+        return OrionFreeLook.isActive(entity) ? distance * OrionFreeLook.distance() : distance;
     }
 }
