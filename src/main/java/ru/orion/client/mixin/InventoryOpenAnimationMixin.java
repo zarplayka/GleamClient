@@ -21,7 +21,7 @@ public abstract class InventoryOpenAnimationMixin implements OrionScreenMotion {
     private void orion$startOpening(CallbackInfo callback) { orion$openedAt=System.nanoTime(); }
     @Override public float orion$inventoryScale() {
         var config=OrionClient.getConfigOrNull();
-        if(config==null || !config.isAnimationsEnabled() || !((Object)this instanceof AbstractContainerScreen<?>) || orion$openedAt==0)return 1F;
+        if(config==null || !config.isAnimationsEnabled() || !config.isAnimationsInventory() || !((Object)this instanceof AbstractContainerScreen<?>) || orion$openedAt==0)return 1F;
         float t=Math.max(0F,Math.min(1F,(System.nanoTime()-orion$openedAt)/(config.getAnimationsDuration()*1_000_000F)));
         float eased=1F-(1F-t)*(1F-t)*(1F-t);
         return .88F+.12F*eased;

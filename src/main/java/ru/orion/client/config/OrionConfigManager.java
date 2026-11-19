@@ -44,7 +44,18 @@ public final class OrionConfigManager {
 
     public void applyProfile(JsonObject profile) throws IOException {
         JsonObject combined = GSON.toJsonTree(config).getAsJsonObject();
-        OrionConfigLibrary.shareable(profile).entrySet().forEach(entry -> {
+        JsonObject incoming = OrionConfigLibrary.shareable(profile);
+        if (!incoming.has("animationsHotbar") && !incoming.has("animationsInventory")
+                && incoming.has("animationsEnabled") && incoming.has("chatAnimationEnabled")) {
+            boolean inventory = incoming.get("animationsEnabled").getAsBoolean();
+            incoming.addProperty("animationsHotbar", inventory);
+            incoming.addProperty("animationsInventory", inventory);
+            incoming.addProperty("animationsEnabled", inventory || incoming.get("chatAnimationEnabled").getAsBoolean());
+        }
+        if (!incoming.has("chatAnimationFadeTime") && incoming.has("chatAnimationMessageTime")) {
+            incoming.add("chatAnimationFadeTime", incoming.get("chatAnimationMessageTime"));
+        }
+        incoming.entrySet().forEach(entry -> {
             String key = entry.getKey();
             var value = entry.getValue();
             if (key.equals("healthIndicatorOptions") || key.equals("armorIndicatorOptions") || key.equals("customGlint")) {

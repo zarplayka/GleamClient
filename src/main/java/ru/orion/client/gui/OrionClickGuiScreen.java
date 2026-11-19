@@ -277,6 +277,7 @@ public final class OrionClickGuiScreen extends Screen {
     private boolean siteItemScrollerAllowed;
     private String siteCatalogLanguage = "";
     private boolean siteActive;
+    private GleamScreenSnow backgroundSnow;
     private String siteSection = "ALL", siteStatus = "";
     private String friendsSession = "", friendsStatus = "";
     private JsonArray friends = new JsonArray();
@@ -700,6 +701,12 @@ public final class OrionClickGuiScreen extends Screen {
     public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
         if (titleParent instanceof net.minecraft.client.gui.screens.TitleScreen) OrionTitleMenu.drawBackdrop(context, width, height);
         context.fill(0, 0, width, height, 0x66000000);
+        if (GleamMinecraft.overlay(minecraft) == null) {
+            if (backgroundSnow == null || !backgroundSnow.fits(width, height)) {
+                backgroundSnow = new GleamScreenSnow(width, height, null);
+            }
+            backgroundSnow.draw(context);
+        }
         GleamMinecraft.extractDeferredSubtitles(minecraft);
     }
 
@@ -3487,7 +3494,7 @@ public final class OrionClickGuiScreen extends Screen {
         return switch (action) {
             case RAGDOLL, FRESH_ANIMATIONS, NAMETAGS, FREE_LOOK, CLEAN_WATER,
                     POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER -> true;
-            case SKIN_LAYERS, ITEM_SCROLLER, EMOTES, CHAT_ANIMATION, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
+            case SKIN_LAYERS, ITEM_SCROLLER, EMOTES, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
                  FAKE_PREFIX, HEALTH_TAGS, ARMOR_INDICATOR,
                  HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW -> true;
             default -> false;
@@ -3758,13 +3765,6 @@ public final class OrionClickGuiScreen extends Screen {
                     new ToggleSetting("Скрывать HUD при втором зуме", config::isSecondaryZoomHideHud, config::setSecondaryZoomHideHud)
             };
             case CHAT_FILTER -> new Setting[]{ new TextSetting("Слова через запятую", config::getChatFilterWords, configManager::setChatFilterWords, 512) };
-            case CHAT_ANIMATION -> new Setting[]{
-                    new ToggleSetting("Сдвиг сообщений", config::isChatAnimationMessages, config::setChatAnimationMessages),
-                    new ToggleSetting("Плавное появление текста", config::isChatAnimationFade, config::setChatAnimationFade),
-                    new SliderSetting("Время анимации сообщений", 10F, 800F, config::getChatAnimationMessageTime, config::setChatAnimationMessageTime, " мс"),
-                    new ToggleSetting("Анимация поля ввода", config::isChatAnimationInput, config::setChatAnimationInput),
-                    new SliderSetting("Время анимации поля ввода", 10F, 800F, config::getChatAnimationInputTime, config::setChatAnimationInputTime, " мс")
-            };
             case CHAT_HIGHLIGHT -> new Setting[]{
                     new TextSetting("Слова через запятую", config::getChatHighlightWords, configManager::setChatHighlightWords, 512),
                     new ColorSetting("Цвет", COLOR_PRESETS, config::getChatHighlightColor, configManager::setChatHighlightColor)
@@ -3814,7 +3814,11 @@ public final class OrionClickGuiScreen extends Screen {
                     new SliderSetting("Сила", 0.0F, 1.0F, config::getMotionBlurStrength, config::setMotionBlurStrength, "x")
             };
             case BLOCK_HIGHLIGHT -> new Setting[]{
-                    new ColorSetting("Цвет контура", COLOR_PRESETS, config::getBlockHighlightColor, config::setBlockHighlightColor),
+                    new ChoiceSetting("Режим подсветки блока", new String[]{"Контур", "Заливка", "Контур и заливка", "Грань под прицелом"},
+                            config::getBlockHighlightMode, config::setBlockHighlightMode),
+                    new SliderSetting("Непрозрачность заливки", 1F, 100F, () -> (float) config.getBlockHighlightFillOpacity(),
+                            value -> config.setBlockHighlightFillOpacity(Math.round(value)), "%", true),
+                    new ColorSetting("Цвет подсветки блока", COLOR_PRESETS, config::getBlockHighlightColor, config::setBlockHighlightColor),
                     new SliderSetting("Скорость перехода", 1.0F, 40.0F, config::getBlockHighlightMoveSpeed, config::setBlockHighlightMoveSpeed, ""),
                     new SliderSetting("Скорость появления", 1.0F, 40.0F, config::getBlockHighlightFadeSpeed, config::setBlockHighlightFadeSpeed, ""),
                     new SliderSetting("Толщина контура", 0.5F, 5.0F, config::getBlockHighlightLineWidth, config::setBlockHighlightLineWidth, ""),
@@ -3907,8 +3911,19 @@ public final class OrionClickGuiScreen extends Screen {
             }
             case LOCK_SLOT -> new Setting[]{new KeybindSetting("Клавиша блокировки", OrionKeybinds::getLockSlotKey)};
             case ANIMATIONS -> new Setting[]{
+                    new ToggleSetting("Анимация хотбара", config::isAnimationsHotbar, config::setAnimationsHotbar),
+                    new ToggleSetting("Анимация инвентаря", config::isAnimationsInventory, config::setAnimationsInventory),
                     new SliderSetting("Плавность", 50F, 600F, () -> (float) config.getAnimationsDuration(),
-                            value -> config.setAnimationsDuration(Math.round(value)), " мс", true)
+                            value -> config.setAnimationsDuration(Math.round(value)), " мс", true),
+                    new ToggleSetting("Анимации чата", config::isChatAnimationEnabled, config::setChatAnimationEnabled),
+                    new ToggleSetting("Сдвиг сообщений", config::isChatAnimationMessages, config::setChatAnimationMessages),
+                    new SliderSetting("Время сдвига сообщений", 10F, 800F, config::getChatAnimationMessageTime, config::setChatAnimationMessageTime, " мс", true),
+                    new SliderSetting("Амплитуда сдвига сообщений", .1F, 2F, config::getChatAnimationSlideDistance, config::setChatAnimationSlideDistance, "x"),
+                    new ToggleSetting("Плавное появление текста", config::isChatAnimationFade, config::setChatAnimationFade),
+                    new SliderSetting("Время появления текста", 10F, 800F, config::getChatAnimationFadeTime, config::setChatAnimationFadeTime, " мс", true),
+                    new ToggleSetting("Анимация поля ввода", config::isChatAnimationInput, config::setChatAnimationInput),
+                    new SliderSetting("Время анимации поля ввода", 10F, 800F, config::getChatAnimationInputTime, config::setChatAnimationInputTime, " мс", true),
+                    new SliderSetting("Амплитуда поля ввода", 2F, 36F, config::getChatAnimationInputDistance, config::setChatAnimationInputDistance, " px", true)
             };
             case ENCHANT_GLINT -> new Setting[]{
                     new ChoiceSetting("Эффект", new String[]{"GleamClient", "Выкл", "Azure", "Rose", "Gold", "Своё"},
@@ -3980,6 +3995,7 @@ public final class OrionClickGuiScreen extends Screen {
             case DAMAGE_INDICATORS -> new Setting[]{
                     new ToggleSetting("Только свои удары", config::isDamageIndicatorsOwnHits, config::setDamageIndicatorsOwnHits),
                     new ToggleSetting("Показывать лечение", config::isDamageIndicatorsHealing, config::setDamageIndicatorsHealing),
+                    new ToggleSetting("Объединять быстрые попадания", config::isDamageIndicatorsMerge, config::setDamageIndicatorsMerge),
                     new SliderSetting("Время на экране", .5F, 5F, config::getDamageIndicatorsLifetime, config::setDamageIndicatorsLifetime, " с"),
                     new SliderSetting("Размер чисел", .5F, 2F, config::getDamageIndicatorsScale, config::setDamageIndicatorsScale, "x"),
                     new ColorSetting("Малый урон", COLOR_PRESETS, config::getDamageIndicatorsLowColor, config::setDamageIndicatorsLowColor),
@@ -7310,7 +7326,6 @@ public final class OrionClickGuiScreen extends Screen {
             }
             case NO_RENDER -> { config.setNoRenderEnabled(!config.isNoRenderEnabled()); configManager.save(); }
             case CHAT_FILTER -> configManager.setChatFilterEnabled(!config.isChatFilterEnabled());
-            case CHAT_ANIMATION -> { config.setChatAnimationEnabled(!config.isChatAnimationEnabled()); configManager.save(); }
             case CHAT_HIGHLIGHT -> configManager.setChatHighlightEnabled(!config.isChatHighlightEnabled());
             case WAYPOINTS -> configManager.setWaypointsEnabled(!config.isWaypointsEnabled());
             case DEATH_POINT -> configManager.setDeathPointEnabled(!config.isDeathPointEnabled());
@@ -7389,7 +7404,7 @@ public final class OrionClickGuiScreen extends Screen {
             case SOUND_SETTINGS -> config.isSoundSettingsEnabled();
             case NO_RENDER -> config.isNoRenderEnabled();
             case CHAT_FILTER -> config.isChatFilterEnabled();
-            case CHAT_ANIMATION -> config.isChatAnimationEnabled();
+            case CHAT_ANIMATION -> false; // Retain the existing module-icon atlas indexes.
             case CHAT_HIGHLIGHT -> config.isChatHighlightEnabled();
             case WAYPOINTS -> config.isWaypointsEnabled();
             case DEATH_POINT -> config.isDeathPointEnabled();
@@ -7980,7 +7995,7 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("Health Indicator", "Показывает сердечки игроков", Icon.PLAYER, Action.HEALTH_TAGS),
                 new ModuleRow("NoFire", "Убирает огонь с экрана полностью", Icon.EYE, Action.NO_FIRE),
                 new ModuleRow("NoParticles", "Скрывает лишние частицы", Icon.GRID, Action.NO_PARTICLES),
-                new ModuleRow("Animations", "Плавность хотбара и инвентаря", Icon.GRID, Action.ANIMATIONS),
+                new ModuleRow("Animations", "Анимации хотбара, инвентаря и чата", Icon.GRID, Action.ANIMATIONS),
                 new ModuleRow("ItemScaling", "Размер предмета в руке", Icon.CUBE, Action.ITEM_SCALING),
                 new ModuleRow("SmallShield", "Уменьшает щит", Icon.CUBE, Action.SMALL_SHIELD),
                 new ModuleRow("EnchantGlint", "Переливание зачарованных вещей", Icon.SUN, Action.ENCHANT_GLINT),
@@ -7995,7 +8010,7 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("CustomTime", "Свое время суток", Icon.SUN, Action.CUSTOM_TIME),
                 new ModuleRow("WorldParticles", "Добавляет частицы в мире", Icon.GRID, Action.WORLD_PARTICLES),
                 new ModuleRow("ProjectileTrail", "След стрел, перлов и трезубцев", Icon.RINGS, Action.PROJECTILE_TRAIL),
-                new ModuleRow("BlockHighlight", "Плавный контур блока", Icon.CUBE, Action.BLOCK_HIGHLIGHT),
+                new ModuleRow("BlockHighlight", "Подсвечивает блок под прицелом", Icon.CUBE, Action.BLOCK_HIGHLIGHT),
                 new ModuleRow("ItemPhysics", "Предметы лежат на земле", Icon.CUBE, Action.ITEM_PHYSICS)
         };
         private static final ModuleRow[] MISC = {
@@ -8005,7 +8020,6 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("Basketball", "Клиентский баскетбол", Icon.RINGS, Action.BASKETBALL),
                 new ModuleRow("Football", "Клиентский футбол", Icon.RINGS, Action.FOOTBALL),
                 new ModuleRow("Discord", "Показывает статус в Discord", Icon.CHAT, Action.DISCORD),
-                new ModuleRow("ChatAnimation", "Анимирует сообщения и поле ввода", Icon.CHAT, Action.CHAT_ANIMATION),
                 new ModuleRow("ChatTime", "Время перед сообщениями", Icon.CHAT, Action.CHAT_TIME),
                 new ModuleRow("ChatHistory", "Сохраняет чат при переподключении", Icon.CHAT, Action.CHAT_HISTORY),
                 new ModuleRow("MediaPlayer", "Виджет проигрываемой музыки", Icon.MUSIC, Action.MEDIA_PLAYER),
