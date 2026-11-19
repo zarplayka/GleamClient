@@ -1415,6 +1415,7 @@ public final class OrionClickGuiScreen extends Screen {
             case ButtonSetting button -> {
                 item.addProperty("kind","button");
                 item.addProperty("caption",tr(button.buttonText));
+                if (button.quiet) item.addProperty("quiet", true);
             }
             case ValueSetting value -> {
                 item.addProperty("kind","value");
@@ -4090,7 +4091,7 @@ public final class OrionClickGuiScreen extends Screen {
                     new ToggleSetting("Только по игрокам", config::isHitSoundPlayersOnly, config::setHitSoundPlayersOnly),
                     new ToggleSetting("Глушить ванильные удары", config::isHitSoundMuteVanilla, config::setHitSoundMuteVanilla),
                     new ButtonSetting("Проверка звука", "Прослушать",
-                            () -> OrionClient.getInstance().getHitSound().preview()),
+                            () -> OrionClient.getInstance().getHitSound().preview(), true),
                     new ButtonSetting("Загрузить свой звук", "Выбрать файл", this::chooseHitSound),
                     new ValueSetting("Можно перетащить файл сюда", () -> hitSoundImportStatus),
                     new ButtonSetting("Свои звуки (.wav, .aiff, .au)", "Папка",
@@ -7900,7 +7901,10 @@ public final class OrionClickGuiScreen extends Screen {
         String label();
     }
 
-    private record ButtonSetting(String label, String buttonText, Runnable onClick) implements Setting {
+    private record ButtonSetting(String label, String buttonText, Runnable onClick, boolean quiet) implements Setting {
+        private ButtonSetting(String label, String buttonText, Runnable onClick) {
+            this(label, buttonText, onClick, false);
+        }
     }
     private record ValueSetting(String label, Supplier<String> get) implements Setting { }
 

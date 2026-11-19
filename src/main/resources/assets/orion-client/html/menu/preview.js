@@ -403,7 +403,8 @@ function controlRow(row, module, index, embedded = false) {
       + (row.maxLength ? ' maxlength="' + row.maxLength + '"' : '')
       + ' value="' + text(saved) + '" autocomplete="off">'; break;
     case 'keybind': control = '<button type="button" class="button" id="' + id + '" data-keybind="' + index + '">' + text(saved === '—' ? t('Назначить') : saved) + '</button>'; break;
-    case 'button': control = '<button class="button" type="button" data-setting-button="' + index + '">' + text(row.caption) + '</button>'; break;
+    case 'button': control = '<button class="button" type="button" data-setting-button="' + index + '"'
+      + (row.quiet ? ' data-quiet' : '') + '>' + text(row.caption) + '</button>'; break;
     default: control = '<small id="' + id + '">' + text(saved) + '</small>';
   }
   return '<div class="setting-row' + (row.kind === 'choice' ? ' choice-row' : '')
