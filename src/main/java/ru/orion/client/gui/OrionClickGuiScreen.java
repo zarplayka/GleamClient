@@ -277,7 +277,6 @@ public final class OrionClickGuiScreen extends Screen {
     private boolean siteItemScrollerAllowed;
     private String siteCatalogLanguage = "";
     private boolean siteActive;
-    private GleamScreenSnow backgroundSnow;
     private String siteSection = "ALL", siteStatus = "";
     private String friendsSession = "", friendsStatus = "";
     private JsonArray friends = new JsonArray();
@@ -701,12 +700,6 @@ public final class OrionClickGuiScreen extends Screen {
     public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
         if (titleParent instanceof net.minecraft.client.gui.screens.TitleScreen) OrionTitleMenu.drawBackdrop(context, width, height);
         context.fill(0, 0, width, height, 0x66000000);
-        if (GleamMinecraft.overlay(minecraft) == null) {
-            if (backgroundSnow == null || !backgroundSnow.fits(width, height)) {
-                backgroundSnow = new GleamScreenSnow(width, height, null);
-            }
-            backgroundSnow.draw(context);
-        }
         GleamMinecraft.extractDeferredSubtitles(minecraft);
     }
 

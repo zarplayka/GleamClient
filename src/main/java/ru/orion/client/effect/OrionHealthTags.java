@@ -4,12 +4,17 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+//? if >=26.2 {
+import net.fabricmc.fabric.api.client.rendering.v1.RenderStateDataKey;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionEvents;
+//?}
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.entity.state.ArmorStandRenderState;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.renderer.entity.state.TextDisplayEntityRenderState;
 import net.minecraft.resources.Identifier;
@@ -52,6 +57,9 @@ public final class OrionHealthTags {
     private static final int HEART_STEP = 8;
     private static final int HEARTS_PER_ROW = 10;
     private static final float NAME_LINE_LIFT = 9.0F * 1.15F * SCALE;
+    //? if >=26.2 {
+    private static final RenderStateDataKey<OverheadLabels> OVERHEAD_LABELS = RenderStateDataKey.create();
+    //?}
 
     private static final Identifier HEART_CONTAINER = Identifier.withDefaultNamespace("textures/gui/sprites/hud/heart/container.png");
     private static final Identifier HEART_FULL = Identifier.withDefaultNamespace("textures/gui/sprites/hud/heart/full.png");
@@ -66,6 +74,19 @@ public final class OrionHealthTags {
     }
 
     public void register() {
+        //? if >=26.2 {
+        LevelExtractionEvents.END_EXTRACTION.register(context -> {
+            var config = configManager.getConfig();
+            if (!config.isHealthTagsEnabled() && !config.isArmorIndicatorEnabled()) return;
+            Minecraft client = Minecraft.getInstance();
+            var state = context.levelState();
+            var camera = state.cameraRenderState;
+            if (client.player == null || camera == null || !camera.initialized || camera.orientation == null) return;
+            // Minecraft consumes and empties entityRenderStates before COLLECT_SUBMITS.
+            state.setData(OVERHEAD_LABELS, collectLabels(state, client, camera,
+                    context.deltaTracker().getGameTimeDeltaPartialTick(true)));
+        });
+        //?}
         LevelRenderEvents.COLLECT_SUBMITS.register(this::render);
     }
 
@@ -220,36 +241,45 @@ public final class OrionHealthTags {
     }
 
     static OverheadLabels overheadLabels(LevelRenderContext context, Minecraft client, CameraRenderState camera, float partial) {
+        var state = context.levelState();
+        //? if >=26.2 {
+        var extracted = state.getData(OVERHEAD_LABELS);
+        if (extracted != null) return extracted;
+        //?}
+        return collectLabels(state, client, camera, partial);
+    }
+
+    private static OverheadLabels collectLabels(LevelRenderState state, Minecraft client, CameraRenderState camera, float partial) {
         Vector3f vertical = camera.orientation.transform(new Vector3f(0, 1, 0));
         Vec3 up = new Vec3(vertical.x, vertical.y, vertical.z);
         List<Label> labels = new ArrayList<>();
-        for (var state : context.levelState().entityRenderStates) {
-            if (state instanceof TextDisplayEntityRenderState display && display.cachedInfo != null
+        for (var entityState : state.entityRenderStates) {
+            if (entityState instanceof TextDisplayEntityRenderState display && display.cachedInfo != null
                     && !display.cachedInfo.lines().isEmpty() && display.renderState != null) {
                 var transform = display.renderState.transformation().get(display.interpolationProgress);
                 var matrix = transform.getMatrix();
                 float displayScale = matrix.transformDirection(new Vector3f(0, 1, 0)).length();
                 double height = display.cachedInfo.lines().size() * 10D * SCALE * displayScale;
-                labels.add(new Label(new Vec3(state.x + matrix.m30(), state.y + matrix.m31(), state.z + matrix.m32()),
-                        height, -1, true, state.entityType));
+                labels.add(new Label(new Vec3(entityState.x + matrix.m30(), entityState.y + matrix.m31(), entityState.z + matrix.m32()),
+                        height, -1, true, entityState.entityType));
                 continue;
             }
             // For players on 1.21.11 the below-name score lives on AvatarRenderState.
             Component score;
             //? if >=26.1 {
-            score = state.scoreText;
+            score = entityState.scoreText;
             //?} else {
-            /*score = state instanceof AvatarRenderState avatar ? avatar.scoreText : null;
+            /*score = entityState instanceof AvatarRenderState avatar ? avatar.scoreText : null;
             *///?}
-            if (state.nameTagAttachment == null || state.nameTag == null && score == null) continue;
-            int id = state instanceof AvatarRenderState avatar ? avatar.id : -1;
+            if (entityState.nameTagAttachment == null || entityState.nameTag == null && score == null) continue;
+            int id = entityState instanceof AvatarRenderState avatar ? avatar.id : -1;
             if (id == client.player.getId()) continue;
-            double lift = state.nameTag != null && score != null ? NAME_LINE_LIFT : 0;
-            if (state instanceof AvatarRenderState avatar && avatar.showExtraEars) lift += 10 * SCALE;
-            Vec3 attachment = state.nameTagAttachment.add(0, .5F + lift, 0);
-            if (state.passengerOffset != null) attachment = attachment.add(state.passengerOffset);
-            labels.add(new Label(new Vec3(state.x, state.y, state.z).add(attachment), .07D, id,
-                    state instanceof ArmorStandRenderState, state.entityType));
+            double lift = entityState.nameTag != null && score != null ? NAME_LINE_LIFT : 0;
+            if (entityState instanceof AvatarRenderState avatar && avatar.showExtraEars) lift += 10 * SCALE;
+            Vec3 attachment = entityState.nameTagAttachment.add(0, .5F + lift, 0);
+            if (entityState.passengerOffset != null) attachment = attachment.add(entityState.passengerOffset);
+            labels.add(new Label(new Vec3(entityState.x, entityState.y, entityState.z).add(attachment), .07D, id,
+                    entityState instanceof ArmorStandRenderState, entityState.entityType));
         }
         var config = OrionClient.getConfigOrNull();
         if (config != null && config.isSelfTagEnabled()) {
@@ -272,7 +302,7 @@ public final class OrionHealthTags {
                 Vec3 delta = label.position().subtract(baseline);
                 double flatDistance = delta.horizontalDistanceSqr();
                 boolean own = living instanceof Player ? label.entityId() == living.getId()
-                        : label.type() == living.getType() && flatDistance < .04;
+                        : label.type() == living.getType() && flatDistance < .04 && Math.abs(delta.y) < 1D;
                 // Server holograms are independent entities. Only reserve labels in this entity's head column.
                 boolean overhead = label.hologram() && flatDistance < .64 && delta.y > -.42 && delta.y < 3.2;
                 if (own || overhead) lift = Math.max(lift, delta.dot(up) + label.extraHeight() + .12);

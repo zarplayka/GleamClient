@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -127,10 +128,10 @@ public final class OrionDamageIndicators {
             }
         }
         if (indicators.size() >= MAX_INDICATORS) indicators.removeFirst();
-        Vec3 origin = target.position().add(0, target.getBbHeight() * .64D, 0);
+        Vec3 origin = target.position().add(0, target.getBbHeight() * .80D, 0);
         // Spawn slightly in front of the hitbox so the target doesn't cover the number.
         Vec3 towardCamera = GleamMinecraft.camera(Minecraft.getInstance()).position().subtract(origin);
-        Vec3 front = new Vec3(towardCamera.x, 0, towardCamera.z).normalize().scale(target.getBbWidth() * .62F);
+        Vec3 front = new Vec3(towardCamera.x, 0, towardCamera.z).normalize().scale(target.getBbWidth() * .78F);
         float side = (lane++ % 2 == 0 ? 1F : -1F) * (.29F + (lane % 3) * .08F);
         indicators.add(new Indicator(entityId, origin.add(front), amount, healing, lethal,
                 side, now, now, lifetime, label(amount, healing, lethal)));
@@ -140,7 +141,8 @@ public final class OrionDamageIndicators {
         int tenths = Math.round(Math.min(amount, 999.9F) * 10F);
         String value = tenths >= 9999 ? "999+" : tenths % 10 == 0
                 ? Integer.toString(tenths / 10) : (tenths / 10) + "." + (tenths % 10);
-        return Component.literal((healing ? "+" : "−") + value + (lethal ? "!" : "")).getVisualOrderText();
+        return Component.literal((healing ? "+" : "−") + value + (lethal ? "!" : ""))
+                .withStyle(ChatFormatting.BOLD).getVisualOrderText();
     }
 
     private void render(LevelRenderContext context) {

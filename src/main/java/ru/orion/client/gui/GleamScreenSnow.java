@@ -34,7 +34,7 @@ public final class GleamScreenSnow {
         this.height = height;
         this.container = container;
         geometry = container == null ? null : (OrionContainerGeometryAccessor) container;
-        int count = (int) Math.clamp(width * (double) height / 1850, 36, 150);
+        int count = (int) Math.clamp(width * (double) height / 1550, 42, 150);
         flakes = new Flake[count];
         for (int i = 0; i < count; i++) {
             flakes[i] = new Flake(i / (float) count);
@@ -46,22 +46,19 @@ public final class GleamScreenSnow {
 
     public static void register() {
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
-            if (!(screen instanceof AbstractContainerScreen<?>)) return;
-            var snow = new GleamScreenSnow(width, height, screen);
+            boolean inventory = screen instanceof AbstractContainerScreen<?>;
+            if (!inventory && !(screen instanceof OrionClickGuiScreen)) return;
+            var snow = new GleamScreenSnow(width, height, inventory ? screen : null);
             ScreenEvents.afterExtract(screen).register((current, graphics, mx, my, delta) -> {
                 if (GleamMinecraft.screen(client) == current && GleamMinecraft.overlay(client) == null) {
                     snow.draw(graphics);
                 }
             });
-            ScreenMouseEvents.allowMouseClick(screen).register((current, event) ->
+            if (inventory) ScreenMouseEvents.allowMouseClick(screen).register((current, event) ->
                     event.button() != InputConstants.MOUSE_BUTTON_LEFT || GleamMinecraft.overlay(client) != null
                             || client.player == null || !client.player.containerMenu.getCarried().isEmpty()
                             || !snow.sculpt(event.x(), event.y()));
         });
-    }
-
-    boolean fits(int width, int height) {
-        return this.width == width && this.height == height;
     }
 
     void draw(GuiGraphicsExtractor g) {
@@ -159,7 +156,8 @@ public final class GleamScreenSnow {
     private void drawFlake(GuiGraphicsExtractor g, Flake flake) {
         int x = Math.round(flake.x), y = Math.round(flake.y);
         float twinkle = .87F + .13F * (float) Math.sin(time * 2.2 + flake.phase);
-        int opaque = (int) ((67 + flake.depth * 145) * twinkle);
+        float brightness = container == null ? .84F : 1F;
+        int opaque = (int) ((67 + flake.depth * 145) * twinkle * brightness);
         if (flake.depth > .86F) {
             int edge = opaque / 3 << 24 | 0xbad9f6;
             g.fill(x - 2, y, x + 3, y + 1, edge);
