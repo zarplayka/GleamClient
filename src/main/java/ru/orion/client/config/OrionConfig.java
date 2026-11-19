@@ -1254,8 +1254,8 @@ public final class OrionConfig {
     public void setHitParticlesSize(float value) { hitParticlesSize = value; }
     public int getHitParticlesShape() { return hitParticlesShape; }
     public void setHitParticlesShape(int value) {
-        hitParticlesShape = Math.clamp(value, 0, 4);
-        hitParticlesStyleVersion = 1;
+        hitParticlesShape = Math.clamp(value, 0, 3);
+        hitParticlesStyleVersion = 2;
     }
 
     public boolean isProjectileTrailEnabled() { return projectileTrailEnabled; }
@@ -1853,9 +1853,15 @@ public final class OrionConfig {
         hitParticlesSize = Float.isFinite(hitParticlesSize) ? clamp(hitParticlesSize, 0.03F, 0.3F) : 0.10F;
         if (hitParticlesStyleVersion == 0) {
             hitParticlesShape = switch (hitParticlesShape) {
-                case 1, 7 -> 2;
-                case 2, 3 -> 1;
-                case 8 -> 3;
+                case 1, 7 -> 3;
+                case 2, 3, 8 -> 1;
+                case 5 -> 2;
+                default -> 0;
+            };
+        } else if (hitParticlesStyleVersion == 1) {
+            hitParticlesShape = switch (hitParticlesShape) {
+                case 0, 4 -> 1;
+                case 2 -> 3;
                 default -> 0;
             };
         }
