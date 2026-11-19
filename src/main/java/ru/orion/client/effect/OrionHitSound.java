@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.sounds.JOrbisAudioStream;
 import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 import net.minecraft.resources.Identifier;
@@ -14,6 +15,7 @@ import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
@@ -67,6 +69,8 @@ public final class OrionHitSound {
     };
     private static final long MIN_INTERVAL_NANOS = 20_000_000L;
     private static final long ATTACK_WINDOW_NANOS = 750_000_000L;
+    private static final long REPLACEMENT_WINDOW_NANOS = 180_000_000L;
+    private static final Identifier ARES_CRIT = Identifier.withDefaultNamespace("aresmine.cosmetic.crit.steel_clash");
     private static final long MAX_CUSTOM_BYTES = 4 * 1024 * 1024L;
     private static final int CACHE_LIMIT = 16;
 
@@ -79,11 +83,13 @@ public final class OrionHitSound {
             }, new ThreadPoolExecutor.DiscardOldestPolicy());
     private final Map<String, byte[]> cache = new ConcurrentHashMap<>();
     private final Random random = new Random();
-    private final Map<Integer, Long> pendingAttacks = new HashMap<>();
+    private final Map<Integer, PendingAttack> pendingAttacks = new HashMap<>();
     private final Set<Integer> hurtWithoutSource = new HashSet<>();
     private ClientLevel attackLevel;
     private long lastPlay;
     private int lastEstimatedTarget = -1;
+    private int lastHitTarget = -1;
+    private boolean replacingHurtSound;
 
     public OrionHitSound(OrionConfigManager configManager) {
         this.configManager = configManager;
@@ -209,7 +215,7 @@ public final class OrionHitSound {
                 || !(target instanceof LivingEntity living) || !living.isAlive()
                 || config.isHitSoundPlayersOnly() && !(target instanceof Player)) return;
         resetAttackLevel(client.level);
-        pendingAttacks.put(target.getId(), System.nanoTime());
+        pendingAttacks.put(target.getId(), new PendingAttack(living, System.nanoTime(), living.hurtTime, effectiveHealth(living)));
     }
 
     public void onHurt(int targetId) {
@@ -218,30 +224,44 @@ public final class OrionHitSound {
         }
     }
 
-    public void onDamage(ClientboundDamageEventPacket packet) {
+    public void handleDamage(ClientboundDamageEventPacket packet, Runnable applyDamage) {
+        boolean ownHit = confirmDamage(packet);
+        boolean previous = replacingHurtSound;
+        replacingHurtSound = ownHit && configManager.getConfig().isHitSoundMuteVanilla();
+        try {
+            applyDamage.run();
+        } finally {
+            replacingHurtSound = previous;
+        }
+    }
+
+    private boolean confirmDamage(ClientboundDamageEventPacket packet) {
         OrionConfig config = configManager.getConfig();
         Minecraft client = Minecraft.getInstance();
-        if (!config.isHitSoundEnabled() || client.player == null || client.level == null) return;
+        if (!config.isHitSoundEnabled() || client.player == null || client.level == null) return false;
         resetAttackLevel(client.level);
         int attacker = client.player.getId();
         int targetId = packet.entityId();
         if (targetId == attacker || !(client.level.getEntity(targetId) instanceof LivingEntity target)
-                || (config.isHitSoundPlayersOnly() && !(target instanceof Player))) return;
+                || (config.isHitSoundPlayersOnly() && !(target instanceof Player))) return false;
         int cause = packet.sourceCauseId();
         int direct = packet.sourceDirectId();
+        long now = System.nanoTime();
+        PendingAttack pending = pendingAttacks.get(targetId);
+        boolean recentAttack = pending != null && now - pending.started() <= ATTACK_WINDOW_NANOS;
         boolean melee = packet.sourceType().is(DamageTypes.PLAYER_ATTACK) || packet.sourceType().is(DamageTypes.SPEAR)
                 || packet.sourceType().is(DamageTypes.MACE_SMASH);
-        if (cause < 0 && direct < 0 && (melee || packet.sourceType().is(DamageTypes.GENERIC))) {
-            onHurt(targetId);
-            return;
-        }
+        boolean possibleOwnHit = (cause == attacker && (direct < 0 || direct == attacker)) || cause < 0 && direct == attacker;
+        boolean unassignedHit = cause < 0 && direct < 0 && (melee || packet.sourceType().is(DamageTypes.GENERIC));
+        boolean ownHit = (melee || recentAttack) && possibleOwnHit || unassignedHit && recentAttack;
         hurtWithoutSource.remove(targetId);
-        Long attack = pendingAttacks.remove(targetId);
-        if (attack == null && targetId == lastEstimatedTarget && System.nanoTime() - lastPlay < 100_000_000L) return;
-        if (melee && (cause == attacker && (direct < 0 || direct == attacker) || cause < 0 && direct == attacker)) {
-            lastEstimatedTarget = -1;
-            playConfirmedHit(config);
-        }
+        pendingAttacks.remove(targetId);
+        if (!recentAttack && (possibleOwnHit || unassignedHit) && targetId == lastEstimatedTarget
+                && now - lastPlay < REPLACEMENT_WINDOW_NANOS) return true;
+        if (!ownHit) return false;
+        lastEstimatedTarget = -1;
+        playConfirmedHit(config, targetId);
+        return true;
     }
 
     private void tickAttacks(Minecraft client) {
@@ -249,11 +269,53 @@ public final class OrionHitSound {
         resetAttackLevel(config.isHitSoundEnabled() ? client.level : null);
         if (attackLevel == null || pendingAttacks.isEmpty()) return;
         long now = System.nanoTime();
-        pendingAttacks.values().removeIf(when -> now - when > ATTACK_WINDOW_NANOS);
-        for (int id : hurtWithoutSource) {
-            if (pendingAttacks.remove(id) != null && playConfirmedHit(config)) lastEstimatedTarget = id;
+        var iterator = pendingAttacks.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            PendingAttack attack = entry.getValue();
+            if (now - attack.started() > ATTACK_WINDOW_NANOS || attack.target().isRemoved()) {
+                iterator.remove();
+            } else if (hurtWithoutSource.contains(entry.getKey()) || attack.target().hurtTime > attack.hurtTime()
+                    || effectiveHealth(attack.target()) < attack.health() - .01F) {
+                iterator.remove();
+                if (playConfirmedHit(config, entry.getKey())) lastEstimatedTarget = entry.getKey();
+            }
         }
         hurtWithoutSource.clear();
+    }
+
+    /** Called once when Minecraft starts a sound, on the client thread. */
+    public boolean replaceCombatCue(SoundInstance sound) {
+        if (!replacingHurtSound && !ARES_CRIT.equals(sound.getIdentifier())) return false;
+        Minecraft client = Minecraft.getInstance();
+        if (!client.isSameThread()) return false;
+        if (replacingHurtSound) return true;
+        var config = configManager.getConfig();
+        if (!config.isHitSoundEnabled() || client.player == null || attackLevel == null || attackLevel != client.level) return false;
+
+        long now = System.nanoTime();
+        Vec3 origin = new Vec3(sound.getX(), sound.getY(), sound.getZ());
+        boolean nearPlayer = sound.isRelative() || client.player.distanceToSqr(origin) <= 4D;
+        if (now - lastPlay < REPLACEMENT_WINDOW_NANOS && attackLevel.getEntity(lastHitTarget) instanceof LivingEntity target
+                && (nearPlayer || target.distanceToSqr(origin) <= 4D)) return config.isHitSoundMuteVanilla();
+
+        int targetId = -1;
+        long latest = 0L;
+        for (var entry : pendingAttacks.entrySet()) {
+            var attack = entry.getValue();
+            if (now - attack.started() <= ATTACK_WINDOW_NANOS && (targetId < 0 || attack.started() - latest >= 0L)
+                    && (nearPlayer || attack.target().distanceToSqr(origin) <= 4D)) {
+                latest = attack.started();
+                targetId = entry.getKey();
+            }
+        }
+        if (targetId < 0) return false;
+        hurtWithoutSource.add(targetId);
+        return config.isHitSoundMuteVanilla();
+    }
+
+    private static float effectiveHealth(LivingEntity entity) {
+        return entity.getHealth() + entity.getAbsorptionAmount();
     }
 
     private void resetAttackLevel(ClientLevel level) {
@@ -263,12 +325,14 @@ public final class OrionHitSound {
         hurtWithoutSource.clear();
         lastPlay = 0;
         lastEstimatedTarget = -1;
+        lastHitTarget = -1;
     }
 
-    private boolean playConfirmedHit(OrionConfig config) {
+    private boolean playConfirmedHit(OrionConfig config, int targetId) {
         long now = System.nanoTime();
         if (lastPlay != 0 && now - lastPlay < MIN_INTERVAL_NANOS) return false;
         lastPlay = now;
+        lastHitTarget = targetId;
         float variation = config.isHitSoundVaryPitch() ? (random.nextFloat() - .5F) * .12F : 0F;
         play(config.getHitSoundIndex(), config.getHitSoundVolume(), Math.clamp(config.getHitSoundPitch() + variation, .5F, 2F));
         return true;
@@ -337,6 +401,7 @@ public final class OrionHitSound {
 
     private record SoundData(byte[] bytes, boolean ogg) { }
     private record Samples(AudioFormat format, byte[] bytes) { }
+    private record PendingAttack(LivingEntity target, long started, int hurtTime, float health) { }
 
     private SoundData resolveCustomBytes(String selected) throws IOException {
         String name = selected;
