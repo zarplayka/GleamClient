@@ -22,12 +22,12 @@ public abstract class OrionChatInputAnimationMixin {
         orion$offset = 0F;
         var config = OrionClient.getConfigOrNull();
         Minecraft client = Minecraft.getInstance();
-        if (config == null || !config.isChatAnimationEnabled() || !config.isChatAnimationInput()
+        if (config == null || !config.isAnimationsEnabled() || !config.isChatAnimationEnabled() || !config.isChatAnimationInput()
                 || client.player == null || client.player.isSleeping()) return;
         long now = System.nanoTime();
         if (orion$opened == 0L) orion$opened = now;
         float t = 1F - Math.clamp((now - orion$opened) / (config.getChatAnimationInputTime() * 1_000_000F), 0F, 1F);
-        orion$offset = t * t * (2.70158F * t - 1.70158F) * 8F * client.getWindow().getHeight() / 1080F;
+        orion$offset = t * t * (2.70158F * t - 1.70158F) * config.getChatAnimationInputDistance();
     }
 
     @Inject(method = "removed", at = @At("HEAD"))

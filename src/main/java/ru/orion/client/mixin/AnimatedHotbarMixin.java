@@ -29,7 +29,7 @@ public abstract class AnimatedHotbarMixin {
     private int orion$smoothSelection(int target) {
         var config=OrionClient.getConfigOrNull();
         long now=System.nanoTime();
-        if(config==null || !config.isAnimationsEnabled() || !Float.isFinite(orion$selectionX) || orion$lastNanos==0 || Math.abs(target-orion$selectionX)>200) {
+        if(config==null || !config.isAnimationsEnabled() || !config.isAnimationsHotbar() || !Float.isFinite(orion$selectionX) || orion$lastNanos==0 || Math.abs(target-orion$selectionX)>200) {
             orion$selectionX=target;orion$lastNanos=now;return target;
         }
         float elapsed=Math.max(0,Math.min(0.1F,(now-orion$lastNanos)/1_000_000_000F));

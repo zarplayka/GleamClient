@@ -1239,5 +1239,22 @@
   "Подбор опыта": "Experience pickup",
   "Подбор предметов": "Item pickup",
   "Отрыжка после еды": "Burp after eating",
-  "Оценка дистанции последнего полученного удара": "Estimated distance of the last received hit"
+  "Оценка дистанции последнего полученного удара": "Estimated distance of the last received hit",
+  "Анимации хотбара, инвентаря и чата": "Hotbar, inventory and chat animations",
+  "Анимация хотбара": "Hotbar animation",
+  "Анимация инвентаря": "Inventory animation",
+  "Анимации чата": "Chat animations",
+  "Время сдвига сообщений": "Message slide duration",
+  "Амплитуда сдвига сообщений": "Message slide distance",
+  "Время появления текста": "Text fade-in duration",
+  "Амплитуда поля ввода": "Input box travel distance",
+  "Подсвечивает блок под прицелом": "Highlights the targeted block",
+  "Режим подсветки блока": "Block highlight mode",
+  "Цвет подсветки блока": "Block highlight color",
+  "Контур": "Outline",
+  "Заливка": "Fill",
+  "Контур и заливка": "Outline and fill",
+  "Грань под прицелом": "Targeted face",
+  "Непрозрачность заливки": "Fill opacity",
+  "Объединять быстрые попадания": "Combine rapid hits"
 }

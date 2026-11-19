@@ -24,7 +24,7 @@ public final class OrionInventoryAnimation {
     private long lastNanos;
     public void draw(GuiGraphicsExtractor context,Slot slot,int left,int top) {
         var config=OrionClient.getConfigOrNull();
-        if(config==null || !config.isAnimationsEnabled()) { release();x=Float.NaN;lastNanos=0;return; }
+        if(config==null || !config.isAnimationsEnabled() || !config.isAnimationsInventory()) { release();x=Float.NaN;lastNanos=0;return; }
         if(slot==null || !slot.isActive()) { x=Float.NaN;lastNanos=0;return; }
         long now=System.nanoTime();float targetX=left+slot.x-1,targetY=top+slot.y-1;
         if(!Float.isFinite(x)||lastNanos==0) { x=targetX;y=targetY; }

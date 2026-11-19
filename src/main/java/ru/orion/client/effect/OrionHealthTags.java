@@ -7,13 +7,18 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.entity.state.ArmorStandRenderState;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.client.renderer.entity.state.TextDisplayEntityRenderState;
 import net.minecraft.resources.Identifier;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityAttachment;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.player.Player;
@@ -21,11 +26,14 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.config.OrionConfig.IndicatorOptions;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.WeakHashMap;
 
 /**
@@ -43,7 +51,6 @@ public final class OrionHealthTags {
     private static final float HEART_SIZE = 9.0F;
     private static final int HEART_STEP = 8;
     private static final int HEARTS_PER_ROW = 10;
-    // Extra world-space lift when a name tag line sits under the hearts (players/named mobs).
     private static final float NAME_LINE_LIFT = 9.0F * 1.15F * SCALE;
 
     private static final Identifier HEART_CONTAINER = Identifier.withDefaultNamespace("textures/gui/sprites/hud/heart/container.png");
@@ -82,29 +89,27 @@ public final class OrionHealthTags {
         float tickDelta = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
 
         IndicatorOptions options = config.getHealthIndicatorOptions();
+        var labels = overheadLabels(context, client, cameraState, tickDelta);
         for (Entity entity : client.level.entitiesForRendering()) {
             if (!(entity instanceof LivingEntity living) || !visible(client, living, options)
                     || options.changedOnly && living.getHealth() >= living.getMaxHealth()) continue;
 
-            double x = Mth.lerp(tickDelta, living.xOld, living.getX());
-            double y = Mth.lerp(tickDelta, living.yOld, living.getY());
-            double z = Mth.lerp(tickDelta, living.zOld, living.getZ());
-            double distanceSq = cameraPos.distanceToSqr(x, y, z);
+            Vec3 position = living.getPosition(tickDelta);
+            double distanceSq = cameraPos.distanceToSqr(position);
             if (distanceSq > options.distance * options.distance) {
                 continue;
             }
 
-            double dx = x - cameraPos.x, dy = y - cameraPos.y, dz = z - cameraPos.z;
+            Vec3 anchor = labels.anchor(living, position).add(labels.up().scale(options.offset + HEART_SIZE * SCALE * options.scale)).subtract(cameraPos);
             if (options.mode == 0) {
-                submitHearts(context, living, dx, dy, dz, cameraState, distanceSq, options);
+                submitHearts(context, living, anchor, labels.up(), cameraState, distanceSq, options);
             } else {
                 int health = options.mode == 1 ? Mth.ceil(living.getHealth())
                         : Math.round(100 * living.getHealth() / Math.max(1F, living.getMaxHealth()));
                 String value = health + (options.mode == 2 ? "%" : "");
                 int absorption = Mth.ceil(living.getAbsorptionAmount());
                 if (absorption > 0) value += " +" + absorption;
-                submitNumber(context, client.font, value, options.getValueArgb(), dx,
-                        dy + baseLift(living, options), dz, cameraState, options.scale);
+                submitNumber(context, client.font, value, options.getValueArgb(), anchor.x, anchor.y, anchor.z, cameraState, options.scale);
             }
         }
     }
@@ -151,7 +156,7 @@ public final class OrionHealthTags {
     }
 
     private void submitHearts(LevelRenderContext context, LivingEntity living,
-                              double dx, double dy, double dz, CameraRenderState cameraState, double distanceSq,
+                              Vec3 anchor, Vec3 up, CameraRenderState cameraState, double distanceSq,
                               IndicatorOptions options) {
         int healthRed = Mth.ceil(living.getHealth());
         int maxHealth = Mth.ceil(living.getMaxHealth());
@@ -167,8 +172,6 @@ public final class OrionHealthTags {
         int pixelsTotal = Math.min(heartsTotal, HEARTS_PER_ROW) * HEART_STEP + 1;
         float maxX = pixelsTotal / 2.0F;
         double heartDensity = 50.0D - Math.max(4.0D - Math.ceil((double) heartsTotal / HEARTS_PER_ROW), -3.0D) * 5.0D;
-
-        double baseLift = baseLift(living, options);
 
         // Same trick as HealthIndicators: the fill goes toward the camera and the container away
         // from it, with the gap growing with distance so depth precision never lets the dark
@@ -195,7 +198,8 @@ public final class OrionHealthTags {
             float x = maxX - (heart % HEARTS_PER_ROW) * HEART_STEP;
 
             poseStack.pushPose();
-            poseStack.translate(dx, dy + baseLift + rowLift * options.scale, dz);
+            Vec3 rowPosition = anchor.add(up.scale(rowLift * options.scale));
+            poseStack.translate(rowPosition.x, rowPosition.y, rowPosition.z);
             ru.orion.client.render.GleamPose.rotate(poseStack, cameraState.orientation);
             poseStack.scale(-SCALE * options.scale, SCALE * options.scale, SCALE * options.scale);
 
@@ -207,17 +211,77 @@ public final class OrionHealthTags {
         }
     }
 
-    private static double baseLift(LivingEntity living, IndicatorOptions options) {
-        return living.getBbHeight() + .5 + options.offset + (living instanceof Player || living.hasCustomName() ? NAME_LINE_LIFT : 0);
-    }
-
-    static double topOffset(LivingEntity living, IndicatorOptions options) {
-        if (options.mode != 0) return baseLift(living, options);
+    static double rowStackHeight(LivingEntity living, IndicatorOptions options) {
+        if (options.mode != 0) return HEART_SIZE * SCALE * options.scale;
         int count = Math.max(1, Mth.ceil(Mth.ceil(living.getMaxHealth()) / 2F))
                 + Mth.ceil(Mth.ceil(living.getAbsorptionAmount()) / 2F);
         double density = 50D - Math.max(4D - Math.ceil((double) count / HEARTS_PER_ROW), -3D) * 5D;
-        return baseLift(living, options) + ((count - 1) / HEARTS_PER_ROW * HEARTS_PER_ROW) / density * options.scale;
+        return (((count - 1) / HEARTS_PER_ROW * HEARTS_PER_ROW) / density + HEART_SIZE * SCALE) * options.scale;
     }
+
+    static OverheadLabels overheadLabels(LevelRenderContext context, Minecraft client, CameraRenderState camera, float partial) {
+        Vector3f vertical = camera.orientation.transform(new Vector3f(0, 1, 0));
+        Vec3 up = new Vec3(vertical.x, vertical.y, vertical.z);
+        List<Label> labels = new ArrayList<>();
+        for (var state : context.levelState().entityRenderStates) {
+            if (state instanceof TextDisplayEntityRenderState display && display.cachedInfo != null
+                    && !display.cachedInfo.lines().isEmpty() && display.renderState != null) {
+                var transform = display.renderState.transformation().get(display.interpolationProgress);
+                var matrix = transform.getMatrix();
+                float displayScale = matrix.transformDirection(new Vector3f(0, 1, 0)).length();
+                double height = display.cachedInfo.lines().size() * 10D * SCALE * displayScale;
+                labels.add(new Label(new Vec3(state.x + matrix.m30(), state.y + matrix.m31(), state.z + matrix.m32()),
+                        height, -1, true, state.entityType));
+                continue;
+            }
+            // For players on 1.21.11 the below-name score lives on AvatarRenderState.
+            Component score;
+            //? if >=26.1 {
+            score = state.scoreText;
+            //?} else {
+            /*score = state instanceof AvatarRenderState avatar ? avatar.scoreText : null;
+            *///?}
+            if (state.nameTagAttachment == null || state.nameTag == null && score == null) continue;
+            int id = state instanceof AvatarRenderState avatar ? avatar.id : -1;
+            if (id == client.player.getId()) continue;
+            double lift = state.nameTag != null && score != null ? NAME_LINE_LIFT : 0;
+            if (state instanceof AvatarRenderState avatar && avatar.showExtraEars) lift += 10 * SCALE;
+            Vec3 attachment = state.nameTagAttachment.add(0, .5F + lift, 0);
+            if (state.passengerOffset != null) attachment = attachment.add(state.passengerOffset);
+            labels.add(new Label(new Vec3(state.x, state.y, state.z).add(attachment), .07D, id,
+                    state instanceof ArmorStandRenderState, state.entityType));
+        }
+        var config = OrionClient.getConfigOrNull();
+        if (config != null && config.isSelfTagEnabled()) {
+            var self = client.player;
+            Vec3 position = self.getPosition(partial);
+            Vec3 attachment = self.getAttachments().getNullable(EntityAttachment.NAME_TAG, 0, self.getYRot(partial));
+            if (attachment != null) {
+                double scoreLift = self.belowNameDisplay() != null && position.distanceToSqr(camera.pos) < 100D ? NAME_LINE_LIFT : 0;
+                labels.add(new Label(position.add(attachment).add(0, .5F + scoreLift, 0), .07D, self.getId(), false, self.getType()));
+            }
+        }
+        return new OverheadLabels(up, labels);
+    }
+
+    record OverheadLabels(Vec3 up, List<Label> labels) {
+        Vec3 anchor(LivingEntity living, Vec3 position) {
+            Vec3 baseline = position.add(0, living.getBbHeight() + .46F, 0);
+            double lift = 0;
+            for (Label label : labels) {
+                Vec3 delta = label.position().subtract(baseline);
+                double flatDistance = delta.horizontalDistanceSqr();
+                boolean own = living instanceof Player ? label.entityId() == living.getId()
+                        : label.type() == living.getType() && flatDistance < .04;
+                // Server holograms are independent entities. Only reserve labels in this entity's head column.
+                boolean overhead = label.hologram() && flatDistance < .64 && delta.y > -.42 && delta.y < 3.2;
+                if (own || overhead) lift = Math.max(lift, delta.dot(up) + label.extraHeight() + .12);
+            }
+            return baseline.add(up.scale(lift));
+        }
+    }
+
+    private record Label(Vec3 position, double extraHeight, int entityId, boolean hologram, EntityType<?> type) { }
 
     private static void submitHeart(LevelRenderContext context, PoseStack poseStack, Identifier texture, float x, float z) {
         context.submitNodeCollector().submitCustomGeometry(

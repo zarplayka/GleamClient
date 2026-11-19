@@ -7,17 +7,22 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.rendertype.OrionEspRenderTypes;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.core.Direction;
 import net.minecraft.util.ARGB;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import ru.orion.client.config.OrionConfigManager;
 
 public final class OrionBlockHighlight {
     private final OrionConfigManager configManager;
     private AABB box;
+    private Direction face;
+    private int mode = -1;
     private float opacity;
     private long lastTime;
 
@@ -30,14 +35,35 @@ public final class OrionBlockHighlight {
             box = null; opacity = 0; lastTime = 0; return;
         }
         var config = configManager.getConfig();
+        int style = config.getBlockHighlightMode();
+        if (mode != style) {
+            box = null;
+            opacity = 0;
+            mode = style;
+        }
         long now = System.nanoTime();
         float dt = lastTime == 0 ? 0 : Math.min(0.1F, (now - lastTime) / 1_000_000_000F);
         lastTime = now;
         AABB target = null;
         if (client.hitResult instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK) {
             var pos = hit.getBlockPos();
-            var shape = client.level.getBlockState(pos).getShape(client.level, pos);
-            if (!shape.isEmpty()) target = shape.bounds().move(pos).inflate(config.getBlockHighlightOffset());
+            var shape = client.level.getBlockState(pos).getShape(client.level, pos, CollisionContext.of(client.player));
+            if (!shape.isEmpty()) {
+                AABB bounds = shape.bounds();
+                if (style == 3) {
+                    Vec3 contact = hit.getLocation().subtract(Vec3.atLowerCornerOf(pos))
+                            .relative(hit.getDirection(), -0.0001);
+                    for (AABB part : shape.toAabbs()) {
+                        if (part.inflate(0.0002).contains(contact)) {
+                            bounds = part;
+                            break;
+                        }
+                    }
+                    if (face != hit.getDirection()) box = null;
+                    face = hit.getDirection();
+                }
+                target = bounds.move(pos).inflate(config.getBlockHighlightOffset() + (style == 0 ? 0 : .0005));
+            }
         }
         opacity += ((target == null ? 0 : 1) - opacity) * (1F - (float) Math.exp(-config.getBlockHighlightFadeSpeed() * dt));
         if (target != null) {
@@ -47,7 +73,14 @@ public final class OrionBlockHighlight {
         if (box == null || opacity < 0.01F) return;
         Vec3 camera = GleamMinecraft.camera(client).position();
         AABB relative = box.move(-camera.x, -camera.y, -camera.z);
-        int rgb = OrionRainbow.orElse(OrionWorldChanger.parseOpaqueColor(configManager.getConfig().getBlockHighlightColor()));
+        int rgb = OrionRainbow.orElse(OrionWorldChanger.parseOpaqueColor(config.getBlockHighlightColor()));
+        if (style != 0) {
+            int fill = ARGB.color(Math.round(opacity * 255 * config.getBlockHighlightFillOpacity() / 100F), rgb);
+            Direction selectedFace = style == 3 ? face : null;
+            context.submitNodeCollector().submitCustomGeometry(context.poseStack(), OrionEspRenderTypes.colorQuadsDepthTested(),
+                    (pose, vc) -> drawFaces(pose, vc, relative, selectedFace, fill));
+        }
+        if (style == 1 || style == 3) return;
         int color = ARGB.color(Math.round(opacity * 255 * config.getBlockHighlightOpacity() / 100F), ARGB.red(rgb), ARGB.green(rgb), ARGB.blue(rgb));
         int glow = ARGB.color(Math.round(opacity * 255 * config.getBlockHighlightGlowOpacity() / 100F), ARGB.red(rgb), ARGB.green(rgb), ARGB.blue(rgb));
         boolean glowEnabled = config.isBlockHighlightGlow();
@@ -57,6 +90,32 @@ public final class OrionBlockHighlight {
             if (glowEnabled) drawBox(pose, vc, relative, glow, glowWidth);
             drawBox(pose, vc, relative, color, lineWidth);
         });
+    }
+
+    private static void drawFaces(PoseStack.Pose pose, VertexConsumer vc, AABB box, Direction face, int color) {
+        float x = (float) box.minX, y = (float) box.minY, z = (float) box.minZ;
+        float maxX = (float) box.maxX, maxY = (float) box.maxY, maxZ = (float) box.maxZ;
+        if (face == null || face == Direction.DOWN)
+            quad(pose, vc, color, x, y, z, maxX, y, z, maxX, y, maxZ, x, y, maxZ);
+        if (face == null || face == Direction.UP)
+            quad(pose, vc, color, x, maxY, maxZ, maxX, maxY, maxZ, maxX, maxY, z, x, maxY, z);
+        if (face == null || face == Direction.NORTH)
+            quad(pose, vc, color, x, y, z, x, maxY, z, maxX, maxY, z, maxX, y, z);
+        if (face == null || face == Direction.SOUTH)
+            quad(pose, vc, color, maxX, y, maxZ, maxX, maxY, maxZ, x, maxY, maxZ, x, y, maxZ);
+        if (face == null || face == Direction.WEST)
+            quad(pose, vc, color, x, y, maxZ, x, maxY, maxZ, x, maxY, z, x, y, z);
+        if (face == null || face == Direction.EAST)
+            quad(pose, vc, color, maxX, y, z, maxX, maxY, z, maxX, maxY, maxZ, maxX, y, maxZ);
+    }
+
+    private static void quad(PoseStack.Pose pose, VertexConsumer vc, int color,
+                             float x1, float y1, float z1, float x2, float y2, float z2,
+                             float x3, float y3, float z3, float x4, float y4, float z4) {
+        vc.addVertex(pose, x1, y1, z1).setColor(color);
+        vc.addVertex(pose, x2, y2, z2).setColor(color);
+        vc.addVertex(pose, x3, y3, z3).setColor(color);
+        vc.addVertex(pose, x4, y4, z4).setColor(color);
     }
     private static AABB blend(AABB a, AABB b, double t) {
         return new AABB(a.minX+(b.minX-a.minX)*t, a.minY+(b.minY-a.minY)*t, a.minZ+(b.minZ-a.minZ)*t,

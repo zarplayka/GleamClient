@@ -261,6 +261,8 @@ public final class OrionConfig {
     public void setBasketballTrajectory(boolean value){basketballTrajectory=value;}
     private boolean animationsEnabled = false;
     private int animationsDuration = 180;
+    private Boolean animationsHotbar;
+    private Boolean animationsInventory;
     private boolean enchantGlintEnabled = false;
     private int enchantGlintMode = 0;
     public static final int CUSTOM_GLINT = 5;
@@ -384,6 +386,8 @@ public final class OrionConfig {
     private boolean motionBlurEnabled = false;
     private float motionBlurStrength = 0.5F;
     private boolean blockHighlightEnabled = false;
+    private int blockHighlightMode;
+    private int blockHighlightFillOpacity = 22;
     private String blockHighlightColor = "#FF7C00";
     private float blockHighlightMoveSpeed = 18.0F;
     private float blockHighlightFadeSpeed = 12.0F;
@@ -428,7 +432,11 @@ public final class OrionConfig {
     private boolean chatAnimationInput = true;
     private boolean damageIndicatorsOwnHits = true;
     private boolean damageIndicatorsHealing = true;
+    private boolean damageIndicatorsMerge = true;
     private float chatAnimationMessageTime = 150F;
+    private Float chatAnimationFadeTime;
+    private float chatAnimationSlideDistance = .8F;
+    private float chatAnimationInputDistance = 16F;
     private float chatAnimationInputTime = 170F;
     private float damageIndicatorsLifetime = 1.5F;
     private float damageIndicatorsScale = 1F;
@@ -649,7 +657,11 @@ public final class OrionConfig {
     }
 
     public static OrionConfig createDefault() {
-        return new OrionConfig();
+        OrionConfig config = new OrionConfig();
+        config.setAnimationsHotbar(true);
+        config.setAnimationsInventory(true);
+        config.setChatAnimationFadeTime(config.getChatAnimationMessageTime());
+        return config;
     }
 
     public boolean isFootballEnabled() { return footballEnabled; }
@@ -695,6 +707,10 @@ public final class OrionConfig {
     }
     public boolean isAnimationsEnabled() { return animationsEnabled; }
     public void setAnimationsEnabled(boolean value) { animationsEnabled = value; }
+    public boolean isAnimationsHotbar() { return !Boolean.FALSE.equals(animationsHotbar); }
+    public void setAnimationsHotbar(boolean value) { animationsHotbar = value; }
+    public boolean isAnimationsInventory() { return !Boolean.FALSE.equals(animationsInventory); }
+    public void setAnimationsInventory(boolean value) { animationsInventory = value; }
     public int getAnimationsDuration() { return animationsDuration; }
     public void setAnimationsDuration(int value) { animationsDuration = value; }
     public boolean isEnchantGlintEnabled() { return enchantGlintEnabled; }
@@ -1122,6 +1138,10 @@ public final class OrionConfig {
     public void setMotionBlurStrength(float value) { motionBlurStrength = value; }
     public boolean isBlockHighlightEnabled() { return blockHighlightEnabled; }
     public void setBlockHighlightEnabled(boolean value) { blockHighlightEnabled = value; }
+    public int getBlockHighlightMode() { return blockHighlightMode; }
+    public void setBlockHighlightMode(int value) { blockHighlightMode = Math.clamp(value, 0, 3); }
+    public int getBlockHighlightFillOpacity() { return blockHighlightFillOpacity; }
+    public void setBlockHighlightFillOpacity(int value) { blockHighlightFillOpacity = Math.clamp(value, 1, 100); }
     public String getBlockHighlightColor() { return blockHighlightColor; }
     public void setBlockHighlightColor(String value) { blockHighlightColor = value; }
     public float getBlockHighlightMoveSpeed() { return blockHighlightMoveSpeed; }
@@ -1197,10 +1217,18 @@ public final class OrionConfig {
     public void setChatAnimationInput(boolean value) { chatAnimationInput = value; }
     public boolean isDamageIndicatorsOwnHits() { return damageIndicatorsOwnHits; }
     public void setDamageIndicatorsOwnHits(boolean value) { damageIndicatorsOwnHits = value; }
+    public boolean isDamageIndicatorsMerge() { return damageIndicatorsMerge; }
+    public void setDamageIndicatorsMerge(boolean value) { damageIndicatorsMerge = value; }
     public boolean isDamageIndicatorsHealing() { return damageIndicatorsHealing; }
     public void setDamageIndicatorsHealing(boolean value) { damageIndicatorsHealing = value; }
     public float getChatAnimationMessageTime() { return chatAnimationMessageTime; }
     public void setChatAnimationMessageTime(float value) { chatAnimationMessageTime = finiteClamp(value, 10F, 800F, 150F); }
+    public float getChatAnimationFadeTime() { return chatAnimationFadeTime == null ? chatAnimationMessageTime : chatAnimationFadeTime; }
+    public void setChatAnimationFadeTime(float value) { chatAnimationFadeTime = finiteClamp(value, 10F, 800F, 150F); }
+    public float getChatAnimationSlideDistance() { return chatAnimationSlideDistance; }
+    public void setChatAnimationSlideDistance(float value) { chatAnimationSlideDistance = finiteClamp(value, .1F, 2F, .8F); }
+    public float getChatAnimationInputDistance() { return chatAnimationInputDistance; }
+    public void setChatAnimationInputDistance(float value) { chatAnimationInputDistance = finiteClamp(value, 2F, 36F, 16F); }
     public float getChatAnimationInputTime() { return chatAnimationInputTime; }
     public void setChatAnimationInputTime(float value) { chatAnimationInputTime = finiteClamp(value, 10F, 800F, 170F); }
     public float getDamageIndicatorsLifetime() { return damageIndicatorsLifetime; }
@@ -1644,6 +1672,13 @@ public final class OrionConfig {
         basketballVolume = finiteClamp(basketballVolume, 0F, 1F, 0.7F);
         basketballPassPower=finiteClamp(basketballPassPower,6F,30F,13F);
         basketballSpin=finiteClamp(basketballSpin,0F,3F,1F);
+        if (animationsHotbar == null && animationsInventory == null && chatAnimationEnabled && !animationsEnabled) {
+            animationsHotbar = false;
+            animationsInventory = false;
+            animationsEnabled = true;
+        }
+        if (animationsHotbar == null) animationsHotbar = true;
+        if (animationsInventory == null) animationsInventory = true;
         animationsDuration = Math.max(50, Math.min(600, animationsDuration));
         enchantGlintMode = Math.clamp(enchantGlintMode, 0, CUSTOM_GLINT);
         customGlint = customGlint == null ? GlintPreset.DEFAULT : customGlint.sanitized();
@@ -1732,6 +1767,8 @@ public final class OrionConfig {
 
         motionBlurStrength = Float.isFinite(motionBlurStrength) ? clamp(motionBlurStrength, 0.0F, 1.0F) : 0.5F;
         if (blockHighlightColor == null || !blockHighlightColor.matches("^#[0-9a-fA-F]{6}$")) blockHighlightColor = "#FF7C00";
+        setBlockHighlightMode(blockHighlightMode);
+        setBlockHighlightFillOpacity(blockHighlightFillOpacity);
         blockHighlightMoveSpeed = Float.isFinite(blockHighlightMoveSpeed) ? clamp(blockHighlightMoveSpeed, 1.0F, 40.0F) : 18.0F;
         blockHighlightFadeSpeed = Float.isFinite(blockHighlightFadeSpeed) ? clamp(blockHighlightFadeSpeed, 1.0F, 40.0F) : 12.0F;
         blockHighlightLineWidth = Float.isFinite(blockHighlightLineWidth) ? clamp(blockHighlightLineWidth, 0.5F, 5.0F) : 1.6F;
@@ -1761,6 +1798,9 @@ public final class OrionConfig {
         if (damageIndicatorsLowColor == null || !damageIndicatorsLowColor.matches("^#[0-9a-fA-F]{6}$")) damageIndicatorsLowColor = "#FFFFFF";
         if (damageIndicatorsHighColor == null || !damageIndicatorsHighColor.matches("^#[0-9a-fA-F]{6}$")) damageIndicatorsHighColor = "#FF4936";
         setChatAnimationMessageTime(chatAnimationMessageTime);
+        setChatAnimationFadeTime(getChatAnimationFadeTime());
+        setChatAnimationSlideDistance(chatAnimationSlideDistance);
+        setChatAnimationInputDistance(chatAnimationInputDistance);
         setChatAnimationInputTime(chatAnimationInputTime);
         setDamageIndicatorsLifetime(damageIndicatorsLifetime);
         setDamageIndicatorsScale(damageIndicatorsScale);

@@ -32,6 +32,7 @@ public final class OrionArmorIndicator {
         var camera = context.levelState().cameraRenderState;
         if (camera == null || !camera.initialized || camera.orientation == null) return;
         float partial = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
+        var labels = OrionHealthTags.overheadLabels(context, client, camera, partial);
         for (Entity entity : client.level.entitiesForRendering()) {
             if (!(entity instanceof LivingEntity living) || !OrionHealthTags.visible(client, living, options)) continue;
             var position = living.getPosition(partial);
@@ -42,17 +43,17 @@ public final class OrionArmorIndicator {
             boolean aboveHealth = config.isHealthTagsEnabled() && distanceSq <= health.distance * health.distance
                     && (!health.changedOnly || living.getHealth() < living.getMaxHealth())
                     && OrionHealthTags.visible(client, living, health);
-            double lift = (aboveHealth ? OrionHealthTags.topOffset(living, health) + .28 * options.scale
-                    : living.getBbHeight() + .76) + options.offset;
+            double lift = options.offset + 9 * SCALE * options.scale;
+            if (aboveHealth) lift += health.offset + OrionHealthTags.rowStackHeight(living, health) + .06;
+            var anchor = labels.anchor(living, position).add(labels.up().scale(lift)).subtract(camera.pos);
             if (options.mode != 0) {
                 OrionHealthTags.submitNumber(context, client.font, options.mode == 2 ? (armor * 5) + "%" : Integer.toString(armor),
-                        options.getValueArgb(), position.x - camera.pos.x, position.y - camera.pos.y + lift,
-                        position.z - camera.pos.z, camera, options.scale);
+                        options.getValueArgb(), anchor.x, anchor.y, anchor.z, camera, options.scale);
                 continue;
             }
             PoseStack stack = context.poseStack();
             stack.pushPose();
-            stack.translate(position.x - camera.pos.x, position.y - camera.pos.y + lift, position.z - camera.pos.z);
+            stack.translate(anchor.x, anchor.y, anchor.z);
             ru.orion.client.render.GleamPose.rotate(stack, camera.orientation);
             stack.scale(-SCALE * options.scale, SCALE * options.scale, SCALE * options.scale);
             float depth = 0.01F * (1F + (float) Math.sqrt(distanceSq));
