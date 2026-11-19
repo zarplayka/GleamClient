@@ -14,14 +14,23 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.orion.client.OrionClient;
 import ru.orion.client.cosmetic.GleamHatModel;
+import ru.orion.client.effect.OrionFreeLook;
 import ru.orion.client.gui.OrionCosmeticPreview;
 
 @Mixin(LivingEntityRenderer.class)
 abstract class OrionCosmeticPreviewMixin {
-    @Inject(method = "submit(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V", at = @At("HEAD"))
+    @Inject(method = "submit(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V", at = @At("HEAD"), cancellable = true)
     private void orion$submitPreview(LivingEntityRenderState state, PoseStack pose, SubmitNodeCollector collector,
                                      CameraRenderState camera, CallbackInfo callback) {
-        if (state instanceof OrionCosmeticPreview preview) preview.submitItem(pose, collector);
+        if (state instanceof OrionCosmeticPreview preview) {
+            preview.submitItem(pose, collector);
+        } else if (state instanceof AvatarRenderState avatar && camera != null && camera.pos != null) {
+            var player = Minecraft.getInstance().player;
+            if (player != null && avatar.id == player.getId() && OrionFreeLook.isActive(player)
+                    && camera.pos.distanceToSqr(avatar.x, avatar.y + avatar.eyeHeight, avatar.z) < .85 * .85) {
+                callback.cancel();
+            }
+        }
     }
 
     @Inject(method = "submit(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
