@@ -26,8 +26,8 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class OrionHitParticles {
-    public static final String[] STYLES = {"Криты", "Искры", "Сердца", "Осколки"};
-    private static final int CRIT = 0, SPARK = 1, HEART = 2, SHARD = 3;
+    public static final String[] STYLES = {"Криты", "Искры", "Сердца", "Осколки", "Лепестки", "Ударная волна"};
+    private static final int CRIT = 0, SPARK = 1, HEART = 2, SHARD = 3, PETAL = 4, WAVE = 5;
     private static final int LIMIT = 180;
     private static final Identifier ATLAS = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "textures/hit/particles.png");
     private static final float[][] SHARD_VERTICES = {
@@ -71,6 +71,8 @@ public final class OrionHitParticles {
             case SPARK -> Math.min(24, count);
             case HEART -> Math.clamp((count + 2) / 3, 1, 12);
             case SHARD -> Math.clamp((count + 1) / 2, 1, 18);
+            case PETAL -> Math.clamp((count + 1) / 2, 1, 16);
+            case WAVE -> Math.clamp((count + 11) / 12, 1, 3);
             default -> Math.min(32, count);
         };
         for (int i = 0; i < count; i++) {
@@ -94,17 +96,34 @@ public final class OrionHitParticles {
                             .add(direction.scale(.73 + Math.abs(along)));
                     lifetime = random.nextFloat(.57F, .91F);
                 }
+                case PETAL -> {
+                    velocity = tangent.scale(random.nextDouble(.58, 1.28)).add(direction.scale(.38))
+                            .add(0, random.nextDouble(.45, .92), 0);
+                    lifetime = random.nextFloat(.83F, 1.2F);
+                }
+                case WAVE -> {
+                    velocity = Vec3.ZERO;
+                    lifetime = .48F;
+                }
                 default -> {
                     velocity = tangent.scale(random.nextDouble(1.6, 3)).add(direction.scale(.73 + Math.abs(along)))
                             .add(0, .35, 0);
                     lifetime = random.nextFloat(.43F, .66F);
                 }
             }
-            double spread = style == HEART ? .17 : .07;
+            double spread = style == HEART || style == PETAL ? .17 : .07;
             float angle = random.nextFloat(0F, (float)Math.TAU);
-            int tile = style == HEART ? 2 : style == SPARK ? 1 : random.nextBoolean() ? 0 : 3;
-            particles.add(new Particle(style, tile, origin.add(tangent.scale(random.nextDouble(.01, spread))),
-                    velocity, now, lifetime, random.nextFloat(.78F, 1.22F), angle, random.nextFloat(-6F, 6F)));
+            int tile = switch (style) {
+                case HEART -> 2;
+                case SPARK -> 1;
+                case PETAL -> 4;
+                case WAVE -> 5;
+                default -> random.nextBoolean() ? 0 : 3;
+            };
+            Vec3 spawn = style == WAVE ? origin : origin.add(tangent.scale(random.nextDouble(.01, spread)));
+            long start = style == WAVE ? now + i * 65_000_000L : now;
+            float size = style == WAVE ? 1F - i * .12F : random.nextFloat(.78F, 1.22F);
+            particles.add(new Particle(style, tile, spawn, velocity, start, lifetime, size, angle, random.nextFloat(-6F, 6F)));
         }
         if (particles.size() > LIMIT) particles.subList(0, particles.size() - LIMIT).clear();
     }
@@ -121,9 +140,16 @@ public final class OrionHitParticles {
         particles.removeIf(particle -> age(now, particle) >= particle.lifetime);
         for (Particle p : particles) {
             p.previous = p.position;
+            if (p.style == WAVE) continue;
             if (p.style == HEART) {
                 double sway = Math.sin(age(now, p) * 9 + p.angle) * .29;
                 p.position = p.position.add(p.velocity.add(sway, 0, 0).scale(delta));
+                continue;
+            }
+            if (p.style == PETAL) {
+                double flutter = age(now, p) * 10 + p.angle;
+                p.velocity = p.velocity.scale(Math.exp(-1.9 * delta)).add(0, -1.9 * delta, 0);
+                p.position = p.position.add(p.velocity.add(Math.sin(flutter) * .36, 0, Math.cos(flutter) * .36).scale(delta));
                 continue;
             }
             float gravity = p.style == SHARD ? 8F : p.style == SPARK ? 4.1F : 2.6F;
@@ -160,7 +186,7 @@ public final class OrionHitParticles {
         for (Particle p : particles) {
             float seconds = age(now, p);
             float progress = seconds / p.lifetime;
-            if (progress >= 1F || p.position.distanceToSqr(camera.pos) > 4096D) continue;
+            if (seconds <= 0F || progress >= 1F || p.position.distanceToSqr(camera.pos) > 4096D) continue;
             Vec3 pos = p.previous.lerp(p.position, partial).subtract(camera.pos);
             float fade = Math.min(1F, seconds / .032F) * Math.min(1F, (1F - progress) / .6F);
             int color = ARGB.color(Math.round(fade * 255), rgb);
@@ -183,6 +209,15 @@ public final class OrionHitParticles {
                 } else if (p.style == HEART) {
                     angle = .13F * (float)Math.sin(p.angle + seconds * 7F);
                     width = height = size * (.52F + .12F * (1F - (float)Math.exp(-12F * seconds)));
+                } else if (p.style == PETAL) {
+                    float flutter = (float)Math.sin(seconds * 12F + p.angle);
+                    angle = p.angle + p.spin * seconds * .18F + flutter * .55F;
+                    height = size * .67F;
+                    width = height * (.4F + .6F * Math.abs(flutter));
+                } else if (p.style == WAVE) {
+                    float expansion = 1F - (1F - progress) * (1F - progress);
+                    angle = p.angle;
+                    width = height = size * (1.2F + 5F * expansion);
                 } else {
                     angle = p.angle + p.spin * seconds * .42F;
                     width = height = size * (.54F - .17F * progress);
@@ -204,12 +239,12 @@ public final class OrionHitParticles {
     }
 
     private static void drawSprite(VertexConsumer vc, Sprite sprite) {
-        float u = (sprite.tile & 1) * .5F, v = (sprite.tile >> 1) * .5F;
+        float u = (sprite.tile % 3) / 3F, v = (sprite.tile / 3) * .5F;
         float cos = (float)Math.cos(sprite.angle), sin = (float)Math.sin(sprite.angle);
         spriteVertex(vc, sprite, -sprite.width, sprite.height, cos, sin, u, v);
         spriteVertex(vc, sprite, -sprite.width, -sprite.height, cos, sin, u, v + .5F);
-        spriteVertex(vc, sprite, sprite.width, -sprite.height, cos, sin, u + .5F, v + .5F);
-        spriteVertex(vc, sprite, sprite.width, sprite.height, cos, sin, u + .5F, v);
+        spriteVertex(vc, sprite, sprite.width, -sprite.height, cos, sin, u + 1F / 3F, v + .5F);
+        spriteVertex(vc, sprite, sprite.width, sprite.height, cos, sin, u + 1F / 3F, v);
     }
 
     private static void spriteVertex(VertexConsumer vc, Sprite sprite, float x, float y, float cos, float sin, float u, float v) {

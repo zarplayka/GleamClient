@@ -583,7 +583,9 @@ public final class OrionConfig {
     private String fakePrefix = "{\"text\":\"ORION \",\"color\":\"#FF7C00\",\"bold\":true}";
     private String fakePrefixAdditionalNames = "";
     private List<FakePrefixPreset> fakePrefixServers = new ArrayList<>();
-    private int[] fakePrefixRanks = new int[3];
+    private static final int BUILTIN_FAKE_PREFIX_SERVERS = 4;
+    public static final int MANUAL_FAKE_PREFIX = -1;
+    private int[] fakePrefixRanks = new int[BUILTIN_FAKE_PREFIX_SERVERS];
 
     public static final int FAKE_PREFIX_SERVER_SLOTS = 4;
 
@@ -628,11 +630,12 @@ public final class OrionConfig {
     }
 
     public void setFakePrefixRank(int server, int rank) {
-        if (server < 0 || server >= 3) return;
-        if (fakePrefixRanks == null || fakePrefixRanks.length != 3) {
-            fakePrefixRanks = fakePrefixRanks == null ? new int[3] : java.util.Arrays.copyOf(fakePrefixRanks, 3);
+        if (server < 0 || server >= BUILTIN_FAKE_PREFIX_SERVERS) return;
+        if (fakePrefixRanks == null || fakePrefixRanks.length != BUILTIN_FAKE_PREFIX_SERVERS) {
+            fakePrefixRanks = fakePrefixRanks == null ? new int[BUILTIN_FAKE_PREFIX_SERVERS]
+                    : java.util.Arrays.copyOf(fakePrefixRanks, BUILTIN_FAKE_PREFIX_SERVERS);
         }
-        fakePrefixRanks[server] = Math.max(0, rank);
+        fakePrefixRanks[server] = Math.max(MANUAL_FAKE_PREFIX, rank);
     }
     private boolean hitBoxEnabled = false;
     private String hitBoxColor = "#FF7C00";
@@ -1254,7 +1257,7 @@ public final class OrionConfig {
     public void setHitParticlesSize(float value) { hitParticlesSize = value; }
     public int getHitParticlesShape() { return hitParticlesShape; }
     public void setHitParticlesShape(int value) {
-        hitParticlesShape = Math.clamp(value, 0, 3);
+        hitParticlesShape = Math.clamp(value, 0, 5);
         hitParticlesStyleVersion = 2;
     }
 

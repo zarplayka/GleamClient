@@ -1273,5 +1273,10 @@
   "Сервер 4": "Server 4",
   "Криты": "Criticals",
   "Искры": "Sparks",
-  "Осколки": "Shards"
+  "Осколки": "Shards",
+  "Лепестки": "Petals",
+  "Ударная волна": "Shockwave",
+  "Ручной": "Manual",
+  "Ручной префикс / JSON": "Manual prefix / JSON",
+  "Дополнительные ники": "Additional usernames"
 }

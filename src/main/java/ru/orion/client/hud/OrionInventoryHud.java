@@ -12,8 +12,10 @@ import ru.orion.client.config.OrionConfigManager;
 
 /** Фон Lumen и реальные модели предметов из основного инвентаря. */
 public final class OrionInventoryHud {
-    private static final int COLS = 9, ROWS = 3, CELL = 19, PAD = 5;
-    private static final int DESIGN_W = COLS * CELL + PAD * 2 - 2, DESIGN_H = ROWS * CELL + PAD * 2 - 2;
+    private static final int COLS = 9, ROWS = 3;
+    private static final int SLOT = 20, GAP = 2, STEP = SLOT + GAP, PAD = 5, ITEM_INSET = 2;
+    private static final int DESIGN_W = COLS * STEP - GAP + PAD * 2;
+    private static final int DESIGN_H = ROWS * STEP - GAP + PAD * 2;
     private final OrionConfigManager configManager;
     private final OrionHudDrag drag=new OrionHudDrag("inventory");
     private final OrionHudView view = new OrionHudView("inventory_hud");
@@ -36,19 +38,24 @@ public final class OrionInventoryHud {
         var pose=context.pose();pose.pushMatrix();
         pose.translate(position.x(),position.y());pose.scale(guiW/(float)DESIGN_W,guiH/(float)DESIGN_H);
         try {
-            for(int i=0;i<COLS*ROWS;i++) {
-                ItemStack item=client.player.getInventory().getItem(i+9);
-                if(item.isEmpty())continue;
-                int ix = PAD + (i % COLS) * CELL, iy = PAD + (i / COLS) * CELL;
-                context.item(item,ix,iy);
-                context.itemDecorations(client.font,item,ix,iy);
+            for (int i = 0; i < COLS * ROWS; i++) {
+                ItemStack item = client.player.getInventory().getItem(i + 9);
+                if (item.isEmpty()) continue;
+                int xItem = PAD + (i % COLS) * STEP + ITEM_INSET;
+                int yItem = PAD + (i / COLS) * STEP + ITEM_INSET;
+                context.item(item, xItem, yItem);
+                context.itemDecorations(client.font, item, xItem, yItem);
             }
         } finally {pose.popMatrix();}
     }
     private static OrionHudView.Scene scene() {
         var scene = new OrionHudView.Scene(DESIGN_W, DESIGN_H);
         scene.panel(0, 0, DESIGN_W, DESIGN_H, 7);
-        for (int row = 1; row < ROWS; row++) scene.divider(PAD, PAD + row * CELL - 2, DESIGN_W - PAD * 2);
+        for (int row = 0; row < ROWS; row++) {
+            for (int col = 0; col < COLS; col++) {
+                scene.well(PAD + col * STEP, PAD + row * STEP, SLOT, SLOT, 3);
+            }
+        }
         return scene;
     }
 
