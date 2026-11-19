@@ -578,6 +578,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .release-card h3 { margin: 0; font-size: 16px; line-height: 1.35 }
     .release-card p { max-width: 67ch; margin: 6px 0 8px; color: var(--muted); line-height: 1.55 }
     .release-card .text-button { padding-left: 0; font-weight: 700 }
+    .release-archive { margin-top: 18px }
+    .release-archive > summary { padding: 12px 0; color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 700 }
+    .release-archive > summary:hover { color: var(--accent) }
     .settings-page { width: min(100%,calc(804px + 2 * var(--workspace-inset))) }
     .settings-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 18px }
     .settings-header h2 { font-size: 26px }
@@ -1891,7 +1894,32 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h2 id="updates-heading" tabindex="-1">Обновления</h2>
           <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/latest" target="_blank" rel="noopener noreferrer">Последний релиз на GitHub<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
-        <div class="release-feed">
+        <div class="release-feed" id="featured-releases">
+          <article class="release-card" tabindex="-1" aria-labelledby="news-combat-hud">
+            <span class="release-meta"><time datetime="2026-11-19">19.11.2026</time></span>
+            <div>
+              <h3 id="news-combat-hud">Боевые эффекты и HUD</h3>
+              <p>В HitParticles появились лепестки и ударная волна. HitSound умеет глушить стандартные звуки атаки. InventoryHud стал компактнее, а FakePrefix показывает плашки из ресурспака AresMine.</p>
+            </div>
+          </article>
+          <article class="release-card" tabindex="-1" aria-labelledby="news-discord">
+            <span class="release-meta"><time datetime="2026-11-19">19.11.2026</time></span>
+            <div>
+              <h3 id="news-discord">Статус GleamClient в Discord</h3>
+              <p>Discord показывает, когда ты выбираешь сборку или уже в Minecraft. В карточке активности появились кнопки «Купить» и «Telegram».</p>
+            </div>
+          </article>
+          <article class="release-card" tabindex="-1" aria-labelledby="news-winter-wardrobe">
+            <span class="release-meta"><time datetime="2026-11-18">18.11.2026</time></span>
+            <div>
+              <h3 id="news-winter-wardrobe">Пополнение гардероба</h3>
+              <p>Семь шляп, оленёнок с бубенчиком и пряничный щенок. Обновлённые крылья «Еловая лапа» и «Пепельный феникс» доступны в примерочной.</p>
+            </div>
+          </article>
+        </div>
+        <details class="release-archive">
+          <summary>История версий</summary>
+          <div class="release-feed">
             <article class="release-card" tabindex="-1" aria-labelledby="release-launcher-063">
               <span class="release-meta"><span class="release-version">0.1.63</span><time datetime="2026-11-18">18.11.2026</time></span>
               <div><h3 id="release-launcher-063">Семь новых шляп</h3><p>Зимние и повседневные шляпы теперь в отдельном разделе гардероба.</p></div>
@@ -2181,7 +2209,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
               <a class="text-button" href="https://github.com/zarplayka/GleamClient/releases/tag/v0.2.0" target="_blank" rel="noopener noreferrer">Заметки к релизу <span aria-hidden="true">→</span></a>
             </div>
           </article>
-        </div>
+          </div>
+        </details>
       </section>
       <section id="page-settings" class="page secondary-page settings-page" aria-labelledby="settings-heading" hidden>
         <header class="settings-header">
@@ -2757,6 +2786,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Ожидает':['Waiting','Wartet','En espera'],
       'Новости':['News','Neuigkeiten','Noticias'],
       'Все обновления':['All updates','Alle Updates','Todas las actualizaciones'],
+      'История версий':['Version history','Versionsverlauf','Historial de versiones'],
+      'Боевые эффекты и HUD':['Combat effects and HUD','Kampfeffekte und HUD','Efectos de combate y HUD'],
+      'В HitParticles появились лепестки и ударная волна. HitSound умеет глушить стандартные звуки атаки. InventoryHud стал компактнее, а FakePrefix показывает плашки из ресурспака AresMine.':['HitParticles adds petals and a shockwave. HitSound can mute default attack sounds. InventoryHud is more compact, and FakePrefix uses badges from the AresMine resource pack.','HitParticles bietet Blütenblätter und eine Stoßwelle. HitSound kann Standard-Angriffsgeräusche stummschalten. InventoryHud ist kompakter und FakePrefix nutzt Abzeichen aus dem AresMine-Ressourcenpaket.','HitParticles añade pétalos y una onda de choque. HitSound puede silenciar los sonidos de ataque predeterminados. InventoryHud es más compacto y FakePrefix usa las insignias del paquete de recursos de AresMine.'],
+      'Пополнение гардероба':['New wardrobe items','Neue Garderobeninhalte','Novedades del guardarropa'],
+      'Семь шляп, оленёнок с бубенчиком и пряничный щенок. Обновлённые крылья «Еловая лапа» и «Пепельный феникс» доступны в примерочной.':['Seven hats, a fawn with a bell, and a gingerbread puppy. Try on the updated Spruce Bough and Ashen Phoenix wings.','Sieben Hüte, ein Rehkitz mit Glöckchen und ein Lebkuchenwelpe. Probiere die überarbeiteten Flügel Fichtenzweig und Aschephönix an.','Siete sombreros, un cervatillo con cascabel y un cachorro de jengibre. Pruébate las alas renovadas de Rama de abeto y Fénix de ceniza.'],
+      'Статус GleamClient в Discord':['GleamClient activity on Discord','GleamClient-Aktivität in Discord','Actividad de GleamClient en Discord'],
+      'Discord показывает, когда ты выбираешь сборку или уже в Minecraft. В карточке активности появились кнопки «Купить» и «Telegram».':['Discord shows when you are choosing a modpack or playing Minecraft. The activity card now includes Buy and Telegram buttons.','Discord zeigt an, wenn du ein Modpack auswählst oder Minecraft spielst. Auf der Aktivitätskarte gibt es jetzt die Schaltflächen Kaufen und Telegram.','Discord muestra si estás eligiendo un modpack o jugando a Minecraft. La tarjeta de actividad incluye los botones Comprar y Telegram.'],
       'Персонаж Minecraft. Для поворота потяни мышью или используй стрелки':['Minecraft character. Drag or use arrow keys to rotate','Minecraft-Figur. Mit Maus oder Pfeiltasten drehen','Personaje de Minecraft. Arrastra o usa las flechas para girar'],
       'Косметика':['Cosmetics','Kosmetik','Cosméticos'],
       'Ничего не надето':['Nothing equipped','Nichts ausgerüstet','Nada equipado'],
@@ -4329,7 +4365,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       $('updates-heading').focus();
     });
     const recentReleases = $('recent-releases');
-    for (const card of [...document.querySelectorAll('.release-card')].slice(0, 6)) {
+    for (const card of [...$('featured-releases').children].slice(0, 3)) {
       const item = document.createElement('li');
       const button = document.createElement('button');
       const title = document.createElement('strong');

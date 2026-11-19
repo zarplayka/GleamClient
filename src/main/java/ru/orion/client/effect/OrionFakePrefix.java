@@ -51,7 +51,9 @@ public final class OrionFakePrefix {
         ARES_MINE("AresMine", List.of("aresmine.ru", "aresmine.me"),
                 List.of(Rank.ares("ГИДРА", "hydra"), Rank.ares("ЦЕРБЕР", "cerberus"), Rank.ares("ТРИТОН", "triton"),
                         Rank.ares("ФЕНИКС", "phoenix"), Rank.ares("ПАНДАР", "pandar"), Rank.ares("КРОНОС", "kronos"),
-                        Rank.ares("ФОБОС", "phobos"), Rank.ares("АРЕС", "ares"), Rank.ares("АРИСТОКРАТ", "aristocrat")));
+                        Rank.ares("ФОБОС", "phobos"), Rank.ares("АРЕС", "ares"), Rank.ares("АРИСТОКРАТ", "aristocrat"),
+                        Rank.ares("ХЕЛПЕР", "helper"), Rank.ares("СТ. ХЕЛПЕР", "shelper"), Rank.ares("МОДЕР", "moder"),
+                        Rank.ares("СТ. МОДЕР", "smoder"), Rank.ares("АДМИН", "admin")));
 
         private final String label;
         private final List<String> domains;

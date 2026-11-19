@@ -385,7 +385,7 @@ Object.assign(actions,{
 document.addEventListener('click',event => {
   const control = event.target.closest('button,a[href],input[type="checkbox"],input[type="radio"],summary');
   if (gameReady && state.interfaceSounds !== false && control && !control.disabled
-      && control.dataset.chatPreference !== 'interfaceSounds') sendGame('ui-sound',{kind:'click'});
+      && !control.hasAttribute('data-quiet') && control.dataset.chatPreference !== 'interfaceSounds') sendGame('ui-sound',{kind:'click'});
 },true);
 document.addEventListener('click',event => {
   const button = event.target.closest('button');

@@ -9,6 +9,11 @@
       {"name": "orion-client:hitsounds/pvp-tap-3", "preload": true}
     ]
   },
+  "hit.critical": { "sounds": [{"name": "minecraft:entity.player.attack.crit", "type": "event"}] },
+  "hit.arrow_ping": { "sounds": [{"name": "minecraft:entity.arrow.hit_player", "type": "event"}] },
+  "hit.soft_click": { "sounds": [{"name": "minecraft:ui.button.click", "type": "event"}] },
+  "hit.pling": { "sounds": [{"name": "minecraft:block.note_block.pling", "type": "event"}] },
+  "hit.xp_pop": { "sounds": [{"name": "minecraft:entity.experience_orb.pickup", "type": "event"}] },
   "kill.sword_rain": {
     "sounds": [{"name": "orion-client:kill/sword_rain", "preload": true, "attenuation_distance": 64}]
   },
