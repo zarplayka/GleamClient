@@ -671,6 +671,7 @@ public final class OrionConfig {
     private float hitSoundPitch = 1F;
     private boolean hitSoundPlayersOnly;
     private boolean hitSoundVaryPitch;
+    private boolean hitSoundMuteVanilla;
 
     public static final int CROSSHAIR_GRID = 15;
     public static final int CROSSHAIR_SLOTS = 6;
@@ -1665,6 +1666,8 @@ public final class OrionConfig {
     public void setHitSoundPlayersOnly(boolean value) { hitSoundPlayersOnly = value; }
     public boolean isHitSoundVaryPitch() { return hitSoundVaryPitch; }
     public void setHitSoundVaryPitch(boolean value) { hitSoundVaryPitch = value; }
+    public boolean isHitSoundMuteVanilla() { return hitSoundMuteVanilla; }
+    public void setHitSoundMuteVanilla(boolean value) { hitSoundMuteVanilla = value; }
 
     public void setHitSoundVolume(int hitSoundVolume) {
         this.hitSoundVolume = hitSoundVolume;

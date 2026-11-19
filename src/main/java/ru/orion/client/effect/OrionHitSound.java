@@ -1,14 +1,19 @@
 package ru.orion.client.effect;
 
 import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.sounds.JOrbisAudioStream;
 import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
+import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,10 +40,13 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -46,7 +54,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-/** Звук подтверждённого сервером попадания ближнего боя. */
+/** Звук попадания ближнего боя с учётом серверного подтверждения. */
 public final class OrionHitSound {
     private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
 
@@ -54,9 +62,10 @@ public final class OrionHitSound {
     public static final String[] SOUND_NAMES = {"PvP Tap", "Critical Hit", "Arrow Ping", "Soft Click", "Pling", "XP Pop", "Свои (случайно)"};
     public static final int CUSTOM_INDEX = 6;
 
-    private static final String[] TAP_FILES = {"pvp-tap-1.ogg", "pvp-tap-2.ogg", "pvp-tap-3.ogg"};
-    private static final String RESOURCE_DIR = "/assets/orion-client/sounds/hitsounds/";
-    private static final long MIN_INTERVAL_NANOS = 40_000_000L;
+    private static final SoundEvent PVP_TAP = SoundEvent.createVariableRangeEvent(
+            Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "hit.pvp_tap"));
+    private static final long MIN_INTERVAL_NANOS = 20_000_000L;
+    private static final long ATTACK_WINDOW_NANOS = 750_000_000L;
     private static final long MAX_CUSTOM_BYTES = 4 * 1024 * 1024L;
     private static final int CACHE_LIMIT = 16;
 
@@ -69,13 +78,18 @@ public final class OrionHitSound {
             }, new ThreadPoolExecutor.DiscardOldestPolicy());
     private final Map<String, byte[]> cache = new ConcurrentHashMap<>();
     private final Random random = new Random();
+    private final Map<Integer, Long> pendingAttacks = new HashMap<>();
+    private final Set<Integer> hurtWithoutSource = new HashSet<>();
+    private ClientLevel attackLevel;
     private long lastPlay;
+    private int lastEstimatedTarget = -1;
 
     public OrionHitSound(OrionConfigManager configManager) {
         this.configManager = configManager;
     }
 
     public void register() {
+        ClientTickEvents.END_CLIENT_TICK.register(this::tickAttacks);
         try {
             Files.createDirectories(customDir());
         } catch (IOException exception) {
@@ -187,21 +201,76 @@ public final class OrionHitSound {
 
     private static boolean ogg(String name) { return name.toLowerCase(Locale.ROOT).endsWith(".ogg"); }
 
+    public void onAttack(Entity target) {
+        Minecraft client = Minecraft.getInstance();
+        OrionConfig config = configManager.getConfig();
+        if (!config.isHitSoundEnabled() || client.player == null || client.player.isSpectator() || client.level == null
+                || !(target instanceof LivingEntity living) || !living.isAlive()
+                || config.isHitSoundPlayersOnly() && !(target instanceof Player)) return;
+        resetAttackLevel(client.level);
+        pendingAttacks.put(target.getId(), System.nanoTime());
+    }
+
+    public void onHurt(int targetId) {
+        if (attackLevel == Minecraft.getInstance().level && pendingAttacks.containsKey(targetId)) {
+            hurtWithoutSource.add(targetId);
+        }
+    }
+
     public void onDamage(ClientboundDamageEventPacket packet) {
         OrionConfig config = configManager.getConfig();
         Minecraft client = Minecraft.getInstance();
         if (!config.isHitSoundEnabled() || client.player == null || client.level == null) return;
+        resetAttackLevel(client.level);
         int attacker = client.player.getId();
-        if (packet.sourceCauseId() != attacker || packet.sourceDirectId() != attacker || packet.entityId() == attacker) return;
-        if (!packet.sourceType().is(DamageTypes.PLAYER_ATTACK) && !packet.sourceType().is(DamageTypes.SPEAR)) return;
-        if (!(client.level.getEntity(packet.entityId()) instanceof LivingEntity target)
+        int targetId = packet.entityId();
+        if (targetId == attacker || !(client.level.getEntity(targetId) instanceof LivingEntity target)
                 || (config.isHitSoundPlayersOnly() && !(target instanceof Player))) return;
+        int cause = packet.sourceCauseId();
+        int direct = packet.sourceDirectId();
+        boolean melee = packet.sourceType().is(DamageTypes.PLAYER_ATTACK) || packet.sourceType().is(DamageTypes.SPEAR)
+                || packet.sourceType().is(DamageTypes.MACE_SMASH);
+        if (cause < 0 && direct < 0 && (melee || packet.sourceType().is(DamageTypes.GENERIC))) {
+            onHurt(targetId);
+            return;
+        }
+        hurtWithoutSource.remove(targetId);
+        Long attack = pendingAttacks.remove(targetId);
+        if (attack == null && targetId == lastEstimatedTarget && System.nanoTime() - lastPlay < 100_000_000L) return;
+        if (melee && (cause == attacker && (direct < 0 || direct == attacker) || cause < 0 && direct == attacker)) {
+            lastEstimatedTarget = -1;
+            playConfirmedHit(config);
+        }
+    }
 
+    private void tickAttacks(Minecraft client) {
+        OrionConfig config = configManager.getConfig();
+        resetAttackLevel(config.isHitSoundEnabled() ? client.level : null);
+        if (attackLevel == null || pendingAttacks.isEmpty()) return;
         long now = System.nanoTime();
-        if (lastPlay != 0 && now - lastPlay < MIN_INTERVAL_NANOS) return;
+        pendingAttacks.values().removeIf(when -> now - when > ATTACK_WINDOW_NANOS);
+        for (int id : hurtWithoutSource) {
+            if (pendingAttacks.remove(id) != null && playConfirmedHit(config)) lastEstimatedTarget = id;
+        }
+        hurtWithoutSource.clear();
+    }
+
+    private void resetAttackLevel(ClientLevel level) {
+        if (level == attackLevel) return;
+        attackLevel = level;
+        pendingAttacks.clear();
+        hurtWithoutSource.clear();
+        lastPlay = 0;
+        lastEstimatedTarget = -1;
+    }
+
+    private boolean playConfirmedHit(OrionConfig config) {
+        long now = System.nanoTime();
+        if (lastPlay != 0 && now - lastPlay < MIN_INTERVAL_NANOS) return false;
         lastPlay = now;
         float variation = config.isHitSoundVaryPitch() ? (random.nextFloat() - .5F) * .12F : 0F;
         play(config.getHitSoundIndex(), config.getHitSoundVolume(), Math.clamp(config.getHitSoundPitch() + variation, .5F, 2F));
+        return true;
     }
 
     /** Кнопка «Тест» в ClickGUI — без дебаунса. */
@@ -238,15 +307,16 @@ public final class OrionHitSound {
         Minecraft client = Minecraft.getInstance();
         float volume = volumePercent / 100F;
         volume *= volume;
-        if (index > 0 && index < CUSTOM_INDEX) {
+        if (index != CUSTOM_INDEX) {
             var event = switch (index) {
                 case 1 -> SoundEvents.PLAYER_ATTACK_CRIT;
                 case 2 -> SoundEvents.ARROW_HIT_PLAYER;
                 case 3 -> SoundEvents.UI_BUTTON_CLICK.value();
                 case 4 -> SoundEvents.NOTE_BLOCK_PLING.value();
-                default -> SoundEvents.EXPERIENCE_ORB_PICKUP;
+                case 5 -> SoundEvents.EXPERIENCE_ORB_PICKUP;
+                default -> PVP_TAP;
             };
-            client.getSoundManager().play(SimpleSoundInstance.forUI(event, pitch, volume * .8F));
+            client.getSoundManager().play(SimpleSoundInstance.forUI(event, pitch, volume));
             return;
         }
         float clipVolume = volume * client.options.getSoundSourceVolume(SoundSource.MASTER)
@@ -255,43 +325,21 @@ public final class OrionHitSound {
         String selected = configManager.getConfig().getHitSoundFile();
         executor.execute(() -> {
             try {
-                SoundData sound = resolveSound(index, selected);
+                SoundData sound = resolveCustomBytes(selected);
                 if (sound != null) {
                     playClip(decode(sound.bytes(), sound.ogg()), clipVolume, pitch);
+                } else {
+                    client.execute(() -> play(0, volumePercent, pitch));
                 }
             } catch (Exception exception) {
                 LOGGER.warn("HitSound: не удалось проиграть звук.", exception);
+                client.execute(() -> play(0, volumePercent, pitch));
             }
         });
     }
 
     private record SoundData(byte[] bytes, boolean ogg) { }
     private record Samples(AudioFormat format, byte[] bytes) { }
-
-    private SoundData resolveSound(int index, String selected) throws IOException {
-        if (index == CUSTOM_INDEX) {
-            SoundData custom = resolveCustomBytes(selected);
-            if (custom != null) return custom;
-        }
-        byte[] builtin = builtinBytes(TAP_FILES[random.nextInt(TAP_FILES.length)]);
-        return builtin == null ? null : new SoundData(builtin, true);
-    }
-
-    private byte[] builtinBytes(String name) throws IOException {
-        byte[] cached = cache.get(name);
-        if (cached != null) {
-            return cached;
-        }
-        try (InputStream stream = OrionHitSound.class.getResourceAsStream(RESOURCE_DIR + name)) {
-            if (stream == null) {
-                LOGGER.warn("HitSound: встроенный звук {} не найден в ресурсах.", name);
-                return null;
-            }
-            byte[] data = stream.readAllBytes();
-            cache.put(name, data);
-            return data;
-        }
-    }
 
     private SoundData resolveCustomBytes(String selected) throws IOException {
         String name = selected;
