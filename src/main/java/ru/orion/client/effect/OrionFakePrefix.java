@@ -1,6 +1,7 @@
 package ru.orion.client.effect;
 
 import com.google.gson.JsonParser;
+import com.google.gson.JsonObject;
 import com.mojang.serialization.JsonOps;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import net.minecraft.client.Minecraft;
@@ -24,6 +25,42 @@ import java.util.Optional;
 
 /** Клиентская подмена префикса локального игрока с поддержкой JSON-компонентов. */
 public final class OrionFakePrefix {
+    public enum ServerPreset {
+        REALLY_WORLD("ReallyWorld", List.of("reallyworld.me", "reallyworld.ru", "reallyworld.online", "reallyworld.org", "playrw.ru"),
+                List.of(Rank.of("HERO", "#55FF55"), Rank.of("TITAN", "#FFAA00"), Rank.of("DRAGON", "#FF5555"))),
+        FUN_TIME("FunTime", List.of("funtime.su"),
+                List.of(Rank.of("ГЕРОЙ", "#55FF55"), Rank.of("АСПИД", "#55FFFF"), Rank.of("ТИТАН", "#FFAA00"))),
+        HOLY_WORLD("HolyWorld", List.of("holyworld.ru"),
+                List.of(Rank.of("GLADIATOR", "#FFAA00"), Rank.of("DRAGON", "#FF5555")));
+
+        private final String label;
+        private final List<String> domains;
+        private final List<Rank> ranks;
+
+        ServerPreset(String label, List<String> domains, List<Rank> ranks) {
+            this.label = label;
+            this.domains = domains;
+            this.ranks = ranks;
+        }
+
+        public String label() { return label; }
+        public String[] choices() { return ranks.stream().map(Rank::text).toArray(String[]::new); }
+        public int selected(OrionConfig config) { return Math.clamp(config.getFakePrefixRank(ordinal()), 0, ranks.size() - 1); }
+
+        private boolean includes(String host) {
+            return domains.stream().anyMatch(domain -> host.equals(domain) || host.endsWith("." + domain));
+        }
+    }
+
+    private record Rank(String text, String component) {
+        static Rank of(String text, String color) {
+            JsonObject value = new JsonObject();
+            value.addProperty("text", "[" + text + "] ");
+            value.addProperty("color", color);
+            return new Rank(text, value.toString());
+        }
+    }
+
     private static String cachedSource;
     private static Component cachedComponent = Component.empty();
     private static String cachedPlayerName;
@@ -443,7 +480,20 @@ public final class OrionFakePrefix {
     private static OrionConfig.FakePrefixPreset activePreset(OrionConfig config) {
         var client = Minecraft.getInstance();
         var server = client == null ? null : client.getCurrentServer();
-        return config.fakePrefixForServer(server == null ? "" : server.ip);
+        return preset(config, server == null ? "" : server.ip);
+    }
+
+    static OrionConfig.FakePrefixPreset preset(OrionConfig config, String address) {
+        String host = OrionConfig.normalizeFakePrefixAddress(address);
+        int port = host.indexOf(':');
+        if (port >= 0) host = host.substring(0, port);
+        for (ServerPreset server : ServerPreset.values()) {
+            if (server.includes(host)) {
+                return new OrionConfig.FakePrefixPreset(address, server.ranks.get(server.selected(config)).component(),
+                        config.getFakePrefixAdditionalNames());
+            }
+        }
+        return config.fakePrefixForServer(address);
     }
 
     private static void resetDetectionOnServerChange() {

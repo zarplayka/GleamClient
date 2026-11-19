@@ -28,9 +28,6 @@ svg{display:block;flex:none}
 .window[data-size-transition]{transition:width .24s cubic-bezier(.2,.7,.2,1),height .24s cubic-bezier(.2,.7,.2,1)}
 .window{position:relative}
 .workspace-header{cursor:grab;user-select:none}
-.workspace-header{position:relative;background:linear-gradient(104deg,transparent 24%,#23584125 68%,#80352e24)}
-.holiday-trim{position:absolute;right:38px;top:0;width:min(46%,300px);height:15px;pointer-events:none;opacity:.95;background:url("assets/holiday-garland.png") repeat-x right top;background-size:112px 15px;image-rendering:pixelated}
-.brand{background:linear-gradient(110deg,#315b401c,transparent 87%)}
 .window[data-dragging] .workspace-header{cursor:grabbing}
 [data-theme-motion] .window{view-transition-name:orion-menu}
 :root[data-theme-motion]::view-transition{pointer-events:none}

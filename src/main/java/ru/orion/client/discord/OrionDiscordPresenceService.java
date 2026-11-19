@@ -150,9 +150,10 @@ public final class OrionDiscordPresenceService {
             timestamps.addProperty("start", started);
             JsonObject assets = new JsonObject();
             String image = APPLICATION.equals(snapshot.application()) && "orion_icon".equals(snapshot.image())
-                    ? SITE + "assets/discord-presence.gif" : snapshot.image();
+                    ? SITE + "assets/orion-badge.png" : snapshot.image();
             assets.addProperty("large_image", image);
             assets.addProperty("large_text", snapshot.tooltip());
+            assets.addProperty("large_url", SITE);
             JsonObject site = new JsonObject();
             site.addProperty("label", "Сайт GleamClient");
             site.addProperty("url", SITE);
@@ -160,6 +161,7 @@ public final class OrionDiscordPresenceService {
             buttons.add(site);
 
             JsonObject activity = new JsonObject();
+            activity.addProperty("type", 0);
             activity.addProperty("details", snapshot.mode().label);
             activity.addProperty("state", "Minecraft " + SharedConstants.getCurrentVersion().name());
             activity.add("timestamps", timestamps);
