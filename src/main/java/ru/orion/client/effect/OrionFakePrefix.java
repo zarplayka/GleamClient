@@ -12,6 +12,7 @@ import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.FontDescription;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.scores.PlayerTeam;
 import ru.orion.client.OrionClient;
@@ -48,9 +49,9 @@ public final class OrionFakePrefix {
                         Rank.of("BEDROCK", "#ACC4DA"), Rank.of("PRIME", "#F2CA76"), Rank.of("LITE", "#86E6AC"),
                         Rank.of("PLUS", "#77C5F5"), Rank.of("ULTRA", "#ECA8FA"), Rank.of("PLATINUM", "#DAF4FF"))),
         ARES_MINE("AresMine", List.of("aresmine.ru", "aresmine.me"),
-                List.of(Rank.of("ГИДРА", "#64DC96"), Rank.of("ЦЕРБЕР", "#EF7A71"), Rank.of("ТРИТОН", "#67DAED"),
-                        Rank.of("ФЕНИКС", "#FF9953"), Rank.of("ПАНДАР", "#F4BDC9"), Rank.of("КРОНОС", "#9F9CF2"),
-                        Rank.of("ФОБОС", "#DA86FA"), Rank.of("АРЕС", "#FF6A70"), Rank.of("АРИСТОКРАТ", "#F8DF89")));
+                List.of(Rank.ares("ГИДРА", "hydra"), Rank.ares("ЦЕРБЕР", "cerberus"), Rank.ares("ТРИТОН", "triton"),
+                        Rank.ares("ФЕНИКС", "phoenix"), Rank.ares("ПАНДАР", "pandar"), Rank.ares("КРОНОС", "kronos"),
+                        Rank.ares("ФОБОС", "phobos"), Rank.ares("АРЕС", "ares"), Rank.ares("АРИСТОКРАТ", "aristocrat")));
 
         private final String label;
         private final List<String> domains;
@@ -84,12 +85,29 @@ public final class OrionFakePrefix {
         }
     }
 
-    private record Rank(String text, String component) {
+    private static final Identifier ARES_DEFAULT_FONT = Identifier.fromNamespaceAndPath("custom", "font/groups/default.json");
+
+    private record Rank(String text, String encoded, Identifier requiredFont) {
         static Rank of(String text, String color) {
             JsonObject value = new JsonObject();
             value.addProperty("text", "[" + text + "] ");
             value.addProperty("color", color);
-            return new Rank(text, value.toString());
+            return new Rank(text, value.toString(), null);
+        }
+
+        static Rank ares(String text, String group) {
+            String font = "groups/" + group;
+            JsonObject value = new JsonObject();
+            value.addProperty("text", "a");
+            value.addProperty("font", "custom:" + font);
+            value.addProperty("color", "white");
+            return new Rank(text, value.toString(), Identifier.fromNamespaceAndPath("custom", "font/" + font + ".json"));
+        }
+
+        String component() {
+            Minecraft client = Minecraft.getInstance();
+            return requiredFont == null || client != null && client.getResourceManager().getResource(requiredFont).isPresent()
+                    ? encoded : "";
         }
     }
 
@@ -108,7 +126,7 @@ public final class OrionFakePrefix {
         }
 
         Replacement replacement = replacement(text);
-        if (replacement == null || !text.contains(replacement.original())) {
+        if (replacement == null || replacement.aresGlyph() || !text.contains(replacement.original())) {
             return text;
         }
         return replacePlainText(text, replacement);
@@ -128,15 +146,14 @@ public final class OrionFakePrefix {
         StyledCodepoints source = decode(text);
         int[] prefix = replacement.original().codePoints().toArray();
         List<int[]> playerNames = codepointNames(replacement.playerNames());
-        boolean prefixOnlyComponent = isStatusLine(plainText) || isPrefixOnlyComponent(plainText, replacement.original());
+        boolean prefixOnlyComponent = allowPrefixWithoutName(plainText, replacement);
         boolean fakeEndsWithWhitespace = endsWithWhitespace(replacement.fake().getString());
         List<FormattedText> parts = new ArrayList<>();
         StringBuilder unchanged = new StringBuilder();
         Style unchangedStyle = null;
 
         for (int index = 0; index < source.codepoints().size();) {
-            Match match = matchAt(source.codepoints(), prefix, playerNames, index, prefixOnlyComponent,
-                    fakeEndsWithWhitespace);
+            Match match = matchAt(source, replacement, prefix, playerNames, index, prefixOnlyComponent, fakeEndsWithWhitespace);
             if (match != null) {
                 flush(parts, unchanged, unchangedStyle);
                 unchangedStyle = null;
@@ -191,15 +208,13 @@ public final class OrionFakePrefix {
         StyledCodepoints fake = decode(replacement.fake().getVisualOrderText());
         int[] prefix = replacement.original().codePoints().toArray();
         List<int[]> playerNames = codepointNames(replacement.playerNames());
-        boolean prefixOnlyComponent = isStatusLine(source.plainText())
-                || isPrefixOnlyComponent(source.plainText(), replacement.original());
+        boolean prefixOnlyComponent = allowPrefixWithoutName(source.plainText(), replacement);
         boolean fakeEndsWithWhitespace = endsWithWhitespace(replacement.fake().getString());
         IntArrayList outputCodepoints = new IntArrayList(source.codepoints().size());
         List<Style> outputStyles = new ArrayList<>(source.styles().size());
 
         for (int index = 0; index < source.codepoints().size();) {
-            Match match = matchAt(source.codepoints(), prefix, playerNames, index, prefixOnlyComponent,
-                    fakeEndsWithWhitespace);
+            Match match = matchAt(source, replacement, prefix, playerNames, index, prefixOnlyComponent, fakeEndsWithWhitespace);
             if (match != null) {
                 outputCodepoints.addAll(fake.codepoints());
                 outputStyles.addAll(fake.styles());
@@ -293,8 +308,12 @@ public final class OrionFakePrefix {
         if (playerName.isBlank() || playerNames.isEmpty()) {
             return null;
         }
-        DetectedPrefix detected = detectConfiguredPlayerPrefix(observedText, playerNames);
-        String original = detected == null ? currentPrefix(observedText, playerName) : detected.prefix();
+        var client = Minecraft.getInstance();
+        var server = client == null ? null : client.getCurrentServer();
+        boolean aresGlyph = server != null && ServerPreset.ARES_MINE.includes(serverHost(server.ip))
+                && client.getResourceManager().getResource(ARES_DEFAULT_FONT).isPresent();
+        DetectedPrefix detected = aresGlyph ? null : detectConfiguredPlayerPrefix(observedText, playerNames);
+        String original = aresGlyph ? "a" : detected == null ? currentPrefix(observedText, playerName) : detected.prefix();
         if (original == null || original.isBlank()) {
             return null;
         }
@@ -305,7 +324,7 @@ public final class OrionFakePrefix {
         if (fake.getString().isEmpty()) {
             return null;
         }
-        return new Replacement(original, fake, playerNames);
+        return new Replacement(original, fake, playerNames, aresGlyph);
     }
 
     private static DetectedPrefix detectConfiguredPlayerPrefix(String text, List<String> playerNames) {
@@ -516,9 +535,7 @@ public final class OrionFakePrefix {
     }
 
     static OrionConfig.FakePrefixPreset preset(OrionConfig config, String address) {
-        String host = OrionConfig.normalizeFakePrefixAddress(address);
-        int port = host.indexOf(':');
-        if (port >= 0) host = host.substring(0, port);
+        String host = serverHost(address);
         for (ServerPreset server : ServerPreset.values()) {
             if (server.includes(host)) {
                 int selected = server.selected(config);
@@ -530,6 +547,12 @@ public final class OrionFakePrefix {
             }
         }
         return config.fakePrefixForServer(address);
+    }
+
+    private static String serverHost(String address) {
+        String host = OrionConfig.normalizeFakePrefixAddress(address);
+        int port = host.indexOf(':');
+        return port < 0 ? host : host.substring(0, port);
     }
 
     private static void resetDetectionOnServerChange() {
@@ -544,7 +567,9 @@ public final class OrionFakePrefix {
 
     private static boolean matchesAnyName(String text, int index, List<String> playerNames) {
         for (String playerName : playerNames) {
-            if (text.regionMatches(true, index, playerName, 0, playerName.length())) {
+            int end = index + playerName.length();
+            if (text.regionMatches(true, index, playerName, 0, playerName.length())
+                    && (end == text.length() || !isNameCharacter(text.charAt(end)))) {
                 return true;
             }
         }
@@ -602,8 +627,15 @@ public final class OrionFakePrefix {
         return new StyledCodepoints(codepoints, styles, plainText.toString());
     }
 
-    private static Match matchAt(IntArrayList source, int[] prefix, List<int[]> playerNames, int index,
+    private static Match matchAt(StyledCodepoints styled, Replacement replacement, int[] prefix, List<int[]> playerNames, int index,
                                  boolean prefixOnlyComponent, boolean fakeEndsWithWhitespace) {
+        if (replacement.aresGlyph()) {
+            var font = styled.styles().get(index).getFont();
+            if (!(font instanceof FontDescription.Resource resource)
+                    || !resource.id().getNamespace().equals("custom")
+                    || !resource.id().getPath().startsWith("groups/")) return null;
+        }
+        IntArrayList source = styled.codepoints();
         if (!matchesAt(source, prefix, index)) {
             return null;
         }
@@ -622,11 +654,18 @@ public final class OrionFakePrefix {
 
     private static boolean matchesAnyName(IntArrayList source, List<int[]> playerNames, int index) {
         for (int[] playerName : playerNames) {
-            if (matchesAtIgnoreCase(source, playerName, index)) {
+            int end = index + playerName.length;
+            if (matchesAtIgnoreCase(source, playerName, index)
+                    && (end == source.size() || !isNameCharacter(source.getInt(end)))) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static boolean isNameCharacter(int codepoint) {
+        return codepoint >= 'a' && codepoint <= 'z' || codepoint >= 'A' && codepoint <= 'Z'
+                || codepoint >= '0' && codepoint <= '9' || codepoint == '_';
     }
 
     private static boolean matchesAt(IntArrayList source, int[] target, int index) {
@@ -666,6 +705,10 @@ public final class OrionFakePrefix {
         return text != null && prefix != null && text.strip().equals(prefix);
     }
 
+    private static boolean allowPrefixWithoutName(String text, Replacement replacement) {
+        return isStatusLine(text) || !replacement.aresGlyph() && isPrefixOnlyComponent(text, replacement.original());
+    }
+
     private static void flush(List<FormattedText> parts, StringBuilder text, Style style) {
         if (!text.isEmpty() && style != null) {
             parts.add(FormattedText.of(text.toString(), style));
@@ -673,7 +716,7 @@ public final class OrionFakePrefix {
         }
     }
 
-    private record Replacement(String original, Component fake, List<String> playerNames) {
+    private record Replacement(String original, Component fake, List<String> playerNames, boolean aresGlyph) {
     }
 
     private record DetectedPrefix(String prefix, String playerName) {

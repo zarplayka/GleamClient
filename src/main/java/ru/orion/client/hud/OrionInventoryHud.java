@@ -4,8 +4,10 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
+import ru.orion.client.GleamMinecraft;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 
@@ -13,7 +15,7 @@ import ru.orion.client.config.OrionConfigManager;
 /** Фон Lumen и реальные модели предметов из основного инвентаря. */
 public final class OrionInventoryHud {
     private static final int COLS = 9, ROWS = 3;
-    private static final int SLOT = 20, GAP = 2, STEP = SLOT + GAP, PAD = 5, ITEM_INSET = 2;
+    private static final int SLOT = 18, GAP = 1, STEP = SLOT + GAP, PAD = 4, ITEM_INSET = 1;
     private static final int DESIGN_W = COLS * STEP - GAP + PAD * 2;
     private static final int DESIGN_H = ROWS * STEP - GAP + PAD * 2;
     private final OrionConfigManager configManager;
@@ -25,6 +27,17 @@ public final class OrionInventoryHud {
     private void render(GuiGraphicsExtractor context,DeltaTracker ticks) {
         Minecraft client=Minecraft.getInstance();var config=configManager.getConfig();
         if(!config.isInventoryHudEnabled()||client.player==null||client.level==null){release();return;}
+        var inventory = client.player.getInventory();
+        if (!(GleamMinecraft.screen(client) instanceof ChatScreen)) {
+            boolean hasItems = false;
+            for (int i = 0; i < COLS * ROWS && !hasItems; i++) {
+                hasItems = !inventory.getItem(i + 9).isEmpty();
+            }
+            if (!hasItems) {
+                release();
+                return;
+            }
+        }
         float elementScale = config.getHudScale() * config.getHudElementScale("inventory");
         float fit = OrionHudView.fit(elementScale, DESIGN_W, DESIGN_H, context.guiWidth(), context.guiHeight());
         int guiW = Math.max(1, Math.round(DESIGN_W * fit));
@@ -39,7 +52,7 @@ public final class OrionInventoryHud {
         pose.translate(position.x(),position.y());pose.scale(guiW/(float)DESIGN_W,guiH/(float)DESIGN_H);
         try {
             for (int i = 0; i < COLS * ROWS; i++) {
-                ItemStack item = client.player.getInventory().getItem(i + 9);
+                ItemStack item = inventory.getItem(i + 9);
                 if (item.isEmpty()) continue;
                 int xItem = PAD + (i % COLS) * STEP + ITEM_INSET;
                 int yItem = PAD + (i / COLS) * STEP + ITEM_INSET;
@@ -50,10 +63,10 @@ public final class OrionInventoryHud {
     }
     private static OrionHudView.Scene scene() {
         var scene = new OrionHudView.Scene(DESIGN_W, DESIGN_H);
-        scene.panel(0, 0, DESIGN_W, DESIGN_H, 7);
+        scene.panel(0, 0, DESIGN_W, DESIGN_H, 6);
         for (int row = 0; row < ROWS; row++) {
             for (int col = 0; col < COLS; col++) {
-                scene.well(PAD + col * STEP, PAD + row * STEP, SLOT, SLOT, 3);
+                scene.box(PAD + col * STEP, PAD + row * STEP, SLOT, SLOT, 2, "#80809a18", null);
             }
         }
         return scene;
