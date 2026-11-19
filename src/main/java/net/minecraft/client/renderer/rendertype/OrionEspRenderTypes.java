@@ -443,7 +443,7 @@ public final class OrionEspRenderTypes {
 
     public static RenderType cosmeticWings() { return WINGS; }
 
-    public static RenderType worldLyrics() { return LYRICS; }
+    public static RenderType translucentColorQuadsDepthTested() { return LYRICS; }
     public static RenderType worldLyricsSolid() { return LYRICS_SOLID; }
 
     public static RenderType killEffects() { return KILL_EFFECTS; }

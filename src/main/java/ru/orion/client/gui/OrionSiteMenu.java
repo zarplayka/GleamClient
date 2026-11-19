@@ -252,7 +252,6 @@ final class OrionSiteMenu {
             if (menuImages == null) {
                 var loaded = new LinkedHashMap<String,byte[]>();
                 loaded.put("orion-badge",read(ROOT+"textures/cosmetics/orion_badge.png"));
-                loaded.put("holiday-garland",read(MENU+"assets/holiday-garland.png"));
                 try (var stream = OrionSiteMenu.class.getResourceAsStream(ROOT+"textures/gui/click_gui_modules.png")) {
                     if (stream == null) throw new IOException("Атлас иконок GleamClient отсутствует");
                     BufferedImage atlas = ImageIO.read(stream);

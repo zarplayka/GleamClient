@@ -55,6 +55,7 @@
     "RenderPipelinesAccessor",
     "EntityHitboxDebugRendererMixin",
     "OrionHitColorModelMixin",
+    "OrionHitColorEquipmentMixin",
     "ScreenEffectRendererMixin",
     "OrionSoundSettingsMixin",
     "OrionEntityVisibilityMixin",

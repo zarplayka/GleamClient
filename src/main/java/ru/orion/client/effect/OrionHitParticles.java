@@ -7,28 +7,42 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.rendertype.OrionEspRenderTypes;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.ARGB;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
+import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
+import ru.orion.client.render.GleamPose;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** Искры с мягким свечением, затуханием и отскоком от поверхности мира. */
 public final class OrionHitParticles {
-    public static final String[] SHAPES = {"Искра", "Ромб", "Круг", "Кольцо", "Звезда", "Сердце", "Крест", "Осколок", "Лепесток"};
-    private static final int LIMIT = 256;
+    public static final String[] STYLES = {"Криты", "Искры", "Сердца", "Осколки"};
+    private static final int CRIT = 0, SPARK = 1, HEART = 2, SHARD = 3;
+    private static final int LIMIT = 180;
+    private static final Identifier ATLAS = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "textures/hit/particles.png");
+    private static final float[][] SHARD_VERTICES = {
+            {.11F, .91F, -.12F}, {-.54F, -.35F, -.27F}, {.45F, -.52F, -.3F}, {.08F, -.61F, .48F}
+    };
+    private static final int[][] SHARD_FACES = {{0, 1, 2}, {0, 3, 1}, {0, 2, 3}, {1, 3, 2}};
+    private static final float[] SHARD_SHADES = {.91F, .63F, 1F, .44F};
+
     private final OrionConfigManager configManager;
     private final List<Particle> particles = new ArrayList<>();
     private Object level;
     private long lastTick;
 
     public OrionHitParticles(OrionConfigManager configManager) { this.configManager = configManager; }
+
     public void register() {
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
         LevelRenderEvents.COLLECT_SUBMITS.register(this::render);
@@ -38,150 +52,205 @@ public final class OrionHitParticles {
         var config = configManager.getConfig();
         Minecraft client = Minecraft.getInstance();
         if (!config.isHitParticlesEnabled() || client.level == null || client.player == null || !target.isAlive()) return;
-        if (level != client.level) { particles.clear(); level = client.level; }
+        if (level != client.level) {
+            particles.clear();
+            level = client.level;
+        }
         var random = ThreadLocalRandom.current();
         long now = System.nanoTime();
-        Vec3 center = client.hitResult instanceof EntityHitResult hit && hit.getEntity() == target
-                ? hit.getLocation() : target.position().add(0, target.getBbHeight() * 0.6D, 0);
-        Vec3 outward = client.player.getEyePosition().subtract(center).normalize();
-        Vec3 origin = center.add(outward.scale(.13));
-        for (int i = 0; i < config.getHitParticlesCount(); i++) {
-            Vec3 direction = new Vec3(random.nextDouble(-1, 1), random.nextDouble(-.3, 1), random.nextDouble(-1, 1)).normalize();
-            if (direction.dot(outward) < 0) direction = direction.scale(-1);
-            Vec3 velocity = direction.scale(random.nextDouble(2.1, 4.4)).add(0, .7, 0);
-            particles.add(new Particle(origin, velocity, now,
-                    random.nextFloat(0.9F, 1.35F), random.nextFloat(0.55F, 1F), random.nextFloat(0F, 6.2832F), random.nextFloat(-2F, 2F)));
+        Vec3 eye = client.player.getEyePosition();
+        Vec3 center = target.position().add(0, target.getBbHeight() * .66D, 0);
+        Vec3 hitPoint = client.hitResult instanceof EntityHitResult hit && hit.getEntity() == target
+                ? hit.getLocation() : target.getBoundingBox().clip(eye, center).orElse(center);
+        Vec3 direction = eye.subtract(hitPoint).normalize();
+        if (direction.lengthSqr() < .001) direction = new Vec3(0, 0, 1);
+        Vec3 origin = hitPoint.add(direction.scale(.17));
+        int style = config.getHitParticlesShape();
+        int count = config.getHitParticlesCount();
+        count = switch (style) {
+            case SPARK -> Math.min(24, count);
+            case HEART -> Math.clamp((count + 2) / 3, 1, 12);
+            case SHARD -> Math.clamp((count + 1) / 2, 1, 18);
+            default -> Math.min(32, count);
+        };
+        for (int i = 0; i < count; i++) {
+            Vec3 scatter = new Vec3(random.nextDouble(-1, 1), random.nextDouble(-.75, 1), random.nextDouble(-1, 1)).normalize();
+            double along = scatter.dot(direction);
+            Vec3 tangent = scatter.subtract(direction.scale(along));
+            Vec3 velocity;
+            float lifetime;
+            switch (style) {
+                case SPARK -> {
+                    double speed = random.nextDouble(2.7, 5.1);
+                    velocity = direction.scale(speed * (.25 + .28 * Math.abs(along))).add(tangent.scale(speed * .8));
+                    lifetime = random.nextFloat(.31F, .49F);
+                }
+                case HEART -> {
+                    velocity = tangent.scale(.66).add(direction.scale(.28)).add(0, random.nextDouble(.67, 1.05), 0);
+                    lifetime = random.nextFloat(.68F, 1.04F);
+                }
+                case SHARD -> {
+                    velocity = tangent.scale(random.nextDouble(1.0, 2.6)).add(0, 1.2, 0)
+                            .add(direction.scale(.73 + Math.abs(along)));
+                    lifetime = random.nextFloat(.57F, .91F);
+                }
+                default -> {
+                    velocity = tangent.scale(random.nextDouble(1.6, 3)).add(direction.scale(.73 + Math.abs(along)))
+                            .add(0, .35, 0);
+                    lifetime = random.nextFloat(.43F, .66F);
+                }
+            }
+            double spread = style == HEART ? .17 : .07;
+            float angle = random.nextFloat(0F, (float)Math.TAU);
+            int tile = style == HEART ? 2 : style == SPARK ? 1 : random.nextBoolean() ? 0 : 3;
+            particles.add(new Particle(style, tile, origin.add(tangent.scale(random.nextDouble(.01, spread))),
+                    velocity, now, lifetime, random.nextFloat(.78F, 1.22F), angle, random.nextFloat(-6F, 6F)));
         }
         if (particles.size() > LIMIT) particles.subList(0, particles.size() - LIMIT).clear();
     }
 
     private void tick(Minecraft client) {
         long now = System.nanoTime();
-        float dt = lastTick == 0 ? .05F : Math.min(.1F, (now - lastTick) / 1_000_000_000F);
+        float delta = lastTick == 0L ? .05F : Math.clamp((now - lastTick) / 1_000_000_000F, 0F, .075F);
         lastTick = now;
         if (!configManager.getConfig().isHitParticlesEnabled() || client.level == null || client.player == null || client.level != level) {
-            particles.clear(); level = client.level; return;
+            particles.clear();
+            level = client.level;
+            return;
         }
-        particles.removeIf(p -> (now - p.created) / 1_000_000_000F >= p.life);
+        particles.removeIf(particle -> age(now, particle) >= particle.lifetime);
         for (Particle p : particles) {
             p.previous = p.position;
-            p.velocity = p.velocity.scale(Math.exp(-.65 * dt)).add(0, -4.1 * dt, 0);
-            Vec3 next = p.position.add(p.velocity.scale(dt));
-            var hit = client.level.clip(new ClipContext(p.position, next, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, client.player));
-            if (hit.getType() == HitResult.Type.BLOCK) {
-                Vec3 normal = new Vec3(hit.getDirection().getStepX(), hit.getDirection().getStepY(), hit.getDirection().getStepZ());
-                p.position = hit.getLocation().add(normal.scale(.015));
-                double incoming = p.velocity.dot(normal);
-                if (incoming < 0) p.velocity = p.velocity.subtract(normal.scale(1.52 * incoming)).scale(.86);
-            } else p.position = next;
+            if (p.style == HEART) {
+                double sway = Math.sin(age(now, p) * 9 + p.angle) * .29;
+                p.position = p.position.add(p.velocity.add(sway, 0, 0).scale(delta));
+                continue;
+            }
+            float gravity = p.style == SHARD ? 8F : p.style == SPARK ? 4.1F : 2.6F;
+            p.velocity = p.velocity.scale(Math.exp(-(p.style == CRIT ? 1.65 : .8) * delta)).add(0, -gravity * delta, 0);
+            Vec3 next = p.position.add(p.velocity.scale(delta));
+            if (p.style == SHARD) {
+                var hit = client.level.clip(new ClipContext(p.position, next, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, client.player));
+                if (hit.getType() == HitResult.Type.BLOCK) {
+                    Vec3 n = new Vec3(hit.getDirection().getStepX(), hit.getDirection().getStepY(), hit.getDirection().getStepZ());
+                    p.position = hit.getLocation().add(n.scale(.012));
+                    double impact = p.velocity.dot(n);
+                    if (impact < 0) p.velocity = p.velocity.subtract(n.scale(1.36 * impact)).scale(.68);
+                    continue;
+                }
+            }
+            p.position = next;
         }
     }
 
     private void render(LevelRenderContext context) {
-        Minecraft client = Minecraft.getInstance();
+        Minecraft mc = Minecraft.getInstance();
         var config = configManager.getConfig();
-        if (!config.isHitParticlesEnabled() || client.level == null || client.level != level || particles.isEmpty()) return;
+        if (!config.isHitParticlesEnabled() || mc.level != level || particles.isEmpty()) return;
         var camera = context.levelState().cameraRenderState;
         if (camera == null || !camera.initialized || camera.orientation == null) return;
+        int rgb = OrionWorldChanger.parseOpaqueColor(config.getHitParticlesColor());
+        float scale = config.getHitParticlesSize();
         long now = System.nanoTime();
-        float partial = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
-        int rgb = OrionRainbow.orElse(OrionWorldChanger.parseOpaqueColor(config.getHitParticlesColor()));
-        int shape = config.getHitParticlesShape();
-        List<RenderedParticle> visible = new ArrayList<>(particles.size());
-        for (Particle particle : particles) {
-            float age = Math.max(0, (now - particle.created) / 1_000_000_000F);
-            float t = age / particle.life;
-            if (t >= 1 || particle.position.distanceToSqr(camera.pos) > 4096D) continue;
-            float fade = Math.min(1F, age / .06F) * (1 - t) * (1 - t);
-            float size = config.getHitParticlesSize() * particle.scale * (0.65F + .35F * (1 - t));
-            Vec3 position = particle.previous.lerp(particle.position, partial).subtract(camera.pos);
-            float angle = particle.angle + particle.spin * age;
-            PoseStack stack = context.poseStack();
+        float partial = mc.getDeltaTracker().getGameTimeDeltaPartialTick(true);
+        Quaternionf inverseView = new Quaternionf(camera.orientation).conjugate();
+        List<Sprite> sprites = new ArrayList<>();
+        List<Chip> chips = new ArrayList<>();
+        PoseStack stack = context.poseStack();
+        for (Particle p : particles) {
+            float seconds = age(now, p);
+            float progress = seconds / p.lifetime;
+            if (progress >= 1F || p.position.distanceToSqr(camera.pos) > 4096D) continue;
+            Vec3 pos = p.previous.lerp(p.position, partial).subtract(camera.pos);
+            float fade = Math.min(1F, seconds / .032F) * Math.min(1F, (1F - progress) / .6F);
+            int color = ARGB.color(Math.round(fade * 255), rgb);
+            float size = scale * p.scale;
             stack.pushPose();
-            stack.translate(position.x, position.y, position.z);
-            ru.orion.client.render.GleamPose.rotate(stack, camera.orientation);
-            visible.add(new RenderedParticle(stack.last().copy(), size, fade, angle));
+            stack.translate(pos.x, pos.y, pos.z);
+            if (p.style == SHARD) {
+                GleamPose.rotate(stack, new Quaternionf().rotateXYZ(p.angle + p.spin * seconds * .7F,
+                        p.angle * .44F - p.spin * seconds, .5F + seconds * 5.5F));
+                chips.add(new Chip(stack.last().copy(), size * .54F * (1F - progress * .25F), color));
+            } else {
+                GleamPose.rotate(stack, camera.orientation);
+                float angle = 0, width, height;
+                if (p.style == SPARK) {
+                    var view = inverseView.transform(new Vector3f((float)p.velocity.x, (float)p.velocity.y, (float)p.velocity.z));
+                    float projected = Math.clamp((float)Math.hypot(view.x, view.y) / Math.max(.01F, view.length()), .23F, 1F);
+                    angle = (float)Math.atan2(view.y, view.x);
+                    width = size * (1.24F - .54F * progress) * projected;
+                    height = size * .72F;
+                } else if (p.style == HEART) {
+                    angle = .13F * (float)Math.sin(p.angle + seconds * 7F);
+                    width = height = size * (.52F + .12F * (1F - (float)Math.exp(-12F * seconds)));
+                } else {
+                    angle = p.angle + p.spin * seconds * .42F;
+                    width = height = size * (.54F - .17F * progress);
+                }
+                sprites.add(new Sprite(stack.last().copy(), p.tile, width, height, angle, color));
+            }
             stack.popPose();
         }
-        if (!visible.isEmpty()) context.submitNodeCollector().submitCustomGeometry(context.poseStack(),
-                OrionEspRenderTypes.colorQuadsDepthTested(), (ignored, vertices) -> {
-                    for (var particle : visible) draw(particle.pose(), vertices, particle.size(), rgb,
-                            particle.fade(), shape, particle.angle());
-                });
+        if (!sprites.isEmpty()) {
+            context.submitNodeCollector().submitCustomGeometry(stack, RenderTypes.text(ATLAS), (pose, vc) -> {
+                for (Sprite sprite : sprites) drawSprite(vc, sprite);
+            });
+        }
+        if (!chips.isEmpty()) {
+            context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.translucentColorQuadsDepthTested(), (pose, vc) -> {
+                for (Chip chip : chips) drawChip(vc, chip);
+            });
+        }
     }
 
-    private record RenderedParticle(PoseStack.Pose pose, float size, float fade, float angle) { }
-    private static void draw(PoseStack.Pose pose, VertexConsumer vc, float size, int rgb, float fade, int shape, float angle) {
-        int glow = alpha(rgb, Math.round(fade * 36)), clear = alpha(rgb, 0);
-        for (int i = 0; i < 10; i++) {
-            double a = i * Math.PI / 5, b = (i + 1) * Math.PI / 5;
-            triangle(pose, vc, 0, 0, glow, (float) Math.cos(a) * size * 2, (float) Math.sin(a) * size * 2, clear,
-                    (float) Math.cos(b) * size * 2, (float) Math.sin(b) * size * 2, clear);
-        }
-        int points = switch (shape) {
-            case 0, 7 -> 8;
-            case 1 -> 4;
-            case 3, 5 -> 20;
-            case 4 -> 10;
-            default -> 12;
-        };
-        int core = ARGB.color(Math.round(fade * 235), (ARGB.red(rgb) + 510) / 3, (ARGB.green(rgb) + 510) / 3, (ARGB.blue(rgb) + 510) / 3);
-        int edge = alpha(rgb, Math.round(fade * 170));
-        double turn = shape == 5 ? angle * .1 : angle;
-        float rotationX = (float) Math.cos(turn), rotationY = (float) Math.sin(turn);
-        for (int i = 0; i < points; i++) {
-            Point next = silhouette(shape, i, points, size, rotationX, rotationY);
-            Point end = silhouette(shape, i + 1, points, size, rotationX, rotationY);
-            float ax = next.x, ay = next.y, bx = end.x, by = end.y;
-            if (shape == 3) {
-                vertex(pose, vc, ax, ay, edge); vertex(pose, vc, bx, by, edge);
-                vertex(pose, vc, bx * .66F, by * .66F, core); vertex(pose, vc, ax * .66F, ay * .66F, core);
-            } else {
-                triangle(pose, vc, 0, 0, core, ax, ay, edge, bx, by, edge);
+    private static void drawSprite(VertexConsumer vc, Sprite sprite) {
+        float u = (sprite.tile & 1) * .5F, v = (sprite.tile >> 1) * .5F;
+        float cos = (float)Math.cos(sprite.angle), sin = (float)Math.sin(sprite.angle);
+        spriteVertex(vc, sprite, -sprite.width, sprite.height, cos, sin, u, v);
+        spriteVertex(vc, sprite, -sprite.width, -sprite.height, cos, sin, u, v + .5F);
+        spriteVertex(vc, sprite, sprite.width, -sprite.height, cos, sin, u + .5F, v + .5F);
+        spriteVertex(vc, sprite, sprite.width, sprite.height, cos, sin, u + .5F, v);
+    }
+
+    private static void spriteVertex(VertexConsumer vc, Sprite sprite, float x, float y, float cos, float sin, float u, float v) {
+        vc.addVertex(sprite.pose, x * cos - y * sin, x * sin + y * cos, 0)
+                .setUv(u, v).setLight(0xF000F0).setColor(sprite.color);
+    }
+
+    private static void drawChip(VertexConsumer vc, Chip chip) {
+        for (int i = 0; i < SHARD_FACES.length; i++) {
+            int[] face = SHARD_FACES[i];
+            int color = ARGB.scaleRGB(chip.color, SHARD_SHADES[i]);
+            for (int vertex = 0; vertex < 4; vertex++) {
+                float[] p = SHARD_VERTICES[face[Math.min(vertex, 2)]];
+                vc.addVertex(chip.pose, p[0] * chip.size, p[1] * chip.size, p[2] * chip.size).setColor(color);
             }
-            vertex(pose, vc, ax, ay, edge); vertex(pose, vc, bx, by, edge);
-            vertex(pose, vc, bx * 1.22F, by * 1.22F, clear); vertex(pose, vc, ax * 1.22F, ay * 1.22F, clear);
         }
     }
 
-    private static Point silhouette(int shape, int vertex, int points, float size, float rx, float ry) {
-        double phase = vertex * Math.PI * 2 / points;
-        double radius = switch (shape) {
-            case 0 -> (vertex & 1) == 0 ? 1 : .23;
-            case 4 -> (vertex & 1) == 0 ? 1 : .46;
-            case 6 -> (vertex % 3) == 1 ? .42 : 1;
-            case 8 -> .65 + .32 * Math.cos(phase);
-            default -> 1;
-        };
-        double x = Math.cos(phase) * radius, y = Math.sin(phase) * radius;
-        if (shape == 5) {
-            double heart = Math.PI / 2 - phase;
-            x = Math.pow(Math.sin(heart), 3);
-            y = (13 * Math.cos(heart) - 5 * Math.cos(2 * heart) - 2 * Math.cos(3 * heart) - Math.cos(4 * heart) + 1) / 17;
-        } else if (shape == 7) {
-            x *= .38;
-            y *= 1.45;
-        } else if (shape == 8) {
-            y *= .57;
-        }
-        return new Point(size * (float) (x * rx - y * ry), size * (float) (x * ry + y * rx));
+    private static float age(long now, Particle particle) {
+        return Math.max(0F, (now - particle.created) / 1_000_000_000F);
     }
 
-    private record Point(float x, float y) {}
-
-    private static int alpha(int rgb, int alpha) { return ARGB.color(alpha, ARGB.red(rgb), ARGB.green(rgb), ARGB.blue(rgb)); }
-    private static void triangle(PoseStack.Pose pose, VertexConsumer vc, float x, float y, int c, float ax, float ay, int ac, float bx, float by, int bc) {
-        vertex(pose, vc, x, y, c); vertex(pose, vc, ax, ay, ac); vertex(pose, vc, bx, by, bc); vertex(pose, vc, x, y, c);
-    }
-    private static void vertex(PoseStack.Pose pose, VertexConsumer vc, float x, float y, int color) { vc.addVertex(pose, x, y, 0).setColor(color); }
+    private record Sprite(PoseStack.Pose pose, int tile, float width, float height, float angle, int color) {}
+    private record Chip(PoseStack.Pose pose, float size, int color) {}
 
     private static final class Particle {
         Vec3 position, previous, velocity;
+        final int style, tile;
         final long created;
-        final float life, scale, angle, spin;
-        Particle(Vec3 position, Vec3 velocity, long created, float life, float scale, float angle, float spin) {
-            this.position = this.previous = position; this.velocity = velocity; this.created = created;
-            this.life = life; this.scale = scale; this.angle = angle; this.spin = spin;
+        final float lifetime, scale, angle, spin;
+
+        Particle(int style, int tile, Vec3 position, Vec3 velocity, long created, float lifetime, float scale, float angle, float spin) {
+            this.style = style;
+            this.tile = tile;
+            this.position = this.previous = position;
+            this.velocity = velocity;
+            this.created = created;
+            this.lifetime = lifetime;
+            this.scale = scale;
+            this.angle = angle;
+            this.spin = spin;
         }
     }
 }

@@ -15,6 +15,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.mixin.OrionVoxelShapeAccessor;
 
@@ -26,9 +27,9 @@ public final class OrionBlockHighlight {
     private VoxelShape shape;
     private List<Face> faces = List.of();
     private List<Edge> edges = List.of();
-    private BlockPos position;
-    private Direction direction;
-    private double plane;
+    private Target current, outgoing;
+    private Vec3 slideFrom;
+    private float transition = 1F;
     private float opacity;
     private long lastTime;
     private Object level;
@@ -39,74 +40,120 @@ public final class OrionBlockHighlight {
     private void render(LevelRenderContext context) {
         Minecraft client = Minecraft.getInstance();
         var config = configManager.getConfig();
-        if (level != client.level || client.level == null || !config.isBlockHighlightEnabled()) {
+        if (level != client.level || !config.isBlockHighlightEnabled()) {
             level = client.level;
             shape = null;
-            position = null;
+            current = outgoing = null;
+            slideFrom = null;
             opacity = 0;
             lastTime = 0;
         }
         if (!config.isBlockHighlightEnabled() || client.level == null || client.player == null) return;
         long now = System.nanoTime();
-        float dt = lastTime == 0 ? .016F : Math.min(.08F, (now - lastTime) / 1_000_000_000F);
+        float dt = lastTime == 0 ? .016F : Math.clamp((now - lastTime) / 1_000_000_000F, 0F, .08F);
         lastTime = now;
         var outline = context.levelState().blockOutlineRenderState;
-        boolean selected = outline != null && !outline.shape().isEmpty()
-                && client.hitResult instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK
-                && outline.pos().equals(hit.getBlockPos());
-        if (selected) {
-            var hit = (BlockHitResult) client.hitResult;
-            boolean changed = !outline.pos().equals(position);
-            if (!outline.shape().equals(shape)) bake(outline.shape());
-            position = outline.pos();
-            direction = hit.getDirection();
-            plane = nearestPlane(hit.getLocation().subtract(Vec3.atLowerCornerOf(position)));
-            if (changed) opacity = Math.max(opacity, .55F);
-            opacity = Math.min(1F, opacity + dt * config.getBlockHighlightMoveSpeed());
+        int mode = config.getBlockHighlightMode();
+        if (outline != null && !outline.shape().isEmpty() && client.hitResult instanceof BlockHitResult hit
+                && hit.getType() == HitResult.Type.BLOCK && outline.pos().equals(hit.getBlockPos())) {
+            boolean geometryChanged = !outline.shape().equals(shape);
+            if (geometryChanged) bake(outline.shape());
+            Vec3 origin = Vec3.atLowerCornerOf(outline.pos());
+            Direction face = hit.getDirection();
+            double plane = nearestPlane(face, hit.getLocation().subtract(origin));
+            boolean moved = current != null && !outline.pos().equals(current.position);
+            boolean faceChanged = current != null && (face != current.face || Math.abs(plane - current.plane) > 1.e-5);
+            if (current == null || moved || geometryChanged || (mode == 3 && faceChanged)) {
+                Vec3 displayed = current == null ? origin : outlinePosition();
+                boolean animate = current != null && opacity > .01F;
+                outgoing = animate ? current : null;
+                slideFrom = animate && moved && !geometryChanged && displayed.distanceToSqr(origin) <= 9D ? displayed : null;
+                transition = animate ? 0F : 1F;
+                current = new Target(outline.pos().immutable(), origin, faces, edges, face, plane);
+            } else if (faceChanged) {
+                current = new Target(current.position, current.origin, current.faces, current.edges, face, plane);
+            }
+            opacity = Math.min(1F, opacity + dt * config.getBlockHighlightFadeSpeed());
         } else {
             opacity = Math.max(0F, opacity - dt * config.getBlockHighlightFadeSpeed());
         }
-        if (position == null || opacity <= 0F) return;
+        transition = Math.min(1F, transition + dt * config.getBlockHighlightMoveSpeed() * .45F);
+        if (transition >= 1F) {
+            outgoing = null;
+            slideFrom = null;
+        }
+        if (current == null || opacity <= 0F) return;
         var camera = context.levelState().cameraRenderState;
         if (camera == null || camera.pos == null) return;
-        Vec3 offset = Vec3.atLowerCornerOf(position).subtract(camera.pos);
         int rgb = OrionRainbow.orElse(OrionWorldChanger.parseOpaqueColor(config.getBlockHighlightColor()));
-        int mode = config.getBlockHighlightMode();
-        float strength = opacity;
-        // A tiny geometric offset keeps coplanar faces clear of the block's own depth.
+        float weight = outgoing == null ? 1F : easedTransition();
+        if (mode != 0) {
+            // The fill stays on the real block faces throughout the transition.
+            if (outgoing != null) drawFill(context, camera.pos, outgoing, mode, rgb, opacity * (1 - weight), config);
+            drawFill(context, camera.pos, current, mode, rgb, opacity * weight, config);
+        }
+        if (mode == 0 || mode == 2) {
+            if (outgoing != null && slideFrom == null) {
+                drawOutline(context, camera.pos, outgoing, outgoing.origin, rgb, opacity * (1 - weight), config);
+            }
+            drawOutline(context, camera.pos, current, outlinePosition(), rgb,
+                    opacity * (slideFrom == null ? weight : 1F), config);
+        }
+    }
+
+    private float easedTransition() {
+        float remaining = 1F - transition;
+        return 1F - remaining * remaining * remaining;
+    }
+
+    private Vec3 outlinePosition() {
+        return slideFrom == null ? current.origin : slideFrom.lerp(current.origin, easedTransition());
+    }
+
+    private static void drawFill(LevelRenderContext context, Vec3 camera, Target target, int mode, int rgb,
+                                 float strength, OrionConfig config) {
+        int alpha = Math.round(strength * 255 * config.getBlockHighlightFillOpacity() / 100F);
+        if (alpha < 2) return;
+        int color = ARGB.color(alpha, rgb);
         double bias = Math.max(.0015, config.getBlockHighlightOffset());
+        Vec3 offset = target.origin.subtract(camera);
         PoseStack stack = context.poseStack();
         stack.pushPose();
         stack.translate(offset.x, offset.y, offset.z);
-        if (mode != 0) {
-            int fill = ARGB.color(Math.round(strength * 255 * config.getBlockHighlightFillOpacity() / 100F), rgb);
-            List<Face> selectedFaces = faces;
-            if (mode == 3) {
-                Direction targeted = direction;
-                double targetPlane = plane;
-                selectedFaces = faces.stream().filter(face -> face.direction == targeted
-                        && Math.abs(face.plane() - targetPlane) < 1.e-5).toList();
-            }
-            List<Face> geometry = selectedFaces;
-            context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.colorQuadsDepthTested(),
-                    (pose, consumer) -> geometry.forEach(face -> face.draw(pose, consumer, fill, bias)));
-        }
-        if (mode == 0 || mode == 2) {
-            int color = ARGB.color(Math.round(strength * 255 * config.getBlockHighlightOpacity() / 100F), rgb);
-            int glow = ARGB.color(Math.round(strength * 255 * config.getBlockHighlightGlowOpacity() / 100F), rgb);
-            float width = config.getBlockHighlightLineWidth();
-            float glowWidth = config.getBlockHighlightGlowWidth();
-            boolean glowing = config.isBlockHighlightGlow();
-            List<Edge> geometry = edges;
-            context.submitNodeCollector().submitCustomGeometry(stack, RenderTypes.lines(), (pose, consumer) -> {
-                for (Edge edge : geometry) {
-                    if (glowing) edge.draw(pose, consumer, glow, glowWidth);
-                    edge.draw(pose, consumer, color, width);
-                }
-            });
-        }
+        context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.translucentColorQuadsDepthTested(),
+                (pose, consumer) -> {
+                    for (Face face : target.faces) {
+                        if (mode != 3 || (face.direction == target.face && Math.abs(face.plane() - target.plane) < 1.e-5)) {
+                            face.draw(pose, consumer, color, bias);
+                        }
+                    }
+                });
         stack.popPose();
     }
+
+    private static void drawOutline(LevelRenderContext context, Vec3 camera, Target target, Vec3 anchor, int rgb,
+                                    float strength, OrionConfig config) {
+        int alpha = Math.round(strength * 255 * config.getBlockHighlightOpacity() / 100F);
+        if (alpha < 2) return;
+        int color = ARGB.color(alpha, rgb);
+        int glow = ARGB.color(Math.round(strength * 255 * config.getBlockHighlightGlowOpacity() / 100F), rgb);
+        float width = config.getBlockHighlightLineWidth();
+        float glowWidth = config.getBlockHighlightGlowWidth();
+        boolean glowing = config.isBlockHighlightGlow();
+        Vec3 offset = anchor.subtract(camera);
+        PoseStack stack = context.poseStack();
+        stack.pushPose();
+        stack.translate(offset.x, offset.y, offset.z);
+        context.submitNodeCollector().submitCustomGeometry(stack, RenderTypes.lines(), (pose, consumer) -> {
+            for (Edge edge : target.edges) {
+                if (glowing) edge.draw(pose, consumer, glow, glowWidth);
+                edge.draw(pose, consumer, color, width);
+            }
+        });
+        stack.popPose();
+    }
+
+    private record Target(BlockPos position, Vec3 origin, List<Face> faces, List<Edge> edges, Direction face, double plane) {}
 
     private void bake(VoxelShape voxel) {
         shape = voxel;
@@ -124,7 +171,7 @@ public final class OrionBlockHighlight {
         edges = List.copyOf(nextEdges);
     }
 
-    private double nearestPlane(Vec3 hit) {
+    private double nearestPlane(Direction direction, Vec3 hit) {
         Direction.Axis axis = direction.getAxis();
         double best = Double.POSITIVE_INFINITY;
         double result = hit.get(axis);
