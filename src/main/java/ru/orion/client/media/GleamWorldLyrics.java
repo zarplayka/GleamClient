@@ -60,7 +60,7 @@ public final class GleamWorldLyrics {
     }
 
     public void register() {
-        OrionEspRenderTypes.worldLyrics();
+        OrionEspRenderTypes.translucentColorQuadsDepthTested();
         LevelRenderEvents.COLLECT_SUBMITS.register(this::render);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (document != null && (client.level != level || !enabled())) reset();
@@ -256,7 +256,7 @@ public final class GleamWorldLyrics {
             float dim = settings.getBackgroundDim() / 100F * alpha;
             if (alpha >= .998F) context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.worldLyricsSolid(),
                     (pose, vertices) -> emit(pose, vertices, phrase, line, animation, 0, true));
-            context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.worldLyrics(),
+            context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.translucentColorQuadsDepthTested(),
                     (pose, vertices) -> emit(pose, vertices, phrase, line, animation, dim, false));
         } finally { stack.popPose(); }
     }

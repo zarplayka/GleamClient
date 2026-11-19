@@ -13,22 +13,28 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import ru.orion.client.config.OrionConfigManager;
+import ru.orion.client.render.GleamPose;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** Искры с мягким свечением, затуханием и отскоком от поверхности мира. */
 public final class OrionHitParticles {
-    public static final String[] SHAPES = {"Искра", "Ромб", "Круг", "Кольцо", "Звезда", "Сердце", "Крест", "Осколок", "Лепесток"};
+    public static final String[] STYLES = {"Направленные искры", "Ударная волна", "Осколки", "Дым", "Разрез"};
+    private static final int SPARKS = 0, WAVE = 1, SHARDS = 2, SMOKE = 3, SWEEP = 4;
     private static final int LIMIT = 256;
+    private static final Vec3 VERTICAL = new Vec3(0, 1, 0);
     private final OrionConfigManager configManager;
     private final List<Particle> particles = new ArrayList<>();
+    private final List<Pulse> pulses = new ArrayList<>();
     private Object level;
     private long lastTick;
 
     public OrionHitParticles(OrionConfigManager configManager) { this.configManager = configManager; }
+
     public void register() {
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
         LevelRenderEvents.COLLECT_SUBMITS.register(this::render);
@@ -38,150 +44,226 @@ public final class OrionHitParticles {
         var config = configManager.getConfig();
         Minecraft client = Minecraft.getInstance();
         if (!config.isHitParticlesEnabled() || client.level == null || client.player == null || !target.isAlive()) return;
-        if (level != client.level) { particles.clear(); level = client.level; }
+        if (level != client.level) reset(client.level);
         var random = ThreadLocalRandom.current();
-        long now = System.nanoTime();
-        Vec3 center = client.hitResult instanceof EntityHitResult hit && hit.getEntity() == target
-                ? hit.getLocation() : target.position().add(0, target.getBbHeight() * 0.6D, 0);
-        Vec3 outward = client.player.getEyePosition().subtract(center).normalize();
-        Vec3 origin = center.add(outward.scale(.13));
-        for (int i = 0; i < config.getHitParticlesCount(); i++) {
-            Vec3 direction = new Vec3(random.nextDouble(-1, 1), random.nextDouble(-.3, 1), random.nextDouble(-1, 1)).normalize();
-            if (direction.dot(outward) < 0) direction = direction.scale(-1);
-            Vec3 velocity = direction.scale(random.nextDouble(2.1, 4.4)).add(0, .7, 0);
-            particles.add(new Particle(origin, velocity, now,
-                    random.nextFloat(0.9F, 1.35F), random.nextFloat(0.55F, 1F), random.nextFloat(0F, 6.2832F), random.nextFloat(-2F, 2F)));
+        long time = System.nanoTime();
+        Vec3 point = client.hitResult instanceof EntityHitResult hit && hit.getEntity() == target
+                ? hit.getLocation() : target.position().add(0, target.getBbHeight() * .6, 0);
+        Vec3 normal = client.player.getEyePosition().subtract(point).normalize();
+        if (normal.lengthSqr() < .01) normal = new Vec3(0, 0, 1);
+        Vec3 origin = point.add(normal.scale(.14));
+        int style = config.getHitParticlesShape();
+        int count = config.getHitParticlesCount();
+        if (style == WAVE || style == SWEEP) {
+            Vec3 right = VERTICAL.cross(normal).normalize();
+            if (right.lengthSqr() < .01) right = new Vec3(1, 0, 0);
+            Vec3 up = normal.cross(right).normalize();
+            double roll = style == SWEEP ? random.nextDouble(-.75, .75) : 0;
+            pulses.add(new Pulse(style, origin, right, up, time, roll, Math.clamp(count, 12, 36)));
+            if (pulses.size() > 24) pulses.removeFirst();
+            return;
+        }
+        if (style == SMOKE) count = Math.clamp(count / 3, 3, 14);
+        for (int i = 0; i < count; i++) {
+            Vec3 jitter = new Vec3(random.nextDouble(-1, 1), random.nextDouble(-.5, 1), random.nextDouble(-1, 1)).normalize();
+            Vec3 velocity;
+            float life;
+            if (style == SMOKE) {
+                velocity = jitter.scale(.6).add(0, .55, 0);
+                life = random.nextFloat(.55F, .9F);
+            } else if (style == SHARDS) {
+                velocity = jitter.scale(random.nextDouble(1.6, 3.3)).add(normal.scale(.6)).add(0, 1.7, 0);
+                life = random.nextFloat(.65F, 1F);
+            } else {
+                velocity = normal.scale(random.nextDouble(2.4, 4.6)).add(jitter.scale(2.6));
+                life = random.nextFloat(.24F, .46F);
+            }
+            particles.add(new Particle(style, origin.add(jitter.scale(.025)), velocity, time, life,
+                    random.nextFloat(.65F, 1.25F), random.nextFloat(0F, 6.2832F), random.nextFloat(-9F, 9F)));
         }
         if (particles.size() > LIMIT) particles.subList(0, particles.size() - LIMIT).clear();
     }
 
+    private void reset(Object newLevel) {
+        particles.clear();
+        pulses.clear();
+        level = newLevel;
+    }
+
     private void tick(Minecraft client) {
         long now = System.nanoTime();
-        float dt = lastTick == 0 ? .05F : Math.min(.1F, (now - lastTick) / 1_000_000_000F);
+        float dt = lastTick == 0 ? .05F : Math.clamp((now - lastTick) / 1_000_000_000F, 0F, .075F);
         lastTick = now;
         if (!configManager.getConfig().isHitParticlesEnabled() || client.level == null || client.player == null || client.level != level) {
-            particles.clear(); level = client.level; return;
+            reset(client.level);
+            return;
         }
-        particles.removeIf(p -> (now - p.created) / 1_000_000_000F >= p.life);
+        pulses.removeIf(p -> seconds(now - p.created) >= p.life());
+        particles.removeIf(p -> seconds(now - p.created) >= p.life);
         for (Particle p : particles) {
             p.previous = p.position;
-            p.velocity = p.velocity.scale(Math.exp(-.65 * dt)).add(0, -4.1 * dt, 0);
+            double gravity = p.style == SHARDS ? -7.5 : p.style == SMOKE ? .3 : -.9;
+            p.velocity = p.velocity.scale(Math.exp(-(p.style == SMOKE ? 1.9 : .9) * dt)).add(0, gravity * dt, 0);
             Vec3 next = p.position.add(p.velocity.scale(dt));
+            if (p.style != SHARDS) {
+                p.position = next;
+                continue;
+            }
             var hit = client.level.clip(new ClipContext(p.position, next, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, client.player));
             if (hit.getType() == HitResult.Type.BLOCK) {
-                Vec3 normal = new Vec3(hit.getDirection().getStepX(), hit.getDirection().getStepY(), hit.getDirection().getStepZ());
-                p.position = hit.getLocation().add(normal.scale(.015));
-                double incoming = p.velocity.dot(normal);
-                if (incoming < 0) p.velocity = p.velocity.subtract(normal.scale(1.52 * incoming)).scale(.86);
-            } else p.position = next;
+                Vec3 floor = new Vec3(hit.getDirection().getStepX(), hit.getDirection().getStepY(), hit.getDirection().getStepZ());
+                p.position = hit.getLocation().add(floor.scale(.012));
+                double incoming = p.velocity.dot(floor);
+                if (incoming < 0) p.velocity = p.velocity.subtract(floor.scale(1.42 * incoming)).scale(.73);
+            } else {
+                p.position = next;
+            }
         }
     }
 
     private void render(LevelRenderContext context) {
         Minecraft client = Minecraft.getInstance();
         var config = configManager.getConfig();
-        if (!config.isHitParticlesEnabled() || client.level == null || client.level != level || particles.isEmpty()) return;
+        if (!config.isHitParticlesEnabled() || client.level == null || client.level != level || particles.isEmpty() && pulses.isEmpty()) return;
         var camera = context.levelState().cameraRenderState;
         if (camera == null || !camera.initialized || camera.orientation == null) return;
+        Vec3 eye = camera.pos;
         long now = System.nanoTime();
         float partial = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
-        int rgb = OrionRainbow.orElse(OrionWorldChanger.parseOpaqueColor(config.getHitParticlesColor()));
-        int shape = config.getHitParticlesShape();
-        List<RenderedParticle> visible = new ArrayList<>(particles.size());
-        for (Particle particle : particles) {
-            float age = Math.max(0, (now - particle.created) / 1_000_000_000F);
-            float t = age / particle.life;
-            if (t >= 1 || particle.position.distanceToSqr(camera.pos) > 4096D) continue;
-            float fade = Math.min(1F, age / .06F) * (1 - t) * (1 - t);
-            float size = config.getHitParticlesSize() * particle.scale * (0.65F + .35F * (1 - t));
-            Vec3 position = particle.previous.lerp(particle.position, partial).subtract(camera.pos);
-            float angle = particle.angle + particle.spin * age;
-            PoseStack stack = context.poseStack();
+        int color = OrionWorldChanger.parseOpaqueColor(config.getHitParticlesColor());
+        float scale = config.getHitParticlesSize();
+        List<Billboard> visible = new ArrayList<>(particles.size());
+        Quaternionf inverseView = new Quaternionf(camera.orientation).conjugate();
+        PoseStack stack = context.poseStack();
+        for (Particle p : particles) {
+            float age = seconds(now - p.created);
+            float progress = age / p.life;
+            if (progress >= 1F || p.position.distanceToSqr(eye) > 4096D) continue;
+            float alpha = Math.min(1F, age / (p.style == SMOKE ? .1F : .025F)) * (1F - progress);
+            float angle = p.angle + p.spin * age;
+            if (p.style == SPARKS) {
+                var velocity = inverseView.transform(new Vector3f((float)p.velocity.x, (float)p.velocity.y, (float)p.velocity.z));
+                angle = (float) Math.atan2(velocity.y, velocity.x);
+            }
+            Vec3 relative = p.previous.lerp(p.position, partial).subtract(eye);
             stack.pushPose();
-            stack.translate(position.x, position.y, position.z);
-            ru.orion.client.render.GleamPose.rotate(stack, camera.orientation);
-            visible.add(new RenderedParticle(stack.last().copy(), size, fade, angle));
+            stack.translate(relative.x, relative.y, relative.z);
+            GleamPose.rotate(stack, camera.orientation);
+            visible.add(new Billboard(stack.last().copy(), p.style, scale * p.scale, angle, alpha, progress));
             stack.popPose();
         }
-        if (!visible.isEmpty()) context.submitNodeCollector().submitCustomGeometry(context.poseStack(),
-                OrionEspRenderTypes.colorQuadsDepthTested(), (ignored, vertices) -> {
-                    for (var particle : visible) draw(particle.pose(), vertices, particle.size(), rgb,
-                            particle.fade(), shape, particle.angle());
+        List<Pulse> bursts = List.copyOf(pulses);
+        context.submitNodeCollector().submitCustomGeometry(stack, OrionEspRenderTypes.translucentColorQuadsDepthTested(),
+                (pose, vertices) -> {
+                    for (Billboard particle : visible) drawParticle(vertices, particle, color);
+                    for (Pulse pulse : bursts) drawPulse(pose, vertices, pulse, eye, color, scale, now);
                 });
     }
 
-    private record RenderedParticle(PoseStack.Pose pose, float size, float fade, float angle) { }
-    private static void draw(PoseStack.Pose pose, VertexConsumer vc, float size, int rgb, float fade, int shape, float angle) {
-        int glow = alpha(rgb, Math.round(fade * 36)), clear = alpha(rgb, 0);
-        for (int i = 0; i < 10; i++) {
-            double a = i * Math.PI / 5, b = (i + 1) * Math.PI / 5;
-            triangle(pose, vc, 0, 0, glow, (float) Math.cos(a) * size * 2, (float) Math.sin(a) * size * 2, clear,
-                    (float) Math.cos(b) * size * 2, (float) Math.sin(b) * size * 2, clear);
-        }
-        int points = switch (shape) {
-            case 0, 7 -> 8;
-            case 1 -> 4;
-            case 3, 5 -> 20;
-            case 4 -> 10;
-            default -> 12;
-        };
-        int core = ARGB.color(Math.round(fade * 235), (ARGB.red(rgb) + 510) / 3, (ARGB.green(rgb) + 510) / 3, (ARGB.blue(rgb) + 510) / 3);
-        int edge = alpha(rgb, Math.round(fade * 170));
-        double turn = shape == 5 ? angle * .1 : angle;
-        float rotationX = (float) Math.cos(turn), rotationY = (float) Math.sin(turn);
-        for (int i = 0; i < points; i++) {
-            Point next = silhouette(shape, i, points, size, rotationX, rotationY);
-            Point end = silhouette(shape, i + 1, points, size, rotationX, rotationY);
-            float ax = next.x, ay = next.y, bx = end.x, by = end.y;
-            if (shape == 3) {
-                vertex(pose, vc, ax, ay, edge); vertex(pose, vc, bx, by, edge);
-                vertex(pose, vc, bx * .66F, by * .66F, core); vertex(pose, vc, ax * .66F, ay * .66F, core);
-            } else {
-                triangle(pose, vc, 0, 0, core, ax, ay, edge, bx, by, edge);
-            }
-            vertex(pose, vc, ax, ay, edge); vertex(pose, vc, bx, by, edge);
-            vertex(pose, vc, bx * 1.22F, by * 1.22F, clear); vertex(pose, vc, ax * 1.22F, ay * 1.22F, clear);
+    private static void drawParticle(VertexConsumer vertices, Billboard p, int color) {
+        float size = p.size;
+        int strong = ARGB.color(Math.round(255 * p.alpha), color);
+        int clear = ARGB.color(0, color);
+        float x = (float)Math.cos(p.angle), y = (float)Math.sin(p.angle);
+        if (p.style == SPARKS) {
+            float width = size * .21F, length = size * (2.8F - p.progress);
+            vertex(p.pose, vertices, -x * length, -y * length, clear);
+            vertex(p.pose, vertices, y * width, -x * width, strong);
+            vertex(p.pose, vertices, x * size * .42F, y * size * .42F, strong);
+            vertex(p.pose, vertices, -y * width, x * width, strong);
+        } else if (p.style == SHARDS) {
+            float side = size * .55F;
+            vertex(p.pose, vertices, x * size, y * size, strong);
+            vertex(p.pose, vertices, -x * side - y * side, -y * side + x * side, strong);
+            int shadow = ARGB.color(Math.round(195 * p.alpha), ARGB.scaleRGB(color, .7F));
+            vertex(p.pose, vertices, -x * side + y * side, -y * side - x * side, shadow);
+            vertex(p.pose, vertices, x * size, y * size, strong);
+        } else {
+            float radius = size * (1.2F + 3.1F * p.progress);
+            int mist = ARGB.color(Math.round(78 * p.alpha), color);
+            disc(p.pose, vertices, x * size * .4F, y * size * .4F, radius, mist, clear);
+            disc(p.pose, vertices, -x * size * .8F, -y * size * .65F, radius * .67F, mist, clear);
         }
     }
 
-    private static Point silhouette(int shape, int vertex, int points, float size, float rx, float ry) {
-        double phase = vertex * Math.PI * 2 / points;
-        double radius = switch (shape) {
-            case 0 -> (vertex & 1) == 0 ? 1 : .23;
-            case 4 -> (vertex & 1) == 0 ? 1 : .46;
-            case 6 -> (vertex % 3) == 1 ? .42 : 1;
-            case 8 -> .65 + .32 * Math.cos(phase);
-            default -> 1;
-        };
-        double x = Math.cos(phase) * radius, y = Math.sin(phase) * radius;
-        if (shape == 5) {
-            double heart = Math.PI / 2 - phase;
-            x = Math.pow(Math.sin(heart), 3);
-            y = (13 * Math.cos(heart) - 5 * Math.cos(2 * heart) - 2 * Math.cos(3 * heart) - Math.cos(4 * heart) + 1) / 17;
-        } else if (shape == 7) {
-            x *= .38;
-            y *= 1.45;
-        } else if (shape == 8) {
-            y *= .57;
+    private static void disc(PoseStack.Pose pose, VertexConsumer consumer, float x, float y, float radius, int core, int clear) {
+        for (int i = 0; i < 9; i++) {
+            double a = i * Math.TAU / 9, b = (i + 1) * Math.TAU / 9;
+            vertex(pose, consumer, x, y, core);
+            vertex(pose, consumer, x + (float)Math.cos(a) * radius, y + (float)Math.sin(a) * radius, clear);
+            vertex(pose, consumer, x + (float)Math.cos(b) * radius, y + (float)Math.sin(b) * radius, clear);
+            vertex(pose, consumer, x, y, core);
         }
-        return new Point(size * (float) (x * rx - y * ry), size * (float) (x * ry + y * rx));
     }
 
-    private record Point(float x, float y) {}
-
-    private static int alpha(int rgb, int alpha) { return ARGB.color(alpha, ARGB.red(rgb), ARGB.green(rgb), ARGB.blue(rgb)); }
-    private static void triangle(PoseStack.Pose pose, VertexConsumer vc, float x, float y, int c, float ax, float ay, int ac, float bx, float by, int bc) {
-        vertex(pose, vc, x, y, c); vertex(pose, vc, ax, ay, ac); vertex(pose, vc, bx, by, bc); vertex(pose, vc, x, y, c);
+    private static void drawPulse(PoseStack.Pose pose, VertexConsumer vertices, Pulse pulse, Vec3 camera, int color,
+                                  float scale, long now) {
+        float t = seconds(now - pulse.created) / pulse.life();
+        if (t >= 1F || pulse.origin.distanceToSqr(camera) > 4096D) return;
+        t = Math.max(0F, t);
+        Vec3 offset = pulse.origin.subtract(camera);
+        if (pulse.style == WAVE) {
+            arc(pose, vertices, pulse, offset, color, scale, t, 0D, Math.TAU, false);
+            if (t > .19F) arc(pose, vertices, pulse, offset, color, scale * .78F, (t - .19F) / .81F, 0D, Math.TAU, false);
+        } else {
+            arc(pose, vertices, pulse, offset, color, scale, t, pulse.roll - 1.4 + t * 1.7, 2.9, true);
+        }
     }
-    private static void vertex(PoseStack.Pose pose, VertexConsumer vc, float x, float y, int color) { vc.addVertex(pose, x, y, 0).setColor(color); }
+
+    private static void arc(PoseStack.Pose pose, VertexConsumer vertices, Pulse pulse, Vec3 offset, int color, float scale,
+                            float t, double start, double span, boolean tapered) {
+        double radius = scale * (tapered ? 2.3 + t * 1.8 : .4 + 6.4 * (1 - (1 - t) * (1 - t)));
+        int alpha = Math.round((1F - t) * (1F - t) * (tapered ? 255 : 215));
+        int clear = ARGB.color(0, color);
+        for (int i = 0; i < pulse.segments; i++) {
+            double step = i / (double)pulse.segments, next = (i + 1) / (double)pulse.segments;
+            double a = start + step * span, b = start + next * span;
+            double widthA = scale * (tapered ? .84 * Math.sin(Math.PI * step) : .34) * (1F - t * .55F);
+            double widthB = scale * (tapered ? .84 * Math.sin(Math.PI * next) : .34) * (1F - t * .55F);
+            int ink = ARGB.color(alpha, color);
+            pulseVertex(pose, vertices, pulse, offset, a, radius - widthA, clear);
+            pulseVertex(pose, vertices, pulse, offset, b, radius - widthB, clear);
+            pulseVertex(pose, vertices, pulse, offset, b, radius, ink);
+            pulseVertex(pose, vertices, pulse, offset, a, radius, ink);
+            pulseVertex(pose, vertices, pulse, offset, a, radius, ink);
+            pulseVertex(pose, vertices, pulse, offset, b, radius, ink);
+            pulseVertex(pose, vertices, pulse, offset, b, radius + widthB * .55, clear);
+            pulseVertex(pose, vertices, pulse, offset, a, radius + widthA * .55, clear);
+        }
+    }
+
+    private static void pulseVertex(PoseStack.Pose pose, VertexConsumer consumer, Pulse pulse, Vec3 origin, double angle,
+                                    double radius, int color) {
+        Vec3 point = origin.add(pulse.right.scale(Math.cos(angle) * radius)).add(pulse.up.scale(Math.sin(angle) * radius));
+        consumer.addVertex(pose, (float)point.x, (float)point.y, (float)point.z).setColor(color);
+    }
+
+    private static void vertex(PoseStack.Pose pose, VertexConsumer consumer, float x, float y, int color) {
+        consumer.addVertex(pose, x, y, 0).setColor(color);
+    }
+
+    private static float seconds(long nanos) { return nanos / 1_000_000_000F; }
+
+    private record Billboard(PoseStack.Pose pose, int style, float size, float angle, float alpha, float progress) {}
+    private record Pulse(int style, Vec3 origin, Vec3 right, Vec3 up, long created, double roll, int segments) {
+        float life() { return style == SWEEP ? .28F : .42F; }
+    }
 
     private static final class Particle {
         Vec3 position, previous, velocity;
+        final int style;
         final long created;
         final float life, scale, angle, spin;
-        Particle(Vec3 position, Vec3 velocity, long created, float life, float scale, float angle, float spin) {
-            this.position = this.previous = position; this.velocity = velocity; this.created = created;
-            this.life = life; this.scale = scale; this.angle = angle; this.spin = spin;
+
+        Particle(int style, Vec3 position, Vec3 velocity, long created, float life, float scale, float angle, float spin) {
+            this.style = style;
+            this.position = this.previous = position;
+            this.velocity = velocity;
+            this.created = created;
+            this.life = life;
+            this.scale = scale;
+            this.angle = angle;
+            this.spin = spin;
         }
     }
 }

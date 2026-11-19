@@ -425,6 +425,7 @@ public final class OrionConfig {
     private int hitParticlesCount = 16;
     private float hitParticlesSize = 0.10F;
     private int hitParticlesShape = 0;
+    private int hitParticlesStyleVersion;
     private boolean projectileTrailEnabled = false;
     private String projectileTrailColor = "#FF7C00";
     private float projectileTrailDuration = 2.0F;
@@ -582,6 +583,7 @@ public final class OrionConfig {
     private String fakePrefix = "{\"text\":\"ORION \",\"color\":\"#FF7C00\",\"bold\":true}";
     private String fakePrefixAdditionalNames = "";
     private List<FakePrefixPreset> fakePrefixServers = new ArrayList<>();
+    private int[] fakePrefixRanks = new int[3];
 
     public static final int FAKE_PREFIX_SERVER_SLOTS = 4;
 
@@ -609,12 +611,6 @@ public final class OrionConfig {
         return new FakePrefixPreset("", "", "");
     }
 
-    public void setFakePrefixServer(int slot, FakePrefixPreset preset) {
-        if (slot < 0 || slot >= FAKE_PREFIX_SERVER_SLOTS) return;
-        while (fakePrefixServers.size() <= slot) fakePrefixServers.add(new FakePrefixPreset("", "", ""));
-        fakePrefixServers.set(slot, preset.normalized());
-    }
-
     public FakePrefixPreset fakePrefixForServer(String address) {
         String key = normalizeFakePrefixAddress(address);
         if (!key.isEmpty()) {
@@ -624,6 +620,19 @@ public final class OrionConfig {
             }
         }
         return new FakePrefixPreset("", getFakePrefix(), getFakePrefixAdditionalNames());
+    }
+
+    public int getFakePrefixRank(int server) {
+        return fakePrefixRanks != null && server >= 0 && server < fakePrefixRanks.length
+                ? fakePrefixRanks[server] : 0;
+    }
+
+    public void setFakePrefixRank(int server, int rank) {
+        if (server < 0 || server >= 3) return;
+        if (fakePrefixRanks == null || fakePrefixRanks.length != 3) {
+            fakePrefixRanks = fakePrefixRanks == null ? new int[3] : java.util.Arrays.copyOf(fakePrefixRanks, 3);
+        }
+        fakePrefixRanks[server] = Math.max(0, rank);
     }
     private boolean hitBoxEnabled = false;
     private String hitBoxColor = "#FF7C00";
@@ -1244,7 +1253,10 @@ public final class OrionConfig {
     public float getHitParticlesSize() { return hitParticlesSize; }
     public void setHitParticlesSize(float value) { hitParticlesSize = value; }
     public int getHitParticlesShape() { return hitParticlesShape; }
-    public void setHitParticlesShape(int value) { hitParticlesShape = Math.clamp(value, 0, 8); }
+    public void setHitParticlesShape(int value) {
+        hitParticlesShape = Math.clamp(value, 0, 4);
+        hitParticlesStyleVersion = 1;
+    }
 
     public boolean isProjectileTrailEnabled() { return projectileTrailEnabled; }
     public void setProjectileTrailEnabled(boolean value) { projectileTrailEnabled = value; }
@@ -1839,6 +1851,14 @@ public final class OrionConfig {
         if (hitParticlesColor == null || !hitParticlesColor.matches("^#[0-9a-fA-F]{6}$")) hitParticlesColor = "#FF7C00";
         hitParticlesCount = Math.max(1, Math.min(64, hitParticlesCount));
         hitParticlesSize = Float.isFinite(hitParticlesSize) ? clamp(hitParticlesSize, 0.03F, 0.3F) : 0.10F;
+        if (hitParticlesStyleVersion == 0) {
+            hitParticlesShape = switch (hitParticlesShape) {
+                case 1, 7 -> 2;
+                case 2, 3 -> 1;
+                case 8 -> 3;
+                default -> 0;
+            };
+        }
         setHitParticlesShape(hitParticlesShape);
         if (projectileTrailColor == null || !projectileTrailColor.matches("^#[0-9a-fA-F]{6}$")) projectileTrailColor = "#FF7C00";
         projectileTrailDuration = Float.isFinite(projectileTrailDuration) ? clamp(projectileTrailDuration, 0.25F, 5.0F) : 2.0F;

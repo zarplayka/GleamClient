@@ -11,7 +11,7 @@ use std::{
 
 const APPLICATION: &str = "1520703983163932832";
 const SITE: &str = "https://gleamclient.xyz/";
-const ART: &str = "https://gleamclient.xyz/assets/discord-presence.gif";
+const ART: &str = "https://gleamclient.xyz/assets/orion-badge.png";
 const UPDATE_INTERVAL: Duration = Duration::from_millis(4200);
 
 #[derive(Clone)]
@@ -30,6 +30,7 @@ struct Running {
     version: String,
     file: Option<PathBuf>,
     started: Instant,
+    pid: u32,
 }
 
 pub struct GamePresence {
@@ -45,6 +46,7 @@ struct GameStatus {
 
 #[derive(PartialEq, Eq)]
 struct Activity {
+    pid: u32,
     details: &'static str,
     state: String,
     started: u64,
@@ -112,6 +114,7 @@ impl Presence {
                 version: version.to_owned(),
                 file,
                 started: Instant::now(),
+                pid: process::id(),
             });
         }
         GamePresence {
@@ -122,7 +125,7 @@ impl Presence {
 
     fn run(&self) {
         let mut connection = None;
-        let mut published = None;
+        let mut published: Option<Activity> = None;
         let mut last_update = None;
         let mut retry = Instant::now();
         loop {
@@ -132,7 +135,9 @@ impl Presence {
             };
             if stopping {
                 if let Some(mut ipc) = connection {
-                    let _: io::Result<()> = set_activity(&mut ipc, None);
+                    if let Some(activity) = &published {
+                        let _ = set_activity(&mut ipc, activity.pid, None);
+                    }
                 }
                 break;
             }
@@ -144,12 +149,23 @@ impl Presence {
                 retry = now + Duration::from_secs(8);
             }
             if let Some(ipc) = &mut connection {
-                let ready =
-                    last_update.is_none_or(|last| now.duration_since(last) >= UPDATE_INTERVAL);
+                let handoff =
+                    matches!((&published, &activity), (Some(old), Some(new)) if old.pid != new.pid);
+                let ready = handoff
+                    || last_update.is_none_or(|last| now.duration_since(last) >= UPDATE_INTERVAL);
                 let refresh = last_update
                     .is_some_and(|last| now.duration_since(last) >= Duration::from_secs(40));
                 if ready && (activity != published || refresh && activity.is_some()) {
-                    match set_activity(ipc, activity.as_ref()) {
+                    let pid = activity
+                        .as_ref()
+                        .or(published.as_ref())
+                        .map_or(process::id(), |a| a.pid);
+                    if let Some(previous) = &published {
+                        if previous.pid != pid && previous.pid == process::id() {
+                            let _ = set_activity(ipc, previous.pid, None);
+                        }
+                    }
+                    match set_activity(ipc, pid, activity.as_ref()) {
                         Ok(()) => {
                             published = activity;
                             last_update = Some(now);
@@ -187,6 +203,8 @@ mod tests {
         let mut command = Command::new("unused");
         let game = presence.game(&mut command, "26.3");
         assert_eq!(read().details, "Запускает Minecraft");
+        game.set_process(1000);
+        assert_eq!(read().pid, 1000);
         let relay = presence
             .0
             .lock()
@@ -204,7 +222,18 @@ mod tests {
         assert!(presence.0.lock().unwrap().activity().is_none());
         drop(game);
         assert_eq!(read().details, "Выбирает сборку");
+        assert_eq!(read().pid, process::id());
         assert!(!relay.exists());
+    }
+}
+
+impl GamePresence {
+    pub fn set_process(&self, pid: u32) {
+        if let Ok(mut state) = self.presence.0.lock() {
+            if let Some(game) = state.game.as_mut() {
+                game.pid = pid;
+            }
+        }
     }
 }
 
@@ -246,6 +275,7 @@ impl State {
                 None => (self.enabled, "В игре"),
             };
             return enabled.then(|| Activity {
+                pid: game.pid,
                 details,
                 state: format!("Minecraft {}", game.version),
                 started: self.started,
@@ -256,6 +286,7 @@ impl State {
         }
         let website = self.website.is_some_and(|until| until > Instant::now());
         Some(Activity {
+            pid: process::id(),
             details: if website {
                 "Открыл сайт GleamClient"
             } else {
@@ -292,13 +323,13 @@ pub fn discord_presence_selection(
     }
 }
 
-fn set_activity(ipc: &mut Transport, activity: Option<&Activity>) -> io::Result<()> {
+fn set_activity(ipc: &mut Transport, pid: u32, activity: Option<&Activity>) -> io::Result<()> {
     let nonce = uuid::Uuid::new_v4().to_string();
     let activity = activity.map(|activity| {
         json!({
-            "details": activity.details, "state": activity.state,
+            "type": 0, "details": activity.details, "state": activity.state,
             "timestamps": {"start": activity.started},
-            "assets": {"large_image": ART, "large_text": "GleamClient"},
+            "assets": {"large_image": ART, "large_text": "GleamClient", "large_url": SITE},
             "buttons": [{"label": "Сайт GleamClient", "url": SITE}],
         })
     });
@@ -306,7 +337,7 @@ fn set_activity(ipc: &mut Transport, activity: Option<&Activity>) -> io::Result<
         ipc,
         1,
         &json!({
-            "cmd": "SET_ACTIVITY", "nonce": nonce, "args": {"pid": process::id(), "activity": activity},
+            "cmd": "SET_ACTIVITY", "nonce": nonce, "args": {"pid": pid, "activity": activity},
         }),
     )?;
     expect_frame(ipc, |frame| frame["nonce"] == nonce)

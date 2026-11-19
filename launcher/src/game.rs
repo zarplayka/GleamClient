@@ -1892,12 +1892,13 @@ pub async fn launch_minecraft(
                 command.env("GLEAM_WORLD_INVITE", invite);
             }
         }
-        let _discord = app.state::<crate::discord::Presence>().game(&mut command, version);
+        let discord = app.state::<crate::discord::Presence>().game(&mut command, version);
         let mut child = {
             let mut status = game.status.lock().map_err(|_| "game_install")?;
             installer.check()?;
             set_window_mode(&game_dir, options.fullscreen)?;
             let mut child = command.spawn().map_err(|_| "game_spawn")?;
+            discord.set_process(child.id());
             #[cfg(windows)]
             if let Err(error) = process::save(&game_dir, &child) {
                 let _ = child.kill();
