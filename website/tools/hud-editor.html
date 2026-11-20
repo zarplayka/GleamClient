@@ -17,11 +17,14 @@
   <button id="preview" aria-pressed="false">Просмотр</button>
 </header>
 <main id="stage"><div class="grid"></div><div id="layers"></div>
-<div id="alignment" aria-hidden="true" hidden></div>
+<div id="alignment" aria-hidden="true" hidden>
+  <span id="guide-x" hidden></span>
+  <span id="guide-y" hidden></span>
+</div>
 <aside id="panel" hidden></aside>
 </main>
 <footer>
-  <span class="hint"><kbd>Alt</kbd> свободное перемещение</span>
+  <span class="hint"><kbd>Alt</kbd> перемещение без привязки</span>
   <span id="saved" role="status"></span>
 </footer>
 </div><script src="hud-editor.js"></script></body></html>

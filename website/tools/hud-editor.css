@@ -69,9 +69,9 @@ button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-v
 .layout-options select { min-height: 22px; padding: 1px 3px; }
 #preview { color: #ddd7f2; font-size: 11px; border-radius: 15px; }
 #alignment { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
-#alignment::before, #alignment::after { position: absolute; content: ""; background: #a58cff90; }
-#alignment::before { left: var(--x); top: 0; bottom: 0; width: 1px; }
-#alignment::after { top: var(--y); left: 0; right: 0; height: 1px; }
+#alignment span { position: absolute; background: #a58fccb3; }
+#guide-x { width: 1px; }
+#guide-y { height: 1px; }
 .widget {
   position: absolute; top: 0; left: 0; transform-origin: top left; touch-action: none;
   user-select: none; cursor: grab; border-radius: 7px;
