@@ -95,8 +95,8 @@ const catalog={
     art:[3,4,5,6].map((id,i)=>art(id,3+i*20,3,16))},
   chat:{name:'Уведомление чата',w:286,h:76,x:.99,y:.99,fixed:true,template:'chat-notification.html',
     state:{title:'Quartz',detail:'Готов зайти в мир?'}},
-  invite:{name:'Приглашение в мир',w:312,h:100,x:.99,y:.08,fixed:true,template:'world-invite.html',
-    state:{title:'Quartz приглашает в мир',world:'Летний мир · Minecraft 26.3',hint:'Удерживай, чтобы принять',
+  invite:{name:'Приглашение в мир',w:276,h:58,x:.99,y:.08,fixed:true,template:'world-invite.html',
+    state:{title:'Летний мир',world:'Приглашение от Quartz',hint:'Удержать',
       key:true,keyboard:true,keyLabel:'Y',initial:'Q',remaining:.75,hold:0,opacity:1,offset:0}}
 };
 const previewTheme=`
@@ -126,36 +126,36 @@ const previewTheme=`
     width: 10px; height: 10px;
   }
   .invite {
-    --action-bg: #a78cff12;
-    width: calc(100% - 4px); height: 96px; margin: 2px;
-    padding: 11px 13px;
-    border-radius: 11px; background: #181626f6;
+    width: calc(100% - 4px); height: 54px; margin: 2px;
+    padding: 8px 9px 9px;
+    display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 10px;
+    border-radius: 8px; background: #171624e8;
+    box-shadow: inset 0 0 0 1px #dfd1ff16;
   }
-  .invite .main { gap: 10px; }
-  .invite .copy { padding-right: 2px; }
+  .invite .main { gap: 8px; min-width: 0; }
   .invite .face {
-    width: 35px; height: 35px; border-radius: 8px;
-    border-color: #ac91ff39; background: #a586ff1e; font-size: 15px;
+    width: 26px; height: 26px; border-radius: 5px;
+    border: 0; background: url('/tools/launcher-default-skin.png') -26px -26px / 208px 208px;
+    image-rendering: pixelated;
   }
-  .invite #title { font-size: 13px; line-height: 17px; }
-  .invite #world { font-size: 11px; line-height: 15px; }
+  .invite .face #initial { display: none; }
+  .invite #title { font-size: 12px; line-height: 16px; }
+  .invite #world { font-size: 10px; line-height: 12px; margin-top: 1px; }
   .invite-action {
-    display: flex; align-items: center; gap: 8px;
-    margin-top: 9px; padding: 4px 7px;
-    background: var(--action-bg); border-radius: 6px;
+    display: flex; align-items: center; gap: 6px;
+    padding-left: 9px; border-left: 1px solid var(--line);
   }
   .invite-action #hint {
-    margin: 0; color: #e5dcfb; line-height: 15px;
-    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    margin: 0; color: var(--muted); font-size: 9px; line-height: 12px; white-space: nowrap;
   }
   .invite-action .hold-key {
-    position: relative; inset: auto; flex: 0 0 21px;
-    width: 21px; height: 18px; border-color: #b298ff68;
-    background: #191624; color: #f4edff; font-weight: 700;
+    position: relative; inset: auto; flex: 0 0 20px;
+    width: 20px; height: 20px; border-color: #b298ff42;
+    background: #a586ff13; color: #e5d9ff; font-size: 10px; font-weight: 700;
   }
   .invite-action #fill { background: #a687ff; opacity: .66; }
-  .invite .countdown { left: 13px; right: 13px; bottom: 7px; }
-  .invite #remaining { opacity: .42; }
+  .invite .countdown { left: 9px; right: 9px; bottom: 5px; height: 1px; }
+  .invite #remaining { height: 1px; opacity: .55; }
 `;
 let invitePreview;
 
@@ -184,7 +184,7 @@ document.addEventListener('keydown',event=>{
   function tick(now){
     const hold=clamp((now-started)/830,0,1);
     if(!viewing||!models.invite.on){stopInviteHold();return;}
-    view.update({...state,hold,hint:hold===1?'Принято в макете':state.hint});
+    view.update({...state,hold,hint:hold===1?'Принято':state.hint});
     if(hold<1)inviteHoldFrame=requestAnimationFrame(tick);
   }
   inviteHoldFrame=requestAnimationFrame(tick);
