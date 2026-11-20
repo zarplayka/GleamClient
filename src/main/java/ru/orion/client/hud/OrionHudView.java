@@ -180,11 +180,17 @@ public final class OrionHudView {
 
         void key(float x, float y, float w, float h, String text, String mouse, boolean pressed) {
             var part = part("key", x, y, w, h);
-            part.addProperty("radius", h <= 10 ? 2 : 3);
+            part.addProperty("radius", 6);
             part.addProperty("text", text);
             part.addProperty("mouse", mouse);
             part.addProperty("pressed", pressed);
             animated = true;
+        }
+
+        void timer(String text, int x, int y, int width, int height, boolean expiring) {
+            var part = part("timer", x, y, width, height);
+            part.addProperty("text", text);
+            part.addProperty("expiring", expiring);
         }
 
         public void label(String text, float x, float y, float w, float h, float size,
@@ -216,6 +222,10 @@ public final class OrionHudView {
             try {
                 pose.translate(x, y).scale(w / (float) width, h / (float) height);
                 var font = Minecraft.getInstance().font;
+                var config = OrionClient.getConfigOrNull();
+                boolean light = config != null && config.getClickGuiTheme() == 4;
+                String customAccent = config == null ? "" : config.getClickGuiAccent();
+                int accent = customAccent.isEmpty() ? (light ? 0xff4257b2 : 0xffc2d2f7) : argb(customAccent);
                 for (var value : parts) {
                     var part = value.getAsJsonObject();
                     int left = Math.round(part.get("x").getAsFloat()), top = Math.round(part.get("y").getAsFloat());
@@ -223,17 +233,21 @@ public final class OrionHudView {
                     String kind = part.get("kind").getAsString();
                     if (kind.equals("key")) {
                         boolean pressed = part.get("pressed").getAsBoolean();
-                        if (pressed) context.fill(left, top, left + partWidth, top + partHeight, 0xd8252d42);
-                        context.fill(left, top + partHeight - 1, left + partWidth, top + partHeight,
-                                pressed ? 0xffaebef0 : 0x66e5eafa);
+                        int fill = pressed ? (light ? 0xffdce3f7 : 0xff292e41) : (light ? 0xf2e7ecf7 : 0xf217181f);
+                        int ink = pressed ? accent : (light ? 0xff242735 : 0xfff5f5f8);
+                        fillTile(context, left, top, partWidth, partHeight, fill);
                         String mouse = part.get("mouse").getAsString();
-                        var label = font.plainSubstrByWidth((mouse.isEmpty() ? "" : mouse + " ") + part.get("text").getAsString(), partWidth - 2);
-                        int labelX = left + (partWidth - font.width(label)) / 2, labelY = top + (partHeight - font.lineHeight) / 2;
-                        //? if >=26.1 {
-                        context.text(font, label, labelX, labelY, 0xfff5f5f8);
-                        //?} else {
-                        /*context.drawString(font, label, labelX, labelY, 0xfff5f5f8);
-                        *///?}
+                        String label = part.get("text").getAsString();
+                        if (!mouse.isEmpty()) {
+                            int half = partHeight / 2;
+                            drawKeyText(context, font, mouse, left, top, partWidth, half, ink);
+                            drawKeyText(context, font, label, left, top + half, partWidth, partHeight - half, ink);
+                        } else if (label.isEmpty()) {
+                            int inset = partWidth / 4, center = top + partHeight / 2;
+                            context.fill(left + inset, center, left + partWidth - inset, center + 1, ink);
+                        } else {
+                            drawKeyText(context, font, label, left, top, partWidth, partHeight, ink);
+                        }
                     } else if (kind.equals("panel") || kind.equals("box") || kind.equals("well") || kind.equals("divider")) {
                         int color = switch (kind) {
                             case "panel" -> 0xf517181f;
@@ -242,12 +256,17 @@ public final class OrionHudView {
                             default -> argb(part.get("color").getAsString());
                         };
                         context.fill(left, top, left + partWidth, top + partHeight, color);
-                    } else if (kind.equals("label")) {
-                        int color = argb(part.get("color").getAsString());
-                        float scale = part.get("size").getAsFloat() / font.lineHeight;
+                    } else if (kind.equals("label") || kind.equals("timer")) {
+                        boolean timer = kind.equals("timer");
+                        boolean expiring = timer && part.get("expiring").getAsBoolean();
+                        if (timer) fillTile(context, left, top, partWidth, partHeight,
+                                expiring ? (light ? 0xfff5d8db : 0xff44292f) : (light ? 0xffdce3f7 : 0xff292e41));
+                        int color = timer ? (expiring ? (light ? 0xff993749 : 0xfff2a2a6) : accent)
+                                : argb(part.get("color").getAsString());
+                        float scale = (timer ? 7F : part.get("size").getAsFloat()) / font.lineHeight;
                         String label = font.plainSubstrByWidth(part.get("text").getAsString(), Math.max(0, (int) (partWidth / scale)));
                         float textWidth = font.width(label) * scale;
-                        float offset = switch (part.get("align").getAsString()) {
+                        float offset = switch (timer ? "center" : part.get("align").getAsString()) {
                             case "center" -> (partWidth - textWidth) / 2;
                             case "right" -> partWidth - textWidth;
                             default -> 0;
@@ -269,6 +288,23 @@ public final class OrionHudView {
             } finally {
                 pose.popMatrix();
             }
+        }
+
+        private static void fillTile(GuiGraphicsExtractor context, int x, int y, int width, int height, int color) {
+            context.fill(x + 2, y, x + width - 2, y + 2, color);
+            context.fill(x, y + 2, x + width, y + height - 2, color);
+            context.fill(x + 2, y + height - 2, x + width - 2, y + height, color);
+        }
+
+        private static void drawKeyText(GuiGraphicsExtractor context, net.minecraft.client.gui.Font font,
+                                        String label, int x, int y, int width, int height, int color) {
+            String fitted = font.plainSubstrByWidth(label, width - 2);
+            int left = x + (width - font.width(fitted)) / 2, top = y + (height - font.lineHeight) / 2;
+            //? if >=26.1 {
+            context.text(font, fitted, left, top, color);
+            //?} else {
+            /*context.drawString(font, fitted, left, top, color);
+            *///?}
         }
 
         private static int argb(String color) {

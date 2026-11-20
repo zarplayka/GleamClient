@@ -7,7 +7,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.effect.MobEffectInstance;
 import ru.orion.client.GleamMinecraft;
@@ -20,7 +19,7 @@ import java.util.List;
 
 public final class OrionPotionsHud {
     public static final String ID = "potions_hud";
-    private static final int WIDTH = 150, HEADER = 22, ROW = 18;
+    private static final int WIDTH = 132, HEADER = 20, ROW = 14, INSET = 6, TIMER = 34;
     private static final Identifier HEADER_ICON = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "textures/gui/potions_hud.png");
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView(ID);
@@ -61,15 +60,15 @@ public final class OrionPotionsHud {
             emptyText = empty;
             scene = new OrionHudView.Scene(WIDTH, height);
             scene.panel(0, 0, WIDTH, height, 7);
-            scene.label("Potions", 22, 2, WIDTH - 30, 17, 8.5F, "var(--text)", "left", true);
-            scene.divider(7, HEADER - 2, WIDTH - 14);
-            if (effects.isEmpty()) scene.label(empty, 7, HEADER, WIDTH - 14, ROW, 8, "var(--muted)", "left", false);
+            scene.label("Potions", 22, 0, WIDTH - 28, HEADER, 8.5F, "var(--text)", "left", true);
+            scene.divider(INSET, HEADER - 1, WIDTH - 2 * INSET);
+            if (effects.isEmpty()) scene.label(empty, INSET, HEADER, WIDTH - 2 * INSET, ROW, 7.5F, "var(--muted)", "left", false);
+            int timerX = WIDTH - INSET - TIMER;
             for (int i = 0; i < effects.size(); i++) {
                 Effect effect = effects.get(i);
                 int y = HEADER + i * ROW;
-                scene.label(effect.name, 25, y, WIDTH - 69, ROW, 8, "var(--text)", "left", false);
-                scene.label(effect.duration, WIDTH - 42, y, 35, ROW, 8,
-                        effect.expiring ? "#f28386" : "var(--accent)", "right", true);
+                scene.label(effect.name, 21, y, timerX - 23, ROW, 7.4F, "var(--text)", "left", false);
+                scene.timer(effect.duration, timerX, y + 1, TIMER, ROW - 2, effect.expiring);
             }
         }
         float fit = OrionHudView.fit(config.getHudScale() * config.getHudElementScale(ID),
@@ -84,9 +83,9 @@ public final class OrionPotionsHud {
         try {
             pose.translate(pos.x(), pos.y());
             pose.scale(w / (float) WIDTH, h / (float) height);
-            graphics.blit(RenderPipelines.GUI_TEXTURED, HEADER_ICON, 6, 3, 0, 0, 14, 14, 16, 16, 16, 16);
+            graphics.blit(RenderPipelines.GUI_TEXTURED, HEADER_ICON, INSET, 4, 0, 0, 12, 12, 16, 16, 16, 16);
             for (int i = 0; i < effects.size(); i++) {
-                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, effects.get(i).sprite, 7, HEADER + i * ROW + 2, 14, 14);
+                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, effects.get(i).sprite, INSET, HEADER + i * ROW + 2, 10, 10);
             }
         } finally {
             pose.popMatrix();
@@ -96,11 +95,7 @@ public final class OrionPotionsHud {
     private static Effect describe(MobEffectInstance effect, float tickRate) {
         var type = effect.getEffect().value();
         var sprite = BuiltInRegistries.MOB_EFFECT.getKey(type).withPrefix("mob_effect/");
-        String name = type.getDisplayName().getString();
-        if (effect.getAmplifier() > 0) {
-            int level = effect.getAmplifier() + 1;
-            name += " " + (level <= 10 ? Component.translatable("enchantment.level." + level).getString() : level);
-        }
+        String name = type.getDisplayName().getString() + " " + (effect.getAmplifier() + 1);
         int seconds = (int) Math.ceil(Math.max(0, effect.getDuration()) / (double) tickRate);
         int minutes = seconds / 60;
         String duration = effect.isInfiniteDuration() ? "∞" : minutes + ":" + (seconds % 60 < 10 ? "0" : "") + seconds % 60;

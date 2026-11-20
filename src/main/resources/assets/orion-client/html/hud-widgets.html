@@ -9,14 +9,18 @@ html,body{margin:0;padding:0;background:transparent;color:var(--text)}
 html[data-glass] .panel{background:var(--hud-glass)}
 .well{background:var(--well);border:1px solid var(--line)}
 .divider{background:var(--line)}
-.key{display:flex;align-items:center;justify-content:center;gap:3px;padding:0 2px;border-bottom:1px solid #e5eafa66;color:#f7f9ff;text-shadow:0 1px 2px #111421,0 0 3px #111421;line-height:1;transition:background-color .1s,border-color .1s}
-.key>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8px;font-weight:700}
-.key[data-long-label]>strong,.key[data-bar]>strong{font-size:6px}
-.key[data-pressed]{border-bottom-color:var(--accent);background:#252d42d8}
-.key[data-counter]{justify-content:space-between;padding:0 4px;background:transparent;font-variant-numeric:tabular-nums}
-.key[data-counter][data-pressed]{background:#252d42d8}
+.key{display:flex;align-items:center;justify-content:center;padding:0 2px;border:1px solid var(--line);background:var(--hud-panel);color:var(--text);line-height:1;transition:background-color .1s,border-color .1s,color .1s}
+.key>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8.5px;font-weight:700}
+.key[data-long-label]>strong{font-size:6.25px}
+.key[data-pressed]{border-color:var(--accent);background:var(--hud-selected);color:var(--accent)}
+.key[data-space]>strong{display:block;width:48%;height:1px;background:currentColor;border-radius:1px}
+.key[data-counter]{flex-direction:column;gap:1px;font-variant-numeric:tabular-nums}
 .key[data-counter]>strong{font-size:7px}
-.key .mouse,.key .key-unit{font-size:5px}
+.key .mouse{font-size:5.5px;color:var(--muted)}
+.key[data-pressed] .mouse{color:inherit}
+.timer{display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:4px;border:1px solid var(--line);background:var(--hud-selected);color:var(--accent);font-size:7px;font-weight:700;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.timer[data-expiring]{background:#44292f;color:#f2a2a6}
+html[data-light] .timer[data-expiring]{background:#f5d8db;color:#993749}
 @media(prefers-reduced-motion:reduce){.key{transition:none}}
 svg{display:block;width:100%;height:100%}
 </style></head><body class="gleam-hud"><div id="hud"></div><script>
@@ -36,15 +40,16 @@ window.paradox = {update(state) {
   if (state.parts.some(part => part.kind === 'key')) {
     if (root.children.length !== state.parts.length || !root.querySelector('.key')) {
       root.innerHTML = state.parts.map(part => '<div class="part '+part.kind+'" style="'+geometry(part)+'"'
-        +(part.kind === 'key' && part.mouse ? ' data-counter' : part.kind === 'key' && part.h <= 10 ? ' data-bar' : '')+'>'
+        +(part.kind === 'key' && part.mouse ? ' data-counter' : '')+'>'
         +(part.kind === 'key' ? (part.mouse ? '<span class="mouse">'+escapeHtml(part.mouse)+'</span>' : '')
-          +'<strong></strong>'+(part.mouse ? '<span class="key-unit">CPS</span>' : '') : '')+'</div>').join('');
+          +'<strong></strong>' : '')+'</div>').join('');
     }
     for (let i = 0; i < state.parts.length; ++i) {
       const part = state.parts[i], key = root.children[i], label = key.querySelector('strong');
       if (!label) continue;
       key.toggleAttribute('data-pressed',part.pressed);
       key.toggleAttribute('data-long-label',part.text.length > 3);
+      key.toggleAttribute('data-space',!part.text && !part.mouse);
       if (label.textContent !== part.text) label.textContent = part.text;
     }
     return;
@@ -52,6 +57,9 @@ window.paradox = {update(state) {
   root.innerHTML = state.parts.map(part => {
     let style = geometry(part);
     let content = '';
+    if (part.kind === 'timer') {
+      return '<div class="part timer" style="'+style+'"'+(part.expiring ? ' data-expiring' : '')+'>'+escapeHtml(part.text)+'</div>';
+    }
     if (part.kind === 'label') {
       const align = part.align === 'center' ? 'center' : part.align === 'right' ? 'flex-end' : 'flex-start';
       style += 'color:'+part.color+';font-size:'+part.size+'px;font-weight:'+(part.bold?700:400)+';justify-content:'+align+';';
