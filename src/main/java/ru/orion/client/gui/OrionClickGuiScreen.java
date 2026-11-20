@@ -30,7 +30,6 @@ import ru.orion.client.config.OrionConfigLibrary;
 import ru.orion.client.config.OrionAccounts;
 import ru.orion.client.config.OrionVisualPresets.Profile;
 import ru.orion.client.hud.OrionGlassCompositor;
-import ru.orion.client.effect.OrionHitSound;
 import ru.orion.client.effect.OrionSkinLayers;
 import ru.orion.client.effect.OrionItemScroller;
 import ru.orion.client.effect.OrionZoom;
@@ -60,7 +59,6 @@ import java.awt.image.DataBufferInt;
 import java.net.URI;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.nio.file.Path;
 import ru.orion.client.effect.OrionWorldChanger;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -431,11 +429,6 @@ public final class OrionClickGuiScreen extends Screen {
     private int draggingSlider = -1;
     private int editingText = -1;
     private int editingBind = -1;
-    private String hitSoundFolderStatus = "Папка";
-    private String hitSoundImportStatus = "WAV, OGG, AIFF, AU";
-    private List<String> hitSoundFiles = List.of();
-    private boolean hitSoundImporting;
-    private int hitSoundScan;
     private String waypointName = "Метка";
     private String waypointX = "0", waypointY = "64", waypointZ = "0";
     private String waypointColor = "#FF9B38";
@@ -1415,7 +1408,6 @@ public final class OrionClickGuiScreen extends Screen {
             case ButtonSetting button -> {
                 item.addProperty("kind","button");
                 item.addProperty("caption",tr(button.buttonText));
-                if (button.quiet) item.addProperty("quiet", true);
             }
             case ValueSetting value -> {
                 item.addProperty("kind","value");
@@ -2362,7 +2354,7 @@ public final class OrionClickGuiScreen extends Screen {
                 page.box(L.moduleX+L.moduleW-22,controlY+4,10,10,parseColor(color.get.get()),2);
             } else if (row instanceof TextSetting text) page.button(cursor(text.get.get(),editingText==i),textBoxX(),controlY,textBoxW(),L.arrowSize,editingText==i);
             else if (row instanceof KeybindSetting bind) page.button(editingBind==i ? "Нажмите клавишу…" : keybindLabel(bind.get.get()),textBoxX(),controlY,textBoxW(),L.arrowSize,editingBind==i);
-            else if (row instanceof ButtonSetting button) page.button("Свои звуки (.wav, .aiff, .au)".equals(button.label) ? hitSoundFolderStatus : button.buttonText,
+            else if (row instanceof ButtonSetting button) page.button(button.buttonText,
                     textBoxX(),controlY,textBoxW(),L.arrowSize,false);
             else if (row instanceof ValueSetting value) page.text(tr(value.get.get()),textBoxX(),y,textBoxW(),L.moduleH,7.5F,MUTED,false);
         }
@@ -3104,7 +3096,6 @@ public final class OrionClickGuiScreen extends Screen {
             waypointCurrentPosition();
         }
         settingsRows = buildSettings(row.action);
-        if (row.action == Action.HIT_SOUND) refreshHitSoundFiles();
         draggingSlider = -1;
         editingBind = -1;
         expandedColor = -1;
@@ -3491,7 +3482,7 @@ public final class OrionClickGuiScreen extends Screen {
                     POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER -> true;
             case SKIN_LAYERS, ITEM_SCROLLER, EMOTES, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
                  FAKE_PREFIX, HEALTH_TAGS, ARMOR_INDICATOR,
-                 HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW -> true;
+                 HIT_BOX, HIT_COLOR, CROSSHAIR, BETTER_NEAR, RAINBOW -> true;
             default -> false;
         };
     }
@@ -3774,7 +3765,7 @@ public final class OrionClickGuiScreen extends Screen {
                     new ToggleSetting("Цвет по здоровью цели", config::isTargetEspHealthColor, config::setTargetEspHealthColor)
             };
             case JUMP_CIRCLE -> new Setting[]{
-                    new ChoiceSetting("Эффект", ru.orion.client.effect.OrionJumpCircleEffect.STYLES,
+                    new ChoiceSetting("Стиль кольца", ru.orion.client.effect.OrionJumpCircleEffect.STYLES,
                             config::getJumpCircleStyle, config::setJumpCircleStyle),
                     new ColorSetting("Цвет кольца", COLOR_PRESETS,
                             config::getJumpCircleColor, config::setJumpCircleColor),
@@ -4082,23 +4073,6 @@ public final class OrionClickGuiScreen extends Screen {
                             value -> config.setHitColorDuration(Math.round(value)), " мс", true),
                     new ToggleSetting("Только игроки", config::isHitColorPlayersOnly, config::setHitColorPlayersOnly)
             };
-            case HIT_SOUND -> new Setting[]{
-                    new ChoiceSetting("Звук", hitSoundChoices(), () -> hitSoundChoice(config), this::selectHitSound),
-                    new SliderSetting("Громкость", 0.0F, 100.0F,
-                            () -> (float) config.getHitSoundVolume(),
-                            value -> config.setHitSoundVolume(Math.round(value)),
-                            "%", true),
-                    new SliderSetting("Высота звука", .5F, 2F, config::getHitSoundPitch, config::setHitSoundPitch, "x"),
-                    new ToggleSetting("Варьировать высоту", config::isHitSoundVaryPitch, config::setHitSoundVaryPitch),
-                    new ToggleSetting("Только по игрокам", config::isHitSoundPlayersOnly, config::setHitSoundPlayersOnly),
-                    new ToggleSetting("Глушить ванильные удары", config::isHitSoundMuteVanilla, config::setHitSoundMuteVanilla),
-                    new ButtonSetting("Проверка звука", "Прослушать",
-                            () -> OrionClient.getInstance().getHitSound().preview(), true),
-                    new ButtonSetting("Загрузить свой звук", "Выбрать файл", this::chooseHitSound),
-                    new ValueSetting("Можно перетащить файл сюда", () -> hitSoundImportStatus),
-                    new ButtonSetting("Свои звуки (.wav, .aiff, .au)", "Папка",
-                            this::openHitSoundFolder)
-            };
             case CROSSHAIR -> new Setting[]{
                     new CrosshairSetting("Рисование прицела"),
                     new ChoiceSetting("Режим", CROSSHAIR_MODES, config::getCrosshairMode, config::setCrosshairMode),
@@ -4235,84 +4209,6 @@ public final class OrionClickGuiScreen extends Screen {
                         () -> options.changedOnly, value -> options.changedOnly = value),
                 new TextSetting("Скрытые ники или ID сущностей", () -> options.hidden, value -> options.hidden = value, 256)
         };
-    }
-
-    private void openHitSoundFolder() {
-        hitSoundFolderStatus = "Открываем…";
-        lastFingerprint = null;
-        OrionClient.getInstance().getHitSound().openCustomFolder(success -> Minecraft.getInstance().execute(() -> {
-            hitSoundFolderStatus = success ? "Открыто" : "Ошибка — см. лог";
-            lastFingerprint = null;
-        }));
-    }
-
-    private String[] hitSoundChoices() {
-        var choices = new ArrayList<>(Arrays.asList(OrionHitSound.SOUND_NAMES));
-        choices.addAll(hitSoundFiles);
-        return choices.toArray(String[]::new);
-    }
-
-    private int hitSoundChoice(OrionConfig config) {
-        int selected = hitSoundFiles.indexOf(config.getHitSoundFile());
-        return config.getHitSoundIndex() == OrionHitSound.CUSTOM_INDEX && selected >= 0
-                ? OrionHitSound.SOUND_NAMES.length + selected : config.getHitSoundIndex();
-    }
-
-    private void selectHitSound(int index) {
-        var config = configManager.getConfig();
-        int custom = index - OrionHitSound.SOUND_NAMES.length;
-        config.setHitSoundFile(custom >= 0 ? hitSoundFiles.get(custom) : "");
-        configManager.setHitSoundIndex(custom >= 0 ? OrionHitSound.CUSTOM_INDEX : index);
-    }
-
-    private boolean hitSoundSettingsOpen() { return settingsFor != null && settingsFor.action == Action.HIT_SOUND; }
-
-    private void refreshHitSoundFiles() {
-        int scan = ++hitSoundScan;
-        OrionClient.getInstance().getHitSound().listCustomSounds(files -> Minecraft.getInstance().execute(() -> {
-            if (scan != hitSoundScan || files.equals(hitSoundFiles)) return;
-            hitSoundFiles = files;
-            if (hitSoundSettingsOpen()) {
-                settingsRows = buildSettings(Action.HIT_SOUND);
-                lastFingerprint = null;
-            }
-        }));
-    }
-
-    private void chooseHitSound() {
-        if (hitSoundImporting) return;
-        hitSoundImporting = true;
-        hitSoundImportStatus = "Выбери файл";
-        OrionClient.getInstance().getHitSound().chooseCustomSound(this::finishHitSoundImport);
-    }
-
-    @Override
-    public void onFilesDrop(List<Path> files) {
-        if (!hitSoundSettingsOpen()) {
-            super.onFilesDrop(files);
-            return;
-        }
-        if (hitSoundImporting || files.isEmpty()) return;
-        if (files.size() != 1) {
-            hitSoundImportStatus = "Перетащи один звуковой файл";
-            return;
-        }
-        hitSoundImporting = true;
-        hitSoundImportStatus = "Загружаем звук…";
-        OrionClient.getInstance().getHitSound().importSound(files.getFirst(), this::finishHitSoundImport);
-    }
-
-    private void finishHitSoundImport(OrionHitSound.ImportResult result) {
-        Minecraft.getInstance().execute(() -> {
-            hitSoundImporting = false;
-            hitSoundImportStatus = result.status().isEmpty() ? "WAV, OGG, AIFF, AU" : result.status();
-            if (!result.file().isEmpty()) {
-                configManager.getConfig().setHitSoundFile(result.file());
-                configManager.setHitSoundIndex(OrionHitSound.CUSTOM_INDEX);
-                refreshHitSoundFiles();
-            }
-            lastFingerprint = null;
-        });
     }
 
     private boolean usesSettingsLayer() { return paradox && settingsFor != null; }
@@ -6400,7 +6296,7 @@ public final class OrionClickGuiScreen extends Screen {
                 g.setStroke(new BasicStroke(1.2F));
                 g.draw(new RoundRectangle2D.Float(bx + 0.5F, by + 0.5F, bw - 1, L.arrowSize - 1, cornerRadius, cornerRadius));
             }
-            String buttonText = tr("Свои звуки (.wav, .aiff, .au)".equals(button.label) ? hitSoundFolderStatus : button.buttonText);
+            String buttonText = tr(button.buttonText);
             drawCenteredText(g, buttonText, bx + bw / 2.0F,
                     by + L.arrowSize / 2.0F + 3.0F * sc, bodyFont((paradox ? 7F : 8.5F) * sc), paradox ? TEXT : PRIMARY);
         }
@@ -7386,7 +7282,6 @@ public final class OrionClickGuiScreen extends Screen {
             case SKIN_LAYERS -> { config.setSkinLayersEnabled(!config.isSkinLayersEnabled()); configManager.save(); }
             case ITEM_SCROLLER -> { config.setItemScrollerEnabled(!config.isItemScrollerEnabled()); configManager.save(); }
             case EMOTES -> { config.setEmotesEnabled(!config.isEmotesEnabled()); configManager.save(); }
-            case HIT_SOUND -> configManager.setHitSoundEnabled(!config.isHitSoundEnabled());
             case CROSSHAIR -> configManager.setCrosshairEnabled(!config.isCrosshairEnabled());
             case BETTER_NEAR -> configManager.setBetterNearEnabled(!config.isBetterNearEnabled());
             case RAINBOW -> configManager.setRainbowEnabled(!config.isRainbowEnabled());
@@ -7462,7 +7357,6 @@ public final class OrionClickGuiScreen extends Screen {
             case SKIN_LAYERS -> config.isSkinLayersEnabled();
             case ITEM_SCROLLER -> OrionItemScroller.isServerAllowed() && config.isItemScrollerEnabled();
             case EMOTES -> config.isEmotesEnabled();
-            case HIT_SOUND -> config.isHitSoundEnabled();
             case CROSSHAIR -> config.isCrosshairEnabled();
             case BETTER_NEAR -> config.isBetterNearEnabled();
             case RAINBOW -> config.isRainbowEnabled();
@@ -7903,11 +7797,7 @@ public final class OrionClickGuiScreen extends Screen {
         String label();
     }
 
-    private record ButtonSetting(String label, String buttonText, Runnable onClick, boolean quiet) implements Setting {
-        private ButtonSetting(String label, String buttonText, Runnable onClick) {
-            this(label, buttonText, onClick, false);
-        }
-    }
+    private record ButtonSetting(String label, String buttonText, Runnable onClick) implements Setting { }
     private record ValueSetting(String label, Supplier<String> get) implements Setting { }
 
     private record CrosshairSetting(String label) implements Setting { }
@@ -7946,7 +7836,7 @@ public final class OrionClickGuiScreen extends Screen {
     private enum Action {
         MIRAGE, WINGS, HALO, SKIN_LAYERS, ITEM_SCROLLER, EMOTES, ZOOM, CHAT_FILTER, CHAT_ANIMATION, CHAT_HIGHLIGHT, WAYPOINTS, DEATH_POINT, TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, ITEM_PHYSICS, HIT_PARTICLES, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
         WORLD_PARTICLES, FOOTBALL, BASKETBALL, ANIMATIONS, ENCHANT_GLINT, INVENTORY_HUD, SELF_TAG, ARMOR_INDICATOR, LOCK_SLOT, PVP_SAFE, KEYSTROKES, NO_ANIMATIONS, SATURATION, CHAT_HISTORY, CHAT_TIME, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, NO_PARTICLES, NO_WEATHER, NO_FIRE, WORLD_CHANGER, HEALTH_TAGS, PROTECT_NAME, FAKE_PREFIX,
-        HIT_BOX, HIT_COLOR, HIT_SOUND, CROSSHAIR, BETTER_NEAR, RAINBOW, KILL_EFFECTS, RAGDOLL, FRESH_ANIMATIONS,
+        HIT_BOX, HIT_COLOR, CROSSHAIR, BETTER_NEAR, RAINBOW, KILL_EFFECTS, RAGDOLL, FRESH_ANIMATIONS,
         NAMETAGS, FREE_LOOK, CLEAN_WATER, POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER;
 
         private static final Action[] VALUES = values();
@@ -7958,7 +7848,6 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("TargetHud", "Здоровье и снаряжение цели на экране или в мире", Icon.CROSSHAIR, Action.TARGET_HUD),
                 new ModuleRow("HitBox", "Перекрашивает хитбоксы (F3+B)", Icon.CUBE, Action.HIT_BOX),
                 new ModuleRow("HitColor", "Заливка хитбокса при ударе", Icon.CROSSHAIR, Action.HIT_COLOR),
-                new ModuleRow("HitSound", "Звук подтверждённого попадания", Icon.MUSIC, Action.HIT_SOUND),
                 new ModuleRow("BetterNear", "Игроки рядом: ник, дистанция, стрелка", Icon.PLAYER, Action.BETTER_NEAR),
                 new ModuleRow("ArmorIndicator", "Броня игроков над головой", Icon.PLAYER, Action.ARMOR_INDICATOR),
                 new ModuleRow("HitParticles", "Искры при ударе", Icon.GRID, Action.HIT_PARTICLES),
@@ -7982,7 +7871,7 @@ public final class OrionClickGuiScreen extends Screen {
                 new ModuleRow("SelfTag", "Ник над вами в третьем лице", Icon.PLAYER, Action.SELF_TAG)
         };
         private static final ModuleRow[] MOVEMENT = {
-                new ModuleRow("JumpCircle", "Эффект на земле при прыжке", Icon.RINGS, Action.JUMP_CIRCLE),
+                new ModuleRow("JumpCircle", "Расширяющееся кольцо на месте прыжка", Icon.RINGS, Action.JUMP_CIRCLE),
                 new ModuleRow("Breadcrumbs", "Светящийся след за игроком", Icon.RINGS, Action.BREADCRUMBS)
         };
         private static final ModuleRow[] RENDER = {

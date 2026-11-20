@@ -432,15 +432,4 @@ public final class OrionConfigManager {
         config.setRainbowEnabled(rainbowEnabled);
         save();
     }
-
-    public void setHitSoundEnabled(boolean hitSoundEnabled) {
-        config.setHitSoundEnabled(hitSoundEnabled);
-        save();
-    }
-
-    public void setHitSoundIndex(int hitSoundIndex) {
-        config.setHitSoundIndex(hitSoundIndex);
-        config.sanitize();
-        save();
-    }
 }

@@ -54,7 +54,7 @@ async function cropAtlas(url, columns, rows, names, start = 0) {
   await image.decode();
   const canvas = document.createElement('canvas');
   canvas.width = image.naturalWidth / columns;
-  canvas.height = image.naturalHeight / rows;
+  canvas.height = rows == null ? canvas.width : image.naturalHeight / rows;
   const ctx = canvas.getContext('2d');
   return names.map((name, index) => {
     const cell = start + index;
@@ -78,7 +78,7 @@ async function clickGui() {
   window.orionTranslations = Object.fromEntries(languages.map((id, index) => [id, translates[index]]));
   const accessories = ['angel', 'dragon', 'halo', 'hat', 'dance'];
   const iconSprites = await Promise.all([
-    cropAtlas('module-atlas.png', 8, Math.ceil((fixture.iconOrder.length + 1) / 8), fixture.iconOrder, 1),
+    cropAtlas('module-atlas.png', 8, null, fixture.iconOrder, 1),
     cropAtlas('cosmetic-atlas.png', 5, 2, ['item', 'preview'].flatMap(side => accessories.map(id => `cosmetic-${id}-${side}`)))
   ]);
   const sprites = new Map(iconSprites.flat());

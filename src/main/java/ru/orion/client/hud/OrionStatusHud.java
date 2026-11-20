@@ -43,7 +43,6 @@ public final class OrionStatusHud {
         State state = new State(pressed, OrionClickCounter.count(false), OrionClickCounter.count(true), labels);
         if (!state.equals(previous)) {
             scene = new OrionHudView.Scene(WIDTH, HEIGHT);
-            scene.panel(0, 0, WIDTH, HEIGHT, 6);
             key(state, 0, labels.getFirst(), "", 27, 4, 20, 16);
             for (int i = 1; i <= 3; i++) key(state, i, labels.get(i), "", 4 + (i - 1) * 23, 23, 20, 16);
             key(state, 4, labels.get(4), "", 4, 42, WIDTH - 8, 8);

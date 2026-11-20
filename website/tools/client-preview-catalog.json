@@ -55,7 +55,6 @@
     "fake_prefix",
     "hit_box",
     "hit_color",
-    "hit_sound",
     "crosshair",
     "better_near",
     "rainbow",
@@ -119,57 +118,6 @@
           "max": 100,
           "value": 45,
           "step": 1
-        }
-      ],
-      "configurable": true
-    },
-    {
-      "id": "HIT_SOUND",
-      "name": "HitSound",
-      "description": "Звук подтверждённого попадания",
-      "category": "COMBAT",
-      "icon": "hit_sound.png",
-      "settings": [
-        {
-          "kind": "value",
-          "label": "Звук",
-          "choices": [],
-          "value": "—"
-        },
-        {
-          "kind": "slider",
-          "label": "Громкость",
-          "min": 0,
-          "max": 100,
-          "value": 70,
-          "step": 1
-        },
-        {
-          "kind": "slider",
-          "label": "Высота звука",
-          "min": 0.5,
-          "max": 2,
-          "value": 1
-        },
-        {
-          "kind": "toggle",
-          "label": "Варьировать высоту",
-          "value": false
-        },
-        {
-          "kind": "toggle",
-          "label": "Только по игрокам",
-          "value": false
-        },
-        {
-          "kind": "button",
-          "label": "Проверка звука",
-          "caption": "Прослушать"
-        },
-        {
-          "kind": "button",
-          "label": "Свои звуки (.wav, .aiff, .au)",
-          "caption": "Папка"
         }
       ],
       "configurable": true
@@ -675,10 +623,16 @@
     {
       "id": "JUMP_CIRCLE",
       "name": "JumpCircle",
-      "description": "Кольцо на земле при прыжке",
+      "description": "Расширяющееся кольцо на месте прыжка",
       "category": "MOVEMENT",
       "icon": "jump_circle.png",
       "settings": [
+        {
+          "kind": "choice",
+          "label": "Стиль кольца",
+          "choices": ["Кольцо", "Рябь", "Руны", "Всплеск"],
+          "value": 0
+        },
         {
           "kind": "color",
           "label": "Цвет кольца",

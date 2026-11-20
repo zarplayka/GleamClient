@@ -385,7 +385,7 @@ Object.assign(actions,{
 document.addEventListener('click',event => {
   const control = event.target.closest('button,a[href],input[type="checkbox"],input[type="radio"],summary');
   if (gameReady && state.interfaceSounds !== false && control && !control.disabled
-      && !control.hasAttribute('data-quiet') && control.dataset.chatPreference !== 'interfaceSounds') sendGame('ui-sound',{kind:'click'});
+      && control.dataset.chatPreference !== 'interfaceSounds') sendGame('ui-sound',{kind:'click'});
 },true);
 document.addEventListener('click',event => {
   const button = event.target.closest('button');
@@ -1084,8 +1084,9 @@ window.paradox = {
       const contentScroll = $('content').scrollTop;
       const searchFocused = document.activeElement?.id === 'friends-search';
       const soundField = state.page === 'module' && state.module === 'SOUND_SETTINGS'
-        && document.activeElement?.hasAttribute('data-sound-search') ? document.activeElement : null;
-      const soundDraft = soundField && [soundField.value,soundField.selectionStart,soundField.selectionEnd];
+        ? document.querySelector('[data-sound-search]') : null;
+      const soundDraft = soundField && soundField === document.activeElement
+        ? [soundField.value,soundField.selectionStart,soundField.selectionEnd] : null;
       const scroll = $('content').querySelector('.modules-grid')?.scrollTop ?? 0;
       render(false,!gameReady);
       const grid = $('content').querySelector('.modules-grid');
