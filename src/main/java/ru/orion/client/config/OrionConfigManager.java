@@ -363,6 +363,7 @@ public final class OrionConfigManager {
     public void setMediaPlayerCorner(String mediaPlayerCorner) {
         config.setMediaPlayerCorner(mediaPlayerCorner);
         config.setMediaPlayerPositionCustom(false);
+        config.setExtraHudPosition("island", 0, 0);
         config.sanitize();
         save();
     }

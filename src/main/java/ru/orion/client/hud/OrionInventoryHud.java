@@ -4,10 +4,8 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
-import ru.orion.client.GleamMinecraft;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 
@@ -28,7 +26,7 @@ public final class OrionInventoryHud {
         Minecraft client=Minecraft.getInstance();var config=configManager.getConfig();
         if(!config.isInventoryHudEnabled()||client.player==null||client.level==null){release();return;}
         var inventory = client.player.getInventory();
-        if (!(GleamMinecraft.screen(client) instanceof ChatScreen)) {
+        if (!OrionHudEditorScreen.editing(client)) {
             boolean hasItems = false;
             for (int i = 0; i < COLS * ROWS && !hasItems; i++) {
                 hasItems = !inventory.getItem(i + 9).isEmpty();
@@ -45,7 +43,7 @@ public final class OrionInventoryHud {
         int x=config.getInventoryHudX()<0?context.guiWidth()-guiW-8:config.getInventoryHudX();
         int y=config.getInventoryHudY()<0?(context.guiHeight()-guiH)/2:config.getInventoryHudY();
         x=Math.max(0,Math.min(x,context.guiWidth()-guiW));y=Math.max(0,Math.min(y,context.guiHeight()-guiH));
-        var position=drag.update(context,x,y,guiW,guiH,configManager,(nx,ny)->{config.setInventoryHudX(nx);config.setInventoryHudY(ny);});
+        var position=drag.update(x,y,guiW,guiH,(nx,ny)->{config.setInventoryHudX(nx);config.setInventoryHudY(ny);});
         view.draw(context, scene, position.x(), position.y(), guiW, guiH);
         context.nextStratum();
         var pose=context.pose();pose.pushMatrix();
@@ -73,7 +71,7 @@ public final class OrionInventoryHud {
     }
 
     private void release() {
-        drag.cancel(configManager);
+        drag.cancel();
         view.dispose();
     }
 }

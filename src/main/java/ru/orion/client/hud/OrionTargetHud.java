@@ -5,7 +5,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
@@ -19,8 +18,8 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
-import ru.orion.client.GleamMinecraft;
 import ru.orion.client.OrionClient;
+import ru.orion.client.GleamMinecraft;
 import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.effect.OrionNameProtect;
@@ -28,10 +27,11 @@ import ru.orion.client.render.GleamCameraMatrices;
 
 public final class OrionTargetHud {
     public static final String ID = "target_hud";
-    private static final int WIDTH = 154, EQUIPMENT_ROW = 22, MARGIN = 6;
-    private static final Layout SCREEN = new Layout(41, 9, 24, 39, 31);
-    private static final Layout ATTACHED = new Layout(50, 8, 34, 49, 38);
-    private static final int HEALTH = 0xff80d5a4, ABSORPTION = 0xffe8b967;
+    private static final int WIDTH = 152, MARGIN = 6, BAR_INSET = 6;
+    private static final int BAR_WIDTH = WIDTH - BAR_INSET * 2;
+    private static final Layout SCREEN = new Layout(45, 6, 28, 39, 39);
+    private static final Layout ATTACHED = new Layout(48, 6, 31, 42, 42);
+    private static final String HEALTH = "#b7df52", ABSORPTION = "#e8b967";
     private static final EquipmentSlot[] EQUIPMENT = { EquipmentSlot.HEAD, EquipmentSlot.CHEST,
             EquipmentSlot.LEGS, EquipmentSlot.FEET, EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND };
     private static final String TARGET_ICON = "M10 2v4m0 8v4M2 10h4m8 0h4M10 4a6 6 0 1 1 0 12a6 6 0 1 1 0-12";
@@ -49,13 +49,10 @@ public final class OrionTargetHud {
     private Layout previousLayout;
     private OrionHudView.Scene scene;
 
-    private record Layout(int body, int faceY, int faceSize, int textX, int barY) {
-        int height(boolean equipment) { return body + (equipment ? EQUIPMENT_ROW : 0); }
-        int barWidth() { return WIDTH - textX - 8; }
-    }
+    private record Layout(int height, int faceY, int faceSize, int textX, int barY) {}
 
-    private record Readout(String name, String health, String distance, String ping, int fill, int absorption,
-                           boolean portrait, boolean equipment) {}
+    private record Readout(String name, int nameWidth, String health, String maxHealth, String extraHealth,
+                           String distance, int ping, int fill, int absorption, boolean portrait, boolean equipment) {}
 
     private record Placement(int x, int y, int width, int height) {}
 
@@ -79,7 +76,7 @@ public final class OrionTargetHud {
 
     private void clear() {
         target = attacked = barTarget = null;
-        drag.cancel(manager);
+        drag.cancel();
         view.dispose();
     }
 
@@ -106,7 +103,7 @@ public final class OrionTargetHud {
         return now - lastSeen <= hold && valid(client, target, config) ? target : null;
     }
 
-    private Readout read(Minecraft client, LivingEntity living, OrionConfig config, Layout layout) {
+    private Readout read(Minecraft client, LivingEntity living, OrionConfig config) {
         float health = living.getHealth(), max = living.getMaxHealth(), absorption = living.getAbsorptionAmount();
         long now = System.nanoTime();
         double ratio = Math.clamp(health / Math.max(1F, max), 0F, 1F);
@@ -115,16 +112,15 @@ public final class OrionTargetHud {
                 : ratio;
         barTime = now;
         barTarget = living;
-        int fill = (int) Math.round(shownHealth * layout.barWidth());
-        int shield = (int) Math.round(Math.clamp(absorption / Math.max(1F, max), 0F, 1F) * layout.barWidth());
-        String healthLabel = Math.round(health) + " / " + Math.round(max) + (absorption > 0 ? " +" + Math.round(absorption) : "");
+        int fill = (int) Math.round(shownHealth * BAR_WIDTH);
+        int shield = (int) Math.round(Math.clamp(absorption / Math.max(1F, max), 0F, 1F) * BAR_WIDTH);
         double range = Math.sqrt(living.getBoundingBox().distanceToSqr(client.player.getEyePosition()));
         int decimeters = (int) Math.round(range * 10.0);
         String distance = decimeters / 10 + "." + decimeters % 10 + " m";
         var connection = client.getConnection();
         var playerInfo = config.isTargetHudPing() && living instanceof Player && connection != null
                 ? connection.getPlayerInfo(living.getUUID()) : null;
-        String ping = playerInfo == null ? "" : playerInfo.getLatency() + " ms";
+        int ping = playerInfo == null ? -1 : playerInfo.getLatency();
         boolean equipped = false;
         if (config.isTargetHudEquipment()) {
             for (var slot : EQUIPMENT) if (!living.getItemBySlot(slot).isEmpty()) {
@@ -132,8 +128,15 @@ public final class OrionTargetHud {
                 break;
             }
         }
-        return new Readout(OrionNameProtect.replace(living.getName().getString()), healthLabel, distance, ping,
-                fill, shield, living instanceof AbstractClientPlayer, equipped);
+        String name = OrionNameProtect.replace(living.getName().getString());
+        return new Readout(name, client.font.width(name) + 4, healthText(health), healthText(max),
+                absorption > 0 ? "+" + healthText(absorption) : "", distance, ping, fill, shield,
+                living instanceof AbstractClientPlayer, equipped);
+    }
+
+    private static String healthText(float value) {
+        int tenths = Math.round(value * 10);
+        return tenths % 10 == 0 ? Integer.toString(tenths / 10) : tenths / 10 + "." + tenths % 10;
     }
 
     private void render(GuiGraphicsExtractor graphics, DeltaTracker ticks) {
@@ -143,22 +146,22 @@ public final class OrionTargetHud {
             clear();
             return;
         }
-        boolean attached = config.isTargetHudWorld();
+        boolean attached = config.isTargetHudWorld() && !OrionHudEditorScreen.editing(client);
         LivingEntity living = resolve(client, config);
-        if (!attached && living == null && GleamMinecraft.screen(client) instanceof ChatScreen) living = client.player;
+        if (!attached && living == null && OrionHudEditorScreen.editing(client)) living = client.player;
         if (living == null) {
             barTarget = null;
-            drag.cancel(manager);
+            drag.cancel();
             view.dispose();
             return;
         }
         Layout layout = attached ? ATTACHED : SCREEN;
-        Readout data = read(client, living, config, layout);
-        int height = layout.height(data.equipment);
+        Readout data = read(client, living, config);
+        int height = layout.height;
         float scale = config.getHudScale() * config.getHudElementScale(ID);
         Placement placement;
         if (attached) {
-            drag.cancel(manager);
+            drag.cancel();
             placement = attachedPlacement(graphics, client, living, ticks, height, scale);
         } else {
             float fit = OrionHudView.fit(scale, WIDTH, height, graphics.guiWidth(), graphics.guiHeight());
@@ -182,23 +185,27 @@ public final class OrionTargetHud {
             pose.scale(placement.width / (float) WIDTH, placement.height / (float) height);
             if (living instanceof AbstractClientPlayer player) {
                 Identifier skin = player.getSkin().body().texturePath();
-                graphics.blit(RenderPipelines.GUI_TEXTURED, skin, 8, layout.faceY, 8, 8,
+                graphics.blit(RenderPipelines.GUI_TEXTURED, skin, 6, layout.faceY, 8, 8,
                         layout.faceSize, layout.faceSize, 8, 8, 64, 64);
                 if (player.isModelPartShown(net.minecraft.world.entity.player.PlayerModelPart.HAT))
-                    graphics.blit(RenderPipelines.GUI_TEXTURED, skin, 8, layout.faceY, 40, 8,
+                    graphics.blit(RenderPipelines.GUI_TEXTURED, skin, 6, layout.faceY, 40, 8,
                             layout.faceSize, layout.faceSize, 8, 8, 64, 64);
             }
-            if (data.equipment) for (int i = 0; i < EQUIPMENT.length; i++) {
-                var item = living.getItemBySlot(EQUIPMENT[i]);
-                if (item.isEmpty()) continue;
-                int x = 8 + i * 20;
-                //? if >=26.1 {
-                graphics.item(item, x, layout.body + 2);
-                graphics.itemDecorations(client.font, item, x, layout.body + 2);
-                //?} else {
-                /*graphics.renderItem(item, x, layout.body + 2);
-                graphics.renderItemDecorations(client.font, item, x, layout.body + 2);
-                *///?}
+            if (data.equipment) {
+                pose.translate(layout.textX, layout.barY - 11);
+                pose.scale(.58F, .58F);
+                for (int i = 0; i < EQUIPMENT.length; i++) {
+                    var item = living.getItemBySlot(EQUIPMENT[i]);
+                    if (item.isEmpty()) continue;
+                    int x = i * 17;
+                    //? if >=26.1 {
+                    graphics.item(item, x, 0);
+                    graphics.itemDecorations(client.font, item, x, 0);
+                    //?} else {
+                    /*graphics.renderItem(item, x, 0);
+                    graphics.renderItemDecorations(client.font, item, x, 0);
+                    *///?}
+                }
             }
         } finally {
             pose.popMatrix();
@@ -206,30 +213,39 @@ public final class OrionTargetHud {
     }
 
     private static OrionHudView.Scene scene(Readout data, Layout layout) {
-        var scene = new OrionHudView.Scene(WIDTH, layout.height(data.equipment));
+        var scene = new OrionHudView.Scene(WIDTH, layout.height);
         boolean attached = layout == ATTACHED;
-        if (attached) scene.surface(0, 0, WIDTH, layout.height(data.equipment), 8);
-        else scene.panel(0, 0, WIDTH, layout.height(data.equipment), 7);
-        scene.well(7, layout.faceY - 1, layout.faceSize + 2, layout.faceSize + 2, 4);
+        if (!attached) scene.panel(0, 0, WIDTH, layout.height, 8);
+        scene.box(0, 0, WIDTH, layout.height, 8, "#0e1119e8", "#c1d4ad30");
+        scene.well(5, layout.faceY - 1, layout.faceSize + 2, layout.faceSize + 2, 4);
         if (!data.portrait) {
             int iconSize = attached ? 21 : 16;
-            scene.icon(TARGET_ICON, 8 + (layout.faceSize - iconSize) / 2F,
-                    layout.faceY + (layout.faceSize - iconSize) / 2F, iconSize, "var(--accent)", false);
+            scene.icon(TARGET_ICON, 6 + (layout.faceSize - iconSize) / 2F,
+                    layout.faceY + (layout.faceSize - iconSize) / 2F, iconSize, HEALTH, false);
         }
-        int nameWidth = (data.ping.isEmpty() ? WIDTH - 8 : 115) - layout.textX;
-        scene.label(data.name, layout.textX, attached ? 6 : 4, nameWidth, 15,
-                attached ? 10 : 9, "var(--text)", "left", true);
-        scene.label(data.ping, 115, attached ? 6 : 4, 31, 15, 7, "var(--muted)", "right", false);
-        int detailsY = attached ? 23 : 17;
-        scene.label(data.health, layout.textX, detailsY, 106 - layout.textX, 12,
-                8, attached ? "var(--text)" : OrionHudView.color(HEALTH), "left", true);
-        scene.label(data.distance, 109, detailsY, 37, 12, 7.5F, "var(--muted)", "right", false);
-        int barHeight = attached ? 5 : 4;
-        scene.well(layout.textX, layout.barY, layout.barWidth(), barHeight, 2);
-        if (data.fill > 0) scene.box(layout.textX, layout.barY, data.fill, barHeight, 2, OrionHudView.color(HEALTH), null);
-        if (data.absorption > 0) scene.box(layout.textX, layout.barY + barHeight + 1, data.absorption,
-                2, 1, OrionHudView.color(ABSORPTION), null);
-        if (data.equipment) scene.divider(7, layout.body, WIDTH - 14);
+        int nameWidth = Math.min(data.nameWidth, WIDTH - layout.textX - (data.ping < 0 ? 7 : 42));
+        scene.label(data.name, layout.textX, 5, nameWidth, 12, 9, "#f4f6f5", "left", true);
+        if (data.ping >= 0) {
+            int pingX = layout.textX + nameWidth + 2;
+            String tint = data.ping < 150 ? "#67d99b" : data.ping < 300 ? "#f1c067" : "#ee8f8f";
+            int bars = data.ping < 70 ? 4 : data.ping < 150 ? 3 : data.ping < 300 ? 2 : 1;
+            for (int i = 0; i < 4; i++) scene.box(pingX + i * 2, 13 - i * 1.6F, 1.2F, 2 + i * 1.6F,
+                    .55F, i < bars ? tint : "#ffffff30", null);
+            scene.label(Integer.toString(data.ping), pingX + 10, 6, WIDTH - pingX - 15, 11,
+                    7, tint, "left", true);
+        }
+        String healthMax = "/ " + data.maxHealth;
+        int healthWidth = data.health.length() * 5 + 2;
+        int maxWidth = healthMax.length() * 4 + 2;
+        scene.label(data.health, layout.textX, 16, healthWidth, 12, 8, HEALTH, "left", true);
+        scene.label(healthMax, layout.textX + healthWidth, 16, maxWidth, 12, 8, "#aab2bb", "left", false);
+        scene.label(data.extraHealth, layout.textX + healthWidth + maxWidth + 2, 16, 19, 12,
+                7, ABSORPTION, "left", true);
+        scene.label(data.distance, 116, 16, 30, 12, 7.5F, "#aab2bb", "right", false);
+        scene.box(BAR_INSET, layout.barY, BAR_WIDTH, 3, 1.5F, "#a3b39329", null);
+        if (data.fill > 0) scene.box(BAR_INSET, layout.barY, data.fill, 3, 1.5F, HEALTH, null);
+        int shield = Math.min(data.absorption, BAR_WIDTH - data.fill);
+        if (shield > 0) scene.box(BAR_INSET + data.fill, layout.barY, shield, 3, 1.5F, ABSORPTION, null);
         return scene;
     }
 
@@ -303,7 +319,7 @@ public final class OrionTargetHud {
         if (width < wantedWidth * .70F) return null;
         int height = Math.max(1, Math.round(cardHeight * width / (float) WIDTH));
         if (screenHeight - MARGIN * 2 < height) return null;
-        int y = Math.clamp(Math.round(torsoY - ATTACHED.body * width / (2F * WIDTH)),
+        int y = Math.clamp(Math.round(torsoY - cardHeight * width / (2F * WIDTH)),
                 MARGIN, screenHeight - height - MARGIN);
         return new Placement(left ? leftEnd - width : rightStart, y, width, height);
     }

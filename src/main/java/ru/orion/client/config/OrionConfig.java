@@ -344,6 +344,16 @@ public final class OrionConfig {
     private int hudX = 8;
     private int hudY = 8;
     private float hudScale = 1.0F;
+    private boolean hudEditorSnap = true;
+    private int hudEditorGridStep = 16;
+
+    public boolean isHudEditorSnap() { return hudEditorSnap; }
+    public void setHudEditorSnap(boolean value) { hudEditorSnap = value; }
+    public int getHudEditorGridStep() {
+        return switch (hudEditorGridStep) { case 8, 16, 24, 32 -> hudEditorGridStep; default -> 16; };
+    }
+    public void setHudEditorGridStep(int value) { hudEditorGridStep = value; }
+
     private java.util.Map<String, Float> hudElementScales = new java.util.HashMap<>();
     public float getHudElementScale(String id) {
         if (hudElementScales == null) return 1F;
