@@ -30,7 +30,7 @@
 
 - **KillEffect** — animated 3D effects and sounds after a kill, with configurable targets.
 - **TargetESP** — add a visual effect to your target.
-- **HitColor, HitSound & HitParticles** — customize the feedback from your hits.
+- **HitColor & HitParticles** — customize the feedback from your hits.
 - **DamageIndicators & ArmorIndicator** — display damage and other players' armor.
 - **PvpSafe** — get a warning when trying to leave during combat.
 

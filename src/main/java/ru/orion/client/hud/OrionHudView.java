@@ -222,8 +222,10 @@ public final class OrionHudView {
                     int partWidth = Math.round(part.get("w").getAsFloat()), partHeight = Math.round(part.get("h").getAsFloat());
                     String kind = part.get("kind").getAsString();
                     if (kind.equals("key")) {
-                        int fill = part.get("pressed").getAsBoolean() ? 0xff46527c : 0xdd1b1e28;
-                        context.fill(left, top, left + partWidth, top + partHeight, fill);
+                        boolean pressed = part.get("pressed").getAsBoolean();
+                        if (pressed) context.fill(left, top, left + partWidth, top + partHeight, 0xd8252d42);
+                        context.fill(left, top + partHeight - 1, left + partWidth, top + partHeight,
+                                pressed ? 0xffaebef0 : 0x66e5eafa);
                         String mouse = part.get("mouse").getAsString();
                         var label = font.plainSubstrByWidth((mouse.isEmpty() ? "" : mouse + " ") + part.get("text").getAsString(), partWidth - 2);
                         int labelX = left + (partWidth - font.width(label)) / 2, labelY = top + (partHeight - font.lineHeight) / 2;

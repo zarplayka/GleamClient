@@ -2,18 +2,6 @@
   "ui.click": { "sounds": [{"name": "orion-client:ui/click", "preload": true}] },
   "ui.success": { "sounds": [{"name": "orion-client:ui/success", "preload": true}] },
   "ui.error": { "sounds": [{"name": "orion-client:ui/error", "preload": true}] },
-  "hit.pvp_tap": {
-    "sounds": [
-      {"name": "orion-client:hitsounds/pvp-tap-1", "preload": true},
-      {"name": "orion-client:hitsounds/pvp-tap-2", "preload": true},
-      {"name": "orion-client:hitsounds/pvp-tap-3", "preload": true}
-    ]
-  },
-  "hit.critical": { "sounds": [{"name": "minecraft:entity.player.attack.crit", "type": "event"}] },
-  "hit.arrow_ping": { "sounds": [{"name": "minecraft:entity.arrow.hit_player", "type": "event"}] },
-  "hit.soft_click": { "sounds": [{"name": "minecraft:ui.button.click", "type": "event"}] },
-  "hit.pling": { "sounds": [{"name": "minecraft:block.note_block.pling", "type": "event"}] },
-  "hit.xp_pop": { "sounds": [{"name": "minecraft:entity.experience_orb.pickup", "type": "event"}] },
   "kill.sword_rain": {
     "sounds": [{"name": "orion-client:kill/sword_rain", "preload": true, "attenuation_distance": 64}]
   },

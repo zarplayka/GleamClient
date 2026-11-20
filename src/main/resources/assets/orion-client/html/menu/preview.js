@@ -391,8 +391,8 @@ function controlRow(row, module, index, embedded = false) {
       + index + '" data-sound="' + text(row.sound) + '" aria-label="' + text(t('Прослушать') + ' ' + row.label) + '" title="'
       + text(t('Прослушать')) + '">' + (row.art ? settingArt(row.art) : icon('speaker')) + '</button>'
       + '<label for="' + id + '" title="' + text(title) + '">' + text(row.label) + '</label><span class="range">'
-      + '<output for="' + id + '">' + saved + text(row.suffix) + '</output>'
-      + rangeControl(attrs,row.min,row.max,row.step,saved,row.suffix) + '</span></div>';
+      + rangeControl(attrs,row.min,row.max,row.step,saved,row.suffix)
+      + '<output for="' + id + '">' + saved + text(row.suffix) + '</output></span></div>';
   }
   switch (row.kind) {
     case 'slider': control = '<span class="range">' + rangeControl(attrs,row.min,row.max,row.step || '.01',saved,row.suffix)
@@ -404,7 +404,7 @@ function controlRow(row, module, index, embedded = false) {
       + ' value="' + text(saved) + '" autocomplete="off">'; break;
     case 'keybind': control = '<button type="button" class="button" id="' + id + '" data-keybind="' + index + '">' + text(saved === '—' ? t('Назначить') : saved) + '</button>'; break;
     case 'button': control = '<button class="button" type="button" data-setting-button="' + index + '"'
-      + (row.quiet ? ' data-quiet' : '') + '>' + text(row.caption) + '</button>'; break;
+      + '>' + text(row.caption) + '</button>'; break;
     default: control = '<small id="' + id + '">' + text(saved) + '</small>';
   }
   return '<div class="setting-row' + (row.kind === 'choice' ? ' choice-row' : '')
@@ -457,7 +457,12 @@ function moduleEnableControl(module,enabled) {
     + text(module.name) + '" aria-checked="' + enabled + '" data-module-toggle="' + module.id + '">'
     + '<span class="module-state">' + (enabled ? t('Включён') : t('Выключен')) + '</span>' + toggleMarkup + '</button>';
 }
-function renderSoundSettings(module,enabled) {
+function moduleSettingsHeader(module,enabled) {
+  return '<div class="page-head module-settings-head"><div class="module-head"><span class="module-head-art">' + itemArt(module)
+    + '</span><div><div class="module-category">' + text(t(names[module.category])) + '</div><h1>' + text(module.name)
+    + '</h1><p>' + text(module.description) + '</p></div></div>' + moduleEnableControl(module,enabled) + '</div>';
+}
+function renderSoundSettings(module) {
   const groups = new Map();
   const lookup = [];
   module.settings.forEach((row,index) => {
@@ -468,22 +473,21 @@ function renderSoundSettings(module,enabled) {
     }
     groups.set(row.section,(groups.get(row.section) ?? '') + markup);
   });
-  return '<div class="sound-mixer"><div class="sound-mixer-head"><div class="sound-mixer-title">' + itemArt(module)
-    + '<h1>Sound Settings</h1></div><div class="sound-mixer-actions">'
-    + moduleEnableControl(module,enabled)
+  return '<div class="module-settings sound-mixer"><div class="settings-group-title sound-mixer-actions"><h2>' + text(t('Громкость')) + '</h2>'
     + '<button type="button" class="button sound-preview-mode" data-sound-preview-mode aria-pressed="' + soundPreviewEnabled
     + '" title="' + text(t('Проигрывать звук после изменения громкости')) + '">' + icon('speaker') + ' '
-    + text(t('Звук при настройке')) + '</button></div></div>'
-    + '<div class="sound-mixer-body">' + [...groups].map(([title,rows]) =>
-      '<section class="sound-group"><h2>' + text(title) + '</h2><div class="sound-group-list">' + rows + '</div></section>').join('')
+    + text(t('Звук при настройке')) + '</button></div>'
+    + [...groups].map(([title,rows]) => '<section class="settings-group sound-group"><div class="settings-group-title"><h2>'
+      + text(title) + '</h2></div><div class="sheet">' + rows + '</div></section>').join('')
     + '<div class="sound-lookup"><button type="button" class="sound-lookup-button" data-sound-lookup aria-expanded="'
     + soundLookupOpen + '" aria-controls="sound-lookup-fields">' + icon('search') + ' ' + text(t('Другие звуки'))
-    + '</button><div id="sound-lookup-fields"' + (soundLookupOpen ? '' : ' hidden') + '>' + lookup.join('') + '</div></div></div></div>';
+    + '</button><div class="sheet" id="sound-lookup-fields"' + (soundLookupOpen ? '' : ' hidden') + '>' + lookup.join('') + '</div></div></div>';
 }
 function renderModule() {
   const module = byId.get(state.module);
   const enabled = state.enabled.has(module.id);
-  if (module.id === 'SOUND_SETTINGS') return renderSoundSettings(module,enabled);
+  const header = moduleSettingsHeader(module,enabled);
+  if (module.id === 'SOUND_SETTINGS') return header + renderSoundSettings(module);
   const groups = (moduleGroups[module.id] || [[0,t('Настройки модуля')]]).map(([start,title],i,all) => ({
     start, title, rows:module.settings.slice(start,all[i+1]?.[0] ?? module.settings.length)
   })).filter(group => group.rows.length);
@@ -491,9 +495,7 @@ function renderModule() {
     + groups.map(({title,rows},i) => '<button type="button" data-settings-group="' + i + '"'
       + (i === 0 ? ' aria-current="location"' : '') + '><span>' + text(t(title)) + '</span><small>' + rows.length + '</small></button>').join('')
     + '</nav>' : '';
-  return '<div class="page-head module-settings-head"><div class="module-head"><span class="module-head-art">' + itemArt(module)
-    + '</span><div><div class="module-category">' + text(t(names[module.category])) + '</div><h1>' + text(module.name)
-    + '</h1><p>' + text(module.description) + '</p></div></div>' + moduleEnableControl(module,enabled) + '</div>'
+  return header
     + '<div class="module-settings' + (contents ? ' with-toc' : '') + '">' + contents + '<div class="settings-groups">'
     + groups.map(({start,title,rows},i) => '<section class="settings-group" id="settings-group-' + i + '">'
       + (module.id === 'CROSSHAIR' ? '' : '<div class="settings-group-title"><h2>' + text(t(title)) + '</h2>'
