@@ -120,13 +120,11 @@ const previewTheme=`
   #island .shoulder { display: none; }
   #island .brand img { filter: drop-shadow(0 0 4px #8967ef); }
   #island .metric > span:first-child { font-weight: 700; color: var(--accent); }
-  .hud-glyph .ui-icon, .key .mouse .ui-icon {
+  .key .mouse .ui-icon {
     display: block; fill: none; stroke: currentColor; stroke-width: 1.7;
     stroke-linecap: round; stroke-linejoin: round;
+    width: 10px; height: 10px;
   }
-  .hud-glyph { flex: none; color: var(--accent); }
-  .hud-glyph .ui-icon { width: 16px; height: 16px; }
-  .key .mouse .ui-icon { width: 10px; height: 10px; }
 `;
 function mountScene(el,def,track=false){
   const unit=def.island?.85:def.template?1:1.32;
@@ -149,9 +147,7 @@ function mountScene(el,def,track=false){
       :def.state||{parts:def.parts};
     const view=frame.contentWindow.paradox;
     view.update(state);
-    if(def.island){
-      doc.querySelector('#header').insertAdjacentHTML('afterbegin','<span class="hud-glyph">'+uiIcon('status')+'</span>');
-    }else if(el.dataset.key==='keys'){
+    if(el.dataset.key==='keys'){
       const mouse=doc.querySelector('.key .mouse');
       mouse.setAttribute('aria-label','Левая кнопка мыши');
       mouse.innerHTML=uiIcon('mouse');
