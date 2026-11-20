@@ -80,6 +80,13 @@ button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-v
 .widget:hover:not(.inactive), .widget.selected, .widget:focus-visible { outline: 1px solid #9d85edac; outline-offset: 2px; }
 .widget.selected { z-index: 4; }
 .fixed-widget { pointer-events: none; }
+.invite-dismiss {
+  position: absolute; top: 4px; right: 5px; z-index: 1;
+  display: grid; place-items: center; padding: 0;
+  width: 18px; height: 18px; min-height: 0; border: 0; border-radius: 50%;
+  background: transparent; color: #abb4b1; pointer-events: auto;
+}
+.invite-dismiss .ui-icon { width: 11px; height: 11px; }
 .scene { position: absolute; inset: 0; transform-origin: top left; overflow: clip; pointer-events: none; }
 .scene iframe { position: absolute; top: 0; left: 0; border: 0; background: transparent; pointer-events: none; }
 .art { position: absolute; display: block; background-repeat: no-repeat; image-rendering: pixelated; }

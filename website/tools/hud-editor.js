@@ -95,8 +95,8 @@ const catalog={
     art:[3,4,5,6].map((id,i)=>art(id,3+i*20,3,16))},
   chat:{name:'Уведомление чата',w:286,h:76,x:.99,y:.99,fixed:true,template:'chat-notification.html',
     state:{title:'Quartz',detail:'Готов зайти в мир?'}},
-  invite:{name:'Приглашение в мир',w:276,h:58,x:.99,y:.08,fixed:true,template:'world-invite.html',
-    state:{title:'Летний мир',world:'Приглашение от Quartz',hint:'Удержать',
+  invite:{name:'Приглашение в мир',w:306,h:70,x:.99,y:.08,fixed:true,template:'world-invite.html',
+    state:{title:'Quartz приглашает в мир',world:'Летний мир · Minecraft 26.3',hint:'Удерживай Y, чтобы принять',
       key:true,keyboard:true,keyLabel:'Y',initial:'Q',remaining:.75,hold:0,opacity:1,offset:0}}
 };
 const previewTheme=`
@@ -126,44 +126,36 @@ const previewTheme=`
     width: 10px; height: 10px;
   }
   .invite {
-    width: calc(100% - 4px); height: 54px; margin: 2px;
-    padding: 8px 9px 9px;
-    display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 10px;
-    border-radius: 8px; background: #171624e8;
-    box-shadow: inset 0 0 0 1px #dfd1ff16;
+    --invite-accent: #65d7a0;
+    width: calc(100% - 4px); height: 66px; margin: 2px;
+    padding: 9px 51px 10px 11px;
+    display: flex; align-items: center;
+    border-radius: 14px; background: #0f1216f4;
+    box-shadow: inset 0 0 0 1px #edf7f217;
   }
-  .invite .main { gap: 8px; min-width: 0; }
+  .invite .main { gap: 9px; width: 100%; min-width: 0; }
   .invite .face {
-    width: 26px; height: 26px; border-radius: 5px;
-    border: 0; background: url('/tools/launcher-default-skin.png') -26px -26px / 208px 208px;
+    width: 32px; height: 32px; border-radius: 7px;
+    border: 1px solid #65d7a0b3;
+    background: #182322 url('/tools/launcher-default-skin.png') -29px -29px / 240px 240px;
     image-rendering: pixelated;
   }
   .invite .face #initial { display: none; }
-  .invite #title { font-size: 12px; line-height: 16px; }
-  .invite #world { font-size: 10px; line-height: 12px; margin-top: 1px; }
-  .invite-action {
-    display: flex; align-items: center; gap: 6px;
-    padding-left: 9px; border-left: 1px solid var(--line);
+  .invite #title { font-size: 12px; line-height: 15px; }
+  .invite #world { color: #aab2b6; font-size: 10.5px; line-height: 13px; margin-top: 1px; }
+  .invite #hint { color: var(--invite-accent); font-size: 10px; line-height: 13px; margin-top: 1px; }
+  .invite .hold-key {
+    top: 20px; right: 19px; width: 26px; height: 26px; border-radius: 50%;
+    border-color: #f5fffa33; background: #f0fffa10; color: #f0f9f5; font-size: 11px; font-weight: 700;
   }
-  .invite-action #hint {
-    margin: 0; color: var(--muted); font-size: 9px; line-height: 12px; white-space: nowrap;
-  }
-  .invite-action .hold-key {
-    position: relative; inset: auto; flex: 0 0 20px;
-    width: 20px; height: 20px; border-color: #b298ff42;
-    background: #a586ff13; color: #e5d9ff; font-size: 10px; font-weight: 700;
-  }
-  .invite-action #fill { background: #a687ff; opacity: .66; }
-  .invite .countdown { left: 9px; right: 9px; bottom: 5px; height: 1px; }
-  .invite #remaining { height: 1px; opacity: .55; }
+  .invite #fill { background: var(--invite-accent); opacity: .48; }
+  .invite .countdown { left: 13px; right: 13px; bottom: 5px; height: 1px; }
+  .invite #remaining { height: 1px; background: var(--invite-accent); }
 `;
 let invitePreview;
+let inviteDismissed=false;
 
 function setupInvitePreview(doc,view,state){
-  const action=doc.createElement('div');
-  action.className='invite-action';
-  action.append(doc.getElementById('key'),doc.getElementById('hint'));
-  doc.getElementById('card').append(action);
   doc.querySelector('.dismiss').hidden=true;
   invitePreview={view,state};
 }
@@ -177,7 +169,7 @@ function stopInviteHold(){
 }
 
 document.addEventListener('keydown',event=>{
-  if(event.code!=='KeyY'||!viewing||!models.invite.on||!invitePreview||event.repeat
+  if(event.code!=='KeyY'||!viewing||inviteDismissed||!models.invite.on||!invitePreview||event.repeat
      ||event.altKey||event.ctrlKey||event.metaKey||inviteHoldFrame)return;
   const started=performance.now();
   const {view,state}=invitePreview;
@@ -258,7 +250,15 @@ for(const [id,def] of Object.entries(catalog)){
   const el=document.createElement('div');
   el.className='widget';el.id='widget-'+id;el.dataset.key=id;
   el.setAttribute('aria-label',name);
-  if(def.fixed){el.classList.add('fixed-widget');}
+  if(def.fixed){
+    el.classList.add('fixed-widget');
+    if(id==='invite'){
+      el.innerHTML='<button class="invite-dismiss" aria-label="Закрыть приглашение" hidden>'+uiIcon('close')+'</button>';
+      el.querySelector('button').onclick=()=>{
+        inviteDismissed=true;stopInviteHold();place(id);$('preview').focus();
+      };
+    }
+  }
   else{
     el.tabIndex=0;
     el.innerHTML='<div class="widget-tag"><span class="tag-name">'+uiIcon(id)+'<span></span></span><button class="toggle-widget"></button></div>'
@@ -284,7 +284,8 @@ function geometry(id){
 function place(id){
   const m=models[id],el=$('widget-'+id);
   const fixed=catalog[id].fixed;
-  el.hidden=!m.on&&(fixed||viewing);
+  el.hidden=(!m.on&&(fixed||viewing))||(id==='invite'&&viewing&&inviteDismissed);
+  if(id==='invite')el.querySelector('.invite-dismiss').hidden=!viewing;
   if(el.hidden)return;
   el.classList.toggle('inactive',!m.on);
   if(!fixed){
@@ -485,7 +486,8 @@ $('arrange').onclick=()=>{
 };
 function preview(){
   stopInviteHold();
-  clear();viewing=!viewing;document.body.classList.toggle('view',viewing);layers.inert=viewing;
+  clear();viewing=!viewing;inviteDismissed=false;document.body.classList.toggle('view',viewing);
+  for(const widget of layers.children)widget.inert=viewing&&widget.dataset.key!=='invite';
   redraw();
   $('library').hidden=viewing;
   $('preview').innerHTML=uiIcon(viewing?'edit':'eye')+(viewing?'Вернуться к редактированию':'Просмотр');
