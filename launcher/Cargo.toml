@@ -1,6 +1,6 @@
 [package]
 name = "gleam-launcher"
-version = "0.1.73"
+version = "0.1.74"
 edition = "2021"
 default-run = "gleam-launcher"
 
