@@ -3777,6 +3777,8 @@ public final class OrionClickGuiScreen extends Screen {
                             config::getAspectStretch, config::setAspectStretch, "x")
             };
             case HUD -> new Setting[]{
+                    new ButtonSetting("Редактор HUD", Minecraft.getInstance().level == null ? "Доступно в мире" : "Открыть",
+                            () -> ru.orion.client.hud.OrionHudEditorScreen.open(configManager)),
                     islandScaleSetting(config),
                     hudStyleSetting("Водяной знак", "hud_watermark"),
                     hudStyleSetting("Клавиши", "hud_status_panels"),

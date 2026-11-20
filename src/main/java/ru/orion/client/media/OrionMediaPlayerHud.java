@@ -150,6 +150,7 @@ public final class OrionMediaPlayerHud {
         data.addProperty("placement", config.getMediaPlayerCorner());
         data.addProperty("custom", config.isMediaPlayerPositionCustom());
         data.addProperty("x", config.getMediaPlayerX() * window.getGuiScale());
+        data.addProperty("y", Math.max(0, config.getExtraHudPosition("island", 1)) * window.getGuiScale());
         data.addProperty("username", config.isHudEnabled() ? OrionNameProtect.replace(client.getUser().getName()) : "");
         data.addProperty("fps", config.isHudEnabled() ? client.getFps() : 0);
         data.addProperty("ping", ping(client));
@@ -173,8 +174,8 @@ public final class OrionMediaPlayerHud {
         receive();
         if (bounds != null) {
             float scale = window.getGuiScale();
-            OrionHudDrag.observe("island", (int) (bounds.x / scale), (int) (bounds.y / scale),
-                    (int) Math.ceil(bounds.width / scale), (int) Math.ceil(bounds.height / scale));
+            OrionHudDrag.observe("island", Math.round(bounds.x / scale), Math.round(bounds.y / scale),
+                    Math.round(bounds.width / scale), Math.round(bounds.height / scale), this::setPosition, "media");
         }
     }
 
@@ -236,12 +237,14 @@ public final class OrionMediaPlayerHud {
             case "TOP_RIGHT" -> screenWidth - scaledWidth - 5;
             default -> (screenWidth - scaledWidth) / 2;
         };
-        OrionHudDrag.observe("island", Math.clamp(x, 0, Math.max(0, screenWidth - scaledWidth)), 0,
-                scaledWidth, (int) Math.ceil((track.isBlank() ? 17 : 30) * scale));
+        int scaledHeight = (int) Math.ceil((track.isBlank() ? 17 : 30) * scale);
+        x = Math.clamp(x, 0, Math.max(0, screenWidth - scaledWidth));
+        int y = Math.clamp(config.getExtraHudPosition("island", 1), 0, Math.max(0, graphics.guiHeight() - scaledHeight));
+        OrionHudDrag.observe("island", x, y, scaledWidth, scaledHeight, this::setPosition, "media");
         var pose = graphics.pose();
         pose.pushMatrix();
         try {
-            pose.translate(Math.clamp(x, 0, Math.max(0, screenWidth - scaledWidth)), 0);
+            pose.translate(x, y);
             pose.scale(scale);
             graphics.fill(0, 0, width, track.isBlank() ? 17 : 30, 0xDB171A23);
             //? if >=26.1 {
@@ -261,6 +264,13 @@ public final class OrionMediaPlayerHud {
 
     private static float islandScale(OrionConfig config) {
         return config.getHudScale() * config.getHudElementScale("media");
+    }
+
+    private void setPosition(int x, int y) {
+        var config = manager.getConfig();
+        config.setMediaPlayerPositionCustom(true);
+        config.setMediaPlayerX(x);
+        config.setExtraHudPosition("island", x, y);
     }
 
     private static int ping(Minecraft client) {
@@ -296,15 +306,8 @@ public final class OrionMediaPlayerHud {
             return;
         }
         if (!interactive()) return;
-        var client = Minecraft.getInstance();
-        if ("move".equals(action)) {
-            float x = event.get("x").getAsFloat();
-            if (!Float.isFinite(x)) return;
-            manager.getConfig().setMediaPlayerPositionCustom(true);
-            manager.setMediaPlayerPosition(Math.clamp(Math.round(x / client.getWindow().getGuiScale()),
-                    0, client.getWindow().getGuiScaledWidth()), 0);
-        } else if ("settings".equals(action)) {
-            GleamMinecraft.setScreen(client, OrionClickGuiScreen.withMediaPlayerSettings(manager));
+        if ("settings".equals(action)) {
+            GleamMinecraft.setScreen(Minecraft.getInstance(), OrionClickGuiScreen.withMediaPlayerSettings(manager));
         } else if ("enable".equals(action)) {
             manager.setMediaPlayerEnabled(true);
         } else {

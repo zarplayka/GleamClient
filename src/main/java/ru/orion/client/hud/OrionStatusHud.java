@@ -31,7 +31,7 @@ public final class OrionStatusHud {
         var client = Minecraft.getInstance();
         var config = manager.getConfig();
         if (client.player == null || !config.isKeystrokesEnabled()) {
-            drag.cancel(manager);
+            drag.cancel();
             view.dispose();
             return;
         }
@@ -57,7 +57,7 @@ public final class OrionStatusHud {
         int size = Math.max(1, Math.round(SIZE * fit));
         int x = Math.clamp(config.getKeystrokesX() < 0 ? 8 : config.getKeystrokesX(), 0, context.guiWidth() - size);
         int y = Math.clamp(config.getKeystrokesY() < 0 ? context.guiHeight() - size - 45 : config.getKeystrokesY(), 0, context.guiHeight() - size);
-        var position = drag.update(context, x, y, size, size, manager, (nx, ny) -> {
+        var position = drag.update(x, y, size, size, (nx, ny) -> {
             config.setKeystrokesX(nx);
             config.setKeystrokesY(ny);
         });

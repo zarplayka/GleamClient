@@ -62,7 +62,7 @@ public final class OrionBasketballHud {
         int maxX = context.guiWidth() - width, maxY = context.guiHeight() - height;
         int x = config.getBasketballScoreX() < 0 ? maxX / 2 : Math.clamp(config.getBasketballScoreX(), 0, maxX);
         int y = Math.clamp(config.getBasketballScoreY() < 0 ? context.guiHeight() / 2 - 48 : config.getBasketballScoreY(), 0, maxY);
-        var position = drag.update(context, x, y, width, height, manager, config::setBasketballScorePosition);
+        var position = drag.update(x, y, width, height, config::setBasketballScorePosition);
         x = position.x();
         y = position.y();
         scoreView.draw(context, scoreScene, x, y, width, height);
@@ -95,7 +95,7 @@ public final class OrionBasketballHud {
     }
 
     private void release() {
-        drag.cancel(manager);
+        drag.cancel();
         scoreView.dispose();
         chargeView.dispose();
     }

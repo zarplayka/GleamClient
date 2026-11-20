@@ -1,12 +1,10 @@
 package ru.orion.client.hud;
 
-import ru.orion.client.GleamMinecraft;
 
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.Identifier;
@@ -77,10 +75,10 @@ public final class OrionBetterNearHud {
             return;
         }
 
-        boolean chatOpen = GleamMinecraft.screen(client) instanceof ChatScreen;
+        boolean editing = OrionHudEditorScreen.editing(client);
         List<NearPlayer> nearPlayers = collectNearPlayers(client, player, config.getBetterNearRadius());
-        // При открытом чате панель видна даже пустой — чтобы её можно было перетащить.
-        if (nearPlayers.isEmpty() && !chatOpen) {
+        // В редакторе пустая панель остаётся доступной для перемещения.
+        if (nearPlayers.isEmpty() && !editing) {
             release();
             return;
         }
@@ -101,7 +99,7 @@ public final class OrionBetterNearHud {
 
         int x = effectiveX(context, config);
         int y = effectiveY(context, config);
-        var position=drag.update(context,x,y,guiWidth,guiHeight,configManager,(nx,ny)->{config.setBetterNearX(nx);config.setBetterNearY(ny);});
+        var position=drag.update(x,y,guiWidth,guiHeight,(nx,ny)->{config.setBetterNearX(nx);config.setBetterNearY(ny);});
         view.draw(context, scene, position.x(), position.y(), guiWidth, guiHeight);
     }
 
@@ -175,7 +173,7 @@ public final class OrionBetterNearHud {
     }
 
     private void release() {
-        drag.cancel(configManager);
+        drag.cancel();
         view.dispose();
     }
 }
