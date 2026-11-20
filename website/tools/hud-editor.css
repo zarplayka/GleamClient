@@ -1,6 +1,10 @@
 *{box-sizing:border-box}
 :root{color-scheme:dark;--accent:#b8a4ff;--edge:#ffffff24;--ink:#f3f2fb;font:14px "Segoe UI",sans-serif;color:var(--ink);background:#16161d}
-body{margin:0;height:100dvh;display:grid;grid-template-rows:64px minmax(0,1fr) 52px}
+body{margin:0}
+#hud-editor{position:fixed;inset:0;display:grid;grid-template:"toolbar" var(--toolbar-height,64px) "stage" minmax(0,1fr) "controls" var(--controls-height,52px) / minmax(0,1fr)}
+#hud-editor>header{grid-area:toolbar}
+#stage{grid-area:stage;min-height:0}
+#hud-editor>footer{grid-area:controls}
 header,footer{background:#17171e;display:flex;align-items:center;padding:0 clamp(12px,2.4vw,44px);gap:19px;z-index:2}
 header{border-bottom:1px solid var(--edge)}header i{height:22px;width:1px;background:var(--edge)}h1{font-size:14px;font-weight:500;color:#c7c5d1}
 .brand{font-size:20px;font-weight:700;letter-spacing:-1px;display:flex;align-items:center}.brand img{width:32px;height:32px;margin-right:9px}.brand span{color:var(--accent)}
@@ -16,4 +20,4 @@ main:before,.grid{content:"";position:absolute;inset:0;pointer-events:none}main:
 aside{position:absolute;z-index:6;right:14px;top:14px;width:min(248px,92%);max-height:calc(100% - 28px);overflow:auto;background:#202029fa;border:1px solid #ffffff33;border-radius:12px;padding:16px;box-shadow:0 10px 40px #0006}
 aside h2{font:600 16px "Segoe UI",sans-serif;margin:0;display:flex;align-items:center;justify-content:space-between}.close{font-size:20px;background:none;border:0;padding:0 4px;color:#bbb6c7}.option{width:100%;text-align:left;margin-top:5px;display:flex;justify-content:space-between}.option span{color:var(--accent)}aside label{display:block;margin-top:17px;color:#d8d4e5}aside output{float:right;color:var(--accent)}input[type=range]{width:100%;accent-color:var(--accent)}aside .remove{margin-top:15px;width:100%}
 footer{border-top:1px solid var(--edge);font-size:12px;color:#c0bccb;gap:15px}.seg{display:flex;background:#111118;border:1px solid var(--edge);padding:3px;border-radius:7px}.seg button{border:0;background:transparent;font-size:12px;padding:5px 9px}.seg .on{background:#393246;color:#dbcaff}footer select{font-size:12px;padding:3px 2px}.hint{margin:auto}kbd{border:1px solid var(--edge);border-radius:4px;padding:2px 4px}#saved{margin-left:auto;color:#c7bedb}.view footer{visibility:hidden}
-@media(max-width:650px){body{grid-template-rows:50px 1fr 48px}header,footer{gap:8px}.brand{font-size:16px}.brand img{width:23px;height:23px}h1,header i,.hint,#saved{display:none}.actions button{padding:7px;font-size:12px}}
+@media(max-width:650px){#hud-editor{--toolbar-height:50px;--controls-height:48px}header,footer{gap:8px}.brand{font-size:16px}.brand img{width:23px;height:23px}h1,header i,.hint,#saved{display:none}.actions button{padding:7px;font-size:12px}}

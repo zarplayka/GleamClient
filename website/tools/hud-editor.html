@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GleamClient · Редактор HUD</title><link rel="icon" href="../assets/orion-badge.png"><link rel="stylesheet" href="hud-editor.css">
+</head><body><div id="hud-editor">
 <header><div class="brand"><img src="../assets/orion-badge.png" alt="">Gleam<span>Client</span></div><i></i><h1>Редактор HUD</h1><div class="actions"><button id="preview">▷　Просмотр</button><button class="primary" id="library" aria-expanded="false">＋　Виджеты</button></div></header>
 <main id="stage"><div class="grid"></div><div id="layers"></div><div id="cross" aria-hidden="true">+</div>
 <aside id="panel" hidden></aside>
 </main>
 <footer><div class="seg"><button id="snap">⊞　Сетка</button><button id="free">↗　Свободно</button></div><label>Шаг <select id="step"><option>8</option><option>16</option><option>24</option><option>32</option></select> px</label><span class="hint"><kbd>Alt</kbd> свободное перемещение</span><span id="saved">●　Локальный макет</span></footer>
-<script src="hud-editor.js"></script></html>
+</div><script src="hud-editor.js"></script></body></html>
