@@ -43,14 +43,15 @@ const well=(x,y,w,h,radius)=>part('well',x,y,w,h,{radius});
 const keyPart=(text,x,y,w=17,mouse='')=>part('key',x,y,w,17,{text,mouse,radius:6,pressed:text==='W'});
 const icon=(path,x,y,size,fill=false)=>part('icon',x,y,size,size,{path,fill,color:'var(--accent)'});
 const art=(image,x,y,size)=>({image,x,y,size});
-const health='var(--accent)', muted='var(--muted)';
+const health='#b7df52', muted='var(--muted)';
 function targetScene(){
-  return [panelPart(164,59,8),well(7,7,24,24,5),
-    label('Quartz',37,6,61,14,10,'var(--text)','left',true),
-    icon(glyphs.heart,97,9,9),label('18 / 20',109,6,32,14,9,health,'right',true),
-    label('+2',142,6,15,14,7,'#e5ba76','right'),
-    label('3.8 m',37,20,40,10,7,muted),label('24 ms',112,20,45,10,7,muted,'right'),
-    box(7,36,150,4,2,'var(--line)'),box(7,36,135,4,2,health),box(142,36,15,4,2,'#e5ba76')];
+  return [panelPart(152,45,8),well(5,5,30,30,4),
+    label('Quartz',39,5,33,12,9,'var(--text)','left',true),
+    ...Array.from({length:4},(_,i)=>box(74+i*2,13-i*1.6,1.2,2+i*1.6,.55,'#67d99b')),
+    label('38',84,6,27,11,7,'#67d99b','left',true),
+    label('13.5',39,16,19,12,8,health,'left',true),
+    label('/ 20',59,16,24,12,8,muted),label('2.5 m',116,16,30,12,7.5,muted,'right'),
+    box(6,39,140,3,1.5,'#a3b39329'),box(6,39,95,3,1.5,health)];
 }
 const effects=[panelPart(110,53,5),icon(widgetGlyphs.potions,8,5,11),
   label('Эффекты',23,2,79,17,8,'var(--text)','left',true),rule(7,19,96)];
@@ -78,7 +79,7 @@ const catalog={
   status:{name:'HUD / MediaPlayer',w:366,h:34,x:.5,y:.055,on:true,island:true},
   keys:{name:'Keystrokes',w:55,h:55,x:.18,y:.31,on:true,parts:[keyPart('W',19,0),keyPart('A',0,19),keyPart('S',19,19),keyPart('D',38,19),keyPart('',19,38,36),keyPart('',0,38,17,'L')]},
   potions:{name:'Potions',w:110,h:53,x:.96,y:.32,on:true,parts:effects,art:[art(0,8,24,8),art(1,8,38,8)]},
-  target:{name:'TargetHud',w:164,h:59,x:.24,y:.64,on:true,parts:targetScene(),art:[art('face',8,8,22),...[7,8,9,10,3,5].map((id,i)=>art(id,9+25*i,43,13))]},
+  target:{name:'TargetHud',w:152,h:45,x:.24,y:.64,on:true,parts:targetScene(),art:[art('face',6,6,28),...[7,8,9,10,3,5].map((id,i)=>art(id,39+10*i,28,9))]},
   nearby:{name:'BetterNear',w:127,h:61,x:.035,y:.43,on:true,parts:near},
   inventory:{name:'InventoryHUD',w:178,h:80,x:.94,y:.83,on:true,parts:inventory,art:[3,4,5,6].map((id,i)=>art(id,5+i*19,21,16))},
   football:{name:'Football · счёт',w:67,h:18,x:.5,y:.32,on:false,parts:score('Голы: 2',widgetGlyphs.football)},

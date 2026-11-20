@@ -145,7 +145,6 @@ public final class OrionClient implements ClientModInitializer {
         new ru.orion.client.hud.OrionPotionsHud(configManager).register();
         targetHud.register();
         fakeBanCommand.register();
-        ru.orion.client.hud.OrionHudDrag.registerOverlay();
     }
 
     public static OrionClient getInstance() {

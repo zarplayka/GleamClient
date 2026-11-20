@@ -4,12 +4,10 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.effect.MobEffectInstance;
-import ru.orion.client.GleamMinecraft;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.gui.OrionGuiLanguage;
@@ -49,7 +47,7 @@ public final class OrionPotionsHud {
         var effects = client.player.getActiveEffects().stream().filter(MobEffectInstance::showIcon)
                 .sorted(Comparator.comparing(effect -> effect.getEffect().value().getDescriptionId()))
                 .map(effect -> describe(effect, tickRate)).toList();
-        if (effects.isEmpty() && !(GleamMinecraft.screen(client) instanceof ChatScreen)) {
+        if (effects.isEmpty() && !OrionHudEditorScreen.editing(client)) {
             release();
             return;
         }
@@ -103,7 +101,7 @@ public final class OrionPotionsHud {
     }
 
     private void release() {
-        drag.cancel(manager);
+        drag.cancel();
         view.dispose();
     }
 }

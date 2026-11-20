@@ -143,7 +143,8 @@ public final class OrionGlassCompositor {
         Minecraft client = Minecraft.getInstance();
         MaskTexture entry = masks.get(id);
         // Экран меню может размывать весь GUI отдельным проходом: оставляем ему управление фоном.
-        if (entry == null || (!screenGlass && GleamMinecraft.screen(client) != null && !(GleamMinecraft.screen(client) instanceof ChatScreen))
+        if (entry == null || (!screenGlass && GleamMinecraft.screen(client) != null
+                && !(GleamMinecraft.screen(client) instanceof ChatScreen) && !OrionHudEditorScreen.editing(client))
                 //? if >=26.2 {
                 || (!screenGlass && ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState().isHudHidden)) {
                 //?} else {

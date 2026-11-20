@@ -6,7 +6,7 @@ const clamp = (value,min=0,max=1) => Math.max(min,Math.min(max,value));
 const mix = (a,b,t) => a + (b-a)*t;
 let state = {}, phase = 0, speed = 0, lastFrame = 0;
 let mouse = {x:-1000,y:-1000}, hoverStarted = 0, lastHovered = -10000;
-let dragging = null, range = null, custom = null, lastLayout = '', position = 0, positionAt = 0;
+let range = null, lastLayout = '', position = 0, positionAt = 0;
 let lastAudible = .7, meterFrame = -1, currentBounds = null, displayedService = '';
 const clock = () => performance.now();
 const send = (action,values={}) => window.webkit?.messageHandlers?.paradox?.postMessage(JSON.stringify({action,...values}));
@@ -154,17 +154,19 @@ function layout() {
   if (scale <= 0) return currentBounds;
   const width = mix(CAP_W,FULL_W,phase), height = mix(active()?TRACK_H:HUD_H,expandedHeight,phase);
   const radius = mix(13,20,phase);
-  const edge = (FULL_W/2+SHOULDER)*scale;
+  const edge = width*scale/2;
   let center = window.innerWidth/2;
-  if (custom !== null || state.custom) center=(custom ?? Number(state.x))+CAP_W*scale/2;
-  else if (state.placement === 'TOP_LEFT') center=edge;
-  else if (state.placement === 'TOP_RIGHT') center=window.innerWidth-edge;
+  if (state.custom) center=(Number(state.x)||0)+CAP_W*scale/2;
+  else if (state.placement === 'TOP_LEFT') center=edge+SHOULDER*scale;
+  else if (state.placement === 'TOP_RIGHT') center=window.innerWidth-edge-SHOULDER*scale;
   center=clamp(center,edge,Math.max(edge,window.innerWidth-edge));
   const x = center-width*scale/2;
-  const signature = [x.toFixed(2),width.toFixed(2),height.toFixed(2),scale.toFixed(4)].join(',');
+  const y=clamp(Number(state.y)||0,0,Math.max(0,window.innerHeight-height*scale));
+  const signature = [x.toFixed(2),y.toFixed(2),width.toFixed(2),height.toFixed(2),scale.toFixed(4)].join(',');
   if (signature !== lastLayout) {
     island.style.setProperty('zoom',String(scale));
     island.style.left=x/scale+'px';
+    island.style.top=y/scale+'px';
     island.style.width=width+'px'; island.style.height=height+'px';
     surface.style.borderRadius='0 0 '+radius+'px '+radius+'px';
     compact.style.opacity=String(clamp(1-phase/.25));
@@ -172,8 +174,8 @@ function layout() {
     full.style.transform='translateY('+mix(-8,0,phase)+'px)';
     full.style.pointerEvents=phase>.95?'auto':'none';
     $('header').setAttribute('aria-expanded',String(phase>.95));
-    currentBounds={x,y:0,width:width*scale,height:height*scale,radius:radius*scale,scale,center,edge};
-    send('bounds',{x,y:0,width:width*scale,height:height*scale,radius:radius*scale});
+    currentBounds={x,y,width:width*scale,height:height*scale,radius:radius*scale};
+    send('bounds',currentBounds);
     lastLayout=signature;
   }
   return currentBounds;
@@ -233,22 +235,10 @@ document.addEventListener('pointerdown',event=>{
     setRange(event);
     return;
   }
-  if(!event.target.closest('button') && event.target.closest('[data-drag-handle]') && currentBounds) {
-    event.preventDefault();
-    dragging={x:event.clientX,center:currentBounds.center,moved:false};
-  }
 });
 document.addEventListener('pointermove',event=>{
   mouse={x:event.clientX,y:event.clientY};
-  if(range){setRange(event);return;}
-  if(!dragging || !currentBounds)return;
-  if(Math.abs(event.clientX-dragging.x)<4 && !dragging.moved)return;
-  dragging.moved=true;
-  const bounds=currentBounds;
-  const center=clamp(dragging.center+event.clientX-dragging.x,bounds.edge,Math.max(bounds.edge,window.innerWidth-bounds.edge));
-  custom=center-CAP_W*bounds.scale/2;
-  island.setAttribute('data-dragging','');
-  layout();
+  if(range)setRange(event);
 });
 function release(event) {
   if(event.button!==0)return;
@@ -259,17 +249,10 @@ function release(event) {
     if(finished.source===state.source && (finished.kind==='volume'||finished.track===track(state)))
       send(finished.kind,{source:finished.source,value:finished.kind==='seek'?finished.value*(Number(state.duration)||0):finished.value,final:true});
   }
-  if(dragging) {
-    if(dragging.moved && custom!==null)send('move',{x:custom});
-    dragging=null; island.removeAttribute('data-dragging');
-  }
 }
 function cancelPointer() {
   if(range)range.element.removeAttribute('data-dragging');
-  if(dragging)custom=null;
   range=null;
-  dragging=null;
-  island.removeAttribute('data-dragging');
 }
 document.addEventListener('pointerup',release);
 document.addEventListener('pointercancel',cancelPointer);
@@ -316,7 +299,6 @@ window.paradox={
       // Сворачиваем шторку из её текущего положения.
       speed=Math.min(speed,0);
     }
-    if(!dragging && (next.x!==state.x || next.custom!==state.custom || next.placement!==state.placement))custom=null;
     if(sourceChanged)lastAudible=Number(next.volume)>.001?Number(next.volume):.7;
     state=next;refresh();layout();
   }

@@ -97,7 +97,6 @@
     "InventoryAnimatedInputMixin",
     "InventoryAnimatedContentsMixin",
     "OrionContainerGeometryAccessor",
-    "ChatHudDragMixin",
     "OrionMouseHandlerAccessor",
     "BasketballFirstPersonMixin",
     "BasketballInteractionMixin",
