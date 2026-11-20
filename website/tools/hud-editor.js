@@ -95,8 +95,8 @@ const catalog={
     art:[3,4,5,6].map((id,i)=>art(id,3+i*20,3,16))},
   chat:{name:'Уведомление чата',w:286,h:76,x:.99,y:.99,fixed:true,template:'chat-notification.html',
     state:{title:'Quartz',detail:'Готов зайти в мир?'}},
-  invite:{name:'Приглашение в мир',w:328,h:79,x:.99,y:.01,fixed:true,template:'world-invite.html',
-    state:{title:'Quartz приглашает в мир',world:'Летний мир · Minecraft 26.3',hint:'Удерживай клавишу, чтобы принять',
+  invite:{name:'Приглашение в мир',w:312,h:100,x:.99,y:.08,fixed:true,template:'world-invite.html',
+    state:{title:'Quartz приглашает в мир',world:'Летний мир · Minecraft 26.3',hint:'Удерживай, чтобы принять',
       key:true,keyboard:true,keyLabel:'Y',initial:'Q',remaining:.75,hold:0,opacity:1,offset:0}}
 };
 const previewTheme=`
@@ -125,7 +125,73 @@ const previewTheme=`
     stroke-linecap: round; stroke-linejoin: round;
     width: 10px; height: 10px;
   }
+  .invite {
+    --action-bg: #a78cff12;
+    width: calc(100% - 4px); height: 96px; margin: 2px;
+    padding: 11px 13px;
+    border-radius: 11px; background: #181626f6;
+  }
+  .invite .main { gap: 10px; }
+  .invite .copy { padding-right: 2px; }
+  .invite .face {
+    width: 35px; height: 35px; border-radius: 8px;
+    border-color: #ac91ff39; background: #a586ff1e; font-size: 15px;
+  }
+  .invite #title { font-size: 13px; line-height: 17px; }
+  .invite #world { font-size: 11px; line-height: 15px; }
+  .invite-action {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 9px; padding: 4px 7px;
+    background: var(--action-bg); border-radius: 6px;
+  }
+  .invite-action #hint {
+    margin: 0; color: #e5dcfb; line-height: 15px;
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .invite-action .hold-key {
+    position: relative; inset: auto; flex: 0 0 21px;
+    width: 21px; height: 18px; border-color: #b298ff68;
+    background: #191624; color: #f4edff; font-weight: 700;
+  }
+  .invite-action #fill { background: #a687ff; opacity: .66; }
+  .invite .countdown { left: 13px; right: 13px; bottom: 7px; }
+  .invite #remaining { opacity: .42; }
 `;
+let invitePreview;
+
+function setupInvitePreview(doc,view,state){
+  const action=doc.createElement('div');
+  action.className='invite-action';
+  action.append(doc.getElementById('key'),doc.getElementById('hint'));
+  doc.getElementById('card').append(action);
+  doc.querySelector('.dismiss').hidden=true;
+  invitePreview={view,state};
+}
+
+let inviteHoldFrame=0;
+function stopInviteHold(){
+  if(!inviteHoldFrame)return;
+  cancelAnimationFrame(inviteHoldFrame);
+  inviteHoldFrame=0;
+  invitePreview.view.update(invitePreview.state);
+}
+
+document.addEventListener('keydown',event=>{
+  if(event.code!=='KeyY'||!viewing||!models.invite.on||!invitePreview||event.repeat
+     ||event.altKey||event.ctrlKey||event.metaKey||inviteHoldFrame)return;
+  const started=performance.now();
+  const {view,state}=invitePreview;
+  function tick(now){
+    const hold=clamp((now-started)/830,0,1);
+    if(!viewing||!models.invite.on){stopInviteHold();return;}
+    view.update({...state,hold,hint:hold===1?'Принято в макете':state.hint});
+    if(hold<1)inviteHoldFrame=requestAnimationFrame(tick);
+  }
+  inviteHoldFrame=requestAnimationFrame(tick);
+});
+document.addEventListener('keyup',event=>{if(event.code==='KeyY')stopInviteHold();});
+window.addEventListener('blur',stopInviteHold);
+
 function mountScene(el,def,track=false){
   const unit=def.island?.85:def.template?1:1.32;
   const surface=document.createElement('div');
@@ -146,6 +212,7 @@ function mountScene(el,def,track=false){
       media:track,active:track,playing:track,title:'Midnight City',artist:'M83',source:'Spotify',position:83,duration:244}
       :def.state||{parts:def.parts};
     const view=frame.contentWindow.paradox;
+    if(def.template==='world-invite.html')setupInvitePreview(doc,view,state);
     view.update(state);
     if(el.dataset.key==='keys'){
       const mouse=doc.querySelector('.key .mouse');
@@ -417,6 +484,7 @@ $('arrange').onclick=()=>{
   $('layout').open=false;redraw();save();
 };
 function preview(){
+  stopInviteHold();
   clear();viewing=!viewing;document.body.classList.toggle('view',viewing);layers.inert=viewing;
   redraw();
   $('library').hidden=viewing;
