@@ -50,8 +50,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-v
   display: block; flex: none; width: 14px; height: 14px;
   fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
-.tag-name, #preview, .seg button { display: inline-flex; align-items: center; gap: 6px; }
-.tag-name .widget-icon { width: 16px; height: 16px; fill: #d8cdff; fill-rule: evenodd; stroke: none; }
+.tag-name, #preview, .seg button { display: inline-flex; align-items: center; gap: 5px; }
+.widget-tag .tag-name { gap: 3px; }
+.tag-name .widget-icon { width: 12px; height: 12px; stroke-width: 1.7; }
+.widget-tag .widget-icon { width: 10px; height: 10px; opacity: .88; }
 .seg { display: flex; padding: 3px; background: #161624eb; border-radius: 20px; }
 .seg button { border: 0; border-radius: 15px; min-height: 23px; padding: 2px 10px; color: var(--muted); background: transparent; font-size: 11px; }
 .seg button.on { background: #7358d4; color: #fff; }
@@ -90,8 +92,9 @@ button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-v
   display: grid; place-items: center; min-height: 15px; width: 15px; padding: 0;
   border-radius: 50%; background: #171725d6; color: var(--accent); line-height: 1; font-size: 10px;
 }
-.widget-tag button .ui-icon { width: 11px; height: 11px; }
-.inactive .widget-tag { opacity: .62; }
+.widget-tag button { color: #e2ddeb; }
+.widget-tag button .ui-icon { width: 9px; height: 9px; stroke-width: 1.7; }
+.inactive .widget-tag { opacity: .42; }
 .inactive .scene { opacity: .15; }
 .inactive:hover .widget-tag, .inactive:focus-within .widget-tag { opacity: 1; }
 .handle {

@@ -13,23 +13,23 @@ const glyphs={
   check:'m4 10 4 4 8-8'
 };
 const widgetGlyphs={
-  status:'M2 12h4v5H2zM8 8h4v9H8zM14 3h4v14h-4z',
-  keys:'M8 4h4v5H8zM2 11h4v5H2zM8 11h4v5H8zM14 11h4v5h-4z',
-  potions:'M7 2h6v2h-1v4l4 5a3 3 0 0 1-2 5H6a3 3 0 0 1-2-5l4-5V4H7zm3 6-3 4h6z',
-  target:'M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 2.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 3a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z',
-  nearby:'M10 2a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM3 17a7 7 0 0 1 14 0z',
-  inventory:'M2 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3H2zm0 5h6v3h4v-3h6v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z',
-  football:'M2 5h16v11h-3V8H5v8H2z',
-  basketball:'M4 3h12v2H4zm-2 5h16v3H2zm3 4h10l-2 5H7z',
-  scoreboard:'M3 4h3v3H3zm5 0h9v3H8zm-5 5h3v3H3zm5 0h9v3H8zm-5 5h3v3H3zm5 0h9v3H8z',
-  hotbar:'M2 7h4v6H2zm6 0h4v6H8zm6 0h4v6h-4z',
-  chat:'M3 3h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H8l-5 4v-4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm2 4v2h10V7zm0 4v1h6v-1z',
-  invite:'M2 4h16l-8 7zm0 3 8 6 8-6v9H2z'
+  status:'M2 10h4l2-6 4 12 2-6h4',
+  keys:'M7 7h6v6H7zM7 7H5a2 2 0 1 1 2-2zm6 0V5a2 2 0 1 1 2 2zm0 6h2a2 2 0 1 1-2 2zm-6 0v2a2 2 0 1 1-2-2z',
+  potions:'M10 3c2.7 3.5 5 6.1 5 9a5 5 0 1 1-10 0c0-2.9 2.3-5.5 5-9z',
+  target:'M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0zM12.5 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z',
+  nearby:'M12 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM4 16v-1a5.5 5.5 0 0 1 11 0v1m0-10a2 2 0 0 1 0 4m1 2a3 3 0 0 1 2 3',
+  inventory:'M4 8h12l1 8H3zm3 0V6a3 3 0 0 1 6 0v2',
+  football:'M3 16V5h14v11M3 11h14',
+  basketball:'M5 4h10M3 8h14m-12 0 2 8h6l2-8M10 8v8',
+  scoreboard:'M4 5h12M4 10h9M4 15h6m3 0 2 2 3-4',
+  hotbar:'M2 7h16v6H2zm5 0v6m6-6v6',
+  chat:'M3 4h14v10H8l-4 3v-3H3zm3 4h8m-8 3h5',
+  invite:'M3 5h14v10H3zm0 0 7 6 7-6'
 };
 function uiIcon(name){
-  const silhouette=widgetGlyphs[name];
-  return '<svg class="ui-icon'+(silhouette?' widget-icon':'')+'" viewBox="0 0 20 20" aria-hidden="true">'
-    +'<path d="'+(silhouette||glyphs[name])+'"/></svg>';
+  const widgetGlyph=widgetGlyphs[name];
+  return '<svg class="ui-icon'+(widgetGlyph?' widget-icon':'')+'" viewBox="0 0 20 20" aria-hidden="true">'
+    +'<path d="'+(widgetGlyph||glyphs[name])+'"/></svg>';
 }
 // The local redesign uses the same readouts as the game with its own layout.
 const part=(kind,x,y,w,h,props={})=>({kind,x,y,w,h,...props});
