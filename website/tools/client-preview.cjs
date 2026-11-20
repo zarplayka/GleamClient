@@ -24,6 +24,17 @@ const routes = new Map([
   ['/clickgui/assets/world.webp', tools('launcher-background-26-3.webp')]
 ]);
 const badge = game('textures/cosmetics/orion_badge.png');
+for (const name of ['hud-editor.html', 'hud-editor.css', 'hud-editor.js', 'hud-editor-items.png',
+  'launcher-default-skin.png']) routes.set('/tools/'+name, tools(name));
+routes.set('/assets/gameplay-baseline.webp', tools('../assets/gameplay-baseline.webp'));
+routes.set('/assets/orion-badge.png', badge);
+routes.set('/editor-live/widgets.html', game('html/hud-widgets.html'));
+routes.set('/editor-live/hud-theme.css', game('html/hud-theme.css'));
+routes.set('/editor-live/potions.png', game('textures/gui/potions_hud.png'));
+routes.set('/editor-live/island/', game('html/hud-island/index.html'));
+for (const name of ['style.css','island.js']) routes.set('/editor-live/island/'+name, game('html/hud-island/'+name));
+routes.set('/editor-live/island/assets/gleam-hud-badge.png', badge);
+for (const font of ['Regular','Bold']) routes.set('/editor-live/fonts/paradox/ParadoxSans-'+font+'.ttf', game('fonts/paradox/ParadoxSans-'+font+'.ttf'));
 for (const [screen, name] of [['clickgui', 'orion-badge'], ['title', 'gleam-title-badge'], ['hud', 'gleam-hud-badge']]) {
   routes.set(`/${screen}/assets/${name}.png`, badge);
 }
@@ -46,6 +57,7 @@ const subscribers = new Set();
 const adapter = '<script defer src="/client-preview.js"></script>';
 
 function browserDocument(route, html) {
+  if (route.startsWith('/editor-live/') || route === '/tools/hud-editor.html') return html;
   if (route === '/clickgui/') {
     return html.replace('<script defer src="catalog.js"></script>', '<link rel="stylesheet" href="lumen.css">')
       .replace('</head>', `<script defer src="game.js"></script>${adapter}</head>`);
