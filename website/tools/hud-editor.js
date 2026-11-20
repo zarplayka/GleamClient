@@ -2,6 +2,29 @@
 const $ = id => document.getElementById(id);
 const stage = $('stage'), panel = $('panel'), layers = $('layers');
 const clamp = (n,min,max) => Math.max(min,Math.min(max,n));
+const glyphs={
+  grid:'M3 3h14v14H3zM10 3v14M3 10h14',
+  move:'M3 8V3h5m4 0h5v5m0 4v5h-5m-4 0H3v-5',
+  add:'M10 5v10M5 10h10',
+  close:'m6 6 8 8m0-8-8 8',
+  more:'M4 10h.01M10 10h.01M16 10h.01',
+  eye:'M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Zm10 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z',
+  edit:'m5 12 8-8 3 3-8 8-4 1zM11.5 5.5l3 3',
+  check:'m4 10 4 4 8-8',
+  status:'M2 10h4l2-5 4 10 2-5h4',
+  keys:'M2 6h16v9H2zM5 9h.01m3 0h.01m4 0h.01m3 0h.01M6 12h8',
+  potions:'M7 3h6m-5 0v5l-4 5a2 2 0 0 0 2 3h8a2 2 0 0 0 2-3l-4-5V3M6 12h8',
+  target:'M10 3v3m0 8v3M3 10h3m8 0h3M15 10a5 5 0 1 1-10 0 5 5 0 0 1 10 0Z',
+  nearby:'M2 15v-1a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1m2-4a3 3 0 0 1 3 3v1M9 6.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm4-2a2 2 0 0 1 0 4',
+  inventory:'M3 5h14v10H3zM3 9h14m-6 0v2H9V9',
+  football:'M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Zm-6-3 3 2-1 3H8L7 9zm0 0V4m3 5 3-1m-4 4 2 3m-6-3-2 3M7 9 4 8',
+  basketball:'M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM4 10h12M10 4v12M6 6c3 1 3 7 0 8m8-8c-3 1-3 7 0 8',
+  scoreboard:'M4 5h12M4 10h12M4 15h12',
+  hotbar:'M2 7h16v6H2zM7 7v6m6-6v6',
+  chat:'M3 4h14v10H8l-4 3v-3H3zM6 8h8m-8 3h5',
+  invite:'M3 5h14v10H3zm0 0 7 6 7-6'
+};
+const uiIcon=name=>'<svg class="ui-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="'+glyphs[name]+'"/></svg>';
 // The local redesign uses the same readouts as the game with its own layout.
 const part=(kind,x,y,w,h,props={})=>({kind,x,y,w,h,...props});
 const panelPart=(w,h,radius=7)=>part('panel',0,0,w,h,{radius});
@@ -20,26 +43,27 @@ function targetScene(){
     label('3.8 m',37,20,40,10,7,muted),label('24 ms',112,20,45,10,7,muted,'right'),
     box(7,36,150,4,2,'#ffffff20'),box(7,36,135,4,2,'#8967ef'),box(142,36,15,4,2,'#e5ba76')];
 }
-const effects=[panelPart(110,53,5),label('Эффекты',23,2,73,17,8,'var(--text)','left',true),rule(7,19,96)];
+const effects=[panelPart(110,53,5),icon(glyphs.potions,7,5,11),
+  label('Эффекты',23,2,73,17,8,'var(--text)','left',true),rule(7,19,96)];
 for(const [index,[name,time]] of [['Скорость 2','1:42'],['Сила 1','0:38']].entries()){
   const y=21+14*index;
   effects.push(label(name,19,y,63,13,7),part('timer',79,y+1,23,11,{text:time}));
 }
-const near=[panelPart(127,61,5),icon('M2 10h16M10 2v16M10 5a5 5 0 1 0 .01 0Z',8,6,10),label('Игроки рядом',23,3,81,17,8,'var(--text)','left',true),
+const near=[panelPart(127,61,5),icon(glyphs.nearby,7,5,12),label('Игроки рядом',23,3,81,17,8,'var(--text)','left',true),
   rule(8,22,111),label('2',105,4,14,15,7,'var(--accent)','right',true)];
 for(const [i,[name,distance]] of [['Quartz','8'],['Nova','21']].entries()){
   const y=25+i*16;
   if(i)near.push(rule(7,y-1,113));
-  near.push(icon(i?'M10 2l6 14-6-3-6 3Z':'M16 4l-4 14-2-6-6-2Z',11,y+3,9,true),label(name,24,y,65,15,8),
+  near.push(icon(i?'m5 11 5-5 5 5M10 6v9':'m7 6 7 0v7M14 6l-8 8',9,y+2,11),label(name,24,y,65,15,8),
     label(distance,80,y,28,15,8,'var(--text)','right',true),label('m',110,y,7,15,6.5,muted));
 }
-const inventory=[panelPart(178,80,5),label('Инвентарь',6,1,120,15,8,'var(--text)','left',true),
+const inventory=[panelPart(178,80,5),icon(glyphs.inventory,6,3,11),label('Инвентарь',21,1,120,15,8,'var(--text)','left',true),
   rule(5,16,168),...Array.from({length:27},(_,i)=>box(4+i%9*19,20+Math.floor(i/9)*19,18,18,2,'#ffffff10'))];
 function score(text){return [panelPart(67,18,4),box(2,4,2,10,1,'var(--accent)'),label(text,7,0,55,18,8,'var(--text)','center',true)];}
 const catalog={
   status:{name:'HUD / MediaPlayer',w:366,h:34,x:.5,y:.055,on:true,island:true},
   keys:{name:'Keystrokes',w:55,h:55,x:.18,y:.31,on:true,parts:[keyPart('W',19,0),keyPart('A',0,19),keyPart('S',19,19),keyPart('D',38,19),keyPart('',19,38,36),keyPart('',0,38,17,'L')]},
-  potions:{name:'Potions',w:110,h:53,x:.96,y:.32,on:true,parts:effects,art:[art('potion',8,6,9),art(0,8,24,8),art(1,8,38,8)]},
+  potions:{name:'Potions',w:110,h:53,x:.96,y:.32,on:true,parts:effects,art:[art(0,8,24,8),art(1,8,38,8)]},
   target:{name:'TargetHud',w:164,h:59,x:.24,y:.64,on:true,parts:targetScene(),art:[art('face',8,8,22),...[7,8,9,10,3,5].map((id,i)=>art(id,9+25*i,43,13))]},
   nearby:{name:'BetterNear',w:127,h:61,x:.035,y:.43,on:true,parts:near},
   inventory:{name:'InventoryHUD',w:178,h:80,x:.94,y:.83,on:true,parts:inventory,art:[3,4,5,6].map((id,i)=>art(id,5+i*19,21,16))},
@@ -114,8 +138,7 @@ function mountScene(el,def,track=false){
     if(image==='face'){
       overlay.style.backgroundImage="url('launcher-default-skin.png')";
       overlay.style.backgroundSize=(size*8)+'px';overlay.style.backgroundPosition=(-size)+'px '+(-size)+'px';
-    }else if(image==='potion'){overlay.style.backgroundImage="url('/editor-live/potions.png')";overlay.style.backgroundSize='contain';}
-    else{
+    }else{
       const original=image<3?18:16, zoom=size/original;
       overlay.style.backgroundImage="url('hud-editor-items.png')";
       overlay.style.backgroundSize=(220*zoom)+'px '+(20*zoom)+'px';
@@ -147,10 +170,10 @@ for(const [id,def] of Object.entries(catalog)){
   if(def.fixed){el.classList.add('fixed-widget');}
   else{
     el.tabIndex=0;
-    el.innerHTML='<div class="widget-tag"><span></span><button class="toggle-widget"></button></div>'
+    el.innerHTML='<div class="widget-tag"><span class="tag-name">'+uiIcon(id)+'<span></span></span><button class="toggle-widget"></button></div>'
       +'<button class="handle" title="Изменить размер" aria-label="Изменить размер"></button>';
     const tag=el.querySelector('.widget-tag');
-    tag.firstElementChild.textContent=name;
+    tag.querySelector('.tag-name > span').textContent=name;
     tag.lastElementChild.onclick=()=>{model.on=!model.on;clear();place(id);updateCount();save();};
   }
   if(def.island)model.track=s.track===true;
@@ -176,7 +199,7 @@ function place(id){
   if(!fixed){
     const toggle=el.querySelector('.toggle-widget');
     const action=m.on?'Скрыть':'Показать';
-    toggle.textContent=m.on?'×':'+';
+    toggle.innerHTML=uiIcon(m.on?'close':'add');
     toggle.setAttribute('aria-label',action+' '+catalog[id].name);
     toggle.title=action;
   }
@@ -204,7 +227,7 @@ function clear(){
 }
 function openPanel(title,content){
   $('layout').open=false;
-  panel.innerHTML='<h2>'+title+'<button class="close" aria-label="Закрыть">×</button></h2>'+content;
+  panel.innerHTML='<h2>'+title+'<button class="close" aria-label="Закрыть">'+uiIcon('close')+'</button></h2>'+content;
   panel.hidden=false;panel.querySelector('.close').onclick=clear;
 }
 function inspect(id){
@@ -243,12 +266,13 @@ function library(){
   const wasOpen=$('library').getAttribute('aria-expanded')==='true';clear();if(wasOpen)return;
   $('library').setAttribute('aria-expanded','true');
   const entries=Object.entries(catalog);
-  const buttons=items=>items.map(([id,{name}])=>'<button class="option" data-id="'+id+'" aria-pressed="'+models[id].on+'">'+name+'<span>'+(models[id].on?'✓':'＋')+'</span></button>').join('');
+  const buttons=items=>items.map(([id,{name}])=>'<button class="option" data-id="'+id+'" aria-pressed="'+models[id].on+'">'
+    +'<span class="tag-name">'+uiIcon(id)+name+'</span><span>'+uiIcon(models[id].on?'check':'add')+'</span></button>').join('');
   openPanel('Виджеты',buttons(entries.filter(([,def])=>!def.fixed))
     +'<h3>Экранные оверлеи</h3>'+buttons(entries.filter(([,def])=>def.fixed)));
   panel.querySelectorAll('.option').forEach(btn=>btn.onclick=()=>{
     const id=btn.dataset.id;models[id].on=!models[id].on;place(id);updateCount();save();
-    btn.setAttribute('aria-pressed',models[id].on);btn.lastElementChild.textContent=models[id].on?'✓':'＋';
+    btn.setAttribute('aria-pressed',models[id].on);btn.lastElementChild.innerHTML=uiIcon(models[id].on?'check':'add');
   });
 }
 layers.onpointerdown=e=>{
@@ -311,10 +335,16 @@ $('arrange').onclick=()=>{
 function preview(){
   clear();viewing=!viewing;document.body.classList.toggle('view',viewing);layers.inert=viewing;
   redraw();
-  $('library').hidden=viewing;$('preview').textContent=viewing?'Вернуться к редактированию':'Просмотр';
+  $('library').hidden=viewing;
+  $('preview').innerHTML=uiIcon(viewing?'edit':'eye')+(viewing?'Вернуться к редактированию':'Просмотр');
   $('preview').setAttribute('aria-pressed',viewing);
 }
 $('preview').onclick=preview;
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(viewing)preview();else clear();}});
 new ResizeObserver(()=>{redraw();if(selected)updateCoordinates(selected);}).observe(stage);
+$('snap').insertAdjacentHTML('afterbegin',uiIcon('grid'));
+$('free').insertAdjacentHTML('afterbegin',uiIcon('move'));
+$('library').innerHTML=uiIcon('add');
+$('layout').querySelector('summary').innerHTML=uiIcon('more');
+$('preview').insertAdjacentHTML('afterbegin',uiIcon('eye'));
 mode();redraw();updateCount();

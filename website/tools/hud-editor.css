@@ -46,11 +46,17 @@ button, select, summary {
 }
 button:hover, select:hover, summary:hover { background: #343048; }
 button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ui-icon {
+  display: block; flex: none; width: 1em; height: 1em;
+  fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round;
+}
+.tag-name, #preview, .seg button { display: inline-flex; align-items: center; gap: 5px; }
+.tag-name .ui-icon { color: var(--accent); }
 .seg { display: flex; padding: 3px; background: #161624eb; border-radius: 20px; }
 .seg button { border: 0; border-radius: 15px; min-height: 23px; padding: 2px 10px; color: var(--muted); background: transparent; font-size: 11px; }
 .seg button.on { background: #7358d4; color: #fff; }
 #library, #layout summary { display: grid; place-items: center; width: 26px; padding: 0; border-radius: 50%; }
-#library { font-size: 17px; }
+#library, #layout summary { font-size: 15px; }
 #layout { position: relative; }
 #layout summary::-webkit-details-marker { display: none; }
 .layout-options {
@@ -82,7 +88,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-v
 }
 .widget-tag button {
   display: grid; place-items: center; min-height: 15px; width: 15px; padding: 0;
-  border-radius: 50%; background: #171725d6; color: var(--accent); line-height: 1;
+  border-radius: 50%; background: #171725d6; color: var(--accent); line-height: 1; font-size: 10px;
 }
 .inactive { opacity: .32; }
 .inactive .scene { opacity: .25; }
@@ -100,13 +106,13 @@ aside {
 }
 aside h2 { font-size: 15px; margin: 0 0 10px; display: flex; align-items: center; justify-content: space-between; }
 aside h3 { margin: 16px 0 5px; font-size: 11px; color: var(--muted); font-weight: 600; }
-.close { font-size: 19px; border: 0; padding: 0 8px; color: var(--muted); }
+.close { display: grid; place-items: center; font-size: 14px; border: 0; padding: 0 8px; color: var(--muted); }
 .option {
   width: 100%; text-align: left; margin-block: 3px;
   display: flex; justify-content: space-between; align-items: center; gap: 8px;
 }
-.option span { color: var(--muted); }
-.option[aria-pressed="true"] span { color: var(--accent); }
+.option > span:last-child { color: var(--muted); }
+.option[aria-pressed="true"] > span:last-child { color: var(--accent); }
 aside label { display: block; margin-top: 12px; color: var(--muted); }
 aside output { float: right; color: var(--accent); font: 12px Consolas, monospace; }
 input[type=range] { display: block; width: 100%; margin: 8px 0; }
