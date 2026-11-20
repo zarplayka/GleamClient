@@ -43,14 +43,14 @@ const well=(x,y,w,h,radius)=>part('well',x,y,w,h,{radius});
 const keyPart=(text,x,y,w=17,mouse='')=>part('key',x,y,w,17,{text,mouse,radius:6,pressed:text==='W'});
 const icon=(path,x,y,size,fill=false)=>part('icon',x,y,size,size,{path,fill,color:'var(--accent)'});
 const art=(image,x,y,size)=>({image,x,y,size});
-const health='#a892ff', muted='var(--muted)';
+const health='var(--accent)', muted='var(--muted)';
 function targetScene(){
   return [panelPart(164,59,8),well(7,7,24,24,5),
     label('Quartz',37,6,61,14,10,'var(--text)','left',true),
     icon(glyphs.heart,97,9,9),label('18 / 20',109,6,32,14,9,health,'right',true),
     label('+2',142,6,15,14,7,'#e5ba76','right'),
     label('3.8 m',37,20,40,10,7,muted),label('24 ms',112,20,45,10,7,muted,'right'),
-    box(7,36,150,4,2,'#ffffff20'),box(7,36,135,4,2,'#8967ef'),box(142,36,15,4,2,'#e5ba76')];
+    box(7,36,150,4,2,'var(--line)'),box(7,36,135,4,2,health),box(142,36,15,4,2,'#e5ba76')];
 }
 const effects=[panelPart(110,53,5),icon(widgetGlyphs.potions,8,5,11),
   label('Эффекты',23,2,79,17,8,'var(--text)','left',true),rule(7,19,96)];
@@ -100,25 +100,24 @@ const catalog={
       key:true,keyboard:true,keyLabel:'Y',initial:'Q',remaining:.75,hold:0,opacity:1,offset:0}}
 };
 const previewTheme=`
-  html:root {
-    --accent: #ab95ff !important;
-    --text: #f4f1ff;
-    --muted: #bbb3cb;
-    --line: #e9ddff20;
-    --top: #191826;
-    --surface: #191826;
-    --hud-panel: #171624de;
-    --hud-glass: #171624b8;
-    --hud-selected: #8e69ee42;
+  html:root[data-local-hud] {
+    --accent: var(--preview-accent) !important;
+    --text: var(--preview-ink);
+    --muted: var(--preview-muted);
+    --line: var(--preview-edge);
+    --top: var(--preview-surface);
+    --surface: var(--preview-surface);
+    --hud-panel: var(--preview-glass);
+    --hud-glass: var(--preview-glass);
+    --hud-selected: var(--preview-accent-soft);
   }
-  .panel, .surface, .toast, .invite { box-shadow: inset 0 0 0 1px #dfd1ff1b; }
+  .panel, .surface, .toast, .invite { box-shadow: inset 0 0 0 1px var(--line); }
   .key { border-radius: 3px !important; }
-  .key[data-pressed] { border-color: #a184f9; color: #f4edff; }
-  .timer { background: #ac8bff29; color: #eee5ff; font-size: 6.4px; }
+  .key[data-pressed] { border-color: var(--preview-accent-line); color: var(--text); }
+  .timer { background: var(--hud-selected); color: var(--accent); font-size: 6.4px; }
   .timer > i { width: 3px; height: 3px; }
   #island .surface { border-radius: 21px !important; }
   #island .shoulder { display: none; }
-  #island .brand img { filter: drop-shadow(0 0 4px #8967ef); }
   #island .metric > span:first-child { font-weight: 700; color: var(--accent); }
   .key .mouse .ui-icon {
     display: block; fill: none; stroke: currentColor; stroke-width: 1.7;
@@ -126,32 +125,32 @@ const previewTheme=`
     width: 10px; height: 10px;
   }
   .invite {
-    --invite-accent: #65d7a0;
     width: calc(100% - 4px); height: 66px; margin: 2px;
     padding: 9px 51px 10px 11px;
     display: flex; align-items: center;
-    border-radius: 14px; background: #0f1216f4;
-    box-shadow: inset 0 0 0 1px #edf7f217;
+    border-radius: 14px;
   }
   .invite .main { gap: 9px; width: 100%; min-width: 0; }
   .invite .face {
     width: 32px; height: 32px; border-radius: 7px;
-    border: 1px solid #65d7a0b3;
+    border: 1px solid var(--preview-accent-line);
     background: #182322 url('/tools/launcher-default-skin.png') -29px -29px / 240px 240px;
     image-rendering: pixelated;
   }
   .invite .face #initial { display: none; }
   .invite #title { font-size: 12px; line-height: 15px; }
-  .invite #world { color: #aab2b6; font-size: 10.5px; line-height: 13px; margin-top: 1px; }
-  .invite #hint { color: var(--invite-accent); font-size: 10px; line-height: 13px; margin-top: 1px; }
+  .invite #world { color: var(--muted); font-size: 10.5px; line-height: 13px; margin-top: 1px; }
+  .invite #hint { color: var(--accent); font-size: 10px; line-height: 13px; margin-top: 1px; }
   .invite .hold-key {
     top: 20px; right: 19px; width: 26px; height: 26px; border-radius: 50%;
     border-color: #f5fffa33; background: #f0fffa10; color: #f0f9f5; font-size: 11px; font-weight: 700;
   }
-  .invite #fill { background: var(--invite-accent); opacity: .48; }
+  .invite #fill { background: var(--accent); opacity: .48; }
   .invite .countdown { left: 13px; right: 13px; bottom: 5px; height: 1px; }
-  .invite #remaining { height: 1px; background: var(--invite-accent); }
+  .invite #remaining { height: 1px; background: var(--accent); }
 `;
+const editorTheme=getComputedStyle(document.documentElement);
+const previewColors=['accent','ink','muted','edge','surface','glass','accent-soft','accent-line'];
 let invitePreview;
 let inviteDismissed=false;
 
@@ -197,10 +196,15 @@ function mountScene(el,def,track=false){
   frame.onload=()=>{
     const doc=frame.contentDocument;
     doc.documentElement.style.colorScheme='dark';
+    doc.documentElement.setAttribute('data-local-hud','');
+    for(const color of previewColors){
+      doc.documentElement.style.setProperty('--preview-'+color,editorTheme.getPropertyValue('--'+color));
+    }
     const style=doc.createElement('style');
     style.textContent=el.dataset.key==='scoreboard'?'.label{font-family:Consolas,monospace;text-shadow:1px 1px #222}':previewTheme;
     doc.head.append(style);
     const state=def.island?{hud:true,version:'0.2.39',username:'Quartz',fps:144,ping:24,scale:1,animated:false,placement:'TOP_CENTER',
+      accent:editorTheme.getPropertyValue('--accent').trim(),
       media:track,active:track,playing:track,title:'Midnight City',artist:'M83',source:'Spotify',position:83,duration:244}
       :def.state||{parts:def.parts};
     const view=frame.contentWindow.paradox;
