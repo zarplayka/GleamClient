@@ -10,6 +10,7 @@
   --edge: #edf7f226;
   --accent-soft: #65d7a021;
   --accent-line: #65d7a0b3;
+  --ease-out: cubic-bezier(.2,.75,.25,1);
   font: 13px "Segoe UI", sans-serif;
   color: var(--ink);
   background: var(--surface);
@@ -27,13 +28,15 @@ body { margin: 0; }
 #stage::after {
   z-index: -1; content: "";
   background: linear-gradient(180deg, #2c3a3980, #151c1d65 42%, #0c1112d1);
+  transition: opacity 260ms var(--ease-out);
 }
 #stage::before { z-index: -2; }
 .grid {
   background-image: linear-gradient(#d8eae210 1px, transparent 1px), linear-gradient(90deg, #d8eae210 1px, transparent 1px);
   background-size: var(--step, 16px) var(--step, 16px);
+  transition: opacity 180ms var(--ease-out);
 }
-.free .grid, .view .grid { display: none; }
+.free .grid, .view .grid { opacity: 0; }
 .view #stage::before { filter: none; }
 .view #stage::after { opacity: .24; }
 #hud-editor > header {
@@ -47,8 +50,10 @@ button, select, input, summary { font: inherit; color: inherit; }
 button, select, summary {
   border: 1px solid var(--edge); border-radius: 7px; background: var(--glass);
   min-height: 27px; padding: 4px 9px; cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, scale 140ms var(--ease-out);
 }
 button:hover, select:hover, summary:hover { background: #21332d; }
+button:active, summary:active { scale: .94; }
 button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ui-icon {
   display: block; flex: none; width: 14px; height: 14px;
@@ -69,6 +74,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-v
   position: absolute; top: 35px; left: 0; display: grid; gap: 8px; min-width: 148px;
   padding: 10px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface);
 }
+#layout[open] .layout-options { animation: panel-in 170ms var(--ease-out) both; }
 .layout-options label { white-space: nowrap; font-size: 11px; }
 .layout-options select { min-height: 22px; padding: 1px 3px; }
 #preview { color: var(--ink); font-size: 11px; border-radius: 15px; }
@@ -91,13 +97,17 @@ button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-v
   background: transparent; color: #abb4b1; pointer-events: auto;
 }
 .invite-dismiss .ui-icon { width: 11px; height: 11px; }
-.scene { position: absolute; inset: 0; transform-origin: top left; overflow: clip; pointer-events: none; }
+.scene {
+  position: absolute; inset: 0; transform-origin: top left; overflow: clip; pointer-events: none;
+  transition: opacity 190ms var(--ease-out), translate 190ms var(--ease-out);
+}
 .scene iframe { position: absolute; top: 0; left: 0; border: 0; background: transparent; pointer-events: none; }
 .art { position: absolute; display: block; background-repeat: no-repeat; image-rendering: pixelated; }
 .widget-tag {
   position: absolute; bottom: 100%; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between;
   gap: 5px; padding: 0 0 4px; color: var(--ink); white-space: nowrap; font-size: 11px;
   text-shadow: 0 1px 3px var(--surface);
+  transition: opacity 150ms ease;
 }
 .widget-tag button {
   display: grid; place-items: center; min-height: 15px; width: 15px; padding: 0;
@@ -105,7 +115,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-v
 }
 .widget-tag button .ui-icon { width: 9px; height: 9px; stroke-width: 1.7; }
 .inactive .widget-tag { opacity: .42; }
-.inactive .scene { opacity: .15; }
+.inactive .scene { opacity: .15; translate: 0 3px; }
 .inactive:hover .widget-tag, .inactive:focus-within .widget-tag { opacity: 1; }
 .handle {
   position: absolute; bottom: -5px; right: -5px; width: 12px; height: 12px; min-height: 0; padding: 0;
@@ -117,6 +127,11 @@ aside {
   width: min(272px, calc(100% - 28px)); max-height: calc(100% - 82px); overflow: auto;
   background: var(--glass); border: 1px solid var(--edge); border-radius: 8px;
   padding: 13px; box-shadow: 0 12px 32px #0005;
+}
+.panel-opening { animation: panel-in 190ms var(--ease-out) both; }
+@keyframes panel-in {
+  from { opacity: 0; translate: 0 -6px; }
+  to { opacity: 1; translate: 0 0; }
 }
 aside h2 { font-size: 15px; margin: 0 0 10px; display: flex; align-items: center; justify-content: space-between; }
 aside h3 { margin: 16px 0 5px; font-size: 11px; color: var(--muted); font-weight: 600; }
@@ -148,4 +163,7 @@ kbd { color: var(--ink); font: inherit; font-weight: 700; }
   .widget-tag { font-size: 12px; }
   #saved { display: none; }
   .layout-options { left: auto; right: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }

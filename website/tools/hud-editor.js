@@ -144,19 +144,27 @@ const previewTheme=`
   .invite .hold-key {
     top: 20px; right: 19px; width: 26px; height: 26px; border-radius: 50%;
     border-color: #f5fffa33; background: #f0fffa10; color: #f0f9f5; font-size: 11px; font-weight: 700;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .invite[data-accepted] .hold-key {
+    border-color: var(--accent); box-shadow: 0 0 9px var(--preview-accent-soft);
   }
   .invite #fill { background: var(--accent); opacity: .48; }
   .invite .countdown { left: 13px; right: 13px; bottom: 5px; height: 1px; }
   .invite #remaining { height: 1px; background: var(--accent); }
+  @media (prefers-reduced-motion: reduce) {
+    .key, .invite .hold-key { transition: none; }
+  }
 `;
 const editorTheme=getComputedStyle(document.documentElement);
 const previewColors=['accent','ink','muted','edge','surface','glass','accent-soft','accent-line'];
+const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 let invitePreview;
 let inviteDismissed=false;
 
 function setupInvitePreview(doc,view,state){
   doc.querySelector('.dismiss').hidden=true;
-  invitePreview={view,state};
+  invitePreview={view,state,card:doc.getElementById('card')};
 }
 
 let inviteHoldFrame=0;
@@ -164,6 +172,7 @@ function stopInviteHold(){
   if(!inviteHoldFrame)return;
   cancelAnimationFrame(inviteHoldFrame);
   inviteHoldFrame=0;
+  invitePreview.card.removeAttribute('data-accepted');
   invitePreview.view.update(invitePreview.state);
 }
 
@@ -171,12 +180,13 @@ document.addEventListener('keydown',event=>{
   if(event.code!=='KeyY'||!viewing||inviteDismissed||!models.invite.on||!invitePreview||event.repeat
      ||event.altKey||event.ctrlKey||event.metaKey||inviteHoldFrame)return;
   const started=performance.now();
-  const {view,state}=invitePreview;
+  const {view,state,card}=invitePreview;
   function tick(now){
     const hold=clamp((now-started)/830,0,1);
     if(!viewing||!models.invite.on){stopInviteHold();return;}
     view.update({...state,hold,hint:hold===1?'Принято':state.hint});
-    if(hold<1)inviteHoldFrame=requestAnimationFrame(tick);
+    if(hold===1)card.setAttribute('data-accepted','');
+    else inviteHoldFrame=requestAnimationFrame(tick);
   }
   inviteHoldFrame=requestAnimationFrame(tick);
 });
@@ -216,6 +226,10 @@ function mountScene(el,def,track=false){
       mouse.innerHTML=uiIcon('mouse');
     }
     if(def.template==='chat-notification.html')view.opening(1);
+    if(!reducedMotion.matches&&!el.hidden&&!el.classList.contains('inactive')){
+      surface.animate([{opacity:0,translate:'0 5px'},{opacity:1,translate:'0 0'}],
+        {duration:220,easing:'cubic-bezier(.2,.75,.25,1)'});
+    }
   };
   frame.src='/editor-live/'+(def.island?'island/':def.template||'widgets.html');
   surface.append(frame);
@@ -285,12 +299,40 @@ function geometry(id){
   const scale=Math.min(m.scale*base,stage.clientWidth/el.offsetWidth,stage.clientHeight/el.offsetHeight);
   return {base,scale,w:Math.max(0,stage.clientWidth-el.offsetWidth*scale),h:Math.max(0,stage.clientHeight-el.offsetHeight*scale)};
 }
+const overlayTransitions=new WeakMap();
+function setWidgetVisible(el,visible,fixed){
+  const next=String(visible), previous=el.dataset.visible;
+  if(previous===next)return;
+  el.dataset.visible=next;
+  if(!fixed||previous===undefined||reducedMotion.matches){
+    overlayTransitions.get(el)?.cancel();
+    overlayTransitions.delete(el);
+    el.hidden=!visible;
+    return;
+  }
+  const transition=overlayTransitions.get(el);
+  const style=transition?getComputedStyle(el):null;
+  const from=style?{opacity:style.opacity,translate:style.translate}
+    :{opacity:visible?0:1,translate:visible?'0 -6px':'0 0'};
+  transition?.cancel();
+  el.hidden=false;
+  const animation=el.animate([from,{opacity:visible?1:0,translate:visible?'0 0':'0 -5px'}],
+    {duration:visible?230:145,easing:'cubic-bezier(.2,.75,.25,1)',fill:'forwards'});
+  overlayTransitions.set(el,animation);
+  animation.onfinish=()=>{
+    if(overlayTransitions.get(el)!==animation)return;
+    el.hidden=!visible;
+    overlayTransitions.delete(el);
+    animation.cancel();
+  };
+}
 function place(id){
   const m=models[id],el=$('widget-'+id);
   const fixed=catalog[id].fixed;
-  el.hidden=(!m.on&&(fixed||viewing))||(id==='invite'&&viewing&&inviteDismissed);
-  if(id==='invite')el.querySelector('.invite-dismiss').hidden=!viewing;
-  if(el.hidden)return;
+  const visible=(m.on||(!fixed&&!viewing))&&!(id==='invite'&&viewing&&inviteDismissed);
+  setWidgetVisible(el,visible,fixed);
+  if(id==='invite')el.querySelector('.invite-dismiss').hidden=!viewing||!visible;
+  if(!visible)return;
   el.classList.toggle('inactive',!m.on);
   if(!fixed){
     const toggle=el.querySelector('.toggle-widget');
@@ -319,12 +361,12 @@ function updateCoordinates(id){
 }
 function clear(){
   if(selected)$('widget-'+selected).classList.remove('selected');
-  selected=null;panel.hidden=true;$('library').setAttribute('aria-expanded','false');
+  selected=null;panel.hidden=true;panel.classList.remove('panel-opening');$('library').setAttribute('aria-expanded','false');
 }
 function openPanel(title,content){
   $('layout').open=false;
   panel.innerHTML='<h2>'+title+'<button class="close" aria-label="Закрыть">'+uiIcon('close')+'</button></h2>'+content;
-  panel.hidden=false;panel.querySelector('.close').onclick=clear;
+  panel.hidden=false;panel.classList.add('panel-opening');panel.querySelector('.close').onclick=clear;
 }
 function inspect(id){
   clear();selected=id;$('widget-'+id).classList.add('selected');
