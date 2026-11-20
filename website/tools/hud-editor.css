@@ -2,82 +2,100 @@
 [hidden] { display: none !important; }
 :root {
   color-scheme: dark;
-  --accent: #efc887;
-  --paper: #15191b;
-  --edge: #ffffff1f;
-  --ink: #f4f1eb;
-  --muted: #b3b9b8;
-  font: 14px "Segoe UI", sans-serif;
+  --accent: #b1a0ff;
+  --edge: #e5daff22;
+  --ink: #efedf7;
+  --muted: #aaa5bd;
+  font: 13px "Segoe UI", sans-serif;
   color: var(--ink);
-  background: var(--paper);
+  background: #171923;
 }
 body { margin: 0; }
-#hud-editor {
-  position: fixed; inset: 0;
-  display: grid;
-  grid-template: "toolbar" 56px "stage" minmax(0, 1fr) "controls" 46px / minmax(0, 1fr);
+#hud-editor, #stage { position: fixed; inset: 0; }
+#stage { isolation: isolate; overflow: hidden; background: #323747; }
+#stage::before, #stage::after, .grid { position: absolute; inset: 0; pointer-events: none; }
+#stage::before {
+  content: "";
+  background: url('../assets/gameplay-baseline.webp') center 40% / max(116%, calc(134dvh * 1.78)) auto no-repeat;
+  filter: blur(2px) saturate(.64);
+  transform: scale(1.01);
 }
-#hud-editor > header, #hud-editor > footer {
-  display: flex; align-items: center;
-  padding-inline: clamp(12px, 2.2vw, 38px);
-  gap: 16px;
-  background: var(--paper);
-  z-index: 2;
+#stage::after {
+  z-index: -1; content: "";
+  background: linear-gradient(180deg, #34416d81, #15182565 42%, #11111bd1);
 }
-#hud-editor > header { grid-area: toolbar; border-bottom: 1px solid var(--edge); }
-#hud-editor > footer { grid-area: controls; border-top: 1px solid var(--edge); font-size: 12px; color: var(--muted); }
-.brand { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; letter-spacing: -.03em; }
-.brand img { width: 24px; height: 24px; }
-h1 { margin: 0; padding-left: 16px; border-left: 1px solid var(--edge); font-size: 13px; font-weight: 500; color: var(--muted); }
-.actions { margin-left: auto; display: flex; align-items: center; gap: 7px; }
-button, select, input { font: inherit; color: inherit; }
-button, select {
-  border: 1px solid var(--edge); border-radius: 5px; background: #ffffff09;
-  min-height: 32px; padding: 5px 12px; cursor: pointer;
-}
-button:hover, select:hover { background: #ffffff17; }
-button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.primary { display: flex; gap: 10px; align-items: center; color: var(--accent); border-color: #efc88765; }
-.primary span { color: var(--ink); font: 11px Consolas, monospace; }
-#stage {
-  grid-area: stage; position: relative; min-height: 0; isolation: isolate; overflow: hidden;
-  background: #364352 url('../assets/gameplay-baseline.webp') center / max(115%, calc(124dvh * 1.78)) auto no-repeat;
-}
-#stage::before, .grid { position: absolute; inset: 0; content: ""; pointer-events: none; }
-#stage::before { background: linear-gradient(180deg, #0d141942, #10191a38 52%, #0d12178c); }
+#stage::before { z-index: -2; }
 .grid {
-  background-image: linear-gradient(#f0e9de15 1px, transparent 1px), linear-gradient(90deg, #f0e9de15 1px, transparent 1px);
+  background-image: linear-gradient(#cdc4f010 1px, transparent 1px), linear-gradient(90deg, #cdc4f010 1px, transparent 1px);
   background-size: var(--step, 16px) var(--step, 16px);
 }
 .free .grid, .view .grid { display: none; }
-#cross {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  color: #fff; text-shadow: 1px 1px #292e30; pointer-events: none; font: 19px monospace;
+.view #stage::before { filter: none; }
+.view #stage::after { opacity: .24; }
+#hud-editor > header {
+  position: absolute; z-index: 8; top: clamp(12px, 3.4vh, 30px); left: clamp(12px, 2.2vw, 36px);
+  right: clamp(12px, 2.2vw, 36px); display: flex; justify-content: space-between; align-items: flex-start;
+  pointer-events: none;
 }
+.dock { display: flex; align-items: center; gap: 7px; }
+header button, header details { pointer-events: auto; }
+button, select, input, summary { font: inherit; color: inherit; }
+button, select, summary {
+  border: 1px solid var(--edge); border-radius: 7px; background: #191926e8;
+  min-height: 27px; padding: 4px 9px; cursor: pointer;
+}
+button:hover, select:hover, summary:hover { background: #343048; }
+button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg { display: flex; padding: 3px; background: #161624eb; border-radius: 20px; }
+.seg button { border: 0; border-radius: 15px; min-height: 23px; padding: 2px 10px; color: var(--muted); background: transparent; font-size: 11px; }
+.seg button.on { background: #7358d4; color: #fff; }
+#library, #layout summary { display: grid; place-items: center; width: 26px; padding: 0; border-radius: 50%; }
+#library { font-size: 17px; }
+#layout { position: relative; }
+#layout summary::-webkit-details-marker { display: none; }
+.layout-options {
+  position: absolute; top: 35px; left: 0; display: grid; gap: 8px; min-width: 148px;
+  padding: 10px; border: 1px solid var(--edge); border-radius: 8px; background: #1a1b29;
+}
+.layout-options label { white-space: nowrap; font-size: 11px; }
+.layout-options select { min-height: 22px; padding: 1px 3px; }
+#preview { color: #ddd7f2; font-size: 11px; border-radius: 15px; }
 #alignment { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
-#alignment::before, #alignment::after { position: absolute; content: ""; background: #efc88791; }
+#alignment::before, #alignment::after { position: absolute; content: ""; background: #a58cff90; }
 #alignment::before { left: var(--x); top: 0; bottom: 0; width: 1px; }
 #alignment::after { top: var(--y); left: 0; right: 0; height: 1px; }
 .widget {
-  position: absolute; top: 0; left: 0; transform-origin: top left;
-  touch-action: none; user-select: none; cursor: grab; border-radius: 5px;
+  position: absolute; top: 0; left: 0; transform-origin: top left; touch-action: none;
+  user-select: none; cursor: grab; border-radius: 7px;
 }
 .widget:active { cursor: grabbing; }
-.widget:hover, .widget.selected, .widget:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.widget:hover:not(.inactive), .widget.selected, .widget:focus-visible { outline: 1px solid #9d85edac; outline-offset: 2px; }
 .widget.selected { z-index: 4; }
 .fixed-widget { pointer-events: none; }
 .scene { position: absolute; inset: 0; transform-origin: top left; overflow: clip; pointer-events: none; }
 .scene iframe { position: absolute; top: 0; left: 0; border: 0; background: transparent; pointer-events: none; }
 .art { position: absolute; display: block; background-repeat: no-repeat; image-rendering: pixelated; }
-.handle {
-  position: absolute; bottom: -6px; right: -6px; width: 12px; height: 12px; min-height: 0; padding: 0;
-  border: 2px solid #15191b; background: var(--accent); border-radius: 2px; display: none; cursor: nwse-resize;
+.widget-tag {
+  position: absolute; bottom: 100%; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between;
+  gap: 5px; padding: 0 0 4px; color: #eee9fd; white-space: nowrap; font-size: 11px;
+  text-shadow: 0 1px 3px #141321;
 }
-.selected .handle { display: block; }
+.widget-tag button {
+  display: grid; place-items: center; min-height: 15px; width: 15px; padding: 0;
+  border-radius: 50%; background: #171725d6; color: var(--accent); line-height: 1;
+}
+.inactive { opacity: .32; }
+.inactive .scene { opacity: .25; }
+.inactive:hover, .inactive:focus-within { opacity: .9; }
+.handle {
+  position: absolute; bottom: -5px; right: -5px; width: 12px; height: 12px; min-height: 0; padding: 0;
+  border: 2px solid #211b37; background: var(--accent); border-radius: 2px; display: none; cursor: nwse-resize;
+}
+.selected:not(.inactive) .handle { display: block; }
 aside {
-  position: absolute; z-index: 6; right: 14px; top: 14px;
-  width: min(272px, calc(100% - 28px)); max-height: calc(100% - 28px); overflow: auto;
-  background: #151b1cf7; border: 1px solid #ffffff32; border-radius: 8px;
+  position: absolute; z-index: 6; left: clamp(12px, 2.2vw, 36px); top: 66px;
+  width: min(272px, calc(100% - 28px)); max-height: calc(100% - 82px); overflow: auto;
+  background: #1a1b29fa; border: 1px solid #ffffff32; border-radius: 8px;
   padding: 13px; box-shadow: 0 12px 32px #0005;
 }
 aside h2 { font-size: 15px; margin: 0 0 10px; display: flex; align-items: center; justify-content: space-between; }
@@ -96,22 +114,18 @@ input { accent-color: var(--accent); }
 .coords { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .coords input { width: 100%; margin-top: 5px; background: #ffffff08; border: 1px solid var(--edge); border-radius: 4px; padding: 6px; }
 aside .remove { margin-top: 14px; width: 100%; }
-.seg { display: flex; align-items: center; padding: 2px; border: 1px solid var(--edge); border-radius: 5px; }
-.seg button { min-height: 24px; border: 0; background: transparent; padding: 2px 8px; }
-.seg .on { background: #efc88722; color: var(--accent); }
-footer select { min-height: 25px; padding: 2px; }
-footer #arrange { min-height: 27px; padding: 3px 8px; }
-.hint { margin-inline: auto; }
-kbd { border: 1px solid var(--edge); border-radius: 3px; padding: 2px 4px; }
-#saved { margin-left: auto; }
-.view #hud-editor { grid-template: "stage" minmax(0, 1fr) / minmax(0, 1fr); }
-.view #hud-editor > header { position: absolute; top: 12px; right: 12px; background: transparent; border: 0; padding: 0; }
-.view #preview { background: var(--paper); }
-.view header .brand, .view h1, .view #hud-editor > footer, .view aside, .view #alignment { display: none; }
+
+#hud-editor > footer { position: absolute; z-index: 5; bottom: 8%; inset-inline: 0; text-align: center; pointer-events: none; }
+.hint, #saved:not(:empty) {
+  display: inline-block; padding: 5px 10px; border-radius: 14px; background: #191827dc;
+  color: #d2ccdf; font-size: 10px;
+}
+kbd { color: #fff0ff; font: inherit; font-weight: 700; }
+#saved:not(:empty) { position: fixed; right: 18px; bottom: 18px; }
+.view .dock, .view footer, .view #alignment, .view .widget-tag, .view .handle { display: none; }
 .view .widget { outline: 0; pointer-events: none; }
-@media (max-width: 650px) {
-  #hud-editor { grid-template-rows: 48px minmax(0, 1fr) 42px; }
-  #hud-editor > header, #hud-editor > footer { gap: 8px; }
-  h1, .hint, #saved { display: none; }
-  .actions button { padding-inline: 8px; font-size: 12px; }
+@media(max-width:650px) {
+  .widget-tag { font-size: 12px; }
+  #saved { display: none; }
+  .layout-options { left: auto; right: 0; }
 }

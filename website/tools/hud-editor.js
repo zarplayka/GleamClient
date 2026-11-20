@@ -12,13 +12,13 @@ const well=(x,y,w,h,radius)=>part('well',x,y,w,h,{radius});
 const keyPart=(text,x,y,w=17,mouse='')=>part('key',x,y,w,17,{text,mouse,radius:6,pressed:text==='W'});
 const icon=(path,x,y,size,fill=false)=>part('icon',x,y,size,size,{path,fill,color:'var(--accent)'});
 const art=(image,x,y,size)=>({image,x,y,size});
-const health='#a6dfaa', muted='var(--muted)';
+const health='#a892ff', muted='var(--muted)';
 function targetScene(){
-  return [panelPart(166,68,5),well(7,7,30,30,4),label('Quartz',43,5,81,16,11,'var(--text)','left',true),
-    label('24 ms',124,5,34,16,7,muted,'right'),label('18 / 20',43,21,34,12,8,health,'left',true),
-    label('+2',79,21,18,12,7,'#efc887'),label('3.8 m',116,21,42,12,7.5,muted,'right'),
-    box(8,42,150,3,1,'#ffffff24'),box(8,42,135,3,1,health),box(143,42,15,3,1,'#efc887'),
-    ...Array.from({length:6},(_,i)=>box(9+i*25,49,23,15,2,'#ffffff0a'))];
+  return [panelPart(164,59,8),well(7,7,24,24,5),
+    label('Quartz',37,6,61,14,10,'var(--text)','left',true),
+    label('18 / 20',103,6,38,14,9,health,'right',true),label('+2',142,6,15,14,7,'#e5ba76','right'),
+    label('3.8 m',37,20,40,10,7,muted),label('24 ms',112,20,45,10,7,muted,'right'),
+    box(7,36,150,4,2,'#ffffff20'),box(7,36,135,4,2,'#8967ef'),box(142,36,15,4,2,'#e5ba76')];
 }
 const effects=[panelPart(110,53,5),label('Эффекты',23,2,73,17,8,'var(--text)','left',true),rule(7,19,96)];
 for(const [index,[name,time]] of [['Скорость 2','1:42'],['Сила 1','0:38']].entries()){
@@ -37,12 +37,12 @@ const inventory=[panelPart(178,80,5),label('Инвентарь',6,1,120,15,8,'va
   rule(5,16,168),...Array.from({length:27},(_,i)=>box(4+i%9*19,20+Math.floor(i/9)*19,18,18,2,'#ffffff10'))];
 function score(text){return [panelPart(67,18,4),box(2,4,2,10,1,'var(--accent)'),label(text,7,0,55,18,8,'var(--text)','center',true)];}
 const catalog={
-  status:{name:'HUD / MediaPlayer',w:366,h:34,x:.5,y:0,on:true,island:true},
-  keys:{name:'Keystrokes',w:55,h:55,x:.025,y:.84,on:true,parts:[keyPart('W',19,0),keyPart('A',0,19),keyPart('S',19,19),keyPart('D',38,19),keyPart('',19,38,36),keyPart('',0,38,17,'L')]},
-  potions:{name:'Potions',w:110,h:53,x:.97,y:.19,on:true,parts:effects,art:[art('potion',8,6,9),art(0,8,24,8),art(1,8,38,8)]},
-  target:{name:'TargetHud',w:166,h:68,x:.58,y:.61,on:true,parts:targetScene(),art:[art('face',8,8,28),...[7,8,9,10,3,5].map((id,i)=>art(id,14+25*i,50,13))]},
-  nearby:{name:'BetterNear',w:127,h:61,x:.035,y:.2,on:true,parts:near},
-  inventory:{name:'InventoryHUD',w:178,h:80,x:.96,y:.81,on:true,parts:inventory,art:[3,4,5,6].map((id,i)=>art(id,5+i*19,21,16))},
+  status:{name:'HUD / MediaPlayer',w:366,h:34,x:.5,y:.055,on:true,island:true},
+  keys:{name:'Keystrokes',w:55,h:55,x:.18,y:.31,on:true,parts:[keyPart('W',19,0),keyPart('A',0,19),keyPart('S',19,19),keyPart('D',38,19),keyPart('',19,38,36),keyPart('',0,38,17,'L')]},
+  potions:{name:'Potions',w:110,h:53,x:.96,y:.32,on:true,parts:effects,art:[art('potion',8,6,9),art(0,8,24,8),art(1,8,38,8)]},
+  target:{name:'TargetHud',w:164,h:59,x:.24,y:.64,on:true,parts:targetScene(),art:[art('face',8,8,22),...[7,8,9,10,3,5].map((id,i)=>art(id,9+25*i,43,13))]},
+  nearby:{name:'BetterNear',w:127,h:61,x:.035,y:.43,on:true,parts:near},
+  inventory:{name:'InventoryHUD',w:178,h:80,x:.94,y:.83,on:true,parts:inventory,art:[3,4,5,6].map((id,i)=>art(id,5+i*19,21,16))},
   football:{name:'Football · счёт',w:67,h:18,x:.5,y:.32,on:false,parts:score('Голы: 2')},
   basketball:{name:'Basketball · счёт',w:67,h:18,x:.5,y:.4,on:false,parts:score('Счёт: 4')},
   scoreboard:{name:'Scoreboard · контекст',w:84,h:27,x:1,y:.5,fixed:true,parts:[
@@ -50,7 +50,7 @@ const catalog={
     label('Выживание',2,0,80,9,7,'white','center'),
     label('Онлайн',2,9,56,9,7,'white'),label('37',59,9,23,9,7,'#ff5555','right'),
     label('Сезон',2,18,56,9,7,'white'),label('2',59,18,23,9,7,'#ff5555','right')]},
-  hotbar:{name:'Хотбар Minecraft · контекст',w:182,h:22,x:.5,y:1,fixed:true,on:true,parts:[
+  hotbar:{name:'Хотбар Minecraft · контекст',w:182,h:22,x:.5,y:1,fixed:true,parts:[
     box(0,0,182,22,0,'#171717c7'),
     ...Array.from({length:9},(_,i)=>box(2+i*20,2,18,18,0,'#555b5b8c')),
     part('box',1,1,20,20,{color:'transparent',border:'#dedede'})],
@@ -63,27 +63,29 @@ const catalog={
 };
 const previewTheme=`
   html:root {
-    --accent: #efc887 !important;
-    --text: #f4f1eb;
-    --muted: #bbc4c3;
-    --line: #eff9f526;
-    --top: #192120;
-    --surface: #192120;
-    --hud-panel: #141c1bed;
-    --hud-glass: #141c1bdc;
-    --hud-selected: #efc88732;
+    --accent: #ab95ff !important;
+    --text: #f4f1ff;
+    --muted: #bbb3cb;
+    --line: #e9ddff20;
+    --top: #191826;
+    --surface: #191826;
+    --hud-panel: #171624de;
+    --hud-glass: #171624b8;
+    --hud-selected: #8e69ee42;
   }
-  .panel, .surface, .toast, .invite { box-shadow: inset 0 0 0 1px #d6e6dd29; }
+  .panel, .surface, .toast, .invite { box-shadow: inset 0 0 0 1px #dfd1ff1b; }
   .key { border-radius: 3px !important; }
-  .key[data-pressed] { border-color: #efc887; color: #fff4df; }
-  .timer { background: #efc88720; color: #ffe2b2; font-size: 6.4px; }
+  .key[data-pressed] { border-color: #a184f9; color: #f4edff; }
+  .timer { background: #ac8bff29; color: #eee5ff; font-size: 6.4px; }
   .timer > i { width: 3px; height: 3px; }
-  #island .surface { border-radius: 6px; }
+  #island .surface { border-radius: 21px !important; }
   #island .shoulder { display: none; }
+  #island .brand img { filter: drop-shadow(0 0 4px #8967ef); }
   #island .metric > span:first-child { font-weight: 700; color: var(--accent); }
 `;
 function mountScene(el,def,track=false){
-  const unit=def.island||def.template?1:1.6, surface=document.createElement('div');
+  const unit=def.island?.85:def.template?1:1.32;
+  const surface=document.createElement('div');
   el.querySelector('.scene')?.remove();
   el.style.width=def.w*unit+'px';el.style.height=def.h*unit+'px';
   surface.className='scene';surface.style.cssText='width:'+def.w+'px;height:'+def.h+'px;transform:scale('+unit+')';
@@ -123,7 +125,7 @@ function mountScene(el,def,track=false){
   }
   el.prepend(surface);
 }
-const key='gleam-hud-editor-v1';
+const key='gleam-hud-editor-v2';
 let saved;
 try { saved=JSON.parse(localStorage.getItem(key)) || {}; } catch { saved={}; }
 const num=(v,f,min,max)=>Number.isFinite(v)?clamp(v,min,max):f;
@@ -135,7 +137,7 @@ for(const [id,def] of Object.entries(catalog)){
   const s=saved.widgets?.[id] || {};
   const model=models[id]={
     x:def.fixed?x:num(s.x,x,0,1),
-    y:def.fixed||def.island?y:num(s.y,y,0,1),
+    y:def.fixed?y:num(s.y,y,0,1),
     scale:def.fixed?1:num(s.scale,1,.35,4),
     on:typeof s.on==='boolean'?s.on:on
   };
@@ -145,11 +147,15 @@ for(const [id,def] of Object.entries(catalog)){
   if(def.fixed){el.classList.add('fixed-widget');}
   else{
     el.tabIndex=0;
-    el.innerHTML='<button class="handle" title="Изменить размер" aria-label="Изменить размер"></button>';
+    el.innerHTML='<div class="widget-tag"><span></span><button class="toggle-widget"></button></div>'
+      +'<button class="handle" title="Изменить размер" aria-label="Изменить размер"></button>';
+    const tag=el.querySelector('.widget-tag');
+    tag.firstElementChild.textContent=name;
+    tag.lastElementChild.onclick=()=>{model.on=!model.on;clear();place(id);updateCount();save();};
   }
   if(def.island)model.track=s.track===true;
   mountScene(el,model.track?{...def,h:57}:def,model.track);
-  layers.append(el);el.hidden=!model.on;
+  layers.append(el);
 }
 function save(){
   try {localStorage.setItem(key,JSON.stringify({widgets:models,step,snap}));$('saved').textContent='●　Сохранено локально';}
@@ -163,7 +169,17 @@ function geometry(id){
 }
 function place(id){
   const m=models[id],el=$('widget-'+id);
-  el.hidden=!m.on;if(!m.on)return;
+  const fixed=catalog[id].fixed;
+  el.hidden=!m.on&&(fixed||viewing);
+  if(el.hidden)return;
+  el.classList.toggle('inactive',!m.on);
+  if(!fixed){
+    const toggle=el.querySelector('.toggle-widget');
+    const action=m.on?'Скрыть':'Показать';
+    toggle.textContent=m.on?'×':'+';
+    toggle.setAttribute('aria-label',action+' '+catalog[id].name);
+    toggle.title=action;
+  }
   const {scale,w,h}=geometry(id);
   el.style.transform='translate('+Math.round(m.x*w)+'px,'+Math.round(m.y*h)+'px) scale('+scale+')';
 }
@@ -175,7 +191,7 @@ function mode(){
   $('step').value=step;
 }
 function updateCount(){
-  $('visible-count').textContent=Object.keys(models).filter(id=>models[id].on&&!catalog[id].fixed).length;
+  $('library').title='Виджеты · '+Object.keys(models).filter(id=>models[id].on&&!catalog[id].fixed).length+' на экране';
 }
 function updateCoordinates(id){
   if(!$('pos-x'))return;
@@ -187,6 +203,7 @@ function clear(){
   selected=null;panel.hidden=true;$('library').setAttribute('aria-expanded','false');
 }
 function openPanel(title,content){
+  $('layout').open=false;
   panel.innerHTML='<h2>'+title+'<button class="close" aria-label="Закрыть">×</button></h2>'+content;
   panel.hidden=false;panel.querySelector('.close').onclick=clear;
 }
@@ -195,7 +212,7 @@ function inspect(id){
   const def=catalog[id],model=models[id];
   openPanel(def.name,'<label>Масштаб <output id="pct"></output><input id="scale" type="range" min="35" max="400" step="1"></label>'
     +'<div class="coords"><label>X, px <input id="pos-x" type="number" min="0" step="1"></label>'
-    +'<label>Y, px <input id="pos-y" type="number" min="0" step="1" '+(def.island?'disabled':'')+'></label></div>'
+    +'<label>Y, px <input id="pos-y" type="number" min="0" step="1"></label></div>'
     +(def.island?'<label><input id="track" type="checkbox"> Показать текущий трек</label>':'')
     +'<button class="remove">Скрыть виджет</button>');
   if(def.island){
@@ -235,7 +252,8 @@ function library(){
   });
 }
 layers.onpointerdown=e=>{
-  const el=e.target.closest('.widget:not(.fixed-widget)');if(!el||viewing||e.button!==0||drag)return;
+  const el=e.target.closest('.widget:not(.fixed-widget):not(.inactive)');
+  if(!el||viewing||e.button!==0||drag||e.target.closest('.toggle-widget'))return;
   const id=el.dataset.key,m=models[id],g=geometry(id);
   const resize=!!e.target.closest('.handle');
   if(selected!==id)clear();
@@ -255,7 +273,7 @@ layers.onpointermove=e=>{
   }
   const g=geometry(id),pos=v=>snap&&!e.altKey&&!d.resize?Math.round(v/step)*step:v;
   m.x=clamp(pos(d.left+(d.resize?0:dx))/(g.w||1),0,1);
-  m.y=catalog[id].island?0:clamp(pos(d.top+(d.resize?0:dy))/(g.h||1),0,1);place(id);
+  m.y=clamp(pos(d.top+(d.resize?0:dy))/(g.h||1),0,1);place(id);
   updateCoordinates(id);
   const guides=$('alignment');
   guides.hidden=d.resize||!snap||e.altKey;
@@ -268,7 +286,7 @@ function finish(e){
   if(d.moved)save();else if(e.type==='pointerup')inspect(d.id);
 }
 layers.onpointerup=finish;layers.onpointercancel=finish;layers.onlostpointercapture=finish;
-layers.onkeydown=e=>{if(e.key==='Enter'&&!viewing)inspect(e.target.closest('.widget').dataset.key);};
+layers.onkeydown=e=>{if(e.key==='Enter'&&!viewing&&e.target.matches('.widget:not(.inactive)'))inspect(e.target.dataset.key);};
 stage.onpointerdown=e=>{if(!e.target.closest('.widget,aside'))clear();};
 $('library').onclick=library;
 $('snap').onclick=()=>{snap=true;mode();save();};$('free').onclick=()=>{snap=false;mode();save();};
@@ -288,10 +306,11 @@ $('arrange').onclick=()=>{
     }
   }
   $('arrange').textContent=previousPositions?'Отменить':'Разложить';
-  redraw();save();
+  $('layout').open=false;redraw();save();
 };
 function preview(){
   clear();viewing=!viewing;document.body.classList.toggle('view',viewing);layers.inert=viewing;
+  redraw();
   $('library').hidden=viewing;$('preview').textContent=viewing?'Вернуться к редактированию':'Просмотр';
   $('preview').setAttribute('aria-pressed',viewing);
 }
