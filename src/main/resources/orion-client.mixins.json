@@ -51,7 +51,6 @@
     "MultiPlayerGameModeMixin",
     "GleamPetBlockPlacementMixin",
     "GleamPetUseItemMixin",
-    "OrionHitSoundPacketMixin",
     "RenderPipelinesAccessor",
     "EntityHitboxDebugRendererMixin",
     "OrionHitColorModelMixin",

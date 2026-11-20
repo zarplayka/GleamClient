@@ -38,8 +38,5 @@ public final class MultiPlayerGameModeMixin {
 
         var hitParticles = OrionClient.getHitParticlesOrNull();
         if (hitParticles != null) hitParticles.onHit(target);
-
-        var hitSound = OrionClient.getHitSoundOrNull();
-        if (hitSound != null) hitSound.onAttack(target);
     }
 }

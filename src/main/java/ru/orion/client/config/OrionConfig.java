@@ -665,14 +665,6 @@ public final class OrionConfig {
     private int betterNearY = -1;
     private boolean rainbowEnabled = false;
     private int rainbowSpeed = 3; // 1..10, период цикла = 12с / скорость
-    private boolean hitSoundEnabled = false;
-    private int hitSoundIndex = 0; // 0..5 — встроенные, 6 — свои из папки
-    private String hitSoundFile = "";
-    private int hitSoundVolume = 70; // 0..100%
-    private float hitSoundPitch = 1F;
-    private boolean hitSoundPlayersOnly;
-    private boolean hitSoundVaryPitch;
-    private boolean hitSoundMuteVanilla;
 
     public static final int CROSSHAIR_GRID = 15;
     public static final int CROSSHAIR_SLOTS = 6;
@@ -1644,44 +1636,6 @@ public final class OrionConfig {
         this.rainbowSpeed = rainbowSpeed;
     }
 
-    public boolean isHitSoundEnabled() {
-        return hitSoundEnabled;
-    }
-
-    public void setHitSoundEnabled(boolean hitSoundEnabled) {
-        this.hitSoundEnabled = hitSoundEnabled;
-    }
-
-    public int getHitSoundIndex() {
-        return hitSoundIndex;
-    }
-
-    public void setHitSoundIndex(int hitSoundIndex) {
-        this.hitSoundIndex = hitSoundIndex;
-    }
-    public String getHitSoundFile() { return hitSoundFile; }
-    public void setHitSoundFile(String value) {
-        hitSoundFile = value != null && value.length() <= 160 && !value.contains("/") && !value.contains("\\")
-                && !value.contains(":") && !value.chars().anyMatch(Character::isISOControl) ? value : "";
-    }
-
-    public int getHitSoundVolume() {
-        return hitSoundVolume;
-    }
-
-    public float getHitSoundPitch() { return hitSoundPitch; }
-    public void setHitSoundPitch(float value) { hitSoundPitch = finiteClamp(value, .5F, 2F, 1F); }
-    public boolean isHitSoundPlayersOnly() { return hitSoundPlayersOnly; }
-    public void setHitSoundPlayersOnly(boolean value) { hitSoundPlayersOnly = value; }
-    public boolean isHitSoundVaryPitch() { return hitSoundVaryPitch; }
-    public void setHitSoundVaryPitch(boolean value) { hitSoundVaryPitch = value; }
-    public boolean isHitSoundMuteVanilla() { return hitSoundMuteVanilla; }
-    public void setHitSoundMuteVanilla(boolean value) { hitSoundMuteVanilla = value; }
-
-    public void setHitSoundVolume(int hitSoundVolume) {
-        this.hitSoundVolume = hitSoundVolume;
-    }
-
     public void sanitize() {
         getAnimatedLyrics().sanitize();
         sanitizeEmoteSlots();
@@ -1951,15 +1905,6 @@ public final class OrionConfig {
         betterNearX = Math.max(-1, betterNearX);
         betterNearY = Math.max(-1, betterNearY);
         rainbowSpeed = Math.max(1, Math.min(10, rainbowSpeed));
-        hitSoundIndex = switch (hitSoundIndex) {
-            case 7 -> 0; // Click → Snap
-            case 8 -> 4; // Chime → Pulse
-            case 9 -> 1; // Impact → Knock
-            default -> Math.clamp(hitSoundIndex, 0, 6);
-        };
-        hitSoundVolume = Math.max(0, Math.min(100, hitSoundVolume));
-        setHitSoundFile(hitSoundFile);
-        setHitSoundPitch(hitSoundPitch);
 
         if (protectName == null) {
             protectName = "Player";

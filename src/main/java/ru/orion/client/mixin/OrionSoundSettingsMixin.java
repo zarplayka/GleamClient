@@ -13,10 +13,8 @@ import ru.orion.client.OrionClient;
 public abstract class OrionSoundSettingsMixin {
     @WrapOperation(method = "play",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/sounds/SoundEngine;calculateVolume(FLnet/minecraft/sounds/SoundSource;)F"))
-    private float orion$replaceCombatCue(SoundEngine engine, float volume, SoundSource source, Operation<Float> original,
-                                         SoundInstance sound) {
-        var hitSound = OrionClient.getHitSoundOrNull();
-        if (hitSound != null && hitSound.replaceCombatCue(sound)) return 0F;
+    private float orion$playVolume(SoundEngine engine, float volume, SoundSource source, Operation<Float> original,
+                                   SoundInstance sound) {
         return orion$eventVolume(engine, volume, source, original, sound);
     }
 
@@ -25,15 +23,6 @@ public abstract class OrionSoundSettingsMixin {
     private float orion$eventVolume(SoundEngine engine, float volume, SoundSource source, Operation<Float> original,
                                     SoundInstance sound) {
         var config = OrionClient.getConfigOrNull();
-        if (config != null && config.isHitSoundEnabled() && config.isHitSoundMuteVanilla()
-                && source == SoundSource.PLAYERS && sound.getIdentifier().getNamespace().equals("minecraft")) {
-            String path = sound.getIdentifier().getPath();
-            if (path.startsWith("entity.player.attack.") || path.equals("item.spear.attack")
-                    || path.equals("item.spear.hit") || path.equals("item.spear_wood.attack")
-                    || path.equals("item.spear_wood.hit") || path.startsWith("item.mace.smash_")) {
-                return 0F;
-            }
-        }
         if (config != null && config.isSoundSettingsEnabled()) {
             volume *= config.getSoundVolume(sound.getIdentifier().toString()) / 100F;
         }

@@ -236,38 +236,20 @@ button.module-toggle[data-toggle-style="label"][aria-checked="true"]:hover{backg
 .setting-art{display:block;width:21px;height:21px;object-fit:contain;image-rendering:pixelated;flex:none}
 .setting-toggle-row.has-setting-art{justify-content:flex-start;gap:10px}
 .has-setting-art .setting-name{flex:1;min-width:0}
-.sound-mixer{border:1px solid var(--rule);border-radius:8px;background:var(--card);overflow:hidden}
-.sound-mixer-head,.sound-mixer-title,.sound-mixer-actions{display:flex;align-items:center}
-.sound-mixer-head{min-height:64px;justify-content:space-between;gap:8px;padding:10px 17px;background:var(--frame);border-bottom:1px solid var(--rule)}
-.sound-mixer-title{gap:9px}
-.sound-mixer-title h1{margin:0;font-size:19px;font-weight:650;white-space:nowrap}
-.sound-mixer-title .item-art{width:23px;height:23px;flex:none}
-.sound-mixer-actions{flex-wrap:wrap;justify-content:flex-end;gap:8px}
-.sound-mixer-actions .sound-preview-mode{min-height:29px;gap:6px;padding:4px 8px}
+.sound-mixer-actions{justify-content:space-between;gap:8px}
 .sound-preview-mode[aria-pressed=true]{background:var(--hover);color:var(--accent);border-color:var(--accent)}
-.sound-mixer-body{padding:18px 16px 12px}
-.sound-group+.sound-group{margin-top:19px}
-.sound-group h2{margin:0 0 8px;font-size:13px;font-weight:650}
-.sound-group-list{margin-left:4px;padding-left:8px;border-left:2px solid var(--rule)}
-.sound-mixer .sound-setting-row{display:flex;min-height:29px;justify-content:flex-start;gap:8px;padding:2px 0;border:0}
-.sound-setting-row>label{flex:0 1 190px;font-size:12px;font-weight:550;min-width:0;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sound-group+.sound-group{margin-top:16px}
+.setting-row.sound-setting-row{gap:8px}
+.sound-setting-row>label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sound-preview-button{display:flex;justify-content:center;align-items:center;flex:none;padding:0;width:24px;height:24px;border-radius:4px;color:var(--accent)}
 .sound-preview-button:hover,.sound-lookup-button:hover{background:var(--hover)}
 .sound-preview-button svg,.sound-preview-mode svg,.sound-lookup-button svg{width:14px;height:14px;flex:none}
-.sound-setting-row>.range{flex:1 1 55%;min-width:72px;gap:2px}
-.sound-setting-row .range output{flex:none;width:42px;padding:0;text-align:right;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
-.sound-setting-row .range-control{width:auto;flex:1 1 auto;min-width:24px;height:24px}
-.sound-setting-row .range-track{top:9px;height:6px;border-radius:4px}
+.sound-setting-row>.range{flex:none}
+.sound-setting-row .range output{font-variant-numeric:tabular-nums}
 .sound-lookup{margin-top:15px;border-top:1px solid var(--line);padding-top:6px}
 .sound-lookup-button{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px;padding:6px 5px;border-radius:4px}
 .sound-lookup-button[aria-expanded=true]{color:var(--text)}
-#sound-lookup-fields>.setting-row:not(.sound-setting-row){padding-left:5px}
-.content[data-stacked] .sound-mixer-head{padding:8px 10px}
-.content[data-stacked] .sound-mixer-title h1{font-size:15px}
-.content[data-stacked] .sound-mixer-body{padding:13px 9px 10px}
-.content[data-stacked] .sound-mixer .sound-setting-row{gap:5px}
-.content[data-stacked] .sound-setting-row>label{flex-basis:41%}
-.content[data-stacked] .sound-setting-row .range output{width:34px}
+.content[data-stacked] .setting-row.sound-setting-row{gap:5px}
 .setting-toggle-row{width:100%;text-align:left}
 .setting-toggle-row:hover{background:var(--hover)}
 .setting-toggle-row .switch{pointer-events:none}

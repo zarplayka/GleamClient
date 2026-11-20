@@ -28,7 +28,6 @@ import ru.orion.client.effect.OrionChinaHeadRenderer;
 import ru.orion.client.effect.OrionFullBrightModule;
 import ru.orion.client.effect.OrionHealthTags;
 import ru.orion.client.effect.OrionHitColorFlash;
-import ru.orion.client.effect.OrionHitSound;
 import ru.orion.client.effect.OrionJumpCircleEffect;
 import ru.orion.client.effect.OrionNoWeatherModule;
 import ru.orion.client.effect.OrionTargetEsp;
@@ -87,7 +86,6 @@ public final class OrionClient implements ClientModInitializer {
     private final OrionMediaController mediaController = new OrionMediaController(configManager);
     private final OrionMediaPlayerHud mediaPlayerHud = new OrionMediaPlayerHud(configManager, mediaController);
     private final OrionHitColorFlash hitColorFlash = new OrionHitColorFlash(configManager);
-    private final OrionHitSound hitSound = new OrionHitSound(configManager);
     private final OrionCustomCrosshair customCrosshair = new OrionCustomCrosshair(configManager);
     private final OrionBetterNearHud betterNearHud = new OrionBetterNearHud(configManager);
     private final OrionFakeBanCommand fakeBanCommand = new OrionFakeBanCommand();
@@ -142,7 +140,6 @@ public final class OrionClient implements ClientModInitializer {
         new ru.orion.client.media.GleamWorldLyrics(configManager, mediaController).register();
         hitColorFlash.register();
         ru.orion.client.gui.GleamScreenSnow.register();
-        hitSound.register();
         customCrosshair.register();
         betterNearHud.register();
         new ru.orion.client.hud.OrionPotionsHud(configManager).register();
@@ -214,15 +211,6 @@ public final class OrionClient implements ClientModInitializer {
 
     public static OrionMotionBlur getMotionBlurOrNull() {
         return instance == null ? null : instance.motionBlur;
-    }
-
-    public OrionHitSound getHitSound() {
-        return hitSound;
-    }
-
-    public static OrionHitSound getHitSoundOrNull() {
-        OrionClient current = instance;
-        return current == null ? null : current.hitSound;
     }
 
     public OrionMediaController getMediaController() {

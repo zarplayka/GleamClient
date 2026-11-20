@@ -29,8 +29,7 @@ public final class OrionJumpCircleEffect {
     private static final float RING_DURATION = 0.60F;
     private static final float RIPPLE_DELAY = 0.11F;
     private static final float MIN_RADIUS = 0.15F;
-    private static final float MAX_RADIUS = 0.55F; // итоговый диаметр ~1.1 блока
-    private static final float RING_THICKNESS = 0.18F;          // inner edge = outer * (1 - thickness)
+    private static final float MAX_RADIUS = .78F;
     private static final int SEGMENTS = 48;
     private static final int BASE_ALPHA = 210;
     private static final int MAX_ACTIVE_CIRCLES = 16;
@@ -117,40 +116,57 @@ public final class OrionJumpCircleEffect {
     private static void draw(PoseStack.Pose pose, VertexConsumer vc, Circle circle, float age, float size, int rgb) {
         float progress = age / circle.duration();
         float radius = (MIN_RADIUS + (MAX_RADIUS - MIN_RADIUS) * easeOutCubic(progress)) * size;
-        int color = tint(rgb, BASE_ALPHA * fade(progress));
+        float alpha = BASE_ALPHA * fade(progress);
+        int color = tint(rgb, alpha);
         switch (circle.style()) {
             case RIPPLES -> {
                 for (int i = 0; i < 3; i++) {
                     float t = (age - i * RIPPLE_DELAY) / RING_DURATION;
                     if (t <= 0 || t >= 1) continue;
-                    float edge = (.10F + .65F * easeOutCubic(t)) * size;
-                    float width = (.049F - .026F * t) * size;
-                    ring(pose, vc, edge - width, edge, 0, Math.TAU, SEGMENTS, tint(rgb, (200F - 32 * i) * fade(t)));
+                    float edge = (.12F + .89F * easeOutCubic(t)) * size;
+                    float width = (.031F - .011F * t) * size;
+                    glowRing(pose, vc, edge, width, rgb, (210F - 38 * i) * fade(t));
                 }
             }
             case RUNES -> {
-                ring(pose, vc, radius * .60F, radius * .65F, 0, Math.TAU, SEGMENTS, tint(rgb, 110 * fade(progress)));
+                glowRing(pose, vc, radius * .74F, size * .022F, rgb, alpha);
                 for (int i = 0; i < 8; i++) {
                     double angle = progress * .48 + i * Math.TAU / 8;
-                    ring(pose, vc, radius * .94F, radius, angle - .21, .42, 5, color);
-                    diamond(pose, vc, radius * .79F, radius * (i % 2 == 0 ? .12F : .08F), radius * .04F, angle, color);
+                    band(pose, vc, radius * .97F, radius, angle - .23, .46, 6, color, color);
+                    float mark = radius * .88F;
+                    diamond(pose, vc, mark, radius * .075F, radius * .018F, angle, color);
+                    if ((i & 1) == 0) {
+                        band(pose, vc, mark - size * .009F, mark + size * .009F, angle - .071, .142, 3, color, color);
+                    }
                 }
             }
             case BURST -> {
+                float distance = (.11F + .84F * easeOutCubic(progress)) * size;
+                glowRing(pose, vc, distance, size * (.05F - .024F * progress), rgb, alpha);
                 for (int i = 0; i < 12; i++) {
                     double angle = i * Math.TAU / 12 + (i % 3 - 1) * .10;
-                    float distance = (.09F + (.59F + i % 3 * .10F) * easeOutCubic(progress)) * size;
-                    float length = (.084F + i % 2 * .041F) * (1F - progress * .7F) * size;
-                    diamond(pose, vc, distance, length, .025F * size * (1F - progress * .72F),
-                            angle, tint(rgb, 230 * fade(progress) * (1F - progress * .25F)));
+                    float tip = distance + (.065F + i % 3 * .044F) * size * progress;
+                    float length = (.055F + i % 2 * .025F) * (1F - progress * .65F) * size;
+                    diamond(pose, vc, tip, length, .014F * size * (1F - progress * .6F),
+                            angle, tint(rgb, alpha * (1F - progress * .38F)));
                 }
             }
-            default -> ring(pose, vc, radius * (1.0F - RING_THICKNESS), radius, 0, Math.TAU, SEGMENTS, color);
+            default -> glowRing(pose, vc, radius, size * .034F, rgb, alpha);
         }
     }
 
-    private static void ring(PoseStack.Pose pose, VertexConsumer vc, float inner, float outer,
-                             double start, double arc, int segments, int color) {
+    private static void glowRing(PoseStack.Pose pose, VertexConsumer vc, float radius, float width, int rgb, float alpha) {
+        int transparent = tint(rgb, 0);
+        int center = tint(rgb, alpha);
+        float inner = radius - width * .45F;
+        float outer = radius + width * .45F;
+        band(pose, vc, Math.max(0, radius - width * 1.85F), inner, 0, Math.TAU, SEGMENTS, transparent, center);
+        band(pose, vc, inner, outer, 0, Math.TAU, SEGMENTS, center, center);
+        band(pose, vc, outer, radius + width * 1.85F, 0, Math.TAU, SEGMENTS, center, transparent);
+    }
+
+    private static void band(PoseStack.Pose pose, VertexConsumer vc, float inner, float outer,
+                             double start, double arc, int segments, int innerColor, int outerColor) {
         for (int i = 0; i < segments; i++) {
             double a0 = start + arc * i / segments;
             double a1 = start + arc * (i + 1) / segments;
@@ -160,10 +176,10 @@ public final class OrionJumpCircleEffect {
             float sin1 = (float) Math.sin(a1);
 
             // Flat quad on the XZ plane (local y = 0): innerA -> outerA -> outerB -> innerB.
-            vc.addVertex(pose, inner * cos0, 0.0F, inner * sin0).setColor(color);
-            vc.addVertex(pose, outer * cos0, 0.0F, outer * sin0).setColor(color);
-            vc.addVertex(pose, outer * cos1, 0.0F, outer * sin1).setColor(color);
-            vc.addVertex(pose, inner * cos1, 0.0F, inner * sin1).setColor(color);
+            vc.addVertex(pose, inner * cos0, 0.0F, inner * sin0).setColor(innerColor);
+            vc.addVertex(pose, outer * cos0, 0.0F, outer * sin0).setColor(outerColor);
+            vc.addVertex(pose, outer * cos1, 0.0F, outer * sin1).setColor(outerColor);
+            vc.addVertex(pose, inner * cos1, 0.0F, inner * sin1).setColor(innerColor);
         }
     }
 
