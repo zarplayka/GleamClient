@@ -143,7 +143,6 @@ function refresh() {
   text('enable',t('Включить MediaPlayer'));
   $('control-error').hidden = !state.error;
   text('control-error',state.error ? t(state.error) : '');
-  $('header').setAttribute('aria-label',t('Перемести шторку за заголовок'));
   $('sound-waves').hidden = Number(state.volume)<=.001;
   updateProgress(clock());
 }

@@ -17,8 +17,6 @@ button:focus-visible,[role=slider]:focus-visible{outline:1px solid var(--accent)
 .shoulder.right{left:100%}
 #header,#compact{width:344px;margin:0 auto;display:flex;align-items:center;gap:8px;padding:0 13px;white-space:nowrap}
 #header{height:34px}
-#island[data-interactive] #header{cursor:grab}
-#island[data-dragging] #header{cursor:grabbing}
 .brand{display:flex;align-items:center;gap:6px;font-weight:700;letter-spacing:-.025em}
 .brand img{width:19px;height:19px;object-fit:contain}
 .unit{font-size:10px;color:var(--muted)}
