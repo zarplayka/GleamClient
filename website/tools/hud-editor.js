@@ -10,21 +10,27 @@ const glyphs={
   more:'M4 10h.01M10 10h.01M16 10h.01',
   eye:'M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Zm10 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z',
   edit:'m5 12 8-8 3 3-8 8-4 1zM11.5 5.5l3 3',
-  check:'m4 10 4 4 8-8',
-  status:'M2 10h4l2-5 4 10 2-5h4',
-  keys:'M2 6h16v9H2zM5 9h.01m3 0h.01m4 0h.01m3 0h.01M6 12h8',
-  potions:'M7 3h6m-5 0v5l-4 5a2 2 0 0 0 2 3h8a2 2 0 0 0 2-3l-4-5V3M6 12h8',
-  target:'M10 3v3m0 8v3M3 10h3m8 0h3M15 10a5 5 0 1 1-10 0 5 5 0 0 1 10 0Z',
-  nearby:'M2 15v-1a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1m2-4a3 3 0 0 1 3 3v1M9 6.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm4-2a2 2 0 0 1 0 4',
-  inventory:'M3 5h14v10H3zM3 9h14m-6 0v2H9V9',
-  football:'M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Zm-6-3 3 2-1 3H8L7 9zm0 0V4m3 5 3-1m-4 4 2 3m-6-3-2 3M7 9 4 8',
-  basketball:'M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM4 10h12M10 4v12M6 6c3 1 3 7 0 8m8-8c-3 1-3 7 0 8',
-  scoreboard:'M4 5h12M4 10h12M4 15h12',
-  hotbar:'M2 7h16v6H2zM7 7v6m6-6v6',
-  chat:'M3 4h14v10H8l-4 3v-3H3zM6 8h8m-8 3h5',
-  invite:'M3 5h14v10H3zm0 0 7 6 7-6'
+  check:'m4 10 4 4 8-8'
 };
-const uiIcon=name=>'<svg class="ui-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="'+glyphs[name]+'"/></svg>';
+const widgetGlyphs={
+  status:'M2 12h4v5H2zM8 8h4v9H8zM14 3h4v14h-4z',
+  keys:'M8 4h4v5H8zM2 11h4v5H2zM8 11h4v5H8zM14 11h4v5h-4z',
+  potions:'M7 2h6v2h-1v4l4 5a3 3 0 0 1-2 5H6a3 3 0 0 1-2-5l4-5V4H7zm3 6-3 4h6z',
+  target:'M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 2.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 3a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z',
+  nearby:'M10 2a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM3 17a7 7 0 0 1 14 0z',
+  inventory:'M2 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3H2zm0 5h6v3h4v-3h6v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z',
+  football:'M2 5h16v11h-3V8H5v8H2z',
+  basketball:'M4 3h12v2H4zm-2 5h16v3H2zm3 4h10l-2 5H7z',
+  scoreboard:'M3 4h3v3H3zm5 0h9v3H8zm-5 5h3v3H3zm5 0h9v3H8zm-5 5h3v3H3zm5 0h9v3H8z',
+  hotbar:'M2 7h4v6H2zm6 0h4v6H8zm6 0h4v6h-4z',
+  chat:'M3 3h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H8l-5 4v-4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm2 4v2h10V7zm0 4v1h6v-1z',
+  invite:'M2 4h16l-8 7zm0 3 8 6 8-6v9H2z'
+};
+function uiIcon(name){
+  const silhouette=widgetGlyphs[name];
+  return '<svg class="ui-icon'+(silhouette?' widget-icon':'')+'" viewBox="0 0 20 20" aria-hidden="true">'
+    +'<path d="'+(silhouette||glyphs[name])+'"/></svg>';
+}
 // The local redesign uses the same readouts as the game with its own layout.
 const part=(kind,x,y,w,h,props={})=>({kind,x,y,w,h,...props});
 const panelPart=(w,h,radius=7)=>part('panel',0,0,w,h,{radius});
@@ -43,13 +49,13 @@ function targetScene(){
     label('3.8 m',37,20,40,10,7,muted),label('24 ms',112,20,45,10,7,muted,'right'),
     box(7,36,150,4,2,'#ffffff20'),box(7,36,135,4,2,'#8967ef'),box(142,36,15,4,2,'#e5ba76')];
 }
-const effects=[panelPart(110,53,5),icon(glyphs.potions,7,5,11),
-  label('Эффекты',23,2,73,17,8,'var(--text)','left',true),rule(7,19,96)];
+const effects=[panelPart(110,53,5),
+  label('Эффекты',8,2,94,17,8,'var(--text)','left',true),rule(7,19,96)];
 for(const [index,[name,time]] of [['Скорость 2','1:42'],['Сила 1','0:38']].entries()){
   const y=21+14*index;
   effects.push(label(name,19,y,63,13,7),part('timer',79,y+1,23,11,{text:time}));
 }
-const near=[panelPart(127,61,5),icon(glyphs.nearby,7,5,12),label('Игроки рядом',23,3,81,17,8,'var(--text)','left',true),
+const near=[panelPart(127,61,5),label('Игроки рядом',8,3,96,17,8,'var(--text)','left',true),
   rule(8,22,111),label('2',105,4,14,15,7,'var(--accent)','right',true)];
 for(const [i,[name,distance]] of [['Quartz','8'],['Nova','21']].entries()){
   const y=25+i*16;
@@ -57,7 +63,7 @@ for(const [i,[name,distance]] of [['Quartz','8'],['Nova','21']].entries()){
   near.push(icon(i?'m5 11 5-5 5 5M10 6v9':'m7 6 7 0v7M14 6l-8 8',9,y+2,11),label(name,24,y,65,15,8),
     label(distance,80,y,28,15,8,'var(--text)','right',true),label('m',110,y,7,15,6.5,muted));
 }
-const inventory=[panelPart(178,80,5),icon(glyphs.inventory,6,3,11),label('Инвентарь',21,1,120,15,8,'var(--text)','left',true),
+const inventory=[panelPart(178,80,5),label('Инвентарь',6,1,120,15,8,'var(--text)','left',true),
   rule(5,16,168),...Array.from({length:27},(_,i)=>box(4+i%9*19,20+Math.floor(i/9)*19,18,18,2,'#ffffff10'))];
 function score(text){return [panelPart(67,18,4),box(2,4,2,10,1,'var(--accent)'),label(text,7,0,55,18,8,'var(--text)','center',true)];}
 const catalog={
