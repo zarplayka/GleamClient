@@ -39,13 +39,23 @@ const catalog={
   keys:{name:'Keystrokes',w:55,h:55,x:.025,y:.84,on:true,parts:[keyPart('W',19,0),keyPart('A',0,19),keyPart('S',19,19),keyPart('D',38,19),keyPart('',19,38,36),keyPart('',0,38,17,'L')]},
   potions:{name:'Potions',w:94,h:47,x:.97,y:.19,on:true,parts:effects,art:[art('potion',6,4,8),art(0,6,20,7),art(1,6,33,7)]},
   target:{name:'TargetHud',w:154,h:63,x:.58,y:.61,on:true,parts:targetScene(),art:[art('face',8,9,24),...[7,8,9,10,3,5].map((id,i)=>art(id,8+20*i,43,16))]},
-  nearby:{name:'BetterNear',w:127,h:61,x:.035,y:.2,on:false,parts:near},
-  inventory:{name:'InventoryHUD',w:178,h:64,x:.96,y:.45,on:false,parts:inventory,art:[3,4,5,6].map((id,i)=>art(id,5+i*19,5,16))},
+  nearby:{name:'BetterNear',w:127,h:61,x:.035,y:.2,on:true,parts:near},
+  inventory:{name:'InventoryHUD',w:178,h:64,x:.96,y:.45,on:true,parts:inventory,art:[3,4,5,6].map((id,i)=>art(id,5+i*19,5,16))},
   football:{name:'Football · счёт',w:67,h:15,x:.5,y:.32,on:false,parts:score('Голы: 2')},
-  basketball:{name:'Basketball · счёт',w:67,h:15,x:.5,y:.4,on:false,parts:score('Счёт: 4')}
+  basketball:{name:'Basketball · счёт',w:67,h:15,x:.5,y:.4,on:false,parts:score('Счёт: 4')},
+  scoreboard:{name:'Scoreboard',w:112,h:54,x:.98,y:.65,fixed:true,parts:[
+    panelPart(112,54,5),label('Выживание',6,3,100,13,9,'var(--text)','center',true),rule(6,18,100),
+    label('Онлайн',6,22,55,12,8),label('37',65,22,41,12,8,'#ff5555','right'),
+    label('Сезон',6,36,55,12,8),label('2',65,36,41,12,8,'#ff5555','right')]},
+  chat:{name:'Уведомление чата',w:286,h:76,x:.99,y:.99,fixed:true,template:'chat-notification.html',
+    state:{title:'Quartz',detail:'Готов зайти в мир?'}},
+  invite:{name:'Приглашение в мир',w:328,h:79,x:.99,y:.01,fixed:true,template:'world-invite.html',
+    state:{title:'Quartz приглашает в мир',world:'Летний мир · Minecraft 26.3',hint:'Удерживай клавишу, чтобы принять',
+      key:true,keyboard:true,keyLabel:'Y',initial:'Q',remaining:.75,hold:0,opacity:1,offset:0}}
 };
-function mountScene(el,def){
-  const unit=def.island?1:1.6, surface=document.createElement('div');
+function mountScene(el,def,track=false){
+  const unit=def.island||def.template?1:1.6, surface=document.createElement('div');
+  el.querySelector('.scene')?.remove();
   el.style.width=def.w*unit+'px';el.style.height=def.h*unit+'px';
   surface.className='scene';surface.style.cssText='width:'+def.w+'px;height:'+def.h+'px;transform:scale('+unit+')';
   const frame=document.createElement('iframe');
@@ -54,10 +64,14 @@ function mountScene(el,def){
   if(def.island)frame.style.left='-13px';
   frame.onload=()=>{
     frame.contentDocument.documentElement.style.colorScheme='dark';
-    const state=def.island?{hud:true,version:'0.2.39',username:'Quartz',fps:144,ping:24,scale:1,animated:false,placement:'TOP_CENTER'}:{parts:def.parts};
-    frame.contentWindow.paradox.update(state);
+    const state=def.island?{hud:true,version:'0.2.39',username:'Quartz',fps:144,ping:24,scale:1,animated:false,placement:'TOP_CENTER',
+      media:track,active:track,playing:track,title:'Midnight City',artist:'M83',source:'Spotify',position:83,duration:244}
+      :def.state||{parts:def.parts};
+    const view=frame.contentWindow.paradox;
+    view.update(state);
+    if(def.template==='chat-notification.html')view.opening(1);
   };
-  frame.src=def.island?'/editor-live/island/':'/editor-live/widgets.html';
+  frame.src='/editor-live/'+(def.island?'island/':def.template||'widgets.html');
   surface.append(frame);
   for(const {image,x,y,size} of def.art||[]){
     const overlay=document.createElement('span');
@@ -84,14 +98,19 @@ let snap=saved.snap!==false, step=[8,16,24,32].includes(saved.step)?saved.step:1
 let selected=null, viewing=false, drag=null;
 const models={};
 for(const [id,def] of Object.entries(catalog)){
-  const {name,x,y,on}=def;
+  const {name,x,y,on=false}=def;
   const s=saved.widgets?.[id] || {};
   const model=models[id]={x:num(s.x,x,0,1),y:def.island?0:num(s.y,y,0,1),scale:num(s.scale,1,.35,4),on:typeof s.on==='boolean'?s.on:on};
   const el=document.createElement('div');
   el.className='widget';el.id='widget-'+id;el.dataset.key=id;
-  el.tabIndex=0;el.setAttribute('aria-label',name);
-  el.innerHTML='<button class="handle" title="Изменить размер" aria-label="Изменить размер"></button>';
-  mountScene(el,def);
+  el.setAttribute('aria-label',name);
+  if(def.fixed){el.classList.add('fixed-widget');}
+  else{
+    el.tabIndex=0;
+    el.innerHTML='<button class="handle" title="Изменить размер" aria-label="Изменить размер"></button>';
+  }
+  if(def.island)model.track=s.track===true;
+  mountScene(el,model.track?{...def,h:57}:def,model.track);
   layers.append(el);el.hidden=!model.on;
 }
 function save(){
@@ -125,7 +144,18 @@ function openPanel(title,content){
 }
 function inspect(id){
   clear();selected=id;$('widget-'+id).classList.add('selected');
-  openPanel(catalog[id].name,'<label>Масштаб <output id="pct"></output><input id="scale" type="range" min="35" max="400" step="1"></label><button class="remove">Скрыть виджет</button>');
+  const def=catalog[id],model=models[id];
+  openPanel(def.name,'<label>Масштаб <output id="pct"></output><input id="scale" type="range" min="35" max="400" step="1"></label>'
+    +(def.island?'<label><input id="track" type="checkbox"> Показать текущий трек</label>':'')
+    +'<button class="remove">Скрыть виджет</button>');
+  if(def.island){
+    $('track').checked=model.track;
+    $('track').onchange=e=>{
+      model.track=e.target.checked;
+      mountScene($('widget-'+id),model.track?{...def,h:57}:def,model.track);
+      place(id);save();
+    };
+  }
   function scaleLabel(){const n=Math.round(models[id].scale*100);$('pct').value=n+'%';$('scale').value=n;}
   scaleLabel();$('scale').oninput=e=>{models[id].scale=e.target.value/100;place(id);scaleLabel();save();};
   panel.querySelector('.remove').onclick=()=>{models[id].on=false;clear();place(id);save();};
@@ -133,14 +163,17 @@ function inspect(id){
 function library(){
   const wasOpen=$('library').getAttribute('aria-expanded')==='true';clear();if(wasOpen)return;
   $('library').setAttribute('aria-expanded','true');
-  openPanel('Виджеты',Object.entries(catalog).map(([id,{name}])=>'<button class="option" data-id="'+id+'" aria-pressed="'+models[id].on+'">'+name+'<span>'+(models[id].on?'✓':'＋')+'</span></button>').join(''));
+  const entries=Object.entries(catalog);
+  const buttons=items=>items.map(([id,{name}])=>'<button class="option" data-id="'+id+'" aria-pressed="'+models[id].on+'">'+name+'<span>'+(models[id].on?'✓':'＋')+'</span></button>').join('');
+  openPanel('Виджеты',buttons(entries.filter(([,def])=>!def.fixed))
+    +'<h3>Экранные оверлеи</h3>'+buttons(entries.filter(([,def])=>def.fixed)));
   panel.querySelectorAll('.option').forEach(btn=>btn.onclick=()=>{
     const id=btn.dataset.id;models[id].on=!models[id].on;place(id);save();
     btn.setAttribute('aria-pressed',models[id].on);btn.lastElementChild.textContent=models[id].on?'✓':'＋';
   });
 }
 layers.onpointerdown=e=>{
-  const el=e.target.closest('.widget');if(!el||viewing||e.button!==0||drag)return;
+  const el=e.target.closest('.widget:not(.fixed-widget)');if(!el||viewing||e.button!==0||drag)return;
   const id=el.dataset.key,m=models[id],g=geometry(id);
   const resize=!!e.target.closest('.handle');
   if(selected!==id)clear();

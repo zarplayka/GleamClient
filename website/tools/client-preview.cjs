@@ -29,6 +29,7 @@ for (const name of ['hud-editor.html', 'hud-editor.css', 'hud-editor.js', 'hud-e
 routes.set('/assets/gameplay-baseline.webp', tools('../assets/gameplay-baseline.webp'));
 routes.set('/assets/orion-badge.png', badge);
 routes.set('/editor-live/widgets.html', game('html/hud-widgets.html'));
+for (const name of ['chat-notification.html', 'world-invite.html']) routes.set('/editor-live/'+name, game('html/'+name));
 routes.set('/editor-live/hud-theme.css', game('html/hud-theme.css'));
 routes.set('/editor-live/potions.png', game('textures/gui/potions_hud.png'));
 routes.set('/editor-live/island/', game('html/hud-island/index.html'));
