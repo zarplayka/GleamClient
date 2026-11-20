@@ -10,7 +10,9 @@ const glyphs={
   more:'M4 10h.01M10 10h.01M16 10h.01',
   eye:'M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Zm10 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z',
   edit:'m5 12 8-8 3 3-8 8-4 1zM11.5 5.5l3 3',
-  check:'m4 10 4 4 8-8'
+  check:'m4 10 4 4 8-8',
+  mouse:'M6 6a4 4 0 0 1 8 0v7a4 4 0 0 1-8 0zm0 3h8m-4-7v7',
+  heart:'M10 17 4 11a4 4 0 0 1 6-5 4 4 0 0 1 6 5z'
 };
 const widgetGlyphs={
   status:'M2 10h4l2-6 4 12 2-6h4',
@@ -45,17 +47,19 @@ const health='#a892ff', muted='var(--muted)';
 function targetScene(){
   return [panelPart(164,59,8),well(7,7,24,24,5),
     label('Quartz',37,6,61,14,10,'var(--text)','left',true),
-    label('18 / 20',103,6,38,14,9,health,'right',true),label('+2',142,6,15,14,7,'#e5ba76','right'),
+    icon(glyphs.heart,97,9,9),label('18 / 20',109,6,32,14,9,health,'right',true),
+    label('+2',142,6,15,14,7,'#e5ba76','right'),
     label('3.8 m',37,20,40,10,7,muted),label('24 ms',112,20,45,10,7,muted,'right'),
     box(7,36,150,4,2,'#ffffff20'),box(7,36,135,4,2,'#8967ef'),box(142,36,15,4,2,'#e5ba76')];
 }
-const effects=[panelPart(110,53,5),
-  label('Эффекты',8,2,94,17,8,'var(--text)','left',true),rule(7,19,96)];
+const effects=[panelPart(110,53,5),icon(widgetGlyphs.potions,8,5,11),
+  label('Эффекты',23,2,79,17,8,'var(--text)','left',true),rule(7,19,96)];
 for(const [index,[name,time]] of [['Скорость 2','1:42'],['Сила 1','0:38']].entries()){
   const y=21+14*index;
   effects.push(label(name,19,y,63,13,7),part('timer',79,y+1,23,11,{text:time}));
 }
-const near=[panelPart(127,61,5),label('Игроки рядом',8,3,96,17,8,'var(--text)','left',true),
+const near=[panelPart(127,61,5),icon(widgetGlyphs.nearby,8,6,11),
+  label('Игроки рядом',23,3,81,17,8,'var(--text)','left',true),
   rule(8,22,111),label('2',105,4,14,15,7,'var(--accent)','right',true)];
 for(const [i,[name,distance]] of [['Quartz','8'],['Nova','21']].entries()){
   const y=25+i*16;
@@ -63,9 +67,13 @@ for(const [i,[name,distance]] of [['Quartz','8'],['Nova','21']].entries()){
   near.push(icon(i?'m5 11 5-5 5 5M10 6v9':'m7 6 7 0v7M14 6l-8 8',9,y+2,11),label(name,24,y,65,15,8),
     label(distance,80,y,28,15,8,'var(--text)','right',true),label('m',110,y,7,15,6.5,muted));
 }
-const inventory=[panelPart(178,80,5),label('Инвентарь',6,1,120,15,8,'var(--text)','left',true),
+const inventory=[panelPart(178,80,5),icon(widgetGlyphs.inventory,6,3,11),
+  label('Инвентарь',21,1,105,15,8,'var(--text)','left',true),
   rule(5,16,168),...Array.from({length:27},(_,i)=>box(4+i%9*19,20+Math.floor(i/9)*19,18,18,2,'#ffffff10'))];
-function score(text){return [panelPart(67,18,4),box(2,4,2,10,1,'var(--accent)'),label(text,7,0,55,18,8,'var(--text)','center',true)];}
+function score(text,glyph){
+  return [panelPart(67,18,4),icon(glyph,6,4,10),
+    label(text,21,0,40,18,8,'var(--text)','left',true)];
+}
 const catalog={
   status:{name:'HUD / MediaPlayer',w:366,h:34,x:.5,y:.055,on:true,island:true},
   keys:{name:'Keystrokes',w:55,h:55,x:.18,y:.31,on:true,parts:[keyPart('W',19,0),keyPart('A',0,19),keyPart('S',19,19),keyPart('D',38,19),keyPart('',19,38,36),keyPart('',0,38,17,'L')]},
@@ -73,8 +81,8 @@ const catalog={
   target:{name:'TargetHud',w:164,h:59,x:.24,y:.64,on:true,parts:targetScene(),art:[art('face',8,8,22),...[7,8,9,10,3,5].map((id,i)=>art(id,9+25*i,43,13))]},
   nearby:{name:'BetterNear',w:127,h:61,x:.035,y:.43,on:true,parts:near},
   inventory:{name:'InventoryHUD',w:178,h:80,x:.94,y:.83,on:true,parts:inventory,art:[3,4,5,6].map((id,i)=>art(id,5+i*19,21,16))},
-  football:{name:'Football · счёт',w:67,h:18,x:.5,y:.32,on:false,parts:score('Голы: 2')},
-  basketball:{name:'Basketball · счёт',w:67,h:18,x:.5,y:.4,on:false,parts:score('Счёт: 4')},
+  football:{name:'Football · счёт',w:67,h:18,x:.5,y:.32,on:false,parts:score('Голы: 2',widgetGlyphs.football)},
+  basketball:{name:'Basketball · счёт',w:67,h:18,x:.5,y:.4,on:false,parts:score('Счёт: 4',widgetGlyphs.basketball)},
   scoreboard:{name:'Scoreboard · контекст',w:84,h:27,x:1,y:.5,fixed:true,parts:[
     box(0,0,84,9,0,'#00000066'),box(0,9,84,18,0,'#0000004d'),
     label('Выживание',2,0,80,9,7,'white','center'),
@@ -112,6 +120,13 @@ const previewTheme=`
   #island .shoulder { display: none; }
   #island .brand img { filter: drop-shadow(0 0 4px #8967ef); }
   #island .metric > span:first-child { font-weight: 700; color: var(--accent); }
+  .hud-glyph .ui-icon, .key .mouse .ui-icon {
+    display: block; fill: none; stroke: currentColor; stroke-width: 1.7;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  .hud-glyph { flex: none; color: var(--accent); }
+  .hud-glyph .ui-icon { width: 16px; height: 16px; }
+  .key .mouse .ui-icon { width: 10px; height: 10px; }
 `;
 function mountScene(el,def,track=false){
   const unit=def.island?.85:def.template?1:1.32;
@@ -134,6 +149,13 @@ function mountScene(el,def,track=false){
       :def.state||{parts:def.parts};
     const view=frame.contentWindow.paradox;
     view.update(state);
+    if(def.island){
+      doc.querySelector('#header').insertAdjacentHTML('afterbegin','<span class="hud-glyph">'+uiIcon('status')+'</span>');
+    }else if(el.dataset.key==='keys'){
+      const mouse=doc.querySelector('.key .mouse');
+      mouse.setAttribute('aria-label','Левая кнопка мыши');
+      mouse.innerHTML=uiIcon('mouse');
+    }
     if(def.template==='chat-notification.html')view.opening(1);
   };
   frame.src='/editor-live/'+(def.island?'island/':def.template||'widgets.html');
