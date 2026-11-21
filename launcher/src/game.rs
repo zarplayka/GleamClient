@@ -2056,8 +2056,8 @@ pub async fn launch_minecraft(
                 let _ = window.unminimize();
                 let _ = window.set_focus();
             }
-            return Err(format!("game_exit:{}:{}", result.code().unwrap_or(-1),
-                               crash_reason(&game_dir, &launch_log, started_at)));
+            let (reason, report) = crash_reason(&game_dir, &launch_log, started_at);
+            return Err(format!("game_exit:{}:{reason}:{}", result.code().unwrap_or(-1), report.unwrap_or_default()));
         }
         Ok(())
     })
@@ -2097,36 +2097,57 @@ pub async fn minecraft_resources(app: tauri::AppHandle, version: String, instanc
     }).await.map_err(|_| "game_storage".to_owned())?
 }
 
-fn crash_reason(game_dir: &Path, launch_log: &Path, started_at: u64) -> &'static str {
+pub(crate) fn valid_crash_report(name: &str) -> bool {
+    name.len() <= 96 && name.starts_with("crash-") && name.ends_with(".txt")
+        && name.bytes().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, b'-' | b'_' | b'.'))
+}
+
+fn crash_reason(game_dir: &Path, launch_log: &Path, started_at: u64) -> (&'static str, Option<String>) {
     use std::io::{Seek, SeekFrom};
-    let tail = |path: &Path| -> Option<String> {
+    let reports = game_dir.join("crash-reports");
+    let report = fs::read_dir(&reports).ok().into_iter().flatten().filter_map(|entry| {
+        let entry = entry.ok()?;
+        let name = entry.file_name().into_string().ok()?;
+        if !valid_crash_report(&name) { return None; }
+        let metadata = crate::profile_content::metadata(&entry.path()).ok().flatten()?;
+        let modified = metadata.modified().ok()?;
+        (metadata.is_file() && timestamp(modified).saturating_add(1000) >= started_at).then_some((modified, name))
+    }).max().map(|(_, name)| name);
+    let read = |path: &Path, head: bool| -> Option<String> {
         let mut file = File::open(path).ok()?;
         let metadata = file.metadata().ok()?;
         if timestamp(metadata.modified().ok()?).saturating_add(1000) < started_at { return None; }
-        file.seek(SeekFrom::Start(metadata.len().saturating_sub(96 * 1024))).ok()?;
+        const LIMIT: u64 = 96 * 1024;
+        if !head { file.seek(SeekFrom::Start(metadata.len().saturating_sub(LIMIT))).ok()?; }
         let mut bytes = Vec::new();
-        file.take(96 * 1024).read_to_end(&mut bytes).ok()?;
+        file.take(LIMIT).read_to_end(&mut bytes).ok()?;
         Some(String::from_utf8_lossy(&bytes).to_ascii_lowercase())
     };
-    for path in [launch_log, &game_dir.join("logs/latest.log")] {
-        let Some(log) = tail(path) else { continue; };
+    let report_text = report.as_ref().and_then(|name| read(&reports.join(name), true));
+    let launch_text = read(launch_log, false);
+    let latest_text = read(&game_dir.join("logs/latest.log"), false);
+    for log in [report_text, launch_text, latest_text].into_iter().flatten() {
+        if log.contains("nosuchmethoderror") && log.contains("mods.sodium.api.vertex.buffer")
+            && log.contains("zako.opt.") {
+            return ("zako_sodium", report);
+        }
         if log.contains("could not reserve enough space") || log.contains("native memory allocation") {
-            return "memory_reservation";
+            return ("memory_reservation", report);
         }
         if log.contains("outofmemoryerror") && (log.contains("java heap space") || log.contains("gc overhead limit")) {
-            return "heap";
+            return ("heap", report);
         }
         if log.contains("unrecognized vm option") || log.contains("improperly specified vm option") {
-            return "jvm_option";
+            return ("jvm_option", report);
         }
         if log.contains("incompatible mods found") || log.contains("mod resolution encountered an incompatible mod set") {
-            return "mods";
+            return ("mods", report);
         }
         if log.contains("glfw error 65542") || log.contains("does not support opengl") {
-            return "graphics";
+            return ("graphics", report);
         }
     }
-    "unknown"
+    ("unknown", report)
 }
 
 #[derive(Serialize)]

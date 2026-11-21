@@ -148,6 +148,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             catalog::catalog_search,
             catalog::catalog_install,
+            catalog::repair_zakoopt,
             catalog::instance_storage,
             catalog::open_instance_folder,
             open_project_link,
@@ -164,6 +165,7 @@ fn main() {
             profile_content::profile_server_status,
             profile_content::profile_toggle_mod,
             profile_content::open_profile_content,
+            profile_content::open_crash_report,
             profile_import::discover_profiles,
             profile_import::imported_profiles,
             profile_import::create_profile,

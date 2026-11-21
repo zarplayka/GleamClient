@@ -232,6 +232,20 @@ fn folder_entries(instance: &Path, kind: Kind) -> io::Result<Vec<Entry>> {
     Ok(entries)
 }
 
+#[tauri::command]
+pub async fn open_crash_report(app: tauri::AppHandle, profile_id: Option<String>, game_version: Option<String>, file: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if !crate::game::valid_crash_report(&file) { return Err("Не удалось открыть отчёт".into()); }
+        let folder = instance(&app, profile_id.as_deref(), game_version.as_deref())?.join("crash-reports");
+        let path = folder.join(file);
+        if !metadata(&folder).is_ok_and(|value| value.is_some_and(|value| value.is_dir()))
+            || !metadata(&path).is_ok_and(|value| value.is_some_and(|value| value.is_file())) {
+            return Err("Не удалось открыть отчёт".into());
+        }
+        catalog::open_local_path(&path)
+    }).await.map_err(|_| "Не удалось открыть отчёт".to_string())?
+}
+
 fn take<'a>(input: &mut &'a [u8], count: usize) -> Option<&'a [u8]> {
     let (bytes, rest) = input.split_at_checked(count)?;
     *input = rest;

@@ -943,6 +943,99 @@ fn catalog_pack_receipts_use_their_own_folder() {
 }
 
 #[tauri::command]
+pub async fn repair_zakoopt(
+    app: tauri::AppHandle, state: tauri::State<'_, Catalog>, game_version: String,
+    instance_id: Option<String>,
+) -> Result<String, String> {
+    validate("curseforge", &game_version)?;
+    let catalog = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _installation = catalog.installation.try_lock().map_err(|_| "Дождись завершения текущей установки")?;
+        let client = catalog.client.as_ref().as_ref().map_err(Clone::clone)?;
+        let root = crate::profile_import::instance(&app, &game_version, instance_id.as_deref())?;
+        #[cfg(windows)]
+        crate::game::check_storage_idle(&root).map_err(|_| "Закрой Minecraft перед обновлением мода")?;
+        let lock = |name| -> Result<fs::File, String> {
+            let file = fs::OpenOptions::new().read(true).write(true).create(true).truncate(false)
+                .open(root.join(name)).map_err(io_error)?;
+            file.try_lock().map_err(|_| "Закрой Minecraft или дождись завершения установки")?;
+            Ok(file)
+        };
+        let _game_lock = lock(".gleam-launch.lock")?;
+        let _catalog_lock = lock("catalog-install.lock")?;
+        let mods = root.join("mods");
+        if !crate::profile_content::metadata(&mods).is_ok_and(|m| m.is_some_and(|m| m.is_dir())) {
+            return Err("Папка модов недоступна".into());
+        }
+        let mut installed = Vec::new();
+        for entry in fs::read_dir(&mods).map_err(io_error)? {
+            let path = entry.map_err(io_error)?.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("jar")
+                || !crate::profile_content::metadata(&path).is_ok_and(|m| m.is_some_and(|m| m.is_file())) {
+                continue;
+            }
+            if let Some(metadata) = fabric_mod_metadata(&path) {
+                if metadata["id"] == "zakoopt" { installed.push((path, metadata)); }
+            }
+        }
+        if installed.len() != 1 { return Err("zako_missing".into()); }
+        let (old_path, old_metadata) = installed.pop().unwrap();
+        let version_key = |version: &str| -> Option<Vec<u32>> {
+            let (version, _) = version.split_once(['+', '-']).unwrap_or((version, ""));
+            let mut components = version.split('.').map(str::parse::<u32>).collect::<Result<Vec<_>, _>>().ok()?;
+            while components.len() < 3 { components.push(0); }
+            Some(components)
+        };
+        const PROJECT: &str = "1731365";
+        let newest = json_response(api(client, &app, "curseforge", "mods/1731365/files")?.query(&[
+            ("gameVersion", game_version.as_str()), ("modLoaderType", "4"), ("pageSize", "1")
+        ]))?;
+        let file = newest["data"].as_array().and_then(|files| files.first()).ok_or("zako_no_update")?;
+        let published_name = text(file, "fileName");
+        let proposed = published_name.strip_prefix("zakoopt-").and_then(version_key).ok_or("zako_no_update")?;
+        let current = old_metadata["version"].as_str().and_then(version_key).ok_or("zako_no_update")?;
+        if proposed <= current { return Err("zako_no_update".into()); }
+        let artifacts = resolve(client, &app, "curseforge", &game_version, PROJECT, CatalogKind::Mods)?;
+        let artifact = artifacts.iter().find(|file| file.project == PROJECT && file.name == published_name).ok_or("zako_no_update")?;
+        let stage = tempfile::tempdir_in(&root).map_err(io_error)?;
+        let candidate = stage.path().join(&artifact.name);
+        download(client, artifact, &candidate, |_, _| {})?;
+        let metadata = fabric_mod_metadata(&candidate).ok_or("zako_incompatible")?;
+        let version = text(&metadata, "version");
+        if metadata["id"] != "zakoopt" || version_key(&version).is_none_or(|key| key <= current)
+            || metadata["depends"] != old_metadata["depends"] || metadata["breaks"] != old_metadata["breaks"] {
+            return Err("zako_incompatible".into());
+        }
+        let mut jar = zip::ZipArchive::new(fs::File::open(&candidate).map_err(io_error)?)
+            .map_err(|_| "zako_incompatible")?;
+        if let Ok(class) = jar.by_name("zako/opt/gl/SodiumVertices.class") {
+            let mut bytes = Vec::new();
+            class.take(128 * 1024).read_to_end(&mut bytes).map_err(io_error)?;
+            if bytes.len() == 128 * 1024 || bytes.windows(5).any(|part| part == b"tryOf") {
+                return Err("zako_incompatible".into());
+            }
+        }
+        drop(jar);
+        let destination = mods.join(&artifact.name);
+        let backup = root.join("mod-backups");
+        fs::create_dir_all(&backup).map_err(io_error)?;
+        if !crate::profile_content::metadata(&backup).is_ok_and(|m| m.is_some_and(|m| m.is_dir())) {
+            return Err("Папка резервных копий недоступна".into());
+        }
+        let saved = tempfile::Builder::new().prefix("zakoopt-").tempdir_in(backup).map_err(io_error)?;
+        let old_backup = saved.path().join(old_path.file_name().ok_or("zako_missing")?);
+        fs::hard_link(&old_path, &old_backup).map_err(io_error)?;
+        fs::hard_link(&candidate, &destination).map_err(io_error)?;
+        if let Err(error) = fs::remove_file(&old_path) {
+            let _ = fs::remove_file(destination);
+            return Err(io_error(error));
+        }
+        let _ = saved.keep();
+        Ok(version)
+    }).await.map_err(|_| "Не удалось обновить ZakoOpt".to_owned())?
+}
+
+#[tauri::command]
 pub async fn catalog_install(
     app: tauri::AppHandle,
     state: tauri::State<'_, Catalog>,
