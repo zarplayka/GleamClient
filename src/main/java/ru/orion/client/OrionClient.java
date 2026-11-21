@@ -136,6 +136,7 @@ public final class OrionClient implements ClientModInitializer {
         noWeatherModule.register();
         fullBrightModule.register();
         mediaController.register();
+        ru.orion.client.hud.OrionHudEditorScreen.registerChat(configManager);
         mediaPlayerHud.register();
         new ru.orion.client.media.GleamWorldLyrics(configManager, mediaController).register();
         hitColorFlash.register();

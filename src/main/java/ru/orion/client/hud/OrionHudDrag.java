@@ -14,14 +14,26 @@ import java.util.function.BiConsumer;
 public final class OrionHudDrag {
     private static final long MAX_AGE = 500_000_000L;
     private static final Map<String, Region> REGIONS = new LinkedHashMap<>();
+    private static final Map<String, Visibility> TRANSITIONS = new LinkedHashMap<>();
+    private static float opacity = 1F;
     static {
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(REGIONS::clear));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
+            REGIONS.clear();
+            TRANSITIONS.clear();
+        }));
     }
     private final String id;
 
     public OrionHudDrag(String id) { this.id = id; }
 
     public record Position(int x, int y) {}
+    private record Visibility(float from, boolean enabled, long started) {
+        float opacity(long now) {
+            float t = Math.clamp((now - started) / 210_000_000F, 0F, 1F);
+            float eased = enabled ? 1F - (1F - t) * (1F - t) : t * t;
+            return from + ((enabled ? 1F : 0F) - from) * eased;
+        }
+    }
     public record Region(String id, int x, int y, int width, int height, long seen,
                          BiConsumer<Integer, Integer> setPosition, String scaleId) {
         public boolean contains(double px, double py) {
@@ -54,6 +66,60 @@ public final class OrionHudDrag {
     }
 
     public static void forget(String id) { REGIONS.remove(id); }
+
+    static void transition(String id, boolean enabled) {
+        long now = System.nanoTime();
+        var previous = TRANSITIONS.get(id);
+        float from = previous == null ? (enabled ? 0F : 1F) : previous.opacity(now);
+        TRANSITIONS.put(id, new Visibility(from, enabled, now));
+    }
+
+    public static boolean fadingOut(String id) {
+        var transition = TRANSITIONS.get(id);
+        return transition != null && !transition.enabled() && transition.opacity(System.nanoTime()) > 0F;
+    }
+
+    public boolean fadingOut() { return fadingOut(id); }
+
+    public static float opacity() { return opacity; }
+
+    public static int tint(int color) {
+        return color & 0xffffff | Math.round((color >>> 24) * opacity) << 24;
+    }
+
+    public void draw(GuiGraphicsExtractor context, Runnable render) { draw(id, context, render); }
+
+    public static void draw(String id, GuiGraphicsExtractor context, Runnable render) {
+        var transition = TRANSITIONS.get(id);
+        if (transition == null) {
+            render.run();
+            return;
+        }
+        long now = System.nanoTime();
+        float alpha = transition.opacity(now);
+        if (now - transition.started() >= 210_000_000L) {
+            TRANSITIONS.remove(id);
+            render.run();
+            return;
+        }
+        float previous = opacity;
+        opacity *= alpha;
+        var region = REGIONS.get(id);
+        var pose = context.pose();
+        pose.pushMatrix();
+        try {
+            if (region != null) {
+                float pivot = region.x() + region.width() / 2F;
+                float scale = .8F + .2F * alpha;
+                pose.translate(pivot, region.y() - 5F * (1F - alpha))
+                        .scale(scale).translate(-pivot, -region.y());
+            }
+            render.run();
+        } finally {
+            pose.popMatrix();
+            opacity = previous;
+        }
+    }
 
     Position placeWidget(GuiGraphicsExtractor context, int width, int height, int defaultX, int defaultY,
                          OrionConfigManager manager) {

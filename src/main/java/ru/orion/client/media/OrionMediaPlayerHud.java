@@ -14,6 +14,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
@@ -43,7 +44,8 @@ public final class OrionMediaPlayerHud {
     private JsonObject labels;
     private String language;
     private Bounds bounds;
-    private boolean captured, visible;
+    private Bounds portrait;
+    private boolean captured, visible, fallbackHud;
     private long renderedAt;
     private int coverGeneration = -1;
     private String coverAsset = "";
@@ -67,11 +69,11 @@ public final class OrionMediaPlayerHud {
     public void register() {
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "media_player"),
                 (graphics, delta) -> {
-                    if (!(GleamMinecraft.screen(Minecraft.getInstance()) instanceof ChatScreen)) render(graphics);
+                    if (!(GleamMinecraft.screen(Minecraft.getInstance()) instanceof ChatScreen)) drawIsland(graphics);
                 });
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (!(screen instanceof ChatScreen)) return;
-            ScreenEvents.afterExtract(screen).register((current, graphics, x, y, delta) -> render(graphics));
+            ScreenEvents.afterExtract(screen).register((current, graphics, x, y, delta) -> drawIsland(graphics));
             ScreenMouseEvents.allowMouseClick(screen).register((current, event) -> {
                 if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || !interactive()) return true;
                 float ratio = client.getWindow().getGuiScale();
@@ -103,7 +105,8 @@ public final class OrionMediaPlayerHud {
 
     private boolean interactive() {
         var client = Minecraft.getInstance();
-        return visible && chatPointerAvailable(client) && System.nanoTime() - renderedAt < 400_000_000L;
+        return visible && (manager.getConfig().isHudEnabled() || manager.getConfig().isMediaPlayerEnabled())
+                && chatPointerAvailable(client) && System.nanoTime() - renderedAt < 400_000_000L;
     }
 
     private static boolean chatPointerAvailable(Minecraft client) {
@@ -111,15 +114,27 @@ public final class OrionMediaPlayerHud {
                 && !client.mouseHandler.isMouseGrabbed();
     }
 
+    private void drawIsland(GuiGraphicsExtractor graphics) {
+        OrionHudDrag.draw("island", graphics, () -> render(graphics));
+    }
+
     private void render(GuiGraphicsExtractor graphics) {
         var client = Minecraft.getInstance();
         var config = manager.getConfig();
-        if ((!config.isHudEnabled() && !config.isMediaPlayerEnabled()) || client.player == null) {
+        boolean enabled = config.isHudEnabled() || config.isMediaPlayerEnabled();
+        if ((!enabled && !OrionHudDrag.fadingOut("island")) || client.player == null) {
             if (visible) dispose();
+            else OrionHudDrag.forget("island");
             return;
         }
         if (!view.ready()) {
             renderFallback(graphics, client, config);
+            return;
+        }
+        if (!enabled && previous != null) {
+            view.draw(graphics, 0, 0, graphics.guiWidth(), graphics.guiHeight(),
+                    1F / client.getWindow().getGuiScale(), 1F / client.getWindow().getGuiScale(), OrionHudDrag.opacity());
+            if (previous.get("hud").getAsBoolean()) drawPortrait(graphics, client);
             return;
         }
         visible = true;
@@ -142,8 +157,6 @@ public final class OrionMediaPlayerHud {
         data.addProperty("interactive", chatPointer);
         data.addProperty("media", config.isMediaPlayerEnabled());
         data.addProperty("light", config.getClickGuiTheme() == 4);
-        data.addProperty("glass", (!config.isHudEnabled() || config.isHudElementGlass("hud_watermark"))
-                && (!config.isMediaPlayerEnabled() || config.isHudElementGlass("media_player_hud")));
         data.addProperty("animated", config.isMediaPlayerAnimated());
         data.addProperty("accent", config.getClickGuiAccent());
         data.addProperty("scale", islandScale(config) * Math.clamp(window.getWidth() / 1920F, .8F, 1.5F));
@@ -168,14 +181,39 @@ public final class OrionMediaPlayerHud {
             view.move(-1000, -1000);
         }
         view.frame();
-        if (view.draw(graphics, 0, 0, graphics.guiWidth(), graphics.guiHeight(), 1F / window.getGuiScale(), 1F / window.getGuiScale())) {
+        if (view.draw(graphics, 0, 0, graphics.guiWidth(), graphics.guiHeight(),
+                1F / window.getGuiScale(), 1F / window.getGuiScale(), OrionHudDrag.opacity())) {
             renderedAt = System.nanoTime();
         }
         receive();
+        if (config.isHudEnabled()) drawPortrait(graphics, client);
         if (bounds != null) {
             float scale = window.getGuiScale();
             OrionHudDrag.observe("island", Math.round(bounds.x / scale), Math.round(bounds.y / scale),
                     Math.round(bounds.width / scale), Math.round(bounds.height / scale), this::setPosition, "media");
+        }
+    }
+
+    private void drawPortrait(GuiGraphicsExtractor graphics, Minecraft client) {
+        if (portrait == null || OrionHudDrag.opacity() <= 0F) return;
+        float ratio = client.getWindow().getGuiScale();
+        var pose = graphics.pose();
+        pose.pushMatrix();
+        try {
+            pose.translate(portrait.x / ratio, portrait.y / ratio).scale(portrait.width / (8F * ratio));
+            drawHead(graphics, client, 0, 0);
+        } finally {
+            pose.popMatrix();
+        }
+    }
+
+    private static void drawHead(GuiGraphicsExtractor graphics, Minecraft client, int x, int y) {
+        var player = client.player;
+        var skin = player.getSkin().body().texturePath();
+        int color = OrionHudDrag.tint(-1);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, skin, x, y, 8, 8, 8, 8, 8, 8, 64, 64, color);
+        if (player.isModelPartShown(net.minecraft.world.entity.player.PlayerModelPart.HAT)) {
+            graphics.blit(RenderPipelines.GUI_TEXTURED, skin, x, y, 40, 8, 8, 8, 8, 8, 64, 64, color);
         }
     }
 
@@ -217,20 +255,23 @@ public final class OrionMediaPlayerHud {
     }
 
     private void renderFallback(GuiGraphicsExtractor graphics, Minecraft client, OrionConfig config) {
-        String label = "GleamClient";
-        if (config.isHudEnabled()) {
-            int latency = ping(client);
-            label += " " + VERSION + " · " + OrionNameProtect.replace(client.getUser().getName())
-                    + " · " + client.getFps() + " FPS · " + (latency < 0 ? "—" : latency) + " ms";
-        }
+        boolean hud = config.isHudEnabled() || OrionHudDrag.fadingOut("island") && fallbackHud;
+        if (OrionHudDrag.opacity() < .015F) return;
+        fallbackHud = hud;
+        String brand = hud ? "GleamClient " + VERSION : "GleamClient";
+        int latency = ping(client);
+        String details = hud ? OrionNameProtect.replace(client.getUser().getName())
+                + " · " + client.getFps() + " FPS · " + (latency < 0 ? "—" : latency) + " ms" : "";
         int screenWidth = graphics.guiWidth();
         float scale = Math.min(islandScale(config), Math.min(screenWidth / 13F, graphics.guiHeight() / 30F));
         if (scale <= 0) return;
         int maxWidth = Math.max(1, Math.min(280, (int) (screenWidth / scale) - 12));
-        label = client.font.plainSubstrByWidth(label, maxWidth);
+        int detailsX = client.font.width(brand) + 19;
+        details = client.font.plainSubstrByWidth(details, Math.max(0, maxWidth - detailsX));
         String track = config.isMediaPlayerEnabled() && controller.isActive()
                 ? client.font.plainSubstrByWidth(controller.getTitle(), maxWidth) : "";
-        int width = Math.max(client.font.width(label), client.font.width(track)) + 12;
+        int width = Math.max(client.font.width(track) + 12, hud ? detailsX + client.font.width(details) + 6
+                : client.font.width(brand) + 12);
         int scaledWidth = (int) Math.ceil(width * scale);
         int x = config.isMediaPlayerPositionCustom() ? config.getMediaPlayerX() : switch (config.getMediaPlayerCorner()) {
             case "TOP_LEFT" -> 5;
@@ -246,16 +287,20 @@ public final class OrionMediaPlayerHud {
         try {
             pose.translate(x, y);
             pose.scale(scale);
-            graphics.fill(0, 0, width, track.isBlank() ? 17 : 30, 0xEB0F1216);
+            graphics.fill(0, 0, width, track.isBlank() ? 17 : 30, OrionHudDrag.tint(0xEB0F1216));
+            int ink = OrionHudDrag.tint(0xFFF3F4FA);
+            if (hud) drawHead(graphics, client, detailsX - 10, 4);
             //? if >=26.1 {
-            graphics.text(client.font, label, 6, 4, 0xFFF3F4FA);
+            graphics.text(client.font, brand, 6, 4, ink);
+            if (hud) graphics.text(client.font, details, detailsX, 4, ink);
             //?} else {
-            /*graphics.drawString(client.font, label, 6, 4, 0xFFF3F4FA);
+            /*graphics.drawString(client.font, brand, 6, 4, ink);
+            if (hud) graphics.drawString(client.font, details, detailsX, 4, ink);
             *///?}
             //? if >=26.1 {
-            if (!track.isBlank()) graphics.text(client.font, track, 6, 17, 0xFF65D7A0);
+            if (!track.isBlank()) graphics.text(client.font, track, 6, 17, OrionHudDrag.tint(0xFF65D7A0));
             //?} else {
-            /*if (!track.isBlank()) graphics.drawString(client.font, track, 6, 17, 0xFF65D7A0);
+            /*if (!track.isBlank()) graphics.drawString(client.font, track, 6, 17, OrionHudDrag.tint(0xFF65D7A0));
             *///?}
         } finally {
             pose.popMatrix();
@@ -305,6 +350,11 @@ public final class OrionMediaPlayerHud {
             if (Float.isFinite(x + y + w + h + r) && w > 0 && h > 0 && r >= 0) bounds = new Bounds(x, y, w, h, r);
             return;
         }
+        if ("portrait".equals(action)) {
+            float x = event.get("x").getAsFloat(), y = event.get("y").getAsFloat(), size = event.get("size").getAsFloat();
+            portrait = Float.isFinite(x + y + size) && size > 0 ? new Bounds(x, y, size, size, 0) : null;
+            return;
+        }
         if (!interactive()) return;
         if ("settings".equals(action)) {
             GleamMinecraft.setScreen(Minecraft.getInstance(), OrionClickGuiScreen.withMediaPlayerSettings(manager));
@@ -331,7 +381,9 @@ public final class OrionMediaPlayerHud {
         view.dispose();
         previous = null;
         bounds = null;
+        portrait = null;
         captured = visible = false;
+        fallbackHud = false;
         coverGeneration = -1;
         coverAsset = "";
         lyricsRevision = -1;

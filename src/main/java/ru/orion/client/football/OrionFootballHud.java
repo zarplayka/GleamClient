@@ -31,13 +31,13 @@ public final class OrionFootballHud {
     }
 
     public void register() {
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"football_hud_element"), this::render);
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"football_hud_element"), (context, delta) -> drag.draw(context, () -> render(context, delta)));
     }
 
     private void render(GuiGraphicsExtractor context, DeltaTracker delta) {
         Minecraft client = Minecraft.getInstance();
         var config = manager.getConfig();
-        if (!config.isFootballEnabled() || client.player == null) {
+        if ((!config.isFootballEnabled() && !drag.fadingOut()) || client.player == null) {
             release();
             return;
         }

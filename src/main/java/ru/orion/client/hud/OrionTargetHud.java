@@ -61,7 +61,7 @@ public final class OrionTargetHud {
     }
 
     public void register() {
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, ID), this::render);
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, ID), (graphics, ticks) -> drag.draw(graphics, () -> render(graphics, ticks)));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(this::clear));
     }
 
@@ -142,7 +142,7 @@ public final class OrionTargetHud {
     private void render(GuiGraphicsExtractor graphics, DeltaTracker ticks) {
         var client = Minecraft.getInstance();
         var config = manager.getConfig();
-        if (!config.isTargetHudEnabled() || client.player == null || client.level == null) {
+        if ((!config.isTargetHudEnabled() && !drag.fadingOut()) || client.player == null || client.level == null) {
             clear();
             return;
         }
@@ -186,10 +186,10 @@ public final class OrionTargetHud {
             if (living instanceof AbstractClientPlayer player) {
                 Identifier skin = player.getSkin().body().texturePath();
                 graphics.blit(RenderPipelines.GUI_TEXTURED, skin, 6, layout.faceY, 8, 8,
-                        layout.faceSize, layout.faceSize, 8, 8, 64, 64);
+                        layout.faceSize, layout.faceSize, 8, 8, 64, 64, OrionHudDrag.tint(-1));
                 if (player.isModelPartShown(net.minecraft.world.entity.player.PlayerModelPart.HAT))
                     graphics.blit(RenderPipelines.GUI_TEXTURED, skin, 6, layout.faceY, 40, 8,
-                            layout.faceSize, layout.faceSize, 8, 8, 64, 64);
+                            layout.faceSize, layout.faceSize, 8, 8, 64, 64, OrionHudDrag.tint(-1));
             }
             if (data.equipment) {
                 pose.translate(layout.textX, layout.barY - 11);

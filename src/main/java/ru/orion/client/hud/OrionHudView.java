@@ -10,7 +10,6 @@ import ru.orion.client.OrionClient;
 import ru.orion.client.gui.OrionLumenView;
 
 import java.util.Locale;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -30,7 +29,7 @@ public final class OrionHudView {
     private final Identifier id;
     private JsonObject previous;
     private int lastWidth, lastHeight, lastDrawWidth, lastDrawHeight, lastScale;
-    private boolean lastLight, lastGlass;
+    private boolean lastLight;
     private String lastAccent;
     private long animateUntil;
 
@@ -61,20 +60,17 @@ public final class OrionHudView {
                 width / (float) scene.width, height / (float) scene.height)));
         var config = OrionClient.getConfigOrNull();
         boolean light = config != null && config.getClickGuiTheme() == 4;
-        boolean glass = config != null && config.isHudElementGlass(id.getPath()) && !scene.panels.isEmpty();
         String accent = gleamHud && !light ? "#65d7a0" : config == null ? "#c2d2f7" : config.getClickGuiAccent();
-        if (!scene.state.equals(previous) || light != lastLight || glass != lastGlass
+        if (!scene.state.equals(previous) || light != lastLight
                 || !java.util.Objects.equals(accent, lastAccent)) {
             var state = new JsonObject();
             state.add("parts", scene.parts);
             state.addProperty("light", light);
             state.addProperty("gleamHud", gleamHud);
-            state.addProperty("glass", glass);
             state.addProperty("accent", accent);
             view.update(state);
             previous = scene.state;
             lastLight = light;
-            lastGlass = glass;
             lastAccent = accent;
             ACTIVE.add(this);
             if (scene.animated) animateUntil = System.nanoTime() + 180_000_000L;
@@ -88,12 +84,8 @@ public final class OrionHudView {
         lastDrawWidth = width;
         lastDrawHeight = height;
         lastScale = scale;
-        if (glass) {
-            context.nextStratum();
-            OrionGlassCompositor.INSTANCE.submitBackground(id, context, x, y, width, height,
-                    scene.width, scene.height, scene.panels);
-        }
-        if (!view.draw(context, x, y, width, height, width / (float) scene.width, height / (float) scene.height)) {
+        if (!view.draw(context, x, y, width, height, width / (float) scene.width, height / (float) scene.height,
+                OrionHudDrag.opacity())) {
             scene.fallback(context, x, y, width, height, gleamHud);
         }
         return true;
@@ -136,7 +128,6 @@ public final class OrionHudView {
         private final int width, height;
         private final JsonObject state = new JsonObject();
         private final JsonArray parts = new JsonArray();
-        private final List<OrionGlassCompositor.Panel> panels = new ArrayList<>();
         private boolean animated;
 
         public Scene(int width, int height) {
@@ -158,7 +149,6 @@ public final class OrionHudView {
 
         public void panel(float x, float y, float w, float h, float radius) {
             surface(x, y, w, h, radius);
-            panels.add(new OrionGlassCompositor.Panel(x, y, w, h, radius * 2));
         }
 
         void surface(float x, float y, float w, float h, float radius) {
@@ -223,6 +213,7 @@ public final class OrionHudView {
         }
 
         private void fallback(GuiGraphicsExtractor context, int x, int y, int w, int h, boolean gleamHud) {
+            if (OrionHudDrag.opacity() < .015F) return;
             var pose = context.pose();
             pose.pushMatrix();
             try {
@@ -243,8 +234,8 @@ public final class OrionHudView {
                         boolean pressed = part.get("pressed").getAsBoolean();
                         int fill = darkGleam ? (pressed ? 0xeb1b2b29 : 0xeb0f1216)
                                 : pressed ? (light ? 0xffdce3f7 : 0xff292e41) : (light ? 0xf2e7ecf7 : 0xf217181f);
-                        int ink = pressed ? accent : (light ? 0xff242735 : 0xfff5f5f8);
-                        fillTile(context, left, top, partWidth, partHeight, fill);
+                        int ink = OrionHudDrag.tint(pressed ? accent : (light ? 0xff242735 : 0xfff5f5f8));
+                        fillTile(context, left, top, partWidth, partHeight, OrionHudDrag.tint(fill));
                         String mouse = part.get("mouse").getAsString();
                         String label = part.get("text").getAsString();
                         if (!mouse.isEmpty() && !label.isEmpty()) {
@@ -266,18 +257,19 @@ public final class OrionHudView {
                             case "divider" -> 0x1cffffff;
                             default -> argb(part.get("color").getAsString());
                         };
-                        context.fill(left, top, left + partWidth, top + partHeight, color);
+                        context.fill(left, top, left + partWidth, top + partHeight, OrionHudDrag.tint(color));
                     } else if (kind.equals("label") || kind.equals("timer")) {
                         boolean timer = kind.equals("timer");
                         boolean expiring = timer && part.get("expiring").getAsBoolean();
                         if (timer) fillTile(context, left, top, partWidth, partHeight,
-                                expiring ? 0xfff2a2a6 : darkGleam ? 0xff20332c : accent);
+                                OrionHudDrag.tint(expiring ? 0xfff2a2a6 : darkGleam ? 0xff20332c : accent));
                         int color;
                         if (timer) color = expiring ? 0xff17181f : darkGleam ? accent : light ? 0xfff5f5f8 : 0xff17181f;
                         else {
                             String ink = part.get("color").getAsString();
                             color = ink.equals("var(--accent)") ? accent : argb(ink);
                         }
+                        color = OrionHudDrag.tint(color);
                         float scale = (timer ? 5.8F : part.get("size").getAsFloat()) / font.lineHeight;
                         String label = font.plainSubstrByWidth(part.get("text").getAsString(), Math.max(0, (int) (partWidth / scale)));
                         float textWidth = font.width(label) * scale;

@@ -58,12 +58,12 @@ public final class OrionBetterNearHud {
 
     public void register() {
         Identifier hudId = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "better_near");
-        HudElementRegistry.addLast(hudId, this::render);
+        HudElementRegistry.addLast(hudId, (context, tickCounter) -> drag.draw(context, () -> render(context, tickCounter)));
     }
 
     private void render(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
         OrionConfig config = configManager.getConfig();
-        if (!config.isBetterNearEnabled()) {
+        if (!config.isBetterNearEnabled() && !drag.fadingOut()) {
             release();
             return;
         }
