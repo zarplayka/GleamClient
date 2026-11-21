@@ -49,6 +49,7 @@ public final class OrionGlassCompositor {
     public static final OrionGlassCompositor INSTANCE = new OrionGlassCompositor();
     private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
     private static final long CAPTURE_INTERVAL_NANOS = 1_000_000_000L / 30L;
+    private static final int CAPTURE_PAD = 32;
     private static final RenderPipeline PIPELINE = RenderPipelinesAccessor.orion$registerOptional(
             RenderPipeline.builder(RenderPipelinesAccessor.orion$getGuiSnippet())
                     .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/hud_glass"))
@@ -100,16 +101,25 @@ public final class OrionGlassCompositor {
         float sx = layout.pixelWidth() / layout.designWidth(), sy = layout.pixelHeight() / layout.designHeight();
         for (Panel panel : layout.panels()) {
             float radius = Math.min(panel.arc(), Math.min(panel.width(), panel.height())) / 2;
+            float bevel = Math.clamp(radius * .72F, 2.5F, 13F);
             int left = Math.max(0, (int) Math.floor(panel.x() * sx));
             int top = Math.max(0, (int) Math.floor(panel.y() * sy));
             int right = Math.min(layout.pixelWidth(), (int) Math.ceil((panel.x() + panel.width()) * sx));
             int bottom = Math.min(layout.pixelHeight(), (int) Math.ceil((panel.y() + panel.height()) * sy));
             for (int y = top; y < bottom; y++) for (int x = left; x < right; x++) {
-                float dx = Math.abs((x + .5F) / sx - panel.x() - panel.width() / 2) - panel.width() / 2 + radius;
-                float dy = Math.abs((y + .5F) / sy - panel.y() - panel.height() / 2) - panel.height() / 2 + radius;
-                float distance = (float) Math.hypot(Math.max(0, dx), Math.max(0, dy)) + Math.min(0, Math.max(dx, dy)) - radius;
+                float px = (x + .5F) / sx - panel.x() - panel.width() / 2;
+                float py = (y + .5F) / sy - panel.y() - panel.height() / 2;
+                float dx = Math.abs(px) - panel.width() / 2 + radius, dy = Math.abs(py) - panel.height() / 2 + radius;
+                float corner = (float) Math.hypot(Math.max(0, dx), Math.max(0, dy));
+                float distance = corner + Math.min(0, Math.max(dx, dy)) - radius;
                 int alpha = Math.round(255 * Math.clamp(.5F - distance * Math.min(sx, sy), 0, 1));
-                if (alpha > 0) pixels.setPixel(x, y, alpha << 24 | 0xffffff);
+                if (alpha == 0) continue;
+                float nx = corner > 0 ? Math.max(0, dx) / corner : dx >= dy ? 1 : 0;
+                float ny = corner > 0 ? Math.max(0, dy) / corner : dy > dx ? 1 : 0;
+                int normalX = Math.round(127.5F * (1 + Math.copySign(nx, px)));
+                int normalY = Math.round(127.5F * (1 + Math.copySign(ny, py)));
+                int inset = Math.round(255 * Math.clamp(-distance / bevel, 0, 1));
+                pixels.setPixel(x, y, alpha << 24 | inset << 16 | normalX << 8 | normalY);
             }
         }
         if (recreate) {
@@ -126,16 +136,22 @@ public final class OrionGlassCompositor {
         submitBackground(id, context, x, y, width, height, designWidth, designHeight, panels, false);
     }
 
-    public void submitBackground(Identifier id, GuiGraphicsExtractor context, int x, int y, int width, int height,
+    public boolean submitBackground(Identifier id, GuiGraphicsExtractor context, int x, int y, int width, int height,
                                  int designWidth, int designHeight, List<Panel> panels, boolean screenGlass) {
-        int scale = Math.clamp(Minecraft.getInstance().getWindow().getGuiScale(), 1, 2);
-        updateMask(id, new MaskLayout(width * scale, height * scale, designWidth, designHeight, panels));
+        float guiScale = Minecraft.getInstance().getWindow().getGuiScale();
+        var transform = context.pose();
+        float scaleX = Math.clamp(guiScale * (float) Math.hypot(transform.m00(), transform.m01()), .25F, 2F);
+        float scaleY = Math.clamp(guiScale * (float) Math.hypot(transform.m10(), transform.m11()), .25F, 2F);
+        updateMask(id, new MaskLayout(Math.max(1, Math.round(width * scaleX)),
+                Math.max(1, Math.round(height * scaleY)), designWidth, designHeight, panels));
         if (transparent == null) {
             NativeImage pixels = new NativeImage(1, 1, true);
             pixels.setPixel(0, 0, 0);
             transparent = new DynamicTexture(() -> "orion_glass_transparent", pixels);
         }
-        if (submit(id, context, transparent, x, y, width, height, screenGlass)) context.nextStratum();
+        boolean drawn = submit(id, context, transparent, x, y, width, height, screenGlass);
+        if (drawn) context.nextStratum();
+        return drawn;
     }
 
     public boolean submit(Identifier id, GuiGraphicsExtractor context, DynamicTexture foreground,
@@ -149,7 +165,9 @@ public final class OrionGlassCompositor {
         MaskTexture entry = masks.get(id);
         // Экран меню может размывать весь GUI отдельным проходом: оставляем ему управление фоном.
         if (entry == null || (!screenGlass && GleamMinecraft.screen(client) != null
-                && !(GleamMinecraft.screen(client) instanceof ChatScreen) && !OrionHudEditorScreen.editing(client))
+                && !(GleamMinecraft.screen(client) instanceof ChatScreen)
+                && !(GleamMinecraft.screen(client) instanceof ru.orion.client.gui.OrionClickGuiScreen)
+                && !OrionHudEditorScreen.editing(client))
                 //? if >=26.2 {
                 || (!screenGlass && ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState().isHudHidden)) {
                 //?} else {
@@ -208,7 +226,8 @@ public final class OrionGlassCompositor {
         CaptureArea area = CaptureArea.from(context.pose(), x, y, width, height,
                 context.guiWidth(), context.guiHeight(), source.getWidth(0), source.getHeight(0), bottomOrigin);
         if (area == null) return false;
-        if (captureAreas.size() < 64) captureAreas.add(area);
+        if (screenGlass) captureWholeScene = true;
+        else if (captureAreas.size() < 64) captureAreas.add(area);
         else captureWholeScene = true;
         captureRequested = true;
         if (!sceneCaptured) {
@@ -222,7 +241,7 @@ public final class OrionGlassCompositor {
         ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState()
                 .addGuiElement(new BlitRenderState(PIPELINE, textures,
                 new Matrix3x2f(context.pose()), x, y, x + width, y + height,
-                0.0F, 1.0F, 0.0F, 1.0F, -1, scissorArea));
+                0.0F, 1.0F, 0.0F, 1.0F, bottomOrigin ? -1 : 0xfffeffff, scissorArea));
         return true;
     }
 
@@ -331,10 +350,10 @@ public final class OrionGlassCompositor {
             float dx = pose.m00() * width, dy = pose.m01() * width;
             float ex = pose.m10() * height, ey = pose.m11() * height;
             float scaleX = pixelWidth / (float) guiWidth, scaleY = pixelHeight / (float) guiHeight;
-            int left = Math.max(0, (int) Math.floor((x0 + Math.min(0, dx) + Math.min(0, ex)) * scaleX) - 6);
-            int right = Math.min(pixelWidth, (int) Math.ceil((x0 + Math.max(0, dx) + Math.max(0, ex)) * scaleX) + 6);
-            int top = Math.max(0, (int) Math.floor((y0 + Math.min(0, dy) + Math.min(0, ey)) * scaleY) - 6);
-            int bottom = Math.min(pixelHeight, (int) Math.ceil((y0 + Math.max(0, dy) + Math.max(0, ey)) * scaleY) + 6);
+            int left = Math.max(0, (int) Math.floor((x0 + Math.min(0, dx) + Math.min(0, ex)) * scaleX) - CAPTURE_PAD);
+            int right = Math.min(pixelWidth, (int) Math.ceil((x0 + Math.max(0, dx) + Math.max(0, ex)) * scaleX) + CAPTURE_PAD);
+            int top = Math.max(0, (int) Math.floor((y0 + Math.min(0, dy) + Math.min(0, ey)) * scaleY) - CAPTURE_PAD);
+            int bottom = Math.min(pixelHeight, (int) Math.ceil((y0 + Math.max(0, dy) + Math.max(0, ey)) * scaleY) + CAPTURE_PAD);
             if (right <= left || bottom <= top) return null;
             return new CaptureArea(left, bottomOrigin ? pixelHeight - bottom : top, right - left, bottom - top);
         }

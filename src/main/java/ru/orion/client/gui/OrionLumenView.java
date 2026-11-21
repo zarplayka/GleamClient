@@ -56,6 +56,8 @@ import org.joml.Matrix3x2f;
 
 /** Локальная страница Lumen и отрисовка её команд в интерфейсе Minecraft. */
 public final class OrionLumenView {
+    // Paint marker consumed by the Java renderer before it reaches the screen.
+    private static final int GLASS_SURFACE = 0xfda443a4;
     private static final String DLL_SHA256 = "3649f329387a11e4870f95cec92fb17d1f9029d0fa5e866c371ceb486b9b73c1";
     private static final int ATLAS_SIZE = 1024;
     private static final int COMMAND_SIZE = 64;
@@ -284,6 +286,11 @@ public final class OrionLumenView {
     }
 
     public boolean draw(GuiGraphicsExtractor graphics, int x, int y, int width, int height, float sx, float sy, float opacity) {
+        return draw(graphics, x, y, width, height, sx, sy, opacity, null, false);
+    }
+
+    public boolean draw(GuiGraphicsExtractor graphics, int x, int y, int width, int height, float sx, float sy,
+                        float opacity, Identifier glassMask, boolean screenGlass) {
         if (opacity <= 0F) return true;
         displayLength = 0;
         int size = LumenNative.displaySize(engine);
@@ -310,22 +317,22 @@ public final class OrionLumenView {
         ThemeReveal running = themeReveal;
         if (running == null || running.finished(now)) {
             themeReveal = null;
-            drawDisplay(graphics, display, x, y, width, height, sx, sy, CircleClip.NONE, opacity);
+            drawDisplay(graphics, display, x, y, width, height, sx, sy, CircleClip.NONE, opacity, glassMask, screenGlass);
         } else {
             float radius = Math.max(.0001F, running.reach() * running.progress(now) * sx);
             int centerX = Math.clamp(Math.round((x + running.x() * sx) * 4F), -32768, 32767);
             int centerY = Math.clamp(Math.round((y + running.y() * sy) * 4F), -32768, 32767);
             float signedRadius = running.to() == 1F ? radius : -radius;
             drawDisplay(graphics, running.previous(), x, y, width, height, sx, sy,
-                    new CircleClip(centerX, centerY, -signedRadius), opacity);
+                    new CircleClip(centerX, centerY, -signedRadius), opacity, glassMask, screenGlass);
             drawDisplay(graphics, display, x, y, width, height, sx, sy,
-                    new CircleClip(centerX, centerY, signedRadius), opacity);
+                    new CircleClip(centerX, centerY, signedRadius), opacity, glassMask, screenGlass);
         }
         return true;
     }
 
     private void drawDisplay(GuiGraphicsExtractor graphics, ByteBuffer commands, int x, int y, int width, int height,
-                             float sx, float sy, CircleClip circle, float opacity) {
+                             float sx, float sy, CircleClip circle, float opacity, Identifier glassMask, boolean screenGlass) {
         int count = commands.getInt(0), clips = commands.getInt(4);
         int clipBase = 16 + COMMAND_SIZE * count;
         graphics.nextStratum();
@@ -364,9 +371,24 @@ public final class OrionLumenView {
                 float w = commands.getFloat(at + 12);
                 float h = commands.getFloat(at + 16);
                 int color = commands.getInt(at + 36);
+                float radius = commands.getFloat(at + 40);
+                if (glassMask != null && (kind == 0 || kind == 9) && color == GLASS_SURFACE) {
+                    if (circle == CircleClip.NONE && opacity >= .99F && w > 0 && h > 0) {
+                        int gw = Math.max(1, Math.round(w)), gh = Math.max(1, Math.round(h));
+                        pose.pushMatrix();
+                        try {
+                            pose.translate(left, top).scale(w / gw, h / gh);
+                            if (ru.orion.client.hud.OrionGlassCompositor.INSTANCE.submitBackground(glassMask, graphics,
+                                    0, 0, gw, gh, gw, gh, java.util.List.of(new ru.orion.client.hud.OrionGlassCompositor.Panel(
+                                            0, 0, gw, gh, 2 * radius)), screenGlass)) continue;
+                        } finally {
+                            pose.popMatrix();
+                        }
+                    }
+                    color = 0xa82d3844;
+                }
                 if (opacity < 1F) color = color & 0xffffff | Math.round((color >>> 24) * opacity) << 24;
                 if (w <= 0 || h <= 0 || color >>> 24 == 0) continue;
-                float radius = commands.getFloat(at + 40);
                 float parameter = commands.getFloat(at + 44);
                 TextureSetup texture = TextureSetup.noTexture();
                 float u0 = 0, v0 = 0, u1 = 0, v1 = 0;

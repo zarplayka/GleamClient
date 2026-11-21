@@ -41,7 +41,8 @@ const float BLUR_OFFSET = 7.0;
 
 void main() {
     vec4 foreground = texture(Sampler0, texCoord0);
-    float coverage = texture(Sampler2, texCoord0).a;
+    vec4 shape = texture(Sampler2, texCoord0);
+    float coverage = shape.a;
     // Альфа вершины выбирает обычную поверхность без копирования и размытия мира.
     if (vertexColor.a < 0.5) {
         float baseAlpha = coverage * 0.94;
@@ -59,29 +60,37 @@ void main() {
     }
 
     vec2 pixel = 1.0 / vec2(textureSize(Sampler1, 0));
-    vec2 maskStep = 1.8 / vec2(textureSize(Sampler2, 0));
-    float left = texture(Sampler2, texCoord0 - vec2(maskStep.x, 0.0)).a;
-    float right = texture(Sampler2, texCoord0 + vec2(maskStep.x, 0.0)).a;
-    float top = texture(Sampler2, texCoord0 - vec2(0.0, maskStep.y)).a;
-    float bottom = texture(Sampler2, texCoord0 + vec2(0.0, maskStep.y)).a;
-    vec2 rimDirection = vec2(right - left, bottom - top);
-    vec2 screenUv = gl_FragCoord.xy * pixel + rimDirection * pixel * 2.5;
+    vec2 normal = shape.gb * 2.0 - 1.0;
+    vec2 refraction = normal;
+    if (vertexColor.r > 0.998) refraction.y = -refraction.y;
+    float bevel = 1.0 - smoothstep(0.0, 1.0, shape.r);
+    float lens = 0.65 * bevel + 0.35 * bevel * bevel;
+    vec2 screenUv = gl_FragCoord.xy * pixel - refraction * pixel * (16.0 * lens);
     vec2 uvMin = pixel * 0.5;
     vec2 uvMax = vec2(1.0) - uvMin;
-    vec2 offset = pixel * BLUR_OFFSET;
-    // Пять билинейных выборок вместо 49 выборок с exp на каждом пикселе панели.
-    vec3 blurred = texture(Sampler1, clamp(screenUv, uvMin, uvMax)).rgb * 0.5;
-    blurred += texture(Sampler1, clamp(screenUv + offset, uvMin, uvMax)).rgb * 0.125;
-    blurred += texture(Sampler1, clamp(screenUv - offset, uvMin, uvMax)).rgb * 0.125;
-    blurred += texture(Sampler1, clamp(screenUv + vec2(offset.x, -offset.y), uvMin, uvMax)).rgb * 0.125;
-    blurred += texture(Sampler1, clamp(screenUv + vec2(-offset.x, offset.y), uvMin, uvMax)).rgb * 0.125;
+    vec2 wide = pixel * mix(9.5, 5.0, bevel);
+    vec2 near = wide * 0.52;
+    vec3 core = texture(Sampler1, clamp(screenUv, uvMin, uvMax)).rgb;
+    vec3 inner = texture(Sampler1, clamp(screenUv + vec2(near.x, 0.0), uvMin, uvMax)).rgb
+        + texture(Sampler1, clamp(screenUv - vec2(near.x, 0.0), uvMin, uvMax)).rgb
+        + texture(Sampler1, clamp(screenUv + vec2(0.0, near.y), uvMin, uvMax)).rgb
+        + texture(Sampler1, clamp(screenUv - vec2(0.0, near.y), uvMin, uvMax)).rgb;
+    vec3 outer = texture(Sampler1, clamp(screenUv + wide, uvMin, uvMax)).rgb
+        + texture(Sampler1, clamp(screenUv - wide, uvMin, uvMax)).rgb
+        + texture(Sampler1, clamp(screenUv + vec2(wide.x, -wide.y), uvMin, uvMax)).rgb
+        + texture(Sampler1, clamp(screenUv + vec2(-wide.x, wide.y), uvMin, uvMax)).rgb;
+    vec3 blurred = core * 0.22 + inner * 0.125 + outer * 0.07;
     float luminance = dot(blurred, vec3(0.2126, 0.7152, 0.0722));
-    // У яркого фона сильнее затемняется середина. Кромка сохраняет отражённый свет.
-    float tint = mix(0.18, 0.70, smoothstep(0.18, 0.85, luminance));
-    vec3 glass = mix(mix(vec3(luminance), blurred, 0.72), vec3(0.055, 0.071, 0.088), tint);
-    float rim = clamp(dot(rimDirection, vec2(0.45, 0.88)), 0.0, 1.0);
-    glass += vec3(0.27, 0.31, 0.35) * rim;
-    float glassAlpha = coverage * 0.91;
+    float tint = mix(0.13, 0.48, smoothstep(0.18, 0.90, luminance));
+    vec3 glass = mix(blurred, vec3(0.052, 0.071, 0.09), tint);
+    float keyLight = clamp(dot(normal, vec2(0.62, 0.78)), -1.0, 1.0);
+    float lowerGlint = pow(max(0.0, keyLight), 1.8);
+    float upperGlint = pow(max(0.0, -keyLight), 2.4);
+    float edge = pow(bevel, 3.2);
+    glass *= 1.0 - 0.23 * edge * upperGlint;
+    glass += vec3(0.72, 0.86, 0.97) * bevel * (0.24 * lowerGlint + 0.07 * upperGlint);
+    glass = mix(glass, vec3(0.91, 0.97, 1.0), edge * (0.38 * lowerGlint + 0.14 * upperGlint));
+    float glassAlpha = coverage * mix(0.87, 0.98, bevel);
     float alpha = foreground.a + glassAlpha * (1.0 - foreground.a);
     vec3 premultiplied = foreground.rgb * foreground.a
             + glass * glassAlpha * (1.0 - foreground.a);

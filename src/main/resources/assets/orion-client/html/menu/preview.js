@@ -1213,23 +1213,10 @@ function windowTravel() {
   const stage = $('stage').getBoundingClientRect(), menu = $('window').getBoundingClientRect();
   return [Math.max(0,(stage.width - menu.width) / 2 - 5),Math.max(0,(stage.height - menu.height) / 2 - 5)];
 }
-let lastGlassBounds = '';
 function positionWindow() {
   const [width,height] = windowTravel(), scale = state.windowScale / 100;
   $('window').style.setProperty('left',width * state.windowX / (1000 * scale) + 'px');
   $('window').style.setProperty('top',height * state.windowY / (1000 * scale) + 'px');
-  if (typeof sendGame === 'function') {
-    let bounds = '';
-    if (state.theme === 'glass') {
-      const {x,y,width,height} = $('window').getBoundingClientRect();
-      bounds = [x,y,width,height,16 * scale].map(Math.round).join(',');
-    }
-    if (bounds !== lastGlassBounds) {
-      lastGlassBounds = bounds;
-      const [x,y,width,height,radius] = bounds.split(',').map(Number);
-      sendGame('glass-bounds',bounds ? {x,y,width,height,radius} : {});
-    }
-  }
   scheduleCosmeticPreview();
 }
 let windowDrag;
