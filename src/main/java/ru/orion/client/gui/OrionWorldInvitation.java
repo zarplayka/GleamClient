@@ -21,7 +21,7 @@ import ru.orion.client.config.OrionAccounts;
 import java.awt.image.BufferedImage;
 
 final class OrionWorldInvitation {
-    private static final int WIDTH = 328, HEIGHT = 79;
+    private static final int WIDTH = 306, HEIGHT = 70;
     private static final long MOTION = 230_000_000L, HOLD = 830_000_000L, TTL = 15_000_000_000L;
     private static final OrionLumenView VIEW = new OrionLumenView(
             "world-invite.html", "world_invite", "/assets/orion-client/fonts/paradox/ParadoxSans-Regular.ttf", null, true);
@@ -50,11 +50,11 @@ final class OrionWorldInvitation {
                 if (hit == null || hit.screen() != current || invite == null || closing != 0
                         || event.button() != InputConstants.MOUSE_BUTTON_LEFT) return true;
                 double x = (event.x() - hit.x()) / hit.scale(), y = (event.y() - hit.y()) / hit.scale();
-                if (x >= 305 && x < 323 && y >= 7 && y < 25) {
+                if (x >= 283 && x < 301 && y >= 4 && y < 22) {
                     close(System.nanoTime());
                     return false;
                 }
-                if (hit.compatible() && x >= hit.acceptLeft() && x < 310 && y >= 27 && y < 55) {
+                if (hit.compatible() && x >= hit.acceptLeft() && x < 285 && y >= 22 && y < 48) {
                     accept(client, System.nanoTime());
                     return false;
                 }
@@ -193,6 +193,6 @@ final class OrionWorldInvitation {
         }
         VIEW.frame();
         if (VIEW.draw(graphics, x, y, width, height, scale, scale))
-            hit = new HitBox(GleamMinecraft.screen(client), x, y + offset * scale, scale, compatible, keyboard ? 276 : 254);
+            hit = new HitBox(GleamMinecraft.screen(client), x, y + offset * scale, scale, compatible, keyboard ? 259 : 229);
     }
 }

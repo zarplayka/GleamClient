@@ -110,9 +110,11 @@ public final class OrionHudEditorScreen extends Screen {
             for (var region : regions) {
                 if (region.movable()) drawWidget(scene, region, mouseX, mouseY);
             }
-            button(scene, 9, BAR_Y, 34, config.isHudEditorSnap() ? "Сетка" : "Свободно", config.isHudEditorSnap());
-            button(scene, 46, BAR_Y, 26, config.getHudEditorGridStep() + " px", false);
-            button(scene, 75, BAR_Y, 22, catalog ? "×" : "+", catalog);
+            scene.box(9, BAR_Y, 81, BAR_H, 9, PANEL, BORDER);
+            button(scene, 11, BAR_Y + 2, 33, "Сетка", config.isHudEditorSnap());
+            button(scene, 45, BAR_Y + 2, 43, "Свободно", !config.isHudEditorSnap());
+            button(scene, 95, BAR_Y + 2, 15, catalog ? "×" : "+", catalog);
+            button(scene, 115, BAR_Y + 2, 24, config.getHudEditorGridStep() + " px", false);
             text(scene, tr("Alt — без привязки"), 0, height - 18, width, 12, 7, MUTED, "center");
             if (catalog) drawCatalog(scene);
             else if (inspector) drawInspector(scene);
@@ -152,7 +154,19 @@ public final class OrionHudEditorScreen extends Screen {
         if (y >= 34) {
             String name = WIDGETS.stream().filter(item -> item.id().equals(region.id())).findFirst()
                     .map(Widget::name).orElse(region.id());
-            text(scene, name, x, y - 13, Math.min(width - x, Math.max(52, w)), 12, 7, active ? ACCENT : TEXT, "left");
+            String glyph = switch (region.id()) {
+                case "island" -> "M2 10h4l2-6 4 12 2-6h4";
+                case "keystrokes" -> "M7 7h6v6H7zM7 7H5a2 2 0 1 1 2-2zm6 0V5a2 2 0 1 1 2 2zm0 6h2a2 2 0 1 1-2 2zm-6 0v2a2 2 0 1 1-2-2z";
+                case "potions_hud" -> "M10 3c3 4 5 6.5 5 9a5 5 0 1 1-10 0c0-2.5 2-5 5-9z";
+                case "target_hud" -> "M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0zM12.5 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z";
+                case "nearby" -> "M12 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM4 16v-1a5.5 5.5 0 0 1 11 0v1m0-10a2 2 0 0 1 0 4m1 2a3 3 0 0 1 2 3";
+                case "inventory" -> "M4 8h12l1 8H3zm3 0V6a3 3 0 0 1 6 0v2";
+                case "football_hud" -> "M3 16V5h14v11M3 11h14";
+                case "basketball_hud" -> "M5 4h10M3 8h14m-12 0 2 8h6l2-8M10 8v8";
+                default -> "";
+            };
+            if (!glyph.isEmpty()) scene.icon(glyph, x, y - 11, 8, active ? ACCENT : TEXT, false);
+            text(scene, name, x + 10, y - 13, Math.min(width - x - 10, Math.max(52, w)), 12, 7, active ? ACCENT : TEXT, "left");
         }
         if (active || hovered) {
             scene.box(x, y, w, h, 3, "#00000000", LINE);
@@ -187,7 +201,9 @@ public final class OrionHudEditorScreen extends Screen {
     }
 
     private void button(OrionHudView.Scene scene, int x, int y, int w, String title, boolean active) {
-        boxButton(scene, x, y, w, BAR_H, tr(title), active);
+        int h = y == BAR_Y ? BAR_H : BAR_H - 4;
+        scene.box(x, y, w, h, h / 2F, active ? ACCENT : PANEL, active ? null : BORDER);
+        text(scene, tr(title), x + 1, y, w - 2, h, 7, active ? "#101817" : TEXT, "center");
     }
 
     private static void boxButton(OrionHudView.Scene scene, int x, int y, int w, int h, String title, boolean active) {
@@ -233,15 +249,17 @@ public final class OrionHudEditorScreen extends Screen {
         if (y >= BAR_Y && y < BAR_Y + BAR_H) {
             if (x >= width - 104 && x < width - 84) { onClose(); return true; }
             if (x >= width - 81 && x < width - 9) { togglePreview(); return true; }
-            if (!preview && x >= 9 && x < 97) {
-                if (x < 43) { config.setHudEditorSnap(!config.isHudEditorSnap()); changed = true; }
-                else if (x >= 46 && x < 72) {
+            if (!preview && x >= 9 && x < 139) {
+                if ((x >= 11 && x < 44) || (x >= 45 && x < 88)) {
+                    config.setHudEditorSnap(x < 44);
+                    changed = true;
+                } else if (x >= 115) {
                     int step = config.getHudEditorGridStep();
                     for (int i = 0; i < STEPS.length; i++) {
                         if (STEPS[i] == step) { config.setHudEditorGridStep(STEPS[(i + 1) % STEPS.length]); break; }
                     }
                     changed = true;
-                } else if (x >= 75) { catalog = !catalog; inspector = false; catalogOffset = 0; }
+                } else if (x >= 95 && x < 110) { catalog = !catalog; inspector = false; catalogOffset = 0; }
                 return true;
             }
         }

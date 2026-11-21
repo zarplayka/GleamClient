@@ -12,7 +12,9 @@ button:focus-visible,[role=slider]:focus-visible{outline:1px solid var(--accent)
 .surface{position:absolute;inset:0;overflow:hidden;border-radius:0 0 13px 13px;background:var(--hud-panel);pointer-events:auto}
 #island:not([data-solid]) .surface,#island:not([data-solid]) .shoulder{opacity:.97}
 #island[data-solid] .surface{background:var(--top)}
-.shoulder{position:absolute;top:0;width:11px;height:11px;color:var(--top)}
+.shoulder{display:none}
+.surface{border:1px solid var(--line)}
+.metric>span:first-child{font-weight:700;color:var(--accent)}
 .shoulder.left{right:100%}
 .shoulder.right{left:100%}
 #header,#compact{width:344px;margin:0 auto;display:flex;align-items:center;gap:8px;padding:0 13px;white-space:nowrap}

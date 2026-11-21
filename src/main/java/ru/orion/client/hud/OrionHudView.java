@@ -51,8 +51,9 @@ public final class OrionHudView {
 
     public boolean draw(GuiGraphicsExtractor context, Scene scene, int x, int y, int width, int height) {
         if (width <= 0 || height <= 0) return false;
+        boolean gleamHud = !"scoreboard_glass".equals(id.getPath());
         if (!view.ready()) {
-            scene.fallback(context, x, y, width, height);
+            scene.fallback(context, x, y, width, height, gleamHud);
             return true;
         }
         int scale = Minecraft.getInstance().getWindow().getGuiScale();
@@ -61,12 +62,13 @@ public final class OrionHudView {
         var config = OrionClient.getConfigOrNull();
         boolean light = config != null && config.getClickGuiTheme() == 4;
         boolean glass = config != null && config.isHudElementGlass(id.getPath()) && !scene.panels.isEmpty();
-        String accent = config == null ? "#c2d2f7" : config.getClickGuiAccent();
+        String accent = gleamHud && !light ? "#65d7a0" : config == null ? "#c2d2f7" : config.getClickGuiAccent();
         if (!scene.state.equals(previous) || light != lastLight || glass != lastGlass
                 || !java.util.Objects.equals(accent, lastAccent)) {
             var state = new JsonObject();
             state.add("parts", scene.parts);
             state.addProperty("light", light);
+            state.addProperty("gleamHud", gleamHud);
             state.addProperty("glass", glass);
             state.addProperty("accent", accent);
             view.update(state);
@@ -92,7 +94,7 @@ public final class OrionHudView {
                     scene.width, scene.height, scene.panels);
         }
         if (!view.draw(context, x, y, width, height, width / (float) scene.width, height / (float) scene.height)) {
-            scene.fallback(context, x, y, width, height);
+            scene.fallback(context, x, y, width, height, gleamHud);
         }
         return true;
     }
@@ -175,7 +177,11 @@ public final class OrionHudView {
         }
 
         void divider(float x, float y, float width) {
-            part("divider", x, y, width, 1);
+            divider(x, y, width, 1);
+        }
+
+        void divider(float x, float y, float width, float height) {
+            part("divider", x, y, width, height);
         }
 
         void key(float x, float y, float w, float h, String text, String mouse, boolean pressed) {
@@ -216,7 +222,7 @@ public final class OrionHudView {
             icon("M5 9V6a5 5 0 0 1 10 0v3 M4 9h12v8H4Z", x + 9, y + 2, 6, "#ffffff", false);
         }
 
-        private void fallback(GuiGraphicsExtractor context, int x, int y, int w, int h) {
+        private void fallback(GuiGraphicsExtractor context, int x, int y, int w, int h, boolean gleamHud) {
             var pose = context.pose();
             pose.pushMatrix();
             try {
@@ -225,7 +231,9 @@ public final class OrionHudView {
                 var config = OrionClient.getConfigOrNull();
                 boolean light = config != null && config.getClickGuiTheme() == 4;
                 String customAccent = config == null ? "" : config.getClickGuiAccent();
-                int accent = customAccent.isEmpty() ? (light ? 0xff4257b2 : 0xffc2d2f7) : argb(customAccent);
+                boolean darkGleam = gleamHud && !light;
+                int accent = darkGleam ? 0xff65d7a0 : customAccent.isEmpty()
+                        ? (light ? 0xff4257b2 : 0xffc2d2f7) : argb(customAccent);
                 for (var value : parts) {
                     var part = value.getAsJsonObject();
                     int left = Math.round(part.get("x").getAsFloat()), top = Math.round(part.get("y").getAsFloat());
@@ -233,15 +241,18 @@ public final class OrionHudView {
                     String kind = part.get("kind").getAsString();
                     if (kind.equals("key")) {
                         boolean pressed = part.get("pressed").getAsBoolean();
-                        int fill = pressed ? (light ? 0xffdce3f7 : 0xff292e41) : (light ? 0xf2e7ecf7 : 0xf217181f);
+                        int fill = darkGleam ? (pressed ? 0xeb1b2b29 : 0xeb0f1216)
+                                : pressed ? (light ? 0xffdce3f7 : 0xff292e41) : (light ? 0xf2e7ecf7 : 0xf217181f);
                         int ink = pressed ? accent : (light ? 0xff242735 : 0xfff5f5f8);
                         fillTile(context, left, top, partWidth, partHeight, fill);
                         String mouse = part.get("mouse").getAsString();
                         String label = part.get("text").getAsString();
-                        if (!mouse.isEmpty()) {
+                        if (!mouse.isEmpty() && !label.isEmpty()) {
                             int half = partHeight / 2;
                             drawKeyText(context, font, mouse, left, top, partWidth, half, ink);
                             drawKeyText(context, font, label, left, top + half, partWidth, partHeight - half, ink);
+                        } else if (!mouse.isEmpty()) {
+                            drawKeyText(context, font, mouse, left, top, partWidth, partHeight, ink);
                         } else if (label.isEmpty()) {
                             int inset = partWidth / 4, center = top + partHeight / 2;
                             context.fill(left + inset, center, left + partWidth - inset, center + 1, ink);
@@ -250,7 +261,7 @@ public final class OrionHudView {
                         }
                     } else if (kind.equals("panel") || kind.equals("box") || kind.equals("well") || kind.equals("divider")) {
                         int color = switch (kind) {
-                            case "panel" -> 0xf517181f;
+                            case "panel" -> darkGleam ? 0xeb0f1216 : 0xf517181f;
                             case "well" -> 0x0dffffff;
                             case "divider" -> 0x1cffffff;
                             default -> argb(part.get("color").getAsString());
@@ -260,10 +271,14 @@ public final class OrionHudView {
                         boolean timer = kind.equals("timer");
                         boolean expiring = timer && part.get("expiring").getAsBoolean();
                         if (timer) fillTile(context, left, top, partWidth, partHeight,
-                                expiring ? (light ? 0xfff5d8db : 0xff44292f) : (light ? 0xffdce3f7 : 0xff292e41));
-                        int color = timer ? (expiring ? (light ? 0xff993749 : 0xfff2a2a6) : accent)
-                                : argb(part.get("color").getAsString());
-                        float scale = (timer ? 7F : part.get("size").getAsFloat()) / font.lineHeight;
+                                expiring ? 0xfff2a2a6 : darkGleam ? 0xff20332c : accent);
+                        int color;
+                        if (timer) color = expiring ? 0xff17181f : darkGleam ? accent : light ? 0xfff5f5f8 : 0xff17181f;
+                        else {
+                            String ink = part.get("color").getAsString();
+                            color = ink.equals("var(--accent)") ? accent : argb(ink);
+                        }
+                        float scale = (timer ? 5.8F : part.get("size").getAsFloat()) / font.lineHeight;
                         String label = font.plainSubstrByWidth(part.get("text").getAsString(), Math.max(0, (int) (partWidth / scale)));
                         float textWidth = font.width(label) * scale;
                         float offset = switch (timer ? "center" : part.get("align").getAsString()) {

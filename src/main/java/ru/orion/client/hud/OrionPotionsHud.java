@@ -17,8 +17,7 @@ import java.util.List;
 
 public final class OrionPotionsHud {
     public static final String ID = "potions_hud";
-    private static final int WIDTH = 132, HEADER = 20, ROW = 14, INSET = 6, TIMER = 34;
-    private static final Identifier HEADER_ICON = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "textures/gui/potions_hud.png");
+    private static final int WIDTH = 110, HEADER = 21, ROW = 14, INSET = 8, TIMER = 23;
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView(ID);
     private final OrionHudDrag drag = new OrionHudDrag(ID);
@@ -57,16 +56,17 @@ public final class OrionPotionsHud {
             shown = effects;
             emptyText = empty;
             scene = new OrionHudView.Scene(WIDTH, height);
-            scene.panel(0, 0, WIDTH, height, 7);
-            scene.label("Potions", 22, 0, WIDTH - 28, HEADER, 8.5F, "var(--text)", "left", true);
-            scene.divider(INSET, HEADER - 1, WIDTH - 2 * INSET);
-            if (effects.isEmpty()) scene.label(empty, INSET, HEADER, WIDTH - 2 * INSET, ROW, 7.5F, "var(--muted)", "left", false);
+            scene.panel(0, 0, WIDTH, height, 5);
+            scene.icon("M10 3c2.7 3.5 5 6.1 5 9a5 5 0 1 1-10 0c0-2.9 2.3-5.5 5-9z", 8, 5, 11, "var(--accent)", false);
+            scene.label(OrionGuiLanguage.translate("Эффекты"), 23, 2, 79, 17, 8, "var(--text)", "left", true);
+            scene.divider(7, 19, WIDTH - 14);
+            if (effects.isEmpty()) scene.label(empty, INSET, HEADER, WIDTH - 2 * INSET, ROW, 6F, "var(--muted)", "left", false);
             int timerX = WIDTH - INSET - TIMER;
             for (int i = 0; i < effects.size(); i++) {
                 Effect effect = effects.get(i);
                 int y = HEADER + i * ROW;
-                scene.label(effect.name, 21, y, timerX - 23, ROW, 7.4F, "var(--text)", "left", false);
-                scene.timer(effect.duration, timerX, y + 1, TIMER, ROW - 2, effect.expiring);
+                scene.label(effect.name, 19, y, timerX - 20, 13, 7, "var(--text)", "left", false);
+                scene.timer(effect.duration, timerX, y + 1, TIMER, 11, effect.expiring);
             }
         }
         float fit = OrionHudView.fit(config.getHudScale() * config.getHudElementScale(ID),
@@ -81,9 +81,8 @@ public final class OrionPotionsHud {
         try {
             pose.translate(pos.x(), pos.y());
             pose.scale(w / (float) WIDTH, h / (float) height);
-            graphics.blit(RenderPipelines.GUI_TEXTURED, HEADER_ICON, INSET, 4, 0, 0, 12, 12, 16, 16, 16, 16);
             for (int i = 0; i < effects.size(); i++) {
-                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, effects.get(i).sprite, INSET, HEADER + i * ROW + 2, 10, 10);
+                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, effects.get(i).sprite, INSET, HEADER + i * ROW + 3, 8, 8);
             }
         } finally {
             pose.popMatrix();

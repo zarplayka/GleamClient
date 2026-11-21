@@ -22,3 +22,9 @@ html[data-light]{
   font-weight:700;
 }
 .gleam-hud-key[data-holding]{color:var(--accent);background:var(--hud-selected)}
+html[data-gleam-hud]:not([data-light]){
+  --accent:#65d7a0;--text:#eef6f1;--muted:#aab7b0;--line:#edf7f226;
+  --top:#0f1216;--surface:#0f1216;--well:#ffffff08;--track:#303d37;
+  --hud-panel:#0f1216eb;--hud-glass:#0f1216cf;--hud-selected:#65d7a021;
+}
+html[data-gleam-hud] .gleam-hud-panel{border:1px solid var(--line)}
