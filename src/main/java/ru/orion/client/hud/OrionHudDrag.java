@@ -2,6 +2,7 @@ package ru.orion.client.hud;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
 
 import java.util.ArrayList;
@@ -128,8 +129,9 @@ public final class OrionHudDrag {
         int savedY = config.getExtraHudPosition(id, 1);
         int maxX = Math.max(0, context.guiWidth() - width);
         int maxY = Math.max(0, context.guiHeight() - height);
-        int x = Math.clamp(savedX < 0 ? defaultX : savedX, 0, maxX);
-        int y = Math.clamp(savedY < 0 ? defaultY : savedY, 0, maxY);
+        Position scaled = restore(config, context.guiWidth(), context.guiHeight(), savedX, savedY, defaultX, defaultY);
+        int x = Math.clamp(scaled.x(), 0, maxX);
+        int y = Math.clamp(scaled.y(), 0, maxY);
         // Auto-place unused defaults. Explicit positions belong to the user.
         Position position = savedX >= 0 && savedY >= 0
                 ? new Position(x, y) : available(x, y, width, height, maxX, maxY);
@@ -137,7 +139,36 @@ public final class OrionHudDrag {
             forget(id);
             return null;
         }
-        return update(position.x(), position.y(), width, height, (left, top) -> config.setExtraHudPosition(id, left, top));
+        return update(position.x(), position.y(), width, height, tracked(config, context.guiWidth(), context.guiHeight(),
+                (left, top) -> config.setExtraHudPosition(id, left, top)));
+    }
+
+    public Position restore(OrionConfig config, int width, int height, int savedX, int savedY, int defaultX, int defaultY) {
+        int baseWidth = config.getHudPositionViewport(id, 0);
+        int baseHeight = config.getHudPositionViewport(id, 1);
+        if ((savedX >= 0 || savedY >= 0) && (baseWidth <= 0 || baseHeight <= 0) && width > 0 && height > 0) {
+            config.setHudPositionViewport(id, width, height);
+            baseWidth = width;
+            baseHeight = height;
+        }
+        return new Position(savedX < 0 ? defaultX : Math.round(savedX * (width / (float) Math.max(1, baseWidth))),
+                savedY < 0 ? defaultY : Math.round(savedY * (height / (float) Math.max(1, baseHeight))));
+    }
+
+    public BiConsumer<Integer, Integer> tracked(OrionConfig config, int width, int height,
+                                                 BiConsumer<Integer, Integer> write) {
+        return (x, y) -> {
+            write.accept(x, y);
+            config.setHudPositionViewport(id, width, height);
+        };
+    }
+
+    public Position place(GuiGraphicsExtractor context, OrionConfig config, int w, int h,
+                          int savedX, int savedY, int defaultX, int defaultY, BiConsumer<Integer, Integer> write) {
+        int width = context.guiWidth(), height = context.guiHeight();
+        Position pos = restore(config, width, height, savedX, savedY, defaultX, defaultY);
+        return update(Math.clamp(pos.x(), 0, Math.max(0, width - w)), Math.clamp(pos.y(), 0, Math.max(0, height - h)),
+                w, h, tracked(config, width, height, write));
     }
 
     private Position available(int x, int y, int w, int h, int maxX, int maxY) {

@@ -164,7 +164,8 @@ public final class OrionTargetHud {
             drag.cancel();
             placement = attachedPlacement(graphics, client, living, ticks, height, scale);
         } else {
-            float fit = OrionHudView.fit(scale, WIDTH, height, graphics.guiWidth(), graphics.guiHeight());
+            float fit = OrionHudView.fit(scale * OrionHudView.layoutScale(graphics.guiWidth(), graphics.guiHeight()),
+                    WIDTH, height, graphics.guiWidth(), graphics.guiHeight());
             int w = Math.max(1, Math.round(WIDTH * fit)), h = Math.max(1, Math.round(height * fit));
             var pos = drag.placeWidget(graphics, w, h, (graphics.guiWidth() - w) / 2 + 48,
                     graphics.guiHeight() / 2 + 25, manager);

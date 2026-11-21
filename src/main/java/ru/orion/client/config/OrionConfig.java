@@ -298,6 +298,7 @@ public final class OrionConfig {
     private java.util.Set<String> noRenderEntities = new java.util.HashSet<>();
     private java.util.Set<String> noRenderParticles = new java.util.HashSet<>();
     private java.util.Map<String, int[]> extraHudPositions = new java.util.HashMap<>();
+    private java.util.Map<String, int[]> hudPositionViewports = new java.util.HashMap<>();
     private boolean armorIndicatorEnabled = false;
     private IndicatorOptions armorIndicatorOptions = new IndicatorOptions(false);
     private boolean lockSlotEnabled = false;
@@ -851,6 +852,13 @@ public final class OrionConfig {
     }
     public void setExtraHudPosition(String id, int x, int y) {
         extraHudPositions.put(id, new int[]{Math.max(0, x), Math.max(0, y)});
+    }
+    public int getHudPositionViewport(String id, int axis) {
+        int[] viewport = hudPositionViewports.get(id);
+        return viewport == null || viewport.length != 2 ? 0 : Math.max(0, viewport[axis]);
+    }
+    public void setHudPositionViewport(String id, int width, int height) {
+        if (width > 0 && height > 0) hudPositionViewports.put(id, new int[]{width, height});
     }
     public boolean isSoundSettingsEnabled() { return soundSettingsEnabled; }
     public void setSoundSettingsEnabled(boolean value) { soundSettingsEnabled = value; }
@@ -1671,6 +1679,7 @@ public final class OrionConfig {
         setCleanWaterOpacity(cleanWaterOpacity);
         setTargetHudHoldSeconds(targetHudHoldSeconds);
         if (extraHudPositions == null) extraHudPositions = new java.util.HashMap<>();
+        if (hudPositionViewports == null) hudPositionViewports = new java.util.HashMap<>();
         if (soundVolumes == null) soundVolumes = new java.util.HashMap<>();
         soundVolumes.values().removeIf(value -> value == null || value < 0 || value >= 100);
         if (noRenderOptions == null) noRenderOptions = new java.util.HashSet<>();

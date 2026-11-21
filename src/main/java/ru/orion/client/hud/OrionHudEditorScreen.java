@@ -112,6 +112,14 @@ public final class OrionHudEditorScreen extends Screen {
         return screen instanceof OrionHudEditorScreen || chatEditor != null && screen == chatEditor.chat && !chatEditor.preview;
     }
 
+    public static boolean draggingIsland() {
+        return chatEditor != null && chatEditor.gesture != null && chatEditor.gesture.region().id().equals("island");
+    }
+
+    public static boolean islandHeader(double y, double top, double width, double height) {
+        return y >= top && y < top + Math.min(height, width * .09);
+    }
+
     @Override public boolean isPauseScreen() { return false; }
 
     @Override protected void init() {
@@ -212,7 +220,6 @@ public final class OrionHudEditorScreen extends Screen {
             String name = WIDGETS.stream().filter(item -> item.regionId().equals(region.id()) && item.enabled().test(config)).findFirst()
                     .map(Widget::name).orElse(region.id());
             String glyph = switch (region.id()) {
-                case "island" -> "M2 10h4l2-6 4 12 2-6h4";
                 case "keystrokes" -> "M7 7h6v6H7zM7 7H5a2 2 0 1 1 2-2zm6 0V5a2 2 0 1 1 2 2zm0 6h2a2 2 0 1 1-2 2zm-6 0v2a2 2 0 1 1-2-2z";
                 case "potions_hud" -> "M10 3c3 4 5 6.5 5 9a5 5 0 1 1-10 0c0-2.5 2-5 5-9z";
                 case "target_hud" -> "M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0zM12.5 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z";
@@ -223,7 +230,8 @@ public final class OrionHudEditorScreen extends Screen {
                 default -> "";
             };
             if (!glyph.isEmpty()) scene.icon(glyph, x, tagY + 2, 8, active ? ACCENT : TEXT, false);
-            text(scene, name, x + 10, tagY, tagWidth(region) - 23, 12, 7, active ? ACCENT : TEXT, "left");
+            int inset = glyph.isEmpty() ? 0 : 10;
+            text(scene, name, x + inset, tagY, tagWidth(region) - inset - 13, 12, 7, active ? ACCENT : TEXT, "left");
         }
         if (active || hovered) {
             scene.box(x, y, w, h, 3, "#00000000", LINE);
@@ -390,6 +398,9 @@ public final class OrionHudEditorScreen extends Screen {
     }
 
     private OrionHudDrag.Region hit(double x, double y) {
+        var island = chat == null ? null : region("island");
+        if (island != null && enabled("island") && island.contains(x, y)
+                && islandHeader(y, island.y(), island.width(), island.height())) return island;
         for (int i = regions.size() - 1; i >= 0; i--) {
             var region = regions.get(i);
             if (region.movable() && enabled(region.id()) && onHideButton(region, x, y)) return region;
