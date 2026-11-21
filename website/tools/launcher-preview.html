@@ -1024,6 +1024,25 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: 0 14px 36px #0005;
     }
     .minecraft-dialog::backdrop { background: #0007 }
+    #game-crash-dialog { width:min(536px,calc(100vw - 30px)); max-height:calc(100dvh - 40px); padding:0;
+      overflow:auto; border-radius:15px; border-color:var(--border); background:var(--panel); }
+    #game-crash-dialog::backdrop { background:#08090ab8; backdrop-filter:blur(4px) }
+    .crash-header { display:flex; align-items:center; gap:13px; padding:20px 22px 16px }
+    .crash-symbol { flex:none; display:grid; place-items:center; width:40px; height:40px; border-radius:10px;
+      background:color-mix(in srgb,var(--error-text) 13%,var(--panel)); color:var(--error-text) }
+    .crash-symbol .icon { width:20px; height:20px }
+    .crash-heading { flex:1; min-width:0 }
+    #game-crash-title { margin:0; font-size:18px; font-weight:700; overflow-wrap:anywhere }
+    #game-crash-profile { display:block; color:var(--muted); font-size:12px; margin-top:3px }
+    .crash-close { flex:none; align-self:flex-start }
+    .crash-body { padding:0 22px 18px }
+    .crash-summary { display:grid; gap:10px; padding:13px 15px; border-radius:9px; background:var(--control-bg); border:1px solid var(--border) }
+    #game-crash-advice { margin:0; font-size:13px; line-height:1.55; overflow-wrap:anywhere }
+    #game-crash-code { margin:0; color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums }
+    #game-crash-result { margin:12px 0 0; font-size:12px; line-height:1.5 }
+    .crash-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:14px 22px; border-top:1px solid var(--border) }
+    .crash-actions .button { flex:none; min-height:34px; width:auto }
+    .crash-actions .icon { width:14px; height:14px }
     .profile-import { width: min(560px,calc(100% - 32px)); max-height: calc(100dvh - 80px); overflow: auto }
     .profile-import-list { display: grid; gap: 6px; margin: 14px 0; max-height: 42dvh; overflow: auto }
     .profile-import-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--side-rule); border-radius: 8px }
@@ -1835,15 +1854,20 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </div>
         </div>
       </section>
-      <dialog class="minecraft-dialog" id="game-crash-dialog" aria-labelledby="game-crash-title">
-        <header class="minecraft-dialog-header"><h2 id="game-crash-title"></h2></header>
-        <p id="game-crash-code"></p>
-        <p id="game-crash-advice"></p>
-        <div class="profile-option-actions">
-          <button type="button" class="button primary" id="game-crash-fix" hidden></button>
-          <button type="button" class="button" id="game-crash-logs">Посмотреть логи</button>
-          <form method="dialog"><button class="button">Закрыть</button></form>
+      <dialog class="minecraft-dialog" id="game-crash-dialog" aria-labelledby="game-crash-title" aria-describedby="game-crash-advice">
+        <header class="crash-header">
+          <span class="crash-symbol" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3.5 22 20H2L12 3.5Zm0 6v4m0 3v.25"/></svg></span>
+          <div class="crash-heading"><h2 id="game-crash-title"></h2><span id="game-crash-profile"></span></div>
+          <form method="dialog" class="crash-close"><button class="minecraft-dialog-close" aria-label="Закрыть" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></form>
+        </header>
+        <div class="crash-body">
+          <div class="crash-summary"><p id="game-crash-advice"></p><p id="game-crash-code" hidden></p></div>
+          <p id="game-crash-result" role="status" hidden></p>
         </div>
+        <footer class="crash-actions">
+          <button type="button" class="button primary" id="game-crash-fix" hidden></button>
+          <button type="button" class="button" id="game-crash-logs"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg><span>Посмотреть логи</span></button>
+        </footer>
       </dialog>
       <dialog class="minecraft-dialog" id="create-profile-dialog" aria-labelledby="create-profile-heading">
         <header class="minecraft-dialog-header"><h2 id="create-profile-heading">Создать сборку</h2><button class="minecraft-dialog-close" id="create-profile-close" type="button" aria-label="Закрыть"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header>
@@ -2665,6 +2689,27 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     systemTheme.addEventListener('change', renderSettings);
 
     const launcherTranslations = {
+      "Открыть отчёт":["Open crash report","Absturzbericht öffnen","Abrir informe"],
+      "Конфликт ZakoOpt и Sodium":["ZakoOpt and Sodium conflict","Konflikt zwischen ZakoOpt und Sodium","Conflicto entre ZakoOpt y Sodium"],
+      "Проверить обновление ZakoOpt":["Check for a ZakoOpt update","ZakoOpt-Update suchen","Buscar actualización de ZakoOpt"],
+      "ZakoOpt использует метод, которого нет в установленной версии Sodium. Проверь, выпустил ли автор исправление.":["ZakoOpt calls a method missing from the installed Sodium version. Check whether the author has released a fix.","ZakoOpt ruft eine Methode auf, die in der installierten Sodium-Version fehlt. Suche nach einer Korrektur des Autors.","ZakoOpt llama a un método que no existe en la versión instalada de Sodium. Comprueba si el autor publicó una corrección."],
+      "Проверяем релизы ZakoOpt…":["Checking ZakoOpt releases…","ZakoOpt-Versionen werden geprüft…","Comprobando versiones de ZakoOpt…"],
+      "Для этой сборки более свежая версия ZakoOpt пока не опубликована.":["No newer ZakoOpt version is available for this build yet.","Für diese Instanz gibt es noch keine neuere ZakoOpt-Version.","Todavía no hay una versión más reciente de ZakoOpt para esta instancia."],
+      "Найденная версия не прошла проверку на совместимость с этой сборкой.":["The new version failed compatibility checks for this build.","Die neue Version hat die Kompatibilitätsprüfung nicht bestanden.","La nueva versión no superó la comprobación de compatibilidad."],
+      "В этой сборке не удалось однозначно найти установленный ZakoOpt.":["Could not identify a single installed copy of ZakoOpt in this build.","In dieser Instanz wurde keine eindeutige ZakoOpt-Installation gefunden.","No se encontró una única instalación de ZakoOpt en esta instancia."],
+      "Не удалось проверить обновление ZakoOpt. Попробуй ещё раз.":["Could not check for a ZakoOpt update. Try again.","ZakoOpt-Update konnte nicht geprüft werden. Versuche es erneut.","No se pudo comprobar la actualización de ZakoOpt. Inténtalo de nuevo."],
+      "ZakoOpt обновлён до {0}. Можно повторить запуск.":["ZakoOpt updated to {0}. You can launch again.","ZakoOpt wurde auf {0} aktualisiert. Du kannst erneut starten.","ZakoOpt se actualizó a {0}. Puedes volver a iniciar."],
+      "Причину не удалось определить автоматически. Подробности могут быть в логах сборки.":["The launcher could not determine the cause. Check the build logs for details.","Der Launcher konnte die Ursache nicht ermitteln. Details stehen möglicherweise in den Protokollen.","El launcher no pudo determinar la causa. Consulta los registros de la instancia."],
+      "Minecraft исчерпал память":["Minecraft ran out of memory","Minecraft hat keinen freien Speicher mehr","Minecraft se quedó sin memoria"],
+      "Java не смогла выделить память":["Java could not reserve memory","Java konnte keinen Speicher reservieren","Java no pudo reservar memoria"],
+      "Ошибка в аргументах JVM":["Invalid JVM arguments","Ungültige JVM-Argumente","Argumentos de JVM incorrectos"],
+      "Несовместимые моды":["Incompatible mods","Inkompatible Mods","Mods incompatibles"],
+      "Ошибка графического драйвера":["Graphics driver error","Grafiktreiberfehler","Error del controlador gráfico"],
+      "Память Java закончилась. Увеличь выделенную память для этой сборки, если в системе есть запас ОЗУ.":["Java ran out of memory. Allocate more RAM to this build if your system can spare it.","Java hat keinen freien Speicher mehr. Weise der Instanz mehr RAM zu, sofern verfügbar.","Java se quedó sin memoria. Asigna más RAM a esta instancia si hay memoria disponible."],
+      "Java не смогла зарезервировать память. Закрой тяжёлые программы или уменьши выделенную память.":["Java could not reserve memory. Close demanding apps or lower the allocation.","Java konnte keinen Speicher reservieren. Schließe speicherintensive Programme oder reduziere die Zuweisung.","Java no pudo reservar memoria. Cierra aplicaciones exigentes o reduce la asignación."],
+      "Java отклонила один из аргументов запуска. Проверь аргументы JVM в настройках этой сборки.":["Java rejected a launch argument. Check the JVM arguments in this build's settings.","Java hat ein Startargument abgelehnt. Prüfe die JVM-Argumente dieser Instanz.","Java rechazó un argumento de inicio. Revisa los argumentos de JVM de esta instancia."],
+      "Fabric обнаружил несовместимые моды. Открой логи, чтобы узнать их названия и нужные версии.":["Fabric found incompatible mods. Open the logs for their names and required versions.","Fabric hat inkompatible Mods gefunden. Namen und benötigte Versionen stehen im Protokoll.","Fabric encontró mods incompatibles. Abre los registros para ver sus nombres y versiones requeridas."],
+      "Графический драйвер не предоставил нужную версию OpenGL. Проверь драйвер видеокарты и выбранный графический адаптер.":["The graphics driver did not provide the required OpenGL version. Check the driver and selected GPU.","Der Grafiktreiber stellt die benötigte OpenGL-Version nicht bereit. Prüfe den Treiber und die ausgewählte GPU.","El controlador gráfico no proporcionó la versión de OpenGL requerida. Revisa el controlador y la GPU seleccionada."],
       'Рекомендуемое · {0} ГБ':['Recommended · {0} GB','Empfohlen · {0} GB','Recomendado · {0} GB'],
       'Доступно на ПК · {0} ГБ':['Installed RAM · {0} GB','Installierter RAM · {0} GB','RAM instalada · {0} GB'],
       'Свой объём памяти':['Custom memory limit','Eigene Speichergrenze','Límite de memoria personalizado'],
@@ -5601,7 +5646,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         await window.__TAURI__.core.invoke('launch_minecraft',{options});
       } catch (error) {
         const code = String(error.message || error);
-        const [kind,exitCode,diagnosis] = code.split(':');
+        const [kind,exitCode,diagnosis,report] = code.split(':');
         busy = kind === 'game_busy';
         failed = kind !== 'game_cancelled';
         title = failed ? launchErrors[kind] || 'Не удалось запустить Minecraft' : 'Запуск отменён';
@@ -5611,7 +5656,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
         if (kind === 'game_exit' && /^-?\d+$/.test(exitCode)) detail = translated('Код выхода: {0}',exitCode);
         if (kind === 'game_exit' || kind === 'game_spawn' || kind === 'game_jvm_quotes') {
-          showGameCrash(launchedProfileId,title,detail,kind === 'game_jvm_quotes' ? 'jvm_option' : diagnosis);
+          showGameCrash(launchedProfileId,title,detail,kind === 'game_jvm_quotes' ? 'jvm_option' : diagnosis,report);
         }
       } finally {
         launchPending = launchCancelling = running = false;
@@ -6559,34 +6604,72 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       } catch { writeLocale($('instance-settings-result'),'Не удалось сохранить настройки сборки.'); }
     });
 
-    let crashProfile = null;
-    function showGameCrash(id,title,detail,reason) {
+    let gameCrash = null;
+    function showGameCrash(id,title,detail,reason,report) {
       const suggestions = {
         heap:['Память Java закончилась. Увеличь выделенную память для этой сборки, если в системе есть запас ОЗУ.','Настройки сборки'],
         memory_reservation:['Java не смогла зарезервировать память. Закрой тяжёлые программы или уменьши выделенную память.','Настройки сборки'],
         jvm_option:['Java отклонила один из аргументов запуска. Проверь аргументы JVM в настройках этой сборки.','Настройки сборки'],
         mods:['Fabric обнаружил несовместимые моды. Открой логи, чтобы узнать их названия и нужные версии.'],
-        graphics:['Графический драйвер не предоставил нужную версию OpenGL. Проверь драйвер видеокарты и выбранный графический адаптер.']
+        graphics:['Графический драйвер не предоставил нужную версию OpenGL. Проверь драйвер видеокарты и выбранный графический адаптер.'],
+        zako_sodium:['ZakoOpt использует метод, которого нет в установленной версии Sodium. Проверь, выпустил ли автор исправление.','Проверить обновление ZakoOpt']
       };
       const tip = suggestions[reason] ?? ['Причину не удалось определить автоматически. Подробности могут быть в логах сборки.'];
-      crashProfile = id;
-      const headings = {heap:'Minecraft исчерпал память',memory_reservation:'Java не смогла выделить память',jvm_option:'Ошибка в аргументах JVM',mods:'Несовместимые моды',graphics:'Ошибка графического драйвера'};
+      gameCrash = {id,reason,report};
+      const headings = {heap:'Minecraft исчерпал память',memory_reservation:'Java не смогла выделить память',jvm_option:'Ошибка в аргументах JVM',mods:'Несовместимые моды',graphics:'Ошибка графического драйвера',zako_sodium:'Конфликт ZakoOpt и Sodium'};
       writeLocale($('game-crash-title'),headings[reason] ?? title);
+      $('game-crash-profile').textContent = profileById(id)?.name ?? 'Minecraft';
       $('game-crash-code').textContent = detail;
+      $('game-crash-code').hidden = !detail;
       writeLocale($('game-crash-advice'),tip[0]);
       $('game-crash-fix').hidden = !tip[1];
+      $('game-crash-fix').disabled = false;
+      $('game-crash-result').hidden = true;
+      writeLocale($('game-crash-logs').lastElementChild,report ? 'Открыть отчёт' : 'Посмотреть логи');
       if (tip[1]) writeLocale($('game-crash-fix'),tip[1]);
       const dialog = $('game-crash-dialog');
       if (!dialog.open) dialog.showModal();
     }
     function openCrashSection(kind) {
       $('game-crash-dialog').close();
-      if (!profileById(crashProfile)) return;
-      navigate('profiles',crashProfile);
-      void loadProfileContent(crashProfile,kind);
+      const id = gameCrash?.id;
+      if (!profileById(id)) return;
+      navigate('profiles',id);
+      void loadProfileContent(id,kind);
     }
-    $('game-crash-fix').addEventListener('click',() => openCrashSection('settings'));
-    $('game-crash-logs').addEventListener('click',() => openCrashSection('logs'));
+    $('game-crash-fix').addEventListener('click',async () => {
+      const crash = gameCrash;
+      if (crash?.reason !== 'zako_sodium') { openCrashSection('settings'); return; }
+      const profile = profileById(crash.id);
+      if (!profile || !window.__TAURI__) return;
+      const button = $('game-crash-fix'), result = $('game-crash-result');
+      button.disabled = true;
+      result.hidden = false;
+      writeLocale(result,'Проверяем релизы ZakoOpt…');
+      try {
+        const version = await window.__TAURI__.core.invoke('repair_zakoopt',{gameVersion:profile.version,instanceId:profileInstanceId(profile)});
+        if (gameCrash !== crash) return;
+        writeLocale(result,'ZakoOpt обновлён до {0}. Можно повторить запуск.',version);
+        button.hidden = true;
+      } catch (error) {
+        if (gameCrash !== crash) return;
+        const messages = {
+          zako_no_update:'Для этой сборки более свежая версия ZakoOpt пока не опубликована.',
+          zako_incompatible:'Найденная версия не прошла проверку на совместимость с этой сборкой.',
+          zako_missing:'В этой сборке не удалось однозначно найти установленный ZakoOpt.'
+        };
+        writeLocale(result,messages[String(error.message || error)] ?? 'Не удалось проверить обновление ZakoOpt. Попробуй ещё раз.');
+      } finally {
+        if (gameCrash === crash) button.disabled = false;
+      }
+    });
+    $('game-crash-logs').addEventListener('click',async () => {
+      const crash = gameCrash;
+      if (!crash?.report || !window.__TAURI__) { openCrashSection('logs'); return; }
+      try {
+        await window.__TAURI__.core.invoke('open_crash_report',{...profileContentTarget(crash.id),file:crash.report});
+      } catch { if (gameCrash === crash) openCrashSection('logs'); }
+    });
 
     const resourceHistory = new Map();
     let displayedSamples = [];
