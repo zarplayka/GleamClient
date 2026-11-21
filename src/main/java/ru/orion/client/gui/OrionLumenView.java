@@ -35,6 +35,7 @@ import net.minecraft.client.renderer.state.gui.GuiElementRenderState;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 import ru.orion.client.OrionClient;
+import ru.orion.client.hud.OrionGlassCompositor;
 import ru.orion.client.mixin.RenderPipelinesAccessor;
 
 import java.awt.Color;
@@ -110,6 +111,7 @@ public final class OrionLumenView {
     /*static void preloadPipelines(com.mojang.blaze3d.shaders.ShaderSource source) {
         RenderSystem.getDevice().precompilePipeline(Paint.SHAPE, source);
         RenderSystem.getDevice().precompilePipeline(Paint.TEXTURED, source);
+        RenderSystem.getDevice().precompilePipeline(Paint.GLASS, source);
     }
     *///?}
 
@@ -290,7 +292,12 @@ public final class OrionLumenView {
     }
 
     public boolean draw(GuiGraphicsExtractor graphics, int x, int y, int width, int height, float sx, float sy,
-                        float opacity, Identifier glassMask, boolean screenGlass) {
+                        float opacity, Identifier glassSurface, boolean screenGlass) {
+        return draw(graphics, x, y, width, height, sx, sy, opacity, glassSurface, screenGlass, false);
+    }
+
+    boolean draw(GuiGraphicsExtractor graphics, int x, int y, int width, int height, float sx, float sy,
+                 float opacity, Identifier glassSurface, boolean screenGlass, boolean titleBackdrop) {
         if (opacity <= 0F) return true;
         displayLength = 0;
         int size = LumenNative.displaySize(engine);
@@ -317,22 +324,23 @@ public final class OrionLumenView {
         ThemeReveal running = themeReveal;
         if (running == null || running.finished(now)) {
             themeReveal = null;
-            drawDisplay(graphics, display, x, y, width, height, sx, sy, CircleClip.NONE, opacity, glassMask, screenGlass);
+            drawDisplay(graphics, display, x, y, width, height, sx, sy, CircleClip.NONE, opacity, glassSurface, screenGlass, titleBackdrop);
         } else {
             float radius = Math.max(.0001F, running.reach() * running.progress(now) * sx);
             int centerX = Math.clamp(Math.round((x + running.x() * sx) * 4F), -32768, 32767);
             int centerY = Math.clamp(Math.round((y + running.y() * sy) * 4F), -32768, 32767);
             float signedRadius = running.to() == 1F ? radius : -radius;
             drawDisplay(graphics, running.previous(), x, y, width, height, sx, sy,
-                    new CircleClip(centerX, centerY, -signedRadius), opacity, glassMask, screenGlass);
+                    new CircleClip(centerX, centerY, -signedRadius), opacity, glassSurface, screenGlass, titleBackdrop);
             drawDisplay(graphics, display, x, y, width, height, sx, sy,
-                    new CircleClip(centerX, centerY, signedRadius), opacity, glassMask, screenGlass);
+                    new CircleClip(centerX, centerY, signedRadius), opacity, glassSurface, screenGlass, titleBackdrop);
         }
         return true;
     }
 
     private void drawDisplay(GuiGraphicsExtractor graphics, ByteBuffer commands, int x, int y, int width, int height,
-                             float sx, float sy, CircleClip circle, float opacity, Identifier glassMask, boolean screenGlass) {
+                             float sx, float sy, CircleClip circle, float opacity, Identifier glassSurface,
+                             boolean screenGlass, boolean titleBackdrop) {
         int count = commands.getInt(0), clips = commands.getInt(4);
         int clipBase = 16 + COMMAND_SIZE * count;
         graphics.nextStratum();
@@ -372,21 +380,7 @@ public final class OrionLumenView {
                 float h = commands.getFloat(at + 16);
                 int color = commands.getInt(at + 36);
                 float radius = commands.getFloat(at + 40);
-                if (glassMask != null && (kind == 0 || kind == 9) && color == GLASS_SURFACE) {
-                    if (circle == CircleClip.NONE && opacity >= .99F && w > 0 && h > 0) {
-                        int gw = Math.max(1, Math.round(w)), gh = Math.max(1, Math.round(h));
-                        pose.pushMatrix();
-                        try {
-                            pose.translate(left, top).scale(w / gw, h / gh);
-                            if (ru.orion.client.hud.OrionGlassCompositor.INSTANCE.submitBackground(glassMask, graphics,
-                                    0, 0, gw, gh, gw, gh, java.util.List.of(new ru.orion.client.hud.OrionGlassCompositor.Panel(
-                                            0, 0, gw, gh, 2 * radius)), screenGlass)) continue;
-                        } finally {
-                            pose.popMatrix();
-                        }
-                    }
-                    color = 0xa82d3844;
-                }
+                boolean glass = glassSurface != null && kind == 0 && (color & 0xffffff) == (GLASS_SURFACE & 0xffffff);
                 if (opacity < 1F) color = color & 0xffffff | Math.round((color >>> 24) * opacity) << 24;
                 if (w <= 0 || h <= 0 || color >>> 24 == 0) continue;
                 float parameter = commands.getFloat(at + 44);
@@ -468,6 +462,28 @@ public final class OrionLumenView {
                 var bounds = scissor.intersection(bounds(pose, x0, y0, x1, y1));
                 if (bounds == null) continue;
                 RenderPipeline pipeline = kind == 5 || kind == 8 || kind == 12 ? Paint.TEXTURED : Paint.SHAPE;
+                if (glass) {
+                    var compositor = OrionGlassCompositor.INSTANCE;
+                    TextureSetup backdrop = null;
+                    if (ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.GLASS) != null) {
+                        backdrop = titleBackdrop ? OrionTitleMenu.backdropTexture()
+                                : compositor.captureSurface(graphics, bounds, glassSurface, screenGlass);
+                    }
+                    if (backdrop != null) {
+                        pipeline = Paint.GLASS;
+                        texture = backdrop;
+                        color = color & 0xff000000 | (compositor.bottomOrigin() ? 0xffffff : 0xfeffff);
+                        if (titleBackdrop) {
+                            kind = 1;
+                            float zoom = OrionTitleMenu.backdropZoom(width, height);
+                            u0 = 1F / (1920F * zoom);
+                            v0 = 1F / (1080F * zoom);
+                            v1 = (1F - height * v0) / 2F;
+                        }
+                    } else {
+                        color = Math.round((color >>> 24) * .89F) << 24 | 0x1c2833;
+                    }
+                }
                 graphics.guiRenderState.addGuiElement(new Paint(pipeline, texture, scissor, bounds, paintPose,
                         x0, y0, x1, y1, left, top, w, h, u0, v0, u1, v1, color, radius, kind, variant, circle));
             }
@@ -598,22 +614,23 @@ public final class OrionLumenView {
                 .add("LineWidth", VertexFormatElement.LINE_WIDTH)
                 .build();
         *///?}
-        private static final RenderPipeline SHAPE = pipeline("lumen_shape", false);
-        private static final RenderPipeline TEXTURED = pipeline("lumen_texture", true);
+        private static final RenderPipeline SHAPE = pipeline("lumen_shape", null);
+        private static final RenderPipeline TEXTURED = pipeline("lumen_texture", "LUMEN_TEXTURED");
+        private static final RenderPipeline GLASS = pipeline("lumen_glass", "LUMEN_GLASS");
 
         // Инициализация класса регистрирует пайплайны до первого resource reload.
         private static void initialize() { }
 
-        private static RenderPipeline pipeline(String name, boolean textured) {
+        private static RenderPipeline pipeline(String name, String textureMode) {
             var builder = RenderPipeline.builder(RenderPipelinesAccessor.orion$getGuiSnippet())
                     .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/" + name))
                     .withVertexShader(SHADER).withFragmentShader(SHADER)
                     //? if >=26.2 {
                     .withVertexBinding(0, FORMAT);
-            if (textured) builder.withShaderDefine("LUMEN_TEXTURED").withBindGroupLayout(BindGroupLayouts.SAMPLER0);
+            if (textureMode != null) builder.withShaderDefine(textureMode).withBindGroupLayout(BindGroupLayouts.SAMPLER0);
             //?} else {
             /*.withVertexFormat(FORMAT, VertexFormat.Mode.QUADS);
-            if (textured) builder.withShaderDefine("LUMEN_TEXTURED").withSampler("Sampler0");
+            if (textureMode != null) builder.withShaderDefine(textureMode).withSampler("Sampler0");
             *///?}
             return RenderPipelinesAccessor.orion$registerOptional(builder.build());
         }
@@ -631,8 +648,14 @@ public final class OrionLumenView {
             // В Normal передаём тип, вариант и радиус скругления с шагом 1/16.
             int flags = kind + 16 * Math.clamp(variant, 0, 4);
             int corner = Math.clamp(Math.round(radius * 16F), 0, 8191);
+            float u = u0 + (u1 - u0) * dx / width;
+            float v = v0 + (v1 - v0) * dy / height;
+            if (pipeline == GLASS && kind == 1) {
+                u = u0 * (pose.m00() * x + pose.m10() * y + pose.m20());
+                v = v1 + v0 * (pose.m01() * x + pose.m11() * y + pose.m21());
+            }
             var vertex = vertices.addVertexWith2DPose(pose, x, y).setColor(color)
-                    .setUv(u0 + (u1 - u0) * dx / width, v0 + (v1 - v0) * dy / height)
+                    .setUv(u, v)
                     .setUv1(circle.x(), circle.y())
                     .setUv2(Math.min(32767, Math.round(width * 4F)), Math.min(32767, Math.round(height * 4F)))
                     .setNormal(normalByte(flags), normalByte(corner / 64), normalByte(corner % 64))

@@ -51,7 +51,10 @@ for (const [name, font] of Object.entries({ regular: 'Regular', medium: 'Medium'
 }
 for (const language of ['en', 'de', 'es']) routes.set(`/clickgui/lang/${language}.json`, game(`lang/click_gui_${language}.json`));
 
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
+routes.set('/client-preview-glass.js', tools('client-preview-glass.js'));
+routes.set('/liquid-glass.glsl', game('shaders/include/liquid_glass.glsl'));
+
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.glsl': 'text/plain',
   '.png': 'image/png', '.webp': 'image/webp', '.ttf': 'font/ttf' };
 const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
 const subscribers = new Set();
@@ -112,7 +115,7 @@ function reload() {
 }
 watch(resources, { recursive: true }, reload);
 watch(__dirname, (_, name) => {
-  if (name === 'client-preview-catalog.json' || name === 'client-preview.js') reload();
+  if (name === 'client-preview-catalog.json' || name === 'client-preview.js' || name === 'client-preview-glass.js') reload();
 });
 
 server.listen(port, '127.0.0.1', () => console.log(`GleamClient · http://127.0.0.1:${port}/`));

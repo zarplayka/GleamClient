@@ -67,7 +67,7 @@ async function cropAtlas(url, columns, rows, names, start = 0) {
 
 async function clickGui() {
   connectBridge(() => {});
-  gameBackdrop();
+  gameBackdrop('.window');
   const json = async url => {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`${url} (${response.status})`);
@@ -101,6 +101,7 @@ async function clickGui() {
   const look = { theme: 'dark', density: 'normal', toggleStyle: 'label', categoriesExpanded: true,
     windowSize: 'normal', windowScale: 100, accent: '', wingsStyle: 0, cosmeticPet: 'moon_moth',
     windowX: 0, windowY: 0, interfaceSounds: false, ...visual };
+  if (new URLSearchParams(location.search).has('glass')) look.theme = 'glass';
   const friends = { signedIn: true, items: [
     { username: 'BirchFox', public_id: 'preview-1', status: 'friend', appearance: { slots: { wings: 'dragon', pet: 'moon_moth' } } },
     { username: 'StoneOwl', public_id: 'preview-2', status: 'friend' },
@@ -280,12 +281,23 @@ function mainMenu() {
   requestAnimationFrame(animate);
 }
 
-function gameBackdrop() {
-  document.documentElement.style.background = 'linear-gradient(#10121a55,#10121a55), url(/title/assets/gleam-title-panorama.png) center / cover fixed';
+function gameBackdrop(surface) {
+  const backdrop = '/title/assets/gleam-title-panorama.png';
+  const style = document.createElement('style');
+  style.textContent = `
+    html { background: url(${backdrop}) center / cover fixed }
+    html[data-theme=dark], html[data-theme=light] { background-image: linear-gradient(#10121a55,#10121a55), url(${backdrop}) }
+    .preview-glass-layer { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none }
+    html[data-preview-glass][data-theme=glass] .window,
+    html[data-preview-glass][data-glass] .surface { background: transparent }
+  `;
+  document.head.append(style);
+  import('/client-preview-glass.js').then(({ previewGlass }) => previewGlass(surface, backdrop))
+    .catch(error => console.warn('Liquid Glass preview:', error));
 }
 
 function mediaHud() {
-  gameBackdrop();
+  gameBackdrop('#island .surface');
   const visual = readSession(previewSettings, {});
   const tracks = [['Sweden', 'C418'], ['Aria Math', 'C418'], ['Otherside', 'Lena Raine']];
   let index = 0;
@@ -320,15 +332,21 @@ function mediaHud() {
 }
 
 function hudWidgets() {
-  gameBackdrop();
-  const visual = readSession(previewSettings, {});
-  const keys = [{ text: 'W', x: 64, y: 30 }, { text: 'A', x: 20, y: 74 },
-    { text: 'S', x: 64, y: 74 }, { text: 'D', x: 108, y: 74 },
-    { text: '0', mouse: 'ЛКМ', x: 20, y: 118 }, { text: '0', mouse: 'ПКМ', x: 86, y: 118 }];
+  gameBackdrop('#hud .panel, #hud .key');
+  // Same seven keys and design units as OrionStatusHud, enlarged for the browser.
+  const size = 17, step = 19;
+  const keys = [
+    { text: 'W', x: step, y: 0 },
+    { text: 'A', x: 0, y: step }, { text: 'S', x: step, y: step }, { text: 'D', x: 2 * step, y: step },
+    { text: '', mouse: 'L', x: 0, y: 2 * step },
+    { text: '', x: step, y: 2 * step },
+    { text: '', mouse: 'R', x: 2 * step, y: 2 * step }
+  ];
+  document.querySelector('#hud').style.cssText = 'left:10px;top:14px;zoom:2';
   const pressed = new Set();
-  const draw = () => window.paradox.update({ glass: true, light: visual.theme === 'light', accent: visual.accent,
-    parts: keys.map(key => ({ ...key, kind: 'key', radius: 5, w: key.mouse ? 62 : 40, h: 40,
-      pressed: pressed.has(key.mouse || key.text) })) });
+  const draw = () => window.paradox.update({ glass: true, gleamHud: true,
+    parts: keys.map(key => ({ ...key, kind: 'key', radius: 6, w: size, h: size,
+      pressed: !key.mouse && pressed.has(key.text || ' ') })) });
   window.addEventListener('keydown', event => { pressed.add(event.key.toUpperCase()); draw(); });
   window.addEventListener('keyup', event => { pressed.delete(event.key.toUpperCase()); draw(); });
   window.addEventListener('blur', () => { pressed.clear(); draw(); });

@@ -76,7 +76,6 @@ public final class OrionGlassCompositor {
     private long lastCaptureNanos;
     private final List<CaptureArea> captureAreas = new ArrayList<>();
     private final List<CaptureArea> lastCaptureAreas = new ArrayList<>();
-    private boolean captureWholeScene;
     private boolean bottomOrigin;
     private final Map<Identifier, MaskTexture> masks = new HashMap<>();
     private boolean shaderWarningLogged;
@@ -163,16 +162,7 @@ public final class OrionGlassCompositor {
                           int x, int y, int width, int height, boolean screenGlass) {
         Minecraft client = Minecraft.getInstance();
         MaskTexture entry = masks.get(id);
-        // Экран меню может размывать весь GUI отдельным проходом: оставляем ему управление фоном.
-        if (entry == null || (!screenGlass && GleamMinecraft.screen(client) != null
-                && !(GleamMinecraft.screen(client) instanceof ChatScreen)
-                && !(GleamMinecraft.screen(client) instanceof ru.orion.client.gui.OrionClickGuiScreen)
-                && !OrionHudEditorScreen.editing(client))
-                //? if >=26.2 {
-                || (!screenGlass && ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState().isHudHidden)) {
-                //?} else {
-                /*|| (!screenGlass && client.options.hideGui)) {
-                *///?}
+        if (entry == null || (!screenGlass && !visibleOnHud(context, client))) {
             return false;
         }
         if (!screenGlass && !OrionClient.getInstance().getConfigManager().getConfig().isHudElementGlass(id.getPath())) {
@@ -190,11 +180,6 @@ public final class OrionGlassCompositor {
                             0F, 1F, 0F, 1F, 0x00FFFFFF, new ScreenRectangle(0, 0, context.guiWidth(), context.guiHeight())));
             return true;
         }
-        GpuTexture source = GleamMinecraft.mainTarget(client).getColorTexture();
-        if (source == null || source.isClosed() || source.getWidth(0) <= 0 || source.getHeight(0) <= 0
-                || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0) {
-            return false;
-        }
         try {
             if (ru.orion.client.render.GleamGpu.pipelineOrNull(PIPELINE) == null) {
                 warnShaderUnavailable(null);
@@ -204,6 +189,47 @@ public final class OrionGlassCompositor {
             warnShaderUnavailable(exception);
             return false;
         }
+        if (!requestScene(client, context, context.pose(), x, y, width, height)) return false;
+
+        var sampler = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
+        TextureSetup textures = new TextureSetup(foreground.getTextureView(), sceneView, entry.texture().getTextureView(),
+                sampler, sampler, sampler);
+        ScreenRectangle scissorArea = new ScreenRectangle(0, 0, context.guiWidth(), context.guiHeight());
+        ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState()
+                .addGuiElement(new BlitRenderState(PIPELINE, textures,
+                new Matrix3x2f(context.pose()), x, y, x + width, y + height,
+                0.0F, 1.0F, 0.0F, 1.0F, bottomOrigin ? -1 : 0xfffeffff, scissorArea));
+        return true;
+    }
+
+    private static boolean visibleOnHud(GuiGraphicsExtractor context, Minecraft client) {
+        var screen = GleamMinecraft.screen(client);
+        return (screen == null || screen instanceof ChatScreen
+                || screen instanceof ru.orion.client.gui.OrionClickGuiScreen || OrionHudEditorScreen.editing(client))
+                //? if >=26.2 {
+                && !((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState().isHudHidden;
+                //?} else {
+                /*&& !client.options.hideGui;
+                *///?}
+    }
+
+    public TextureSetup captureSurface(GuiGraphicsExtractor context, ScreenRectangle bounds, Identifier id, boolean screenGlass) {
+        Minecraft client = Minecraft.getInstance();
+        if (!screenGlass && (!visibleOnHud(context, client)
+                || !OrionClient.getInstance().getConfigManager().getConfig().isHudElementGlass(id.getPath()))) return null;
+        if (!requestScene(client, context, new Matrix3x2f(), bounds.left(), bounds.top(), bounds.width(), bounds.height())) return null;
+        return TextureSetup.singleTexture(sceneView, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+    }
+
+    public boolean bottomOrigin() {
+        return bottomOrigin;
+    }
+
+    private boolean requestScene(Minecraft client, GuiGraphicsExtractor context, Matrix3x2fc pose,
+                                 int x, int y, int width, int height) {
+        GpuTexture source = GleamMinecraft.mainTarget(client).getColorTexture();
+        if (source == null || source.isClosed() || source.getWidth(0) <= 0 || source.getHeight(0) <= 0
+                || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0) return false;
         if (scene == null || scene.isClosed() || sceneView == null || sceneView.isClosed()
                 || scene.getWidth(0) != source.getWidth(0)
                 || scene.getHeight(0) != source.getHeight(0) || scene.getFormat() != source.getFormat()) {
@@ -223,26 +249,12 @@ public final class OrionGlassCompositor {
             /*bottomOrigin = true;
             *///?}
         }
-        CaptureArea area = CaptureArea.from(context.pose(), x, y, width, height,
+        CaptureArea area = CaptureArea.from(pose, x, y, width, height,
                 context.guiWidth(), context.guiHeight(), source.getWidth(0), source.getHeight(0), bottomOrigin);
         if (area == null) return false;
-        if (screenGlass) captureWholeScene = true;
-        else if (captureAreas.size() < 64) captureAreas.add(area);
-        else captureWholeScene = true;
+        if (!captureAreas.contains(area)) captureAreas.add(area);
         captureRequested = true;
-        if (!sceneCaptured) {
-            return false;
-        }
-        var sampler = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
-        TextureSetup textures = new TextureSetup(foreground.getTextureView(), sceneView, entry.texture().getTextureView(),
-                sampler, sampler, sampler);
-        // Все вызовы submit идут из HUD с базовой областью отсечения по размеру экрана.
-        ScreenRectangle scissorArea = new ScreenRectangle(0, 0, context.guiWidth(), context.guiHeight());
-        ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState()
-                .addGuiElement(new BlitRenderState(PIPELINE, textures,
-                new Matrix3x2f(context.pose()), x, y, x + width, y + height,
-                0.0F, 1.0F, 0.0F, 1.0F, bottomOrigin ? -1 : 0xfffeffff, scissorArea));
-        return true;
+        return sceneCaptured;
     }
 
     private void warnShaderUnavailable(RuntimeException exception) {
@@ -254,13 +266,7 @@ public final class OrionGlassCompositor {
 
     /** Получает актуальную текстуру render target непосредственно перед отрисовкой GUI. */
     public void captureBeforeGui(GpuTexture source) {
-        if (!captureRequested) {
-            if (masks.isEmpty()) {
-                releaseScene();
-            }
-            return;
-        }
-        if(source != GleamMinecraft.mainTarget(Minecraft.getInstance()).getColorTexture())return;
+        if (!captureRequested || source != GleamMinecraft.mainTarget(Minecraft.getInstance()).getColorTexture()) return;
         captureRequested = false;
         // Между extraction и render framebuffer может быть пересоздан при resize или смене мира.
         // В этом кадре сохраняем прежний фон, не закрывая текстуры уже собранных GUI-состояний.
@@ -272,13 +278,7 @@ public final class OrionGlassCompositor {
                 || source.getFormat() != scene.getFormat()) {
             sceneCaptured = false;
             captureAreas.clear();
-            captureWholeScene = false;
             return;
-        }
-        if (captureWholeScene) {
-            captureAreas.clear();
-            captureAreas.add(new CaptureArea(0, 0, source.getWidth(0), source.getHeight(0)));
-            captureWholeScene = false;
         }
         long now = System.nanoTime();
         if (sceneCaptured && now - lastCaptureNanos < CAPTURE_INTERVAL_NANOS
@@ -308,7 +308,6 @@ public final class OrionGlassCompositor {
         transparent = null;
         captureRequested = false;
         captureAreas.clear();
-        captureWholeScene = false;
         releaseScene();
         for (MaskTexture entry : masks.values()) {
             entry.texture().close();

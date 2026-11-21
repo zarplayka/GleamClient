@@ -59,6 +59,7 @@ html[data-pointer-focus] .range-control:focus-within .range-thumb{outline:none}
 .range-control:focus-within .range-thumb{outline:1px solid var(--accent);outline-offset:2px}
 :root{--toggle-fill:#1e2129}
 :root[data-theme="light"]{--toggle-fill:#eceff6}
+:root[data-theme="glass"]{--toggle-fill:#101b2c69}
 .module-toggle{background:var(--toggle-fill)}
 .module-toggle:hover{background:var(--hover)}
 .module:hover,.module:focus-within{border-color:var(--module-hover-border,var(--rule))}

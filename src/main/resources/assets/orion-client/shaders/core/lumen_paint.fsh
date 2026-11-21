@@ -7,8 +7,16 @@
 /*#moj_import <minecraft:dynamictransforms.glsl>
 *///?}
 
-#ifdef LUMEN_TEXTURED
+#if defined(LUMEN_TEXTURED) || defined(LUMEN_GLASS)
 uniform sampler2D Sampler0;
+#endif
+
+#ifdef LUMEN_GLASS
+//? if >=26.3 {
+#include <orion-client:liquid_glass.glsl>
+//?} else {
+/*#moj_import <orion-client:liquid_glass.glsl>
+*///?}
 #endif
 
 //? if >=26.3 {
@@ -121,9 +129,21 @@ void main() {
         distance = length(max(localPosition * side - halfSize + r, 0.0)) - r;
     }
 #endif
-    float pixel = max(length(vec2(dFdx(distance), dFdy(distance))), 0.001);
+    vec2 distanceGradient = vec2(dFdx(distance), dFdy(distance));
+    float pixel = max(length(distanceGradient), 0.001);
     vec4 color = tint;
-#ifdef LUMEN_TEXTURED
+#ifdef LUMEN_GLASS
+    vec2 normal = distanceGradient / pixel;
+    bool panorama = primitive.x == 1;
+    float vertical = panorama ? sign(dFdy(texCoord.y)) : (tint.r > 0.998 ? -1.0 : 1.0);
+    vec2 lightNormal = vec2(normal.x, normal.y * vertical);
+    vec2 sampleStep = panorama ? abs(vec2(dFdx(texCoord.x), dFdy(texCoord.y))) : 1.0 / vec2(textureSize(Sampler0, 0));
+    vec2 uv = panorama ? texCoord : gl_FragCoord.xy * sampleStep;
+    vec2 refraction = panorama ? lightNormal : normal;
+    float depth = clamp(min(halfSize.x, halfSize.y) * 0.24 / pixel, 4.0, 17.0);
+    float bevel = clamp(-distance / (pixel * depth), 0.0, 1.0);
+    color = vec4(liquidGlass(Sampler0, uv, sampleStep, refraction, lightNormal, bevel), tint.a * coverage(distance, pixel));
+#elif defined(LUMEN_TEXTURED)
     color *= primitive.x == 12 ? sampleGradient(texCoord) : texture(Sampler0, texCoord);
     if (radius > 0.0) color.a *= coverage(distance, pixel);
 #else
