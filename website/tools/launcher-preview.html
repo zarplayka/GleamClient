@@ -629,10 +629,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .setting-caption small { color: var(--muted); font-size: 12px; line-height: 1.4 }
     .setting-value { justify-self: end; color: var(--text); text-align: right; font-variant-numeric: tabular-nums }
     .setting-control { display: flex; align-items: center; gap: 10px; min-width: 0 }
-    #memory { appearance: none; flex: 1; min-width: 0; height: 6px; margin: 8px 0; border-radius: 4px; cursor: pointer; background: linear-gradient(to right,var(--accent) 0 var(--memory-fill,20%),var(--side-rule) var(--memory-fill,20%) 100%) }
-    #memory::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border: 2px solid #dce1ff; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px #a9b2ef30 }
+    .memory-setting input[type="range"] { appearance: none; flex: 1; min-width: 0; height: 6px; margin: 8px 0; border-radius: 4px; cursor: pointer; background: linear-gradient(to right,var(--accent) 0 var(--memory-fill,20%),var(--side-rule) var(--memory-fill,20%) 100%) }
+    .memory-setting input[type="range"]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border: 2px solid #dce1ff; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px #a9b2ef30 }
     .memory-entry { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px }
-    #memory-custom { width: 69px; padding: 6px; color: var(--text); background: var(--control-bg); border: 1px solid var(--border); border-radius: 6px; font: inherit }
+    .memory-entry input { width: 69px; padding: 6px; color: var(--text); background: var(--control-bg); border: 1px solid var(--border); border-radius: 6px; font: inherit }
     .setting output { color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap }
     .memory-presets {
       display: inline-flex; max-width: 100%; margin-top: 8px;
@@ -1117,25 +1117,37 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profile-content-list { flex: 1; min-height: 195px; border: 1px solid var(--border); border-radius: 10px; background: var(--home-surface) }
     .profile-extra { padding: 18px 24px; display: grid; gap: 14px }
     .profile-extra p { margin: 0; color: var(--muted); font-size: 13px }
-    .profile-metrics { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 10px }
     .profile-option-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
-    .profile-metrics > div { padding: 14px; border: 1px solid var(--border); border-radius: 10px;
-      background: var(--home-surface); min-width: 0 }
-    .profile-metrics strong { display: block; margin-top: 5px; font-variant-numeric: tabular-nums }
-    .resource-plot { display: block; width: 100%; height: 108px; margin-top: 12px; color: var(--muted);
-      background: repeating-linear-gradient(to top,var(--border) 0 1px,transparent 1px 25%) }
-    .resource-plot polyline { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke }
-    .resource-plot .system-line { stroke: currentColor; opacity: .7 }
-    .resource-plot .game-line { stroke: var(--accent) }
-    .resource-plot .cursor-line { stroke: currentColor; stroke-opacity: .55; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke }
-    .profile-resource-key { margin: 0; display: flex; gap: 14px; align-items: center; font-size: 12px; flex-wrap: wrap }
-    .profile-resource-key label { margin-left: auto }
-    .profile-resource-key [data-series]::before { content: ''; display: inline-block; width: 12px; height: 2px;
-      margin-right: 6px; vertical-align: middle; background: var(--muted) }
-    .profile-resource-key [data-series="game"]::before { background: var(--accent) }
-    .profile-resource-scale { display:flex; justify-content:space-between; font-size: 10px; margin-top:6px; color:var(--muted); }
-    .profile-resource-key [data-series="game"] { color: var(--selected-text) }
-    #profile-resource-point { flex: 1; accent-color: var(--accent) }
+    #instance-game-controls, #profile-settings-panel > .profile-option-actions { width:min(100%,840px) }
+    #profile-settings-panel > .profile-option-actions > .button { flex:none; width:auto; min-width:104px }
+    #profile-resource-panel { width:min(100%,1160px) }
+    .resource-controls { display:flex; align-items:center; justify-content:space-between; gap:10px 16px; flex-wrap:wrap }
+    .resource-controls .segmented-tabs { margin:0; gap:2px }
+    .resource-controls .segmented-tabs button { min-height:30px; padding:0 12px; white-space:nowrap }
+    .resource-controls button[aria-pressed="true"] { color:var(--selected-text); background:var(--side-hover) }
+    #instance-game-controls .setting-control { width:100% }
+    #instance-game-controls .memory-setting { grid-template-columns:minmax(0,1fr) minmax(180px,320px) }
+    @media(max-width:690px) {
+      #instance-game-controls .memory-setting { grid-template-columns:minmax(0,1fr) }
+    }
+    .profile-metrics { padding:18px; border:1px solid var(--border); border-radius:12px; background:var(--home-surface) }
+    .profile-metrics strong { display:block; font-size:23px; font-weight:650; margin:4px 0 14px; font-variant-numeric:tabular-nums }
+    .resource-chart { display:grid; grid-template-columns:44px minmax(0,1fr); gap:10px }
+    .resource-plot { display:block; width:100%; height:clamp(170px,35vh,330px); color:var(--muted); cursor:crosshair;
+      border-top:1px solid var(--border); background:repeating-linear-gradient(to top,var(--border) 0 1px,transparent 1px 25%) }
+    .resource-plot polyline { fill:none; stroke-width:1.6; vector-effect:non-scaling-stroke }
+    .resource-plot .system-line { stroke:currentColor; opacity:.68 }
+    .resource-plot .game-line { stroke:var(--accent) }
+    .resource-plot .cursor-line { stroke:currentColor; stroke-opacity:.65; stroke-dasharray:3 3; vector-effect:non-scaling-stroke }
+    .profile-resource-key { display:flex; align-items:center; flex-wrap:wrap; gap:14px; font-size:12px }
+    .profile-resource-key [data-series]::before { content:''; display:inline-block; width:12px; height:2px; margin-right:6px;
+      vertical-align:middle; background:var(--muted) }
+    .profile-resource-key [data-series="game"]::before { background:var(--accent) }
+    .profile-resource-scale { display:flex; flex-direction:column; justify-content:space-between; text-align:right; font-size:11px; color:var(--muted) }
+    .resource-timeline { display:grid; grid-template-columns:auto minmax(70px,1fr) auto; align-items:center; gap:10px; margin-top:12px;
+      color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums }
+    #profile-resource-point { width:100%; margin:0; accent-color:var(--accent) }
+    #profile-resource-advice:not(:empty) { margin-top:12px; padding:10px 12px; border-left:2px solid var(--accent); background:var(--home-surface) }
     #profile-content-entries { margin: 0; padding: 0; list-style: none }
     .profile-entry { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 12px; min-height: 71px; padding: 9px 12px }
     .profile-entry + .profile-entry { border-top: 1px solid var(--border) }
@@ -1747,22 +1759,37 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 <button type="button" data-profile-section="settings" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg><span>Настройки</span></button>
               </div>
               <div class="profile-extra" id="profile-resource-panel" hidden>
-                <div class="profile-resource-key"><span data-series="game">Minecraft</span><span data-series="system">Вся система</span>
-                  <label><span>Период</span> <select id="profile-resource-window"><option value="5">5 мин</option><option value="15">15 мин</option><option value="30">30 мин</option></select></label>
+                <div class="resource-controls">
+                  <div class="segmented-tabs" id="profile-resource-metrics" role="group" aria-label="Показатель">
+                    <button type="button" data-metric="cpu" aria-pressed="true">Процессор</button>
+                    <button type="button" data-metric="memory" aria-pressed="false">Оперативная память</button>
+                  </div>
+                  <div class="segmented-tabs" id="profile-resource-window" role="group" aria-label="Период">
+                    <button type="button" data-minutes="5" aria-pressed="true">5 мин</button>
+                    <button type="button" data-minutes="15" aria-pressed="false">15 мин</button>
+                    <button type="button" data-minutes="30" aria-pressed="false">30 мин</button>
+                  </div>
                 </div>
                 <p id="profile-resource-empty" role="status">Запусти эту сборку, чтобы записать нагрузку.</p>
                 <div id="profile-resource-data" hidden>
                   <div class="profile-metrics">
-                    <div><span>Процессор</span><strong id="profile-resource-cpu"></strong>
-                      <svg class="resource-plot" id="resource-cpu-plot" viewBox="0 0 640 100" preserveAspectRatio="none" role="img" aria-label="График нагрузки на процессор"><polyline class="system-line"/><polyline class="game-line"/><line class="cursor-line" y1="0" y2="100"/></svg>
-                      <div class="profile-resource-scale"><span>0%</span><span>100%</span></div>
+                    <div class="profile-resource-key"><span data-series="game">Minecraft</span><span data-series="system">Вся система</span></div>
+                    <div id="profile-resource-cpu-card">
+                      <strong id="profile-resource-cpu"></strong>
+                      <div class="resource-chart">
+                        <div class="profile-resource-scale" id="profile-resource-cpu-axis"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span></div>
+                        <svg class="resource-plot" id="resource-cpu-plot" viewBox="0 0 640 100" preserveAspectRatio="none" role="img" aria-label="График нагрузки на процессор"><polyline class="system-line"/><polyline class="game-line"/><line class="cursor-line" y1="0" y2="100"/></svg>
+                      </div>
                     </div>
-                    <div><span>Оперативная память</span><strong id="profile-resource-memory"></strong>
-                      <svg class="resource-plot" id="resource-memory-plot" viewBox="0 0 640 100" preserveAspectRatio="none" role="img" aria-label="График потребления оперативной памяти"><polyline class="system-line"/><polyline class="game-line"/><line class="cursor-line" y1="0" y2="100"/></svg>
-                      <div class="profile-resource-scale"><span>0</span><span id="profile-resource-capacity"></span></div>
+                    <div id="profile-resource-memory-card" hidden>
+                      <strong id="profile-resource-memory"></strong>
+                      <div class="resource-chart">
+                        <div class="profile-resource-scale" id="profile-resource-memory-axis"><span></span><span></span><span></span><span></span><span>0</span></div>
+                        <svg class="resource-plot" id="resource-memory-plot" viewBox="0 0 640 100" preserveAspectRatio="none" role="img" aria-label="График потребления оперативной памяти"><polyline class="system-line"/><polyline class="game-line"/><line class="cursor-line" y1="0" y2="100"/></svg>
+                      </div>
                     </div>
+                    <div class="resource-timeline"><time id="profile-resource-start"></time><input type="range" id="profile-resource-point" min="0" max="0" value="0" aria-label="Момент на графике"><output id="profile-resource-time"></output></div>
                   </div>
-                  <div class="profile-resource-key"><input type="range" id="profile-resource-point" min="0" max="0" value="0" aria-label="Момент на графике"><output id="profile-resource-time"></output></div>
                   <p id="profile-resource-advice" role="status"></p>
                 </div>
               </div>
@@ -6563,7 +6590,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
     const resourceHistory = new Map();
     let displayedSamples = [];
-    let resourceStart = 0;
+    let resourceStart = 0, resourceMinutes = 5;
     function updateResourceHistory(id,samples) {
       const entries = new Map((resourceHistory.get(id) ?? []).map(sample => [sample.at,sample]));
       for (const sample of samples) if (Number.isFinite(sample.at)) entries.set(sample.at,sample);
@@ -6579,7 +6606,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       $('profile-resource-cpu').textContent = cpu(sample.gameCpu)+' / '+cpu(sample.systemCpu);
       $('profile-resource-memory').textContent = gib(sample.gameMemory)+' / '+gib(sample.systemMemory);
       $('profile-resource-time').value = new Date(sample.at).toLocaleTimeString(launcherLanguage);
-      $('profile-resource-capacity').textContent = gib(sample.totalMemory);
+      [...$('profile-resource-memory-axis').children].forEach((item,i) => { item.textContent = i === 4 ? '0' : gib(sample.totalMemory * (4-i)/4); });
       const interval = displayedSamples.at(-1).at - resourceStart;
       const x = interval > 0 ? 640 * (sample.at - resourceStart) / interval : 640;
       for (const marker of $('profile-resource-panel').querySelectorAll('.cursor-line')) {
@@ -6595,7 +6622,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     function renderProfileResources(id) {
       const history = resourceHistory.get(id) ?? [];
-      const minutes = Number($('profile-resource-window').value);
+      const minutes = resourceMinutes;
       const last = history.at(-1)?.at ?? 0;
       const first = Math.max(last - minutes*60*1000,history[0]?.at ?? last);
       resourceStart = first;
@@ -6605,6 +6632,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       $('profile-resource-empty').hidden = displayedSamples.length > 0;
       $('profile-resource-data').hidden = !displayedSamples.length;
       if (!displayedSamples.length) return;
+      $('profile-resource-start').textContent = new Date(first).toLocaleTimeString(launcherLanguage);
       const x = t => last === first ? 640 : Math.max(0,640*(t-first)/(last-first));
       const renderLine = (id,color,read) => {
         const points = displayedSamples.map(sample => x(sample.at).toFixed(1)+','+
@@ -6621,7 +6649,21 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       slider.value = index < 0 ? slider.max : index;
       renderResourcePoint();
     }
-    $('profile-resource-window').addEventListener('change',() => renderProfileResources(profileContent.id));
+
+    $('profile-resource-window').addEventListener('click', event => {
+      const button = event.target.closest('[data-minutes]');
+      if (!button) return;
+      resourceMinutes = Number(button.dataset.minutes);
+      for (const option of button.parentElement.children) option.setAttribute('aria-pressed',String(option===button));
+      renderProfileResources(profileContent.id);
+    });
+    $('profile-resource-metrics').addEventListener('click', event => {
+      const button = event.target.closest('[data-metric]');
+      if (!button) return;
+      for (const option of button.parentElement.children) option.setAttribute('aria-pressed',String(option===button));
+      $('profile-resource-cpu-card').hidden = button.dataset.metric !== 'cpu';
+      $('profile-resource-memory-card').hidden = button.dataset.metric !== 'memory';
+    });
     $('profile-resource-point').addEventListener('input',renderResourcePoint);
     for (const plot of $('profile-resource-panel').querySelectorAll('.resource-plot')) {
       plot.addEventListener('pointerdown', event => {

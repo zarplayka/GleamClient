@@ -38,6 +38,11 @@ body { margin: 0; }
   transition: opacity 110ms var(--ease-out);
 }
 .moving:not(.free) .grid { opacity: 1; }
+.moving:not(.free) .grid::before {
+  content:""; position:absolute; inset:0;
+  background:linear-gradient(90deg,transparent calc(50% - .5px),#a8f0d155 calc(50% - .5px),#a8f0d155 calc(50% + .5px),transparent calc(50% + .5px)),
+    linear-gradient(transparent calc(50% - .5px),#a8f0d155 calc(50% - .5px),#a8f0d155 calc(50% + .5px),transparent calc(50% + .5px));
+}
 .view .grid { opacity: 0; }
 .view #stage::before { filter: none; }
 .view #stage::after { opacity: .24; }
