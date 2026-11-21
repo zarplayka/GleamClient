@@ -30,10 +30,10 @@ public final class OrionBetterNearHud {
 
     // Design units (1 unit = 1 gui px).
     private static final int PANEL_WIDTH = 127;
-    private static final int HEADER_HEIGHT = 22;
-    private static final int ROW_HEIGHT = 17;
+    private static final int HEADER_HEIGHT = 25;
+    private static final int ROW_HEIGHT = 16;
     private static final int PAD_X = 7;
-    private static final int BOTTOM_PAD = 5;
+    private static final int BOTTOM_PAD = 4;
     private static final int SCREEN_MARGIN = 8;
 
 
@@ -145,13 +145,14 @@ public final class OrionBetterNearHud {
     private OrionHudView.Scene buildScene(List<NearPlayer> players, int accent) {
         int height = HEADER_HEIGHT + Math.max(1, players.size()) * ROW_HEIGHT + BOTTOM_PAD;
         var result = new OrionHudView.Scene(PANEL_WIDTH, height);
-        result.panel(0, 0, PANEL_WIDTH, height, 7);
-        String tint = OrionHudView.color(accent);
-        result.icon("M2 10h16M10 2v16M10 5a5 5 0 1 0 .01 0Z", PAD_X, 5, 11, tint, false);
-        result.label(OrionGuiLanguage.translate("Рядом"), PAD_X + 14, 2, 78, 17, 8.5F, "var(--text)", "left", true);
-        result.divider(PAD_X, HEADER_HEIGHT - 2, PANEL_WIDTH - PAD_X * 2);
+        result.panel(0, 0, PANEL_WIDTH, height, 5);
+        String tint = OrionRainbow.isActive() ? OrionHudView.color(accent) : "var(--accent)";
+        result.icon("M12 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM4 16v-1a5.5 5.5 0 0 1 11 0v1m0-10a2 2 0 0 1 0 4m1 2a3 3 0 0 1 2 3",
+                8, 6, 11, tint, false);
+        result.label(OrionGuiLanguage.translate("Игроки рядом"), 23, 3, 81, 17, 8, "var(--text)", "left", true);
+        result.divider(8, 22, 111);
         if (!players.isEmpty()) {
-            result.label(Integer.toString(players.size()), PANEL_WIDTH - PAD_X - 15, 4, 15, 12, 7, "var(--muted)", "right", false);
+            result.label(Integer.toString(players.size()), 105, 4, 14, 15, 7, tint, "right", true);
         }
         if (players.isEmpty()) {
             result.label(OrionGuiLanguage.translate("Никого рядом"), PAD_X, HEADER_HEIGHT, PANEL_WIDTH - PAD_X * 2, ROW_HEIGHT,

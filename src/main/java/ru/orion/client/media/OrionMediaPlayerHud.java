@@ -246,16 +246,16 @@ public final class OrionMediaPlayerHud {
         try {
             pose.translate(x, y);
             pose.scale(scale);
-            graphics.fill(0, 0, width, track.isBlank() ? 17 : 30, 0xDB171A23);
+            graphics.fill(0, 0, width, track.isBlank() ? 17 : 30, 0xEB0F1216);
             //? if >=26.1 {
             graphics.text(client.font, label, 6, 4, 0xFFF3F4FA);
             //?} else {
             /*graphics.drawString(client.font, label, 6, 4, 0xFFF3F4FA);
             *///?}
             //? if >=26.1 {
-            if (!track.isBlank()) graphics.text(client.font, track, 6, 17, 0xFFC2D2F7);
+            if (!track.isBlank()) graphics.text(client.font, track, 6, 17, 0xFF65D7A0);
             //?} else {
-            /*if (!track.isBlank()) graphics.drawString(client.font, track, 6, 17, 0xFFC2D2F7);
+            /*if (!track.isBlank()) graphics.drawString(client.font, track, 6, 17, 0xFF65D7A0);
             *///?}
         } finally {
             pose.popMatrix();

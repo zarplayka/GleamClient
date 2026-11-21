@@ -74,14 +74,15 @@ public final class OrionFootballHud {
 
     private void updateScore(Score score) {
         var font = Minecraft.getInstance().font;
-        scoreWidth = Math.max(font.width(score.title()), font.width(score.detail())) + 12;
-        scoreHeight = score.detail().isEmpty() ? 15 : 26;
+        scoreWidth = Math.max(67, Math.max(font.width(score.title()), font.width(score.detail())) + 26);
+        scoreHeight = score.detail().isEmpty() ? 18 : 29;
         scoreScene = new OrionHudView.Scene(scoreWidth, scoreHeight);
-        scoreScene.panel(0, 0, scoreWidth, scoreHeight, 6);
+        scoreScene.panel(0, 0, scoreWidth, scoreHeight, 4);
+        scoreScene.icon("M3 16V5h14v11M3 11h14", 6, 4, 10, "var(--accent)", false);
         String tint = score.highlight() ? "#ffa63b" : "var(--text)";
-        scoreScene.label(score.title(), 4, 0, scoreWidth - 8, 15, 8, tint, "center", true);
+        scoreScene.label(score.title(), 21, 0, scoreWidth - 26, 18, 8, tint, "left", true);
         if (!score.detail().isEmpty()) {
-            scoreScene.label(score.detail(), 4, 13, scoreWidth - 8, 13, 8, "var(--muted)", "center", false);
+            scoreScene.label(score.detail(), 21, 15, scoreWidth - 26, 13, 8, "var(--muted)", "left", false);
         }
     }
 

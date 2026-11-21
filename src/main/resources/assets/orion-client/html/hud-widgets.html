@@ -10,18 +10,25 @@ html[data-glass] .panel{background:var(--hud-glass)}
 .well{background:var(--well);border:1px solid var(--line)}
 .divider{background:var(--line)}
 .key{display:flex;align-items:center;justify-content:center;padding:0 2px;border:1px solid var(--line);background:var(--hud-panel);color:var(--text);line-height:1;transition:background-color .1s,border-color .1s,color .1s}
-.key>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8.5px;font-weight:700}
+.key>strong,.key .mouse{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:7px;font-weight:700}
 .key[data-long-label]>strong{font-size:6.25px}
 .key[data-pressed]{border-color:var(--accent);background:var(--hud-selected);color:var(--accent)}
-.key[data-space]>strong{display:block;width:48%;height:1px;background:currentColor;border-radius:1px}
-.key[data-counter]{flex-direction:column;gap:1px;font-variant-numeric:tabular-nums}
-.key[data-counter]>strong{font-size:7px}
-.key .mouse{font-size:5.5px;color:var(--muted)}
-.key[data-pressed] .mouse{color:inherit}
-.timer{display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:4px;border:1px solid var(--line);background:var(--hud-selected);color:var(--accent);font-size:7px;font-weight:700;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}
-.timer[data-expiring]{background:#44292f;color:#f2a2a6}
-html[data-light] .timer[data-expiring]{background:#f5d8db;color:#993749}
+.key[data-space]>strong{display:block;width:55%;height:1px;background:currentColor;border-radius:1px}
+.key[data-counter]:not([data-counting])>strong{display:none}
+.key[data-counting]{flex-direction:column;gap:1px;font-variant-numeric:tabular-nums}
+.key[data-counting]>.mouse,.key[data-counting]>strong{font-size:5.5px}
+.timer{display:flex;align-items:center;justify-content:center;gap:2px;padding:0 1px;overflow:hidden;border-radius:3px;background:var(--accent);color:#17181f;font-size:5.8px;font-weight:700;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.timer>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.timer>i{box-sizing:border-box;width:4px;height:4px;border:1px solid currentColor;border-radius:50%;flex:none}
+html[data-light] .timer{color:#f5f5f8}
+.timer[data-expiring],html[data-light] .timer[data-expiring]{background:#f2a2a6;color:#17181f}
 @media(prefers-reduced-motion:reduce){.key{transition:none}}
+html[data-gleam-hud] .panel{border:1px solid var(--line)}
+html[data-gleam-hud] .key{border-radius:3px!important}
+html[data-gleam-hud] .key[data-pressed]{color:var(--text)}
+html[data-gleam-hud]:not([data-light]) .timer:not([data-expiring]){background:var(--hud-selected);color:var(--accent);font-size:6.4px}
+html[data-gleam-hud] .timer>i{width:3px;height:3px}
+.key .mouse svg{width:9px;height:9px;fill:none;stroke:currentColor;stroke-width:1.7}
 svg{display:block;width:100%;height:100%}
 </style></head><body class="gleam-hud"><div id="hud"></div><script>
 const root = document.getElementById('hud');
@@ -34,6 +41,7 @@ function geometry(part) {
 window.paradox = {update(state) {
   const theme = document.documentElement;
   theme.toggleAttribute('data-light',!!state.light);
+  theme.toggleAttribute('data-gleam-hud',!!state.gleamHud);
   theme.toggleAttribute('data-glass',!!state.glass);
   if (/^#[0-9a-f]{6}$/i.test(state.accent)) theme.style.setProperty('--accent',state.accent);
   else theme.style.removeProperty('--accent');
@@ -41,7 +49,7 @@ window.paradox = {update(state) {
     if (root.children.length !== state.parts.length || !root.querySelector('.key')) {
       root.innerHTML = state.parts.map(part => '<div class="part '+part.kind+'" style="'+geometry(part)+'"'
         +(part.kind === 'key' && part.mouse ? ' data-counter' : '')+'>'
-        +(part.kind === 'key' ? (part.mouse ? '<span class="mouse">'+escapeHtml(part.mouse)+'</span>' : '')
+        +(part.kind === 'key' ? (part.mouse ? '<span class="mouse" aria-label="'+escapeHtml(part.mouse)+'"><svg viewBox="0 0 20 20"><path d="M6 6a4 4 0 0 1 8 0v7a4 4 0 0 1-8 0zm0 3h8m-4-7v7"/></svg></span>' : '')
           +'<strong></strong>' : '')+'</div>').join('');
     }
     for (let i = 0; i < state.parts.length; ++i) {
@@ -50,6 +58,7 @@ window.paradox = {update(state) {
       key.toggleAttribute('data-pressed',part.pressed);
       key.toggleAttribute('data-long-label',part.text.length > 3);
       key.toggleAttribute('data-space',!part.text && !part.mouse);
+      key.toggleAttribute('data-counting',!!part.mouse && !!part.text);
       if (label.textContent !== part.text) label.textContent = part.text;
     }
     return;
@@ -58,7 +67,7 @@ window.paradox = {update(state) {
     let style = geometry(part);
     let content = '';
     if (part.kind === 'timer') {
-      return '<div class="part timer" style="'+style+'"'+(part.expiring ? ' data-expiring' : '')+'>'+escapeHtml(part.text)+'</div>';
+      return '<div class="part timer" style="'+style+'"'+(part.expiring ? ' data-expiring' : '')+'><span>'+escapeHtml(part.text)+'</span><i aria-hidden="true"></i></div>';
     }
     if (part.kind === 'label') {
       const align = part.align === 'center' ? 'center' : part.align === 'right' ? 'flex-end' : 'flex-start';
