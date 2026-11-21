@@ -280,6 +280,11 @@ public final class OrionLumenView {
     }
 
     public boolean draw(GuiGraphicsExtractor graphics, int x, int y, int width, int height, float sx, float sy) {
+        return draw(graphics, x, y, width, height, sx, sy, 1F);
+    }
+
+    public boolean draw(GuiGraphicsExtractor graphics, int x, int y, int width, int height, float sx, float sy, float opacity) {
+        if (opacity <= 0F) return true;
         displayLength = 0;
         int size = LumenNative.displaySize(engine);
         if (size < 16 || size > 1_048_576) return false;
@@ -305,22 +310,22 @@ public final class OrionLumenView {
         ThemeReveal running = themeReveal;
         if (running == null || running.finished(now)) {
             themeReveal = null;
-            drawDisplay(graphics, display, x, y, width, height, sx, sy, CircleClip.NONE);
+            drawDisplay(graphics, display, x, y, width, height, sx, sy, CircleClip.NONE, opacity);
         } else {
             float radius = Math.max(.0001F, running.reach() * running.progress(now) * sx);
             int centerX = Math.clamp(Math.round((x + running.x() * sx) * 4F), -32768, 32767);
             int centerY = Math.clamp(Math.round((y + running.y() * sy) * 4F), -32768, 32767);
             float signedRadius = running.to() == 1F ? radius : -radius;
             drawDisplay(graphics, running.previous(), x, y, width, height, sx, sy,
-                    new CircleClip(centerX, centerY, -signedRadius));
+                    new CircleClip(centerX, centerY, -signedRadius), opacity);
             drawDisplay(graphics, display, x, y, width, height, sx, sy,
-                    new CircleClip(centerX, centerY, signedRadius));
+                    new CircleClip(centerX, centerY, signedRadius), opacity);
         }
         return true;
     }
 
     private void drawDisplay(GuiGraphicsExtractor graphics, ByteBuffer commands, int x, int y, int width, int height,
-                             float sx, float sy, CircleClip circle) {
+                             float sx, float sy, CircleClip circle, float opacity) {
         int count = commands.getInt(0), clips = commands.getInt(4);
         int clipBase = 16 + COMMAND_SIZE * count;
         graphics.nextStratum();
@@ -359,6 +364,7 @@ public final class OrionLumenView {
                 float w = commands.getFloat(at + 12);
                 float h = commands.getFloat(at + 16);
                 int color = commands.getInt(at + 36);
+                if (opacity < 1F) color = color & 0xffffff | Math.round((color >>> 24) * opacity) << 24;
                 if (w <= 0 || h <= 0 || color >>> 24 == 0) continue;
                 float radius = commands.getFloat(at + 40);
                 float parameter = commands.getFloat(at + 44);

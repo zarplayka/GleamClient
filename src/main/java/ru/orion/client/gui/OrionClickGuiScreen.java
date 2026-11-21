@@ -3076,6 +3076,10 @@ public final class OrionClickGuiScreen extends Screen {
 
     private void openSettings(ModuleRow row) {
         if (!isModuleAvailable(row.action)) return;
+        if (row.action == Action.HUD) {
+            ru.orion.client.hud.OrionHudEditorScreen.open(configManager);
+            return;
+        }
         stopSoundPreview();
         htmlReturnCategory = selectedCategory;
         htmlReturnScroll = moduleScroll;
@@ -3480,17 +3484,12 @@ public final class OrionClickGuiScreen extends Screen {
         return switch (action) {
             case RAGDOLL, FRESH_ANIMATIONS, NAMETAGS, FREE_LOOK, CLEAN_WATER,
                     POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER -> true;
-            case SKIN_LAYERS, ITEM_SCROLLER, EMOTES, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, HUD, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
+            case HUD -> Minecraft.getInstance().level != null;
+            case SKIN_LAYERS, ITEM_SCROLLER, EMOTES, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
                  FAKE_PREFIX, HEALTH_TAGS, ARMOR_INDICATOR,
                  HIT_BOX, HIT_COLOR, CROSSHAIR, BETTER_NEAR, RAINBOW -> true;
             default -> false;
         };
-    }
-
-    private ChoiceSetting hudStyleSetting(String label, String id) {
-        return new ChoiceSetting(label, new String[]{"Обычный", "Glass"},
-                () -> configManager.getConfig().isHudElementGlass(id) ? 1 : 0,
-                value -> configManager.setHudElementGlass(id, value == 1));
     }
 
     private SliderSetting islandScaleSetting(OrionConfig config) {
@@ -3711,7 +3710,6 @@ public final class OrionClickGuiScreen extends Screen {
             };
             case POTIONS -> new Setting[]{
                     new ToggleSetting("Скрывать ванильные иконки эффектов", config::isPotionsHideVanilla, config::setPotionsHideVanilla),
-                    hudStyleSetting("Оформление", ru.orion.client.hud.OrionPotionsHud.ID)
             };
             case TARGET_HUD -> new Setting[]{
                     new ChoiceSetting("Расположение", new String[]{"На экране", "Сбоку от цели в 3D"},
@@ -3722,7 +3720,6 @@ public final class OrionClickGuiScreen extends Screen {
                             value -> config.setTargetHudHoldSeconds(Math.round(value)), " с", true),
                     new ToggleSetting("Показывать снаряжение", config::isTargetHudEquipment, config::setTargetHudEquipment),
                     new ToggleSetting("Показывать пинг", config::isTargetHudPing, config::setTargetHudPing),
-                    hudStyleSetting("Оформление", ru.orion.client.hud.OrionTargetHud.ID)
             };
             case SOUND_SETTINGS -> buildSoundSettings(config);
             case NO_RENDER -> buildNoRenderSettings(config);
@@ -3775,22 +3772,6 @@ public final class OrionClickGuiScreen extends Screen {
             case ASPECT -> new Setting[]{
                     new SliderSetting("Растяжение", 0.05F, 2.0F,
                             config::getAspectStretch, config::setAspectStretch, "x")
-            };
-            case HUD -> new Setting[]{
-                    new ButtonSetting("Редактор HUD", Minecraft.getInstance().level == null ? "Доступно в мире" : "Открыть",
-                            () -> ru.orion.client.hud.OrionHudEditorScreen.open(configManager)),
-                    islandScaleSetting(config),
-                    hudStyleSetting("Водяной знак", "hud_watermark"),
-                    hudStyleSetting("Клавиши", "hud_status_panels"),
-                    hudStyleSetting("Инвентарь", "inventory_hud"),
-                    hudStyleSetting("Игроки рядом", "hud_better_near"),
-                    hudStyleSetting("Медиаплеер", "media_player_hud"),
-                    hudStyleSetting("Баскетбол", "basketball_hud"),
-                    hudStyleSetting("Футбол", "football_hud"),
-                    new ChoiceSetting("Скорборд", new String[]{"Обычный", "Glass"},
-                            () -> config.isScoreboardGlassEnabled() ? 1 : 0, value -> configManager.setScoreboardGlassEnabled(value == 1)),
-                    new SliderSetting("Масштаб", 0.5F, 4.0F,
-                            config::getHudScale, config::setHudScale, "x")
             };
             case MIRAGE -> new Setting[]{
                     new ValueSetting("Отражения", () -> ru.orion.client.effect.OrionMirage.externalShadersActive() ? "Используются отражения активного шейдерпака" : "Видимые детали мира"),

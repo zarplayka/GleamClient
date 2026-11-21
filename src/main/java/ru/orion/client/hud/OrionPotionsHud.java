@@ -32,13 +32,13 @@ public final class OrionPotionsHud {
     }
 
     public void register() {
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, ID), this::render);
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, ID), (graphics, ticks) -> drag.draw(graphics, () -> render(graphics, ticks)));
     }
 
     private void render(GuiGraphicsExtractor graphics, DeltaTracker ticks) {
         Minecraft client = Minecraft.getInstance();
         var config = manager.getConfig();
-        if (client.player == null || client.level == null || !config.isPotionsEnabled()) {
+        if (client.player == null || client.level == null || (!config.isPotionsEnabled() && !drag.fadingOut())) {
             release();
             return;
         }
@@ -82,7 +82,8 @@ public final class OrionPotionsHud {
             pose.translate(pos.x(), pos.y());
             pose.scale(w / (float) WIDTH, h / (float) height);
             for (int i = 0; i < effects.size(); i++) {
-                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, effects.get(i).sprite, INSET, HEADER + i * ROW + 3, 8, 8);
+                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, effects.get(i).sprite, INSET, HEADER + i * ROW + 3, 8, 8,
+                        OrionHudDrag.opacity());
             }
         } finally {
             pose.popMatrix();

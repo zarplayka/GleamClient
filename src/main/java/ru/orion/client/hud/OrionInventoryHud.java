@@ -22,10 +22,10 @@ public final class OrionInventoryHud {
     private OrionHudView.Scene scene;
     private String title;
     public OrionInventoryHud(OrionConfigManager configManager){this.configManager=configManager;}
-    public void register(){HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"inventory_hud_element"),this::render);}
+    public void register(){HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID,"inventory_hud_element"),(context, ticks) -> drag.draw(context, () -> render(context, ticks)));}
     private void render(GuiGraphicsExtractor context,DeltaTracker ticks) {
         Minecraft client=Minecraft.getInstance();var config=configManager.getConfig();
-        if(!config.isInventoryHudEnabled()||client.player==null||client.level==null){release();return;}
+        if((!config.isInventoryHudEnabled() && !drag.fadingOut())||client.player==null||client.level==null){release();return;}
         var inventory = client.player.getInventory();
         if (!OrionHudEditorScreen.editing(client)) {
             boolean hasItems = false;
