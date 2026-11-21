@@ -38,7 +38,7 @@ layout(location = 0) out vec4 fragColor;
 *///?}
 
 const float BLUR_OFFSET = 4.5;
-const float GLASS_OPACITY = 0.22;
+const float GLASS_OPACITY = 0.48;
 
 void main() {
     vec4 foreground = texture(Sampler0, texCoord0);

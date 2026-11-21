@@ -238,8 +238,8 @@ public final class OrionClickGuiScreen extends Screen {
             new Color(0xC4CCDA), new Color(0x22283A),
             new Color(0x546077), new Color(0xE2E7F0),
             new Color(0x647087));
-    private static final String[] THEME_OPTIONS = {"Dark", "Light"};
-    private static final int[] THEME_IDS = {3, 4};
+    private static final String[] THEME_OPTIONS = {"Dark", "Light", "Стекло"};
+    private static final int[] THEME_IDS = {3, 4, 5};
     private static final boolean SITE_MENU_ENABLED = Boolean.parseBoolean(
             System.getProperty("orion.lumen.experimental", "true"));
     private static final int GRID_GAP = 6;
@@ -810,7 +810,7 @@ public final class OrionClickGuiScreen extends Screen {
 
         var config = configManager.getConfig();
         var look = new JsonObject();
-        look.addProperty("theme",config.getClickGuiTheme() == 4 ? "light" : "dark");
+        look.addProperty("theme",switch (config.getClickGuiTheme()) { case 4 -> "light"; case 5 -> "glass"; default -> "dark"; });
         look.addProperty("density",config.isClickGuiCompactCards() ? "compact" : "normal");
         look.addProperty("categoriesExpanded",config.isClickGuiCategoriesExpanded());
         look.addProperty("toggleStyle",config.isClickGuiSwitchStyle() ? "switch" : "label");
@@ -1709,7 +1709,7 @@ public final class OrionClickGuiScreen extends Screen {
     private void applySiteLook(String key,String value) {
         var config = configManager.getConfig();
         switch (key) {
-            case "theme" -> config.setClickGuiTheme(value.equals("light") ? 4 : 3);
+            case "theme" -> config.setClickGuiTheme(switch (value) { case "light" -> 4; case "glass" -> 5; default -> 3; });
             case "density" -> config.setClickGuiCompactCards(value.equals("compact"));
             case "categoriesExpanded" -> config.setClickGuiCategoriesExpanded(Boolean.parseBoolean(value));
             case "toggleStyle" -> config.setClickGuiSwitchStyle(value.equals("switch"));
@@ -1913,6 +1913,10 @@ public final class OrionClickGuiScreen extends Screen {
             lastHtmlMenuState = state;
         }
         htmlMenu.frame();
+        if (configManager.getConfig().getClickGuiTheme() == 5) {
+            OrionGlassCompositor.INSTANCE.submitBackground(GUI_TEXTURE, graphics, guiX(), guiY(), width, height,
+                    L.guiW, L.guiH, List.of(new OrionGlassCompositor.Panel(0, 0, L.guiW, L.guiH, 16)), true);
+        }
         if (!htmlMenu.draw(graphics, guiX(), guiY(), width, height, sx, sy)) return false;
         drawHtmlIcons(graphics, state.getAsJsonArray("cards"), sx, sy);
         if (accountProfilePage && !accounts.username().isEmpty() && !accountsOpen && htmlAccountVisible
@@ -2184,6 +2188,7 @@ public final class OrionClickGuiScreen extends Screen {
             page.text(tr("Тема"),x+8,y+20,w-16,12,8,TEXT,false);
             htmlAppearanceTile(page, x+8,y+35,85,38,"Тёмная",false,htmlTheme == 3,() -> configManager.setClickGuiTheme(3));
             htmlAppearanceTile(page,x+99,y+35,85,38,"Светлая",true,htmlTheme == 4,() -> configManager.setClickGuiTheme(4));
+            htmlAppearanceTile(page,x+190,y+35,85,38,"Стекло",false,htmlTheme == 5,() -> configManager.setClickGuiTheme(5));
             page.text(tr("Акцент"),x+8,y+76,w-16,12,8,TEXT,false);
             int colorY = y+91;
             for (int i = 0; i < HTML_ACCENTS.length; i++) {
@@ -3756,7 +3761,8 @@ public final class OrionClickGuiScreen extends Screen {
             };
             case TARGET_ESP -> new Setting[]{
                     new ChoiceSetting("Текстура", OrionTargetEsp.TEXTURES,
-                            config::getTargetEspTexture, configManager::setTargetEspTexture),
+                            () -> config.getTargetEspTexture() >= 6 ? config.getTargetEspTexture() - 1 : config.getTargetEspTexture(),
+                            value -> configManager.setTargetEspTexture(value >= 5 ? value + 1 : value)),
                     new ColorSetting("Цвет эффекта", COLOR_PRESETS,
                             config::getTargetEspChainColor, config::setTargetEspChainColor),
                     new ChoiceSetting("Детализация", new String[]{"Лёгкая", "Сбалансированная", "Высокая"},
@@ -3944,9 +3950,13 @@ public final class OrionClickGuiScreen extends Screen {
                     new SliderSetting("Размер щита", 0.2F, 1F, config::getSmallShieldScale, config::setSmallShieldScale, "x")
             };
             case VIEW_MODEL -> new Setting[]{
-                    new SliderSetting("Положение X", -1F, 1F, config::getViewModelX, config::setViewModelX, ""),
-                    new SliderSetting("Положение Y", -1F, 1F, config::getViewModelY, config::setViewModelY, ""),
-                    new SliderSetting("Положение Z", -1F, 1F, config::getViewModelZ, config::setViewModelZ, "")
+                    new ValueSetting("ViewModel", () -> tr("Открой чат и перетащи метку руки. Колесо меняет глубину.")),
+                    new SliderSetting("Правая рука X", -1F, 1F, () -> config.getViewModelOffset(true, 0), v -> config.setViewModelOffset(true, 0, v), ""),
+                    new SliderSetting("Правая рука Y", -1F, 1F, () -> config.getViewModelOffset(true, 1), v -> config.setViewModelOffset(true, 1, v), ""),
+                    new SliderSetting("Правая рука Z", -1F, 1F, () -> config.getViewModelOffset(true, 2), v -> config.setViewModelOffset(true, 2, v), ""),
+                    new SliderSetting("Левая рука X", -1F, 1F, () -> config.getViewModelOffset(false, 0), v -> config.setViewModelOffset(false, 0, v), ""),
+                    new SliderSetting("Левая рука Y", -1F, 1F, () -> config.getViewModelOffset(false, 1), v -> config.setViewModelOffset(false, 1, v), ""),
+                    new SliderSetting("Левая рука Z", -1F, 1F, () -> config.getViewModelOffset(false, 2), v -> config.setViewModelOffset(false, 2, v), "")
             };
             case NO_PARTICLES -> new Setting[]{
                     new ToggleSetting("Убирать взрывы", config::isNoParticlesExplosions, configManager::setNoParticlesExplosions),
@@ -7527,12 +7537,12 @@ public final class OrionClickGuiScreen extends Screen {
 
     private void applyPalette() {
         int theme = configManager.getConfig().getClickGuiTheme();
-        paradox = theme == 3 || theme == 4;
+        paradox = theme >= 3 && theme <= 5;
         orion3 = theme == 2 || paradox;
         L = paradox ? (settingsFor != null ? PARADOX_LAYOUT : PARADOX_MODULE_LAYOUT) : orion3 ? ORION3_LAYOUT : CLASSIC_LAYOUT;
         sc = orion3 ? 0.85F : 1.0F;
         pal = switch (theme) {
-            case 3 -> PARADOX_PALETTE;
+            case 3, 5 -> PARADOX_PALETTE;
             case 4 -> PARADOX_LIGHT_PALETTE;
             case 1 -> PRIZRAK_PALETTE;
             case 2 -> ORION3_PALETTE;

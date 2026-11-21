@@ -189,6 +189,7 @@ public final class OrionMediaPlayerHud {
         data.addProperty("layoutEditing", layoutEditing);
         data.addProperty("media", config.isMediaPlayerEnabled());
         data.addProperty("light", config.getClickGuiTheme() == 4);
+        data.addProperty("glass", config.getClickGuiTheme() == 5);
         data.addProperty("animated", config.isMediaPlayerAnimated());
         data.addProperty("accent", config.getClickGuiAccent());
         data.addProperty("scale", islandScale(config) * Math.clamp(Math.min(width / 1920F, height / 1080F), .55F, 1.5F));

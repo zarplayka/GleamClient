@@ -1,7 +1,6 @@
 package ru.orion.client.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import net.minecraft.world.entity.HumanoidArm;
 //? if >=26.3 {
 import net.minecraft.client.renderer.FirstPersonHandsAndItemsRenderer;
@@ -51,7 +50,10 @@ public abstract class FirstPersonHandsMixin {
                                   PoseStack pose, SubmitNodeCollector collector, int light, CallbackInfo callback) {
         var config = OrionClient.getConfigOrNull();
         if (config != null && config.isViewModelEnabled()) {
-            pose.translate(config.getViewModelX() * (hand == InteractionHand.MAIN_HAND ? 1 : -1), config.getViewModelY(), config.getViewModelZ());
+            var local = Minecraft.getInstance().player;
+            boolean right = (hand == InteractionHand.MAIN_HAND) == (local == null || local.getMainArm() == HumanoidArm.RIGHT);
+            pose.translate(config.getViewModelOffset(right, 0), config.getViewModelOffset(right, 1),
+                    config.getViewModelOffset(right, 2));
         }
     }
 
@@ -78,7 +80,9 @@ public abstract class FirstPersonHandsMixin {
                                   PoseStack pose, SubmitNodeCollector collector, int light, CallbackInfo callback) {
         var config = OrionClient.getConfigOrNull();
         if (config != null && config.isViewModelEnabled()) {
-            pose.translate(config.getViewModelX() * (hand == InteractionHand.MAIN_HAND ? 1 : -1), config.getViewModelY(), config.getViewModelZ());
+            boolean right = (hand == InteractionHand.MAIN_HAND) == (player.getMainArm() == HumanoidArm.RIGHT);
+            pose.translate(config.getViewModelOffset(right, 0), config.getViewModelOffset(right, 1),
+                    config.getViewModelOffset(right, 2));
         }
     }
 

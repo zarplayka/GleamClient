@@ -830,5 +830,17 @@
   "Всплеск": "Estallido",
   "Расширяющееся кольцо на месте прыжка": "Un anillo se expande desde el punto de salto",
   "Звук при настройке": "Sonido al ajustar",
-  "Проигрывать звук после изменения громкости": "Reproducir el sonido al cambiar su volumen"
+  "Проигрывать звук после изменения громкости": "Reproducir el sonido al cambiar su volumen",
+  "Стекло": "Cristal",
+  "Молнии": "Relámpagos",
+  "Орбиты": "Órbitas",
+  "Правая рука": "Mano derecha",
+  "Левая рука": "Mano izquierda",
+  "Открой чат и перетащи метку руки. Колесо меняет глубину.": "Abre el chat y arrastra el marcador. Ajusta la profundidad con la rueda.",
+  "Правая рука X": "Mano derecha X",
+  "Правая рука Y": "Mano derecha Y",
+  "Правая рука Z": "Mano derecha Z",
+  "Левая рука X": "Mano izquierda X",
+  "Левая рука Y": "Mano izquierda Y",
+  "Левая рука Z": "Mano izquierda Z"
 }
