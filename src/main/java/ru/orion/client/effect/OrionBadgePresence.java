@@ -48,6 +48,7 @@ public final class OrionBadgePresence {
     private static volatile Set<UUID> halos = Set.of();
     private static volatile Map<UUID, Integer> wings = Map.of();
     private static volatile Map<UUID, ru.orion.client.cosmetic.GleamPet> pets = Map.of();
+    private static volatile Map<UUID, String> hats = Map.of();
     public record Emote(int id, double started, long localStart) {}
     private static volatile Map<UUID, Emote> emotes = Map.of();
     private static volatile boolean pending;
@@ -59,6 +60,7 @@ public final class OrionBadgePresence {
     private static ClientPacketListener connection;
     private static Set<UUID> trackedPlayers = Set.of();
     private static volatile long nextAttempt;
+    private static long nextPlayerScan;
 
     private OrionBadgePresence() { }
 
@@ -74,6 +76,8 @@ public final class OrionBadgePresence {
     public static boolean hasHalo(UUID uuid) { return uuid != null && halos.contains(uuid); }
     public static int wingsStyle(UUID uuid) { return wings.getOrDefault(uuid, 0); }
     public static ru.orion.client.cosmetic.GleamPet pet(UUID uuid) { return pets.get(uuid); }
+    public static String hat(UUID uuid) { return hats.getOrDefault(uuid, ""); }
+    public static boolean hasChinaHats() { return hats.containsValue("hat"); }
     public static Emote emote(UUID uuid) { return emotes.get(uuid); }
 
     public static void sendEmote(int id) {
@@ -114,21 +118,27 @@ public final class OrionBadgePresence {
             halos = Set.of();
             wings = Map.of();
             pets = Map.of();
+            hats = Map.of();
             emotes = Map.of();
             trackedPlayers = Set.of();
             token = null;
             nextAttempt = 0L;
+            nextPlayerScan = 0L;
         }
         if (current == null) return;
-        Set<UUID> present = new HashSet<>();
-        for (PlayerInfo info : current.getOnlinePlayers()) present.add(info.getProfile().id());
-        if (!present.equals(trackedPlayers)) {
-            trackedPlayers = Set.copyOf(present);
-            requestRefresh();
+        long now = System.nanoTime();
+        if (now >= nextPlayerScan) {
+            nextPlayerScan = now + 500_000_000L;
+            Set<UUID> present = new HashSet<>();
+            for (PlayerInfo info : current.getOnlinePlayers()) present.add(info.getProfile().id());
+            if (!present.equals(trackedPlayers)) {
+                trackedPlayers = Set.copyOf(present);
+                requestRefresh();
+            }
         }
         if (pending) return;
-        if (!refreshRequested.getAndSet(false) && System.nanoTime() < nextAttempt) return;
-        nextAttempt = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+        if (!refreshRequested.getAndSet(false) && now < nextAttempt) return;
+        nextAttempt = now + Duration.ofSeconds(30).toNanos();
         List<UUID> ids = List.copyOf(trackedPlayers);
         UUID uuid = client.player.getUUID();
         String name = client.getUser().getName();
@@ -136,6 +146,7 @@ public final class OrionBadgePresence {
         boolean halo = config != null && config.isHaloEnabled();
         int wingsValue = config != null && config.isWingsEnabled() ? GleamWingModel.toWireStyle(config.getWingsStyle()) : 0;
         String petId = config == null ? "" : config.getCosmeticPet();
+        String hatId = config == null ? "" : config.isChinaHeadEnabled() ? "hat" : config.getCosmeticHat();
         long requestGeneration = generation;
         pending = true;
         WORKER.execute(() -> {
@@ -148,6 +159,7 @@ public final class OrionBadgePresence {
                 Set<UUID> found = new HashSet<>(), foundHalos = new HashSet<>();
                 Map<UUID, Integer> foundWings = new HashMap<>();
                 Map<UUID, ru.orion.client.cosmetic.GleamPet> foundPets = new HashMap<>();
+                Map<UUID, String> foundHats = new HashMap<>();
                 Map<UUID, Emote> foundEmotes = new HashMap<>();
                 long firstRevision = Long.MAX_VALUE;
                 for (int start = 0; start < Math.max(1, ids.size()); start += 100) {
@@ -159,6 +171,7 @@ public final class OrionBadgePresence {
                     request.addProperty("halo", halo);
                     request.addProperty("wings", wingsValue);
                     request.addProperty("pet", petId);
+                    request.addProperty("hat", hatId);
                     JsonObject response = post("/v1/presence", request, activeToken);
                     if (response.has("revision")) firstRevision = Math.min(firstRevision, response.get("revision").getAsLong());
                     response.getAsJsonArray("online").forEach(value -> found.add(parseUuid(value.getAsString())));
@@ -173,6 +186,12 @@ public final class OrionBadgePresence {
                     if (petResult != null) petResult.entrySet().forEach(entry -> {
                         var pet = ru.orion.client.cosmetic.GleamPet.byId(entry.getValue().getAsString());
                         if (pet != null) foundPets.put(parseUuid(entry.getKey()), pet);
+                    });
+                    JsonObject hatResult = response.getAsJsonObject("hats");
+                    if (hatResult != null) hatResult.entrySet().forEach(entry -> {
+                        String model = entry.getValue().getAsString();
+                        if ("hat".equals(model) || ru.orion.client.cosmetic.GleamHatModel.IDS.contains(model))
+                            foundHats.put(parseUuid(entry.getKey()), model);
                     });
                     JsonObject emoteResult = response.getAsJsonObject("emotes");
                     if (emoteResult != null) emoteResult.entrySet().forEach(entry -> {
@@ -193,6 +212,7 @@ public final class OrionBadgePresence {
                     halos = Set.copyOf(foundHalos);
                     wings = Map.copyOf(foundWings);
                     pets = Map.copyOf(foundPets);
+                    hats = Map.copyOf(foundHats);
                     emotes = Map.copyOf(foundEmotes);
                     if (firstRevision != Long.MAX_VALUE) startWatcher(requestGeneration, activeToken, firstRevision);
                 }

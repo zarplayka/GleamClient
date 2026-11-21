@@ -15,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.orion.client.OrionClient;
 import ru.orion.client.cosmetic.GleamHatModel;
 import ru.orion.client.effect.OrionFreeLook;
+import ru.orion.client.effect.OrionBadgePresence;
 import ru.orion.client.gui.OrionCosmeticPreview;
 
 @Mixin(LivingEntityRenderer.class)
@@ -47,8 +48,12 @@ abstract class OrionCosmeticPreviewMixin {
             var client = Minecraft.getInstance();
             var player = client.player;
             var config = OrionClient.getConfigOrNull();
-            if (player == null || avatar.id != player.getId() || config == null) return;
-            id = config.getCosmeticHat();
+            if (player == null || client.level == null || config == null) return;
+            if (avatar.id == player.getId()) {
+                id = config.getCosmeticHat();
+            } else if (client.level.getEntity(avatar.id) instanceof net.minecraft.client.player.AbstractClientPlayer remote) {
+                id = OrionBadgePresence.hat(remote.getUUID());
+            } else return;
         }
         if (!id.isEmpty()) GleamHatModel.submit(playerModel, pose, collector, id, avatar.lightCoords);
     }

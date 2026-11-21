@@ -1595,6 +1595,7 @@ public final class OrionClickGuiScreen extends Screen {
                 } else if (ru.orion.client.cosmetic.GleamHatModel.IDS.contains(id)) {
                     config.setCosmeticHat(id.equals(config.getCosmeticHat()) ? "" : id);
                     configManager.save();
+                    ru.orion.client.effect.OrionBadgePresence.requestRefresh();
                 }
             }
             case "cosmetic-pet" -> {
