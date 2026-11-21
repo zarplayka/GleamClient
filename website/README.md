@@ -45,6 +45,8 @@
 
 До смены записи A у `gleamclient.xyz` Caddy на прежнем хосте передаёт запросы сайта на новый хост. После смены записи тот же HTTPS-адрес продолжит работать напрямую. Старый слушатель API на `127.0.0.1:8088` оставлен как прокси для существующих доменов обратных вызовов.
 
+Архивные копии сайта перенесены в `/var/backups/orion-site` и `/opt/orion-site/backups` на новом хосте. Новые копии базы создаёт `orion-site-backup.timer` на новом хосте.
+
 Файлы `index.html`, `privacy.html`, `terms.html`, `auth.html`, `style.css`, `i18n.js`, `app.js`, `auth.js` и каталог `assets` размещены в `/var/www/orion-client`. Это символическая ссылка на текущий релиз в `/var/www/orion-client-releases/`: обновления переключаются атомарно, предыдущие релизы сохраняются для отката. Блок из `Caddyfile` добавлен в `/etc/caddy/Caddyfile` с проверкой `caddy validate` перед reload. Существующие virtual hosts и API сохранены. Caddy автоматически обслуживает HTTPS.
 
 Перед обновлением сохраняйте копию текущего каталога сайта и Caddyfile. После загрузки проверяйте `caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile` и выполняйте `systemctl reload caddy`. SSH-ключи находятся вне проекта и сайта.
