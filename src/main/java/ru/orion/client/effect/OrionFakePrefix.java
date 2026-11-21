@@ -541,6 +541,54 @@ public final class OrionFakePrefix {
         if (prefix.isBlank() && font.isEmpty()) return vanilla;
         var self = client.player.getUUID();
         var players = client.getConnection().getListedOnlinePlayers();
+        var currentServer = client.getCurrentServer();
+        var server = currentServer == null ? null : java.util.Arrays.stream(ServerPreset.values())
+                .filter(preset -> preset.includes(serverHost(currentServer.ip))).findFirst().orElse(null);
+        if (server != null && server.selected(config) < server.ranks.size()) {
+            int selected = server.selected(config);
+            var ordered = new ArrayList<>(players);
+            ordered.sort(vanilla);
+            var local = ordered.stream().filter(info -> self.equals(info.getProfile().id())).findFirst().orElse(null);
+            if (local == null) return vanilla;
+            var ranks = new java.util.HashMap<PlayerInfo, Integer>();
+            for (var info : ordered) {
+                if (info == local || info.getGameMode() != local.getGameMode()) continue;
+                int rank = tabRank(info, server);
+                if (rank >= 0) ranks.put(info, rank);
+            }
+            int order = 0;
+            int previous = -1;
+            for (var info : ordered) {
+                Integer rank = ranks.get(info);
+                if (rank == null) continue;
+                if (previous >= 0) order += Integer.compare(previous, rank);
+                previous = rank;
+            }
+            boolean descending = order >= 0;
+            int insert = -1;
+            int firstMatching = -1;
+            ordered.remove(local);
+            for (int i = 0; i < ordered.size(); i++) {
+                var info = ordered.get(i);
+                Integer rank = ranks.get(info);
+                if (rank == null) continue;
+                if (firstMatching < 0) firstMatching = i;
+                int relative = Integer.compare(rank, selected) * (descending ? 1 : -1);
+                if (relative < 0 || relative == 0 && String.CASE_INSENSITIVE_ORDER.compare(
+                        info.getProfile().name(), local.getProfile().name()) > 0) {
+                    insert = i;
+                    break;
+                }
+                insert = i + 1;
+            }
+            if (firstMatching >= 0) {
+                ordered.add(insert, local);
+                var indices = new java.util.IdentityHashMap<PlayerInfo, Integer>(ordered.size());
+                for (int i = 0; i < ordered.size(); i++) indices.put(ordered.get(i), i);
+                return Comparator.comparingInt(info -> indices.getOrDefault(info, Integer.MAX_VALUE));
+            }
+        }
+        if (server != null && server.selected(config) < server.ranks.size()) return vanilla;
         var target = players.stream().filter(info -> !self.equals(info.getProfile().id()) && matchesRank(info, prefix, font))
                 .min(vanilla).orElse(null);
         if (target == null) return vanilla;
@@ -553,6 +601,26 @@ public final class OrionFakePrefix {
                     return team == null ? "" : team.getName();
                 })
                 .thenComparing(info -> info.getProfile().name(), String.CASE_INSENSITIVE_ORDER);
+    }
+
+    private static int tabRank(PlayerInfo info, ServerPreset preset) {
+        var team = info.getTeam();
+        var display = info.getTabListDisplayName();
+        var teamPrefix = team == null ? Component.empty() : team.getPlayerPrefix();
+        var font = rankFont(teamPrefix).or(() -> display == null ? Optional.empty() : rankFont(display));
+        String plain = prefixWithoutVoiceChat(teamPrefix);
+        String tab = display == null ? null : detectPrefixBeforePlayer(display.getString(), info.getProfile().name());
+        for (int i = 0; i < preset.ranks.size(); i++) {
+            Rank rank = preset.ranks.get(i);
+            if (font.isPresent()) {
+                if (rank.requiredFont() != null && rank.requiredFont().getNamespace().equals(font.get().getNamespace())
+                        && rank.requiredFont().getPath().equals("font/" + font.get().getPath() + ".json")) return i;
+            } else {
+                String label = "[" + rank.text() + "]";
+                if (label.equalsIgnoreCase(plain) || tab != null && label.equalsIgnoreCase(normalizePrefix(tab))) return i;
+            }
+        }
+        return -1;
     }
 
     private static boolean matchesRank(PlayerInfo player, String prefix, Optional<Identifier> font) {

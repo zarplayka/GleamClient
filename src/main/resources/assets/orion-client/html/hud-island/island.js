@@ -148,14 +148,17 @@ function refresh() {
 }
 function layout() {
   const expandedHeight = FULL_H + (state.error ? 16 : 0);
-  const scale = Math.min(Number(state.scale)||1,window.innerWidth/(FULL_W+2*SHOULDER),
-    window.innerHeight/expandedHeight);
+  const requestedScale = Number(state.scale)||1;
+  const compactHeight = active()?TRACK_H:HUD_H;
+  const compactScale = Math.min(requestedScale,window.innerWidth/CAP_W,window.innerHeight/compactHeight);
+  const expandedScale = Math.min(requestedScale,window.innerWidth/(FULL_W+2*SHOULDER),window.innerHeight/expandedHeight);
+  const scale = mix(compactScale,expandedScale,phase);
   if (scale <= 0) return currentBounds;
-  const width = mix(CAP_W,FULL_W,phase), height = mix(active()?TRACK_H:HUD_H,expandedHeight,phase);
+  const width = mix(CAP_W,FULL_W,phase), height = mix(compactHeight,expandedHeight,phase);
   const radius = mix(21,20,phase);
   const edge = width*scale/2;
   let center = window.innerWidth/2;
-  if (state.custom) center=(Number(state.x)||0)+CAP_W*scale/2;
+  if (state.custom) center=(Number(state.x)||0)+CAP_W*compactScale/2;
   else if (state.placement === 'TOP_LEFT') center=edge+SHOULDER*scale;
   else if (state.placement === 'TOP_RIGHT') center=window.innerWidth-edge-SHOULDER*scale;
   center=clamp(center,edge,Math.max(edge,window.innerWidth-edge));
@@ -173,7 +176,7 @@ function layout() {
     full.style.transform='translateY('+mix(-8,0,phase)+'px)';
     full.style.pointerEvents=phase>.95?'auto':'none';
     $('header').setAttribute('aria-expanded',String(phase>.95));
-    currentBounds={x,y,width:width*scale,height:height*scale,radius:radius*scale,collapsedWidth:CAP_W*scale};
+    currentBounds={x,y,width:width*scale,height:height*scale,radius:radius*scale,collapsedWidth:CAP_W*compactScale};
     send('bounds',currentBounds);
     lastLayout=signature;
   }
@@ -305,6 +308,7 @@ window.paradox={
       speed=Math.min(speed,0);
     }
     if(sourceChanged)lastAudible=Number(next.volume)>.001?Number(next.volume):.7;
+    if (next.layoutEditing) { phase=0; speed=0; }
     state=next;refresh();layout();
   }
 };

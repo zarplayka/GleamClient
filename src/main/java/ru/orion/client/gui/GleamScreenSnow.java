@@ -4,7 +4,6 @@ import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import ru.orion.client.GleamMinecraft;
-import ru.orion.client.OrionClient;
 
 import java.util.Random;
 
@@ -21,8 +20,8 @@ public final class GleamScreenSnow {
         this.width = width;
         this.height = height;
         this.inventory = inventory;
-        int count = (int) Math.clamp(width * (double) height / (inventory ? 5200 : 3200),
-                inventory ? 10 : 18, inventory ? 28 : 64);
+        int count = (int) Math.clamp(width * (double) height / (inventory ? 3900 : 2400),
+                inventory ? 14 : 24, inventory ? 32 : 68);
         flakes = new Flake[count];
         for (int i = 0; i < count; i++) {
             flakes[i] = new Flake((i + random.nextFloat()) / count);
@@ -36,9 +35,7 @@ public final class GleamScreenSnow {
             if (!inventory && !(screen instanceof OrionClickGuiScreen)) return;
             var snow = new GleamScreenSnow(width, height, inventory);
             ScreenEvents.afterExtract(screen).register((current, graphics, mx, my, delta) -> {
-                var config = OrionClient.getConfigOrNull();
-                if (config != null && config.isAnimationsEnabled() && GleamMinecraft.screen(client) == current
-                        && GleamMinecraft.overlay(client) == null) {
+                if (GleamMinecraft.screen(client) == current && GleamMinecraft.overlay(client) == null) {
                     snow.draw(graphics);
                 }
             });
@@ -76,7 +73,7 @@ public final class GleamScreenSnow {
 
     private void drawFlake(GuiGraphicsExtractor graphics, Flake flake) {
         int x = Math.round(flake.x), y = Math.round(flake.y);
-        int light = Math.round((52 + flake.depth * 138) * (inventory ? .54F : .9F));
+        int light = Math.round((70 + flake.depth * 150) * (inventory ? .70F : .94F));
         if (flake.depth > .72F) {
             int arm = flake.depth > .94F ? 2 : 1;
             int color = (light / 3) << 24 | 0xb6d7ee;

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-gleam-hud>
 <head>
 <meta charset="utf-8">
 <link rel="stylesheet" data-hud-theme href="hud-theme.css">
@@ -9,28 +9,33 @@ body { width: 392px; height: 420px; margin: 0; overflow: hidden; color: var(--te
 [hidden] { display: none !important; }
 #stage { position: absolute; width: 392px; height: 420px; transform-origin: 196px 196px; }
 #ring { position: absolute; inset: 0; width: 392px; height: 392px; }
-.sector { fill: var(--surface); stroke: var(--line); stroke-width: .85; transition: fill .14s, stroke .14s; }
-.sector.active { fill: var(--hud-selected); stroke: var(--accent); stroke-width: 1; }
+.sector { fill: #10191ce8; stroke: #b7d5c625; stroke-width: .7; transition: fill .18s, stroke .18s; }
+.sector.active { fill: #2e7158ee; stroke: #abdcc897; stroke-width: 1; }
+html[data-light] .sector { fill: #e7eef0ed; stroke: #40545c45; }
+html[data-light] .sector.active { fill: #8cbfa8; stroke: #34795d; }
 #slots { position: absolute; inset: 0; }
 .slot {
     position: absolute; width: 84px; height: 63px; margin: -31px 0 0 -42px;
     text-align: center; color: var(--text);
 }
-.slot.active .digit { color: var(--accent); border-color: var(--accent); }
-.slot.active .emote-mark { color: var(--accent); transform: translateY(-2px); }
-.slot.empty .name { color: var(--muted); }
-.emote-mark { display: block; width: 21px; height: 21px; margin: 3px auto; transition: transform .16s, color .16s; }
-.digit { display: inline-block; min-width: 14px; height: 14px; padding: 0 2px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; font-size: 8px; line-height: 12px; }
-.name { display: flex; height: 21px; align-items: center; justify-content: center; font-size: 9.5px; line-height: 10px; font-weight: bold; padding: 0 6px; }
+.slot { display: flex; align-items: center; justify-content: center; }
+.slot.active .emote-mark { opacity: 1; transform: translateY(-2px) scale(1.13); }
+.slot.empty .emote-mark { opacity: .38; }
+.emote-mark { display: block; width: 47px; height: 51px; opacity: .77;
+    transition: transform .2s cubic-bezier(.2,.8,.25,1), opacity .17s; }
+.digit { position:absolute; right:6px; top:5px; min-width:15px; border-radius:4px;
+    background:var(--hud-panel); color:var(--text); font-size:9px; line-height:15px; }
 #hub {
-    position: absolute; top: 148px; left: 148px; width: 96px; height: 96px;
-    border: 1px solid var(--line); border-radius: 50%; background: var(--hud-panel);
+    position: absolute; top: 133px; left: 133px; width: 126px; height: 126px;
+    border: 1px solid var(--line); border-radius: 50%; background: var(--top);
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
     text-align: center; padding: 5px;
 }
-#hub-symbol { width: 12px; height: 12px; border: 1.5px solid var(--accent); border-radius: 3px; margin-bottom: 3px; }
-#title { display: flex; height: 24px; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; line-height: 11px; }
+#hub-symbol { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); margin-bottom: 3px; }
+#title { display: flex; min-height: 16px; max-width: 104px; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; line-height: 13px; }
 #subtitle { color: var(--muted); font-size: 8px; line-height: 9px; }
+#arc { position: absolute; inset:0; width:126px; height:126px; pointer-events:none; transform-origin:63px 63px;
+    transition: transform .23s cubic-bezier(.2,.75,.22,1), opacity .18s; }
 .control, .option {
     position: absolute; height: 28px; text-align: center; line-height: 26px;
     background: var(--top); color: var(--text); border: 1px solid var(--line); border-radius: var(--hud-radius);
@@ -59,7 +64,9 @@ body { width: 392px; height: 420px; margin: 0; overflow: hidden; color: var(--te
     <div id="wheel">
         <svg id="ring" viewBox="0 0 392 392" aria-hidden="true"></svg>
         <div id="slots"></div>
-        <div id="hub"><div id="hub-symbol"></div><div id="title"></div><div id="subtitle"></div></div>
+        <div id="hub"><div id="hub-symbol"></div><div id="title"></div><div id="subtitle"></div>
+            <svg id="arc" viewBox="0 0 126 126" aria-hidden="true"><path d="M47 7a58 58 0 0 1 32 0" fill="none" stroke="#90d5bb" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </div>
         <div id="edit" class="control"></div>
         <div id="reset" class="control" hidden></div>
         <div id="done" class="control" hidden></div>
@@ -79,40 +86,36 @@ const slots = [];
 const options = [];
 const svg = 'http://www.w3.org/2000/svg';
 const points = (r, a) => [196 + r * Math.sin(a), 196 - r * Math.cos(a)].join(' ');
-const marks = [
-    'M12 6v12M6 12h12',
-    'M3 17h9l2-5 6-1M4 12l4-4 5 4M15 4l4 3',
-    'M5 8h14v11H5zM12 8V4m-3 9h.1m5.9 0h.1M9 16h6',
-    'M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2M12 7l5 5-5 5-5-5z',
-    'M4 8l4 5 8-2 4 5m-16 0 4-4 7 2 5-5M12 3v4m0 13v1',
-    'M3 17c3-8 5-8 8-4s6 4 10-4M4 11c3-7 5-7 8-3s5 4 8 1',
-    'M5 19l3-10 7 7-10 3Zm5-11 1-4m4 5 4-5m-1 9 4-1',
-    'M3 12h4l3-6 4 12 3-6h4',
-    'M3 15h17v3H3zm13 0v3m0-6c3-2-2-3 0-6m4 6c3-2-2-3 0-6',
-    'M4 8h12v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8Zm12 1h2a2 2 0 0 1 0 5h-2M3 21h17M8 5V3m4 2V3'
-];
+const poses = [[0,0,0,0,0,0],[-13,108,-43,-26,24,8],[6,25,-105,-6,9,-10],
+    [5,64,-68,12,-13,4],[-14,94,-110,-25,19,11],[10,-28,67,-32,23,-6],
+    [-8,112,-61,-19,9,16],[13,50,-35,27,-25,-7],[-7,18,-116,-17,24,9],[7,62,-78,9,-10,-11]];
 function mark(id) {
-    return '<svg class="emote-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + marks[id] + '"/></svg>';
+    if (!id) return '<svg class="emote-mark" viewBox="0 0 48 52"><path d="M24 19v14m-7-7h14" fill="none" stroke="#c4ddd1" stroke-width="2"/></svg>';
+    const [lean,left,right,leftLeg,rightLeg,head] = poses[id] || poses[0];
+    const block = (x,y,w,h,angle,px,py,face) =>
+        '<g transform="rotate('+angle+' '+px+' '+py+')"><rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx=".5" fill="'+face+'"/>'
+        +'<path d="M'+(x+w)+' '+y+'l2-1v'+h+'l-2 1z" fill="#728389"/><path d="M'+x+' '+y+'l2-1h'+w+'l-2 1z" fill="#f3f7f5"/></g>';
+    return '<svg class="emote-mark" viewBox="0 0 48 52" aria-hidden="true"><g transform="rotate('+lean+' 24 27)">'
+        +block(17,30,6,16,leftLeg,20,31,'#afc0bf')+block(24,30,6,16,rightLeg,27,31,'#cad7d4')
+        +block(13,17,5,15,left,16,18,'#c7d4d1')+block(29,17,5,15,right,31,18,'#e1e9e6')
+        +block(18,16,12,16,0,24,24,'#d7e3de')+block(18,5,12,11,head,24,15,'#edf4ef')+'</g></svg>';
 }
 for (let i = 0; i < 6; i++) {
     const slot = document.createElement('div');
     const digit = document.createElement('span');
-    const name = document.createElement('span');
     const emblem = document.createElement('span');
     const segment = document.createElementNS(svg,'path');
-    const start = (60 * i - 28.5) * Math.PI / 180, end = (60 * i + 28.5) * Math.PI / 180;
+    const start = (60 * i - 30) * Math.PI / 180, end = (60 * i + 30) * Math.PI / 180;
     segment.setAttribute('class','sector');
     segment.setAttribute('d','M' + points(145,start) + ' A145 145 0 0 1 ' + points(145,end)
-      + ' L' + points(54,end) + ' A54 54 0 0 0 ' + points(54,start) + ' Z');
+      + ' L' + points(74,end) + ' A74 74 0 0 0 ' + points(74,start) + ' Z');
     byId('ring').appendChild(segment);
     digit.className = 'digit';
     digit.textContent = String(i + 1);
-    name.className = 'name';
     slot.appendChild(digit);
     slot.appendChild(emblem);
-    slot.appendChild(name);
     byId('slots').appendChild(slot);
-    slots.push({slot, name, emblem, segment});
+    slots.push({slot, digit, emblem, segment});
 
 }
 
@@ -131,6 +134,7 @@ function updateOptions(names, selected, hovered) {
     }
 }
 
+let lastSector = 0, arcRotation = 0;
 window.paradox = {
     update(state) {
         const root = document.documentElement;
@@ -147,6 +151,13 @@ window.paradox = {
         const hovered = state.active >= 0 ? state.slots[state.active].id : 0;
         byId('title').textContent = hovered ? state.names[hovered] : labels[0];
         byId('subtitle').textContent = state.editing ? labels[5] : hovered ? '' : labels[1];
+        const arc = byId('arc');
+        arc.style.opacity = state.active >= 0 ? '1' : '0';
+        if (state.active >= 0) {
+            arcRotation += (((state.active - lastSector + 9) % 6) - 3) * 60;
+            lastSector = state.active;
+            arc.style.transform = 'rotate('+arcRotation+'deg)';
+        }
         byId('edit').textContent = labels[2];
         byId('done').textContent = labels[3];
         byId('reset').textContent = labels[4];
@@ -156,12 +167,12 @@ window.paradox = {
         byId('back').textContent = labels[8];
         for (let i = 0; i < slots.length; i++) {
             const {x, y, id} = state.slots[i];
-            const {slot, name, emblem, segment} = slots[i];
+            const {slot, digit, emblem, segment} = slots[i];
             segment.setAttribute('class','sector' + (i === state.active ? ' active' : ''));
             slot.className = 'slot' + (i === state.active ? ' active' : '') + (!id ? ' empty' : '');
             slot.style.left = x + 'px';
             slot.style.top = y + 'px';
-            name.textContent = state.names[id];
+            digit.hidden = !state.editing;
             if (emblem.dataset.id !== String(id)) {
                 emblem.innerHTML = mark(id);
                 emblem.dataset.id = String(id);

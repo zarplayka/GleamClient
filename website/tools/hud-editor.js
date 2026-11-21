@@ -487,6 +487,7 @@ layers.onpointermove=e=>{
     if($('scale')){$('scale').value=Math.round(m.scale*100);$('pct').value=$('scale').value+'%';}
   }
   const g=geometry(id),magnetic=snap&&!e.altKey&&!d.resize;
+  stage.classList.toggle('moving',magnetic);
   const left=d.left+(d.resize?0:dx),top=d.top+(d.resize?0:dy);
   const xMatch=magnetic?findAlignment(left,d.width,g.w,d.peers,'x'):null;
   const yMatch=magnetic?findAlignment(top,d.height,g.h,d.peers,'y'):null;
@@ -500,10 +501,14 @@ layers.onpointermove=e=>{
 };
 function finish(e){
   if(!drag||e.pointerId!==drag.pointer)return;
-  const d=drag;drag=null;$('alignment').hidden=true;
+  const d=drag;drag=null;stage.classList.remove('moving');$('alignment').hidden=true;
   if(d.moved)save();else if(e.type==='pointerup')inspect(d.id);
 }
 layers.onpointerup=finish;layers.onpointercancel=finish;layers.onlostpointercapture=finish;
+layers.oncontextmenu=e=>{
+  const widget=e.target.closest('.widget:not(.fixed-widget):not(.inactive)');
+  if(!viewing&&widget){e.preventDefault();inspect(widget.dataset.key);}
+};
 layers.onkeydown=e=>{if(e.key==='Enter'&&!viewing&&e.target.matches('.widget:not(.inactive)'))inspect(e.target.dataset.key);};
 stage.onpointerdown=e=>{if(!e.target.closest('.widget,aside'))clear();};
 $('library').onclick=library;
