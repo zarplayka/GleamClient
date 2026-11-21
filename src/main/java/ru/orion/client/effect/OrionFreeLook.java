@@ -42,6 +42,7 @@ public final class OrionFreeLook {
             blockedUntilRelease = down;
             return;
         }
+        boolean animate = config.isFreeLookAnimation();
         if (previousCamera != null) {
             if (client.options.getCameraType() != CameraType.THIRD_PERSON_BACK) {
                 previousCamera = null;
@@ -56,13 +57,17 @@ public final class OrionFreeLook {
                     pitch = currentPitch;
                     startedAt = System.nanoTime();
                     returning = false;
-                } else if (progress() == 1F) {
+                } else if (!animate || progress() == 1F) {
                     stop(client);
                 }
             } else if (config.isFreeLookToggle() ? pressed : !down) {
-                fromDistance = distance();
-                startedAt = System.nanoTime();
-                returning = true;
+                if (animate) {
+                    fromDistance = distance();
+                    startedAt = System.nanoTime();
+                    returning = true;
+                } else {
+                    stop(client);
+                }
             }
         } else if (!blockedUntilRelease && (config.isFreeLookToggle() ? pressed : down)) {
             previousCamera = client.options.getCameraType();
@@ -72,7 +77,7 @@ public final class OrionFreeLook {
                 yaw += 180F;
                 pitch = -pitch;
             }
-            fromDistance = previousCamera.isFirstPerson() ? 0F : 1F;
+            fromDistance = animate && previousCamera.isFirstPerson() ? 0F : 1F;
             returning = false;
             startedAt = System.nanoTime();
             client.options.setCameraType(CameraType.THIRD_PERSON_BACK);

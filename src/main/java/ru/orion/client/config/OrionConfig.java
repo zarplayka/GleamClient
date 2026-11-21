@@ -282,6 +282,7 @@ public final class OrionConfig {
     private boolean nametagsShadow = true;
     private boolean freeLookEnabled;
     private boolean freeLookToggle;
+    private boolean freeLookAnimation = true;
     private boolean potionsEnabled;
     private boolean potionsHideVanilla = true;
     private boolean targetHudEnabled;
@@ -828,6 +829,8 @@ public final class OrionConfig {
     public void setFreeLookEnabled(boolean value) { freeLookEnabled = value; }
     public boolean isFreeLookToggle() { return freeLookToggle; }
     public void setFreeLookToggle(boolean value) { freeLookToggle = value; }
+    public boolean isFreeLookAnimation() { return freeLookAnimation; }
+    public void setFreeLookAnimation(boolean value) { freeLookAnimation = value; }
     public boolean isPotionsEnabled() { return potionsEnabled; }
     public void setPotionsEnabled(boolean value) { potionsEnabled = value; }
     public boolean isPotionsHideVanilla() { return potionsHideVanilla; }
