@@ -1388,6 +1388,7 @@ pub fn cancel_minecraft_install(game: tauri::State<'_, Game>) -> Result<()> {
 #[cfg(windows)]
 mod process {
     use super::*;
+    use std::collections::HashMap;
     use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
 
     #[link(name = "kernel32")]
@@ -1402,6 +1403,23 @@ mod process {
         ) -> i32;
         fn WaitForSingleObject(handle: RawHandle, millis: u32) -> u32;
         fn GetSystemTimes(idle: *mut [u32; 2], kernel: *mut [u32; 2], user: *mut [u32; 2]) -> i32;
+        fn CreateToolhelp32Snapshot(flags: u32, pid: u32) -> RawHandle;
+        fn Process32FirstW(snapshot: RawHandle, entry: *mut ProcessEntry) -> i32;
+        fn Process32NextW(snapshot: RawHandle, entry: *mut ProcessEntry) -> i32;
+    }
+
+    #[repr(C)]
+    struct ProcessEntry {
+        size: u32,
+        usage: u32,
+        pid: u32,
+        heap_id: usize,
+        module_id: u32,
+        threads: u32,
+        parent_pid: u32,
+        priority: i32,
+        flags: u32,
+        executable: [u16; 260],
     }
 
     #[repr(C)]
@@ -1426,9 +1444,76 @@ mod process {
     #[derive(Default)]
     pub(super) struct ResourceMeter {
         previous: Option<(u64, u64, u64)>,
+        process_sampled: Option<Instant>,
+        process_total: u64,
+        processes: HashMap<(u32, u64), u64>,
+    }
+
+    fn ticks(value: [u32; 2]) -> u64 {
+        (u64::from(value[1]) << 32) | u64::from(value[0])
+    }
+
+    fn working_set(handle: RawHandle) -> Option<u64> {
+        let mut counters: ProcessMemory = unsafe { std::mem::zeroed() };
+        counters.size = std::mem::size_of::<ProcessMemory>() as u32;
+        (unsafe { GetProcessMemoryInfo(handle, &mut counters, counters.size) } != 0)
+            .then_some((counters.working_set as u64) >> 20)
     }
 
     impl ResourceMeter {
+        fn top_processes(&mut self, game_pid: u32, total: u64) -> Option<ProcessUsage> {
+            // System ticks include all logical processors, as in the main CPU series.
+            let now = Instant::now();
+            if self.process_sampled.is_some_and(|last| now.duration_since(last) < Duration::from_secs(5)) {
+                return None;
+            }
+            let snapshot = unsafe { CreateToolhelp32Snapshot(2, 0) };
+            if snapshot as isize == -1 { return None; }
+            let snapshot = unsafe { OwnedHandle::from_raw_handle(snapshot) };
+            let mut entry: ProcessEntry = unsafe { std::mem::zeroed() };
+            entry.size = std::mem::size_of::<ProcessEntry>() as u32;
+            let mut present = unsafe { Process32FirstW(snapshot.as_raw_handle(), &mut entry) };
+            if present == 0 { return None; }
+            self.process_sampled = Some(now);
+            let elapsed = total.saturating_sub(std::mem::replace(&mut self.process_total, total));
+            let previous = std::mem::take(&mut self.processes);
+            let (mut cpu, mut memory) = (None, None);
+            while present != 0 {
+                if entry.pid != 0 && entry.pid != game_pid {
+                    let handle = unsafe { OpenProcess(0x1000, 0, entry.pid) };
+                    if !handle.is_null() {
+                        let handle = unsafe { OwnedHandle::from_raw_handle(handle) };
+                        let raw = handle.as_raw_handle();
+                        let (mut created, mut exited, mut kernel, mut user) = ([0; 2], [0; 2], [0; 2], [0; 2]);
+                        let name_end = entry.executable.iter().position(|&unit| unit == 0).unwrap_or(entry.executable.len());
+                        let usage = |value| ProcessUsageEntry {
+                            pid: entry.pid,
+                            name: String::from_utf16_lossy(&entry.executable[..name_end]),
+                            value,
+                        };
+                        if unsafe { GetProcessTimes(raw, &mut created, &mut exited, &mut kernel, &mut user) } != 0 {
+                            let identity = (entry.pid, ticks(created));
+                            let current = ticks(kernel) + ticks(user);
+                            self.processes.insert(identity, current);
+                            if let Some(&prior) = previous.get(&identity).filter(|_| elapsed > 0) {
+                                let percent = (current.saturating_sub(prior) as f64 * 100.0 / elapsed as f64).min(100.0);
+                                if percent > 0.0 && cpu.as_ref().is_none_or(|entry: &ProcessUsageEntry| percent > entry.value) {
+                                    cpu = Some(usage(percent));
+                                }
+                            }
+                        }
+                        if let Some(mib) = working_set(raw) {
+                            if memory.as_ref().is_none_or(|entry: &ProcessUsageEntry| mib as f64 > entry.value) {
+                                memory = Some(usage(mib as f64));
+                            }
+                        }
+                    }
+                }
+                present = unsafe { Process32NextW(snapshot.as_raw_handle(), &mut entry) };
+            }
+            Some(ProcessUsage { cpu, memory })
+        }
+
         pub(super) fn sample(&mut self, child: &std::process::Child) -> Option<ResourceSample> {
             let (mut idle, mut kernel, mut user) = ([0; 2], [0; 2], [0; 2]);
             if unsafe { GetSystemTimes(&mut idle, &mut kernel, &mut user) } == 0 { return None; }
@@ -1437,7 +1522,6 @@ mod process {
             if unsafe { GetProcessTimes(handle, &mut created, &mut exited, &mut child_kernel, &mut child_user) } == 0 {
                 return None;
             }
-            let ticks = |value: [u32; 2]| (u64::from(value[1]) << 32) | u64::from(value[0]);
             let total = ticks(kernel) + ticks(user);
             let process = ticks(child_kernel) + ticks(child_user);
             let idle = ticks(idle);
@@ -1446,16 +1530,15 @@ mod process {
             if elapsed == 0 { return None; }
             let percent = |delta: u64| (delta as f64 * 100.0 / elapsed as f64).clamp(0.0, 100.0);
             let memory = memory_status()?;
-            let mut counters: ProcessMemory = unsafe { std::mem::zeroed() };
-            counters.size = std::mem::size_of::<ProcessMemory>() as u32;
-            if unsafe { GetProcessMemoryInfo(handle, &mut counters, counters.size) } == 0 { return None; }
+            let game_memory = working_set(handle)?;
             Some(ResourceSample {
                 at: timestamp(SystemTime::now()),
                 game_cpu: percent(process.saturating_sub(prev.2)),
                 system_cpu: percent(elapsed.saturating_sub(idle.saturating_sub(prev.1))),
-                game_memory: (counters.working_set as u64) >> 20,
+                game_memory,
                 system_memory: memory.total_physical.saturating_sub(memory.available_physical) >> 20,
                 total_memory: memory.total_physical >> 20,
+                processes: self.top_processes(child.id(), total),
             })
         }
     }
@@ -2028,10 +2111,10 @@ pub async fn launch_minecraft(
                 #[cfg(windows)]
                 if let Some(sample) = meter.sample(&child) {
                     if samples.len() == RESOURCE_LIMIT { samples.pop_front(); }
-                    samples.push_back(sample);
                     let _ = app.emit("minecraft-resource-sample", json!({
                         "version": version, "instanceId": options.instance_id, "sample": sample,
                     }));
+                    samples.push_back(sample);
                 }
                 next_sample = now + Duration::from_secs(1);
             }
@@ -2056,8 +2139,8 @@ pub async fn launch_minecraft(
                 let _ = window.unminimize();
                 let _ = window.set_focus();
             }
-            let (reason, report) = crash_reason(&game_dir, &launch_log, started_at);
-            return Err(format!("game_exit:{}:{reason}:{}", result.code().unwrap_or(-1), report.unwrap_or_default()));
+            let (reason, report, evidence) = crash_reason(&game_dir, &launch_log, started_at);
+            return Err(format!("game_exit:{}:{reason}:{}:{evidence}", result.code().unwrap_or(-1), report.unwrap_or_default()));
         }
         Ok(())
     })
@@ -2068,7 +2151,7 @@ pub async fn launch_minecraft(
 const RESOURCE_LIMIT: usize = 1800;
 const RESOURCE_FILE: &str = ".gleam-resources.json";
 
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceSample {
     at: u64,
@@ -2077,6 +2160,21 @@ pub struct ResourceSample {
     game_memory: u64,
     system_memory: u64,
     total_memory: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    processes: Option<ProcessUsage>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct ProcessUsage {
+    cpu: Option<ProcessUsageEntry>,
+    memory: Option<ProcessUsageEntry>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct ProcessUsageEntry {
+    pid: u32,
+    name: String,
+    value: f64,
 }
 
 fn save_resources(game_dir: &Path, samples: &std::collections::VecDeque<ResourceSample>) {
@@ -2092,7 +2190,7 @@ pub async fn minecraft_resources(app: tauri::AppHandle, version: String, instanc
     tauri::async_runtime::spawn_blocking(move || {
         let game_dir = crate::profile_import::instance(&app, &version, instance_id.as_deref())?;
         let Ok(file) = File::open(game_dir.join(RESOURCE_FILE)) else { return Ok(Vec::new()); };
-        let history: Vec<ResourceSample> = serde_json::from_reader(file.take(512 * 1024)).unwrap_or_default();
+        let history: Vec<ResourceSample> = serde_json::from_reader(file.take(1024 * 1024)).unwrap_or_default();
         Ok(history.into_iter().rev().take(RESOURCE_LIMIT).rev().collect())
     }).await.map_err(|_| "game_storage".to_owned())?
 }
@@ -2102,7 +2200,75 @@ pub(crate) fn valid_crash_report(name: &str) -> bool {
         && name.bytes().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, b'-' | b'_' | b'.'))
 }
 
-fn crash_reason(game_dir: &Path, launch_log: &Path, started_at: u64) -> (&'static str, Option<String>) {
+fn crash_evidence(log: &str) -> String {
+    let mut cause = None;
+    let mut frame = None;
+    let mut message = None;
+    let mut dependencies = Vec::new();
+    let mut resolution = false;
+    let mut native_frame = false;
+    for line in log.lines().map(str::trim) {
+        if line.starts_with("-- ") && line.ends_with(" --") || line.starts_with("A detailed walkthrough") {
+            break;
+        }
+        // Minecraft's logger prefixes the first line of an exception with a level.
+        let line = if line.starts_with('[') {
+            line.split_once("]: ").map_or(line, |(_, body)| body.trim())
+        } else {
+            line
+        };
+        let line = line.strip_prefix("Exception in thread \"")
+            .and_then(|text| text.split_once("\" ").map(|(_, exception)| exception))
+            .unwrap_or(line);
+        let lower = line.to_ascii_lowercase();
+        if line == "# Problematic frame:" {
+            native_frame = true;
+            continue;
+        }
+        if native_frame {
+            frame = Some(line.trim_start_matches('#').trim());
+            native_frame = false;
+        }
+        if lower.contains("incompatible mods found") || lower.contains("incompatible mod set") {
+            resolution = true;
+        }
+        if resolution && (lower.contains("requires ") || lower.contains(" is incompatible with ")
+            || lower.starts_with("- replace ") || lower.starts_with("- install "))
+        {
+            if dependencies.len() < 5 { dependencies.push(line); }
+        }
+        if let Some(root) = line.strip_prefix("Caused by: ") {
+            cause = Some(root);
+            frame = None;
+            continue;
+        }
+        let class = line.split(':').next().unwrap_or("");
+        if !class.contains(char::is_whitespace) && class.contains('.')
+            && (class.ends_with("Exception") || class.ends_with("Error"))
+        {
+            cause = Some(line);
+            frame = None;
+        } else if cause.is_some() && frame.is_none() && line.starts_with("at ") {
+            frame = Some(line);
+        } else if ["unrecognized vm option", "improperly specified vm option", "could not reserve enough space",
+            "native memory allocation", "glfw error", "does not support opengl", "access_violation",
+            "failed to create jvm", "unsupportedclassversionerror"]
+            .iter().any(|pattern| lower.contains(pattern))
+        {
+            if message.is_none() { message = Some(line); }
+        }
+    }
+    let mut evidence = if dependencies.is_empty() {
+        [cause.or(message), frame].into_iter().flatten().collect::<Vec<_>>()
+    } else {
+        dependencies
+    };
+    evidence.truncate(5);
+    evidence.into_iter().map(|line| line.chars().filter(|ch| !ch.is_control()).take(420).collect::<String>())
+        .collect::<Vec<_>>().join("\n")
+}
+
+fn crash_reason(game_dir: &Path, launch_log: &Path, started_at: u64) -> (&'static str, Option<String>, String) {
     use std::io::{Seek, SeekFrom};
     let reports = game_dir.join("crash-reports");
     let report = fs::read_dir(&reports).ok().into_iter().flatten().filter_map(|entry| {
@@ -2121,33 +2287,49 @@ fn crash_reason(game_dir: &Path, launch_log: &Path, started_at: u64) -> (&'stati
         if !head { file.seek(SeekFrom::Start(metadata.len().saturating_sub(LIMIT))).ok()?; }
         let mut bytes = Vec::new();
         file.take(LIMIT).read_to_end(&mut bytes).ok()?;
-        Some(String::from_utf8_lossy(&bytes).to_ascii_lowercase())
+        Some(String::from_utf8_lossy(&bytes).into_owned())
     };
     let report_text = report.as_ref().and_then(|name| read(&reports.join(name), true));
+    let native_text = fs::read_dir(game_dir).ok().into_iter().flatten().filter_map(|entry| {
+        let entry = entry.ok()?;
+        let name = entry.file_name().into_string().ok()?;
+        let pid = name.strip_prefix("hs_err_pid")?.strip_suffix(".log")?.parse::<u32>().ok()?;
+        if pid == 0 { return None; }
+        let metadata = crate::profile_content::metadata(&entry.path()).ok().flatten()?;
+        let modified = metadata.modified().ok()?;
+        (metadata.is_file() && timestamp(modified).saturating_add(1000) >= started_at)
+            .then_some((modified, entry.path()))
+    }).max().and_then(|(_, path)| read(&path, true));
     let launch_text = read(launch_log, false);
     let latest_text = read(&game_dir.join("logs/latest.log"), false);
-    for log in [report_text, launch_text, latest_text].into_iter().flatten() {
+    for text in [report_text, native_text, launch_text, latest_text].into_iter().flatten() {
+        let evidence = crash_evidence(&text);
+        let log = evidence.to_ascii_lowercase();
         if log.contains("nosuchmethoderror") && log.contains("mods.sodium.api.vertex.buffer")
             && log.contains("zako.opt.") {
-            return ("zako_sodium", report);
+            return ("zako_sodium", report, evidence);
         }
         if log.contains("could not reserve enough space") || log.contains("native memory allocation") {
-            return ("memory_reservation", report);
+            return ("memory_reservation", report, evidence);
         }
         if log.contains("outofmemoryerror") && (log.contains("java heap space") || log.contains("gc overhead limit")) {
-            return ("heap", report);
+            return ("heap", report, evidence);
         }
         if log.contains("unrecognized vm option") || log.contains("improperly specified vm option") {
-            return ("jvm_option", report);
+            return ("jvm_option", report, evidence);
         }
-        if log.contains("incompatible mods found") || log.contains("mod resolution encountered an incompatible mod set") {
-            return ("mods", report);
+        let source = text.to_ascii_lowercase();
+        if source.contains("incompatible mods found") || source.contains("mod resolution encountered an incompatible mod set") {
+            return ("mods", report, evidence);
         }
         if log.contains("glfw error 65542") || log.contains("does not support opengl") {
-            return ("graphics", report);
+            return ("graphics", report, evidence);
+        }
+        if !evidence.is_empty() {
+            return ("unknown", report, evidence);
         }
     }
-    ("unknown", report)
+    ("unknown", report, String::new())
 }
 
 #[derive(Serialize)]

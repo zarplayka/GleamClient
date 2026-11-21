@@ -1038,6 +1038,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .crash-body { padding:0 22px 18px }
     .crash-summary { display:grid; gap:10px; padding:13px 15px; border-radius:9px; background:var(--control-bg); border:1px solid var(--border) }
     #game-crash-advice { margin:0; font-size:13px; line-height:1.55; overflow-wrap:anywhere }
+    #game-crash-evidence { margin:0; padding:10px 12px; max-height:185px; overflow:auto; white-space:pre-wrap;
+      overflow-wrap:anywhere; user-select:text; font:12px/1.5 var(--mono,monospace); border:1px solid var(--border);
+      border-radius:8px; background:var(--home-surface); color:var(--text) }
     #game-crash-code { margin:0; color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums }
     #game-crash-result { margin:12px 0 0; font-size:12px; line-height:1.5 }
     .crash-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:14px 22px; border-top:1px solid var(--border) }
@@ -1137,7 +1140,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profile-extra { padding: 18px 24px; display: grid; gap: 14px }
     .profile-extra p { margin: 0; color: var(--muted); font-size: 13px }
     .profile-option-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
-    #instance-game-controls, #profile-settings-panel > .profile-option-actions { width:min(100%,840px) }
+    #profile-settings-panel, #profile-resource-panel { align-self:center; box-sizing:border-box; min-width:0 }
+    #profile-settings-panel { width:min(100%,888px) }
     #profile-settings-panel > .profile-option-actions > .button { flex:none; width:auto; min-width:104px }
     #profile-resource-panel { width:min(100%,1160px) }
     .resource-controls { display:flex; align-items:center; justify-content:space-between; gap:10px 16px; flex-wrap:wrap }
@@ -1166,7 +1170,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .resource-timeline { display:grid; grid-template-columns:auto minmax(70px,1fr) auto; align-items:center; gap:10px; margin-top:12px;
       color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums }
     #profile-resource-point { width:100%; margin:0; accent-color:var(--accent) }
-    #profile-resource-advice:not(:empty) { margin-top:12px; padding:10px 12px; border-left:2px solid var(--accent); background:var(--home-surface) }
+    .resource-attribution { margin-top:12px; padding:12px 16px; display:grid; gap:6px; border:1px solid var(--border);
+      border-radius:10px; background:var(--home-surface); overflow-wrap:anywhere }
+    .resource-attribution h3 { margin:0; font-size:13px }
+    .resource-attribution p { font-variant-numeric:tabular-nums }
     #profile-content-entries { margin: 0; padding: 0; list-style: none }
     .profile-entry { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 12px; min-height: 71px; padding: 9px 12px }
     .profile-entry + .profile-entry { border-top: 1px solid var(--border) }
@@ -1809,7 +1816,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                     </div>
                     <div class="resource-timeline"><time id="profile-resource-start"></time><input type="range" id="profile-resource-point" min="0" max="0" value="0" aria-label="Момент на графике"><output id="profile-resource-time"></output></div>
                   </div>
-                  <p id="profile-resource-advice" role="status"></p>
+                  <section class="resource-attribution" aria-labelledby="profile-resource-source">
+                    <h3 id="profile-resource-source">Процессы</h3>
+                    <p id="profile-resource-game"></p>
+                    <p id="profile-resource-other"></p>
+                  </section>
                 </div>
               </div>
               <form class="profile-extra" id="profile-settings-panel" hidden>
@@ -1861,7 +1872,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <form method="dialog" class="crash-close"><button class="minecraft-dialog-close" aria-label="Закрыть" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></form>
         </header>
         <div class="crash-body">
-          <div class="crash-summary"><p id="game-crash-advice"></p><p id="game-crash-code" hidden></p></div>
+          <div class="crash-summary"><p id="game-crash-advice"></p><pre id="game-crash-evidence" tabindex="0" hidden></pre><p id="game-crash-code" hidden></p></div>
           <p id="game-crash-result" role="status" hidden></p>
         </div>
         <footer class="crash-actions">
@@ -2849,6 +2860,15 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Навигация':['Navigation','Navigation','Navegación'],
       'Ресурсы':['Resources','Ressourcen','Recursos'],
       'Вся система':['Entire system','Gesamtsystem','Todo el sistema'],
+      'Процессы':['Processes','Prozesse','Procesos'],
+      'Minecraft · {0}':['Minecraft · {0}','Minecraft · {0}','Minecraft · {0}'],
+      'Самый нагруженный из измеренных фоновых процессов · {0} (PID {1}) · {2} · {3}':[
+        'Top measured background process · {0} (PID {1}) · {2} · {3}',
+        'Stärkster gemessener Hintergrundprozess · {0} (PID {1}) · {2} · {3}',
+        'Proceso en segundo plano medido con mayor uso · {0} (PID {1}) · {2} · {3}'],
+      'Для этого момента нет замера фоновых процессов.':['No background process reading at this time.','Für diesen Zeitpunkt liegt keine Messung der Hintergrundprozesse vor.','No hay medición de procesos en segundo plano en este momento.'],
+      'Причина из журнала игры':['Cause from the game log','Ursache aus dem Spielprotokoll','Causa del registro del juego'],
+      'Игра завершилась без записи причины в журнале.':['The game exited without logging a cause.','Das Spiel wurde beendet, ohne eine Ursache zu protokollieren.','El juego se cerró sin registrar la causa.'],
       'Процессор':['CPU','Prozessor','Procesador'],
       'Период':['Time range','Zeitraum','Periodo'],
       '5 мин':['5 min','5 Min.','5 min'],
@@ -3224,7 +3244,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Добавлены публикация и скачивание конфигов, отдельный раздел точек пути, отражения Mirage и обновлённое управление в баскетболе и футболе.':['Added config publishing and downloads, a waypoints section, Mirage reflections and updated basketball and football controls.','Neu sind das Veröffentlichen und Laden von Konfigurationen, ein Wegpunktbereich, Mirage-Reflexionen und eine überarbeitete Basketball- und Fußballsteuerung.','Se añadieron publicación y descarga de configuraciones, una sección de puntos de ruta, reflejos Mirage y nuevos controles de baloncesto y fútbol.'],
       'Сбросить настройки':['Reset settings','Einstellungen zurücksetzen','Restablecer ajustes'],
       'Память':['Memory','Arbeitsspeicher','Memoria'],
-      'Оперативная память':['Allocated memory','Zugewiesener Arbeitsspeicher','Memoria asignada'],
+      'Оперативная память':['Memory','Arbeitsspeicher','Memoria RAM'],
       'Лимит памяти для Minecraft':['Memory limit for Minecraft','Speicherlimit für Minecraft','Límite de memoria para Minecraft'],
       'Готовые значения памяти':['Memory presets','Speichervorgaben','Valores de memoria'],
       'Игра':['Game','Spiel','Juego'],
@@ -5646,7 +5666,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         await window.__TAURI__.core.invoke('launch_minecraft',{options});
       } catch (error) {
         const code = String(error.message || error);
-        const [kind,exitCode,diagnosis,report] = code.split(':');
+        const [kind,exitCode,diagnosis,report,...crashEvidence] = code.split(':');
         busy = kind === 'game_busy';
         failed = kind !== 'game_cancelled';
         title = failed ? launchErrors[kind] || 'Не удалось запустить Minecraft' : 'Запуск отменён';
@@ -5656,7 +5676,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
         if (kind === 'game_exit' && /^-?\d+$/.test(exitCode)) detail = translated('Код выхода: {0}',exitCode);
         if (kind === 'game_exit' || kind === 'game_spawn' || kind === 'game_jvm_quotes') {
-          showGameCrash(launchedProfileId,title,detail,kind === 'game_jvm_quotes' ? 'jvm_option' : diagnosis,report);
+          showGameCrash(launchedProfileId,title,detail,kind === 'game_jvm_quotes' ? 'jvm_option' : diagnosis,report,crashEvidence.join(':'));
         }
       } finally {
         launchPending = launchCancelling = running = false;
@@ -6605,7 +6625,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     });
 
     let gameCrash = null;
-    function showGameCrash(id,title,detail,reason,report) {
+    function showGameCrash(id,title,detail,reason,report,evidence = '') {
       const suggestions = {
         heap:['Память Java закончилась. Увеличь выделенную память для этой сборки, если в системе есть запас ОЗУ.','Настройки сборки'],
         memory_reservation:['Java не смогла зарезервировать память. Закрой тяжёлые программы или уменьши выделенную память.','Настройки сборки'],
@@ -6614,7 +6634,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         graphics:['Графический драйвер не предоставил нужную версию OpenGL. Проверь драйвер видеокарты и выбранный графический адаптер.'],
         zako_sodium:['ZakoOpt использует метод, которого нет в установленной версии Sodium. Проверь, выпустил ли автор исправление.','Проверить обновление ZakoOpt']
       };
-      const tip = suggestions[reason] ?? ['Причину не удалось определить автоматически. Подробности могут быть в логах сборки.'];
+      const tip = (reason === 'mods' && evidence ? ['Причина из журнала игры'] : suggestions[reason])
+        ?? [evidence ? 'Причина из журнала игры' : 'Игра завершилась без записи причины в журнале.'];
       gameCrash = {id,reason,report};
       const headings = {heap:'Minecraft исчерпал память',memory_reservation:'Java не смогла выделить память',jvm_option:'Ошибка в аргументах JVM',mods:'Несовместимые моды',graphics:'Ошибка графического драйвера',zako_sodium:'Конфликт ZakoOpt и Sodium'};
       writeLocale($('game-crash-title'),headings[reason] ?? title);
@@ -6622,6 +6643,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       $('game-crash-code').textContent = detail;
       $('game-crash-code').hidden = !detail;
       writeLocale($('game-crash-advice'),tip[0]);
+      $('game-crash-evidence').textContent = evidence;
+      $('game-crash-evidence').hidden = !evidence;
       $('game-crash-fix').hidden = !tip[1];
       $('game-crash-fix').disabled = false;
       $('game-crash-result').hidden = true;
@@ -6673,7 +6696,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
     const resourceHistory = new Map();
     let displayedSamples = [];
-    let resourceStart = 0, resourceMinutes = 5;
+    let resourceStart = 0, resourceMinutes = 5, resourceMetric = 'cpu';
     function updateResourceHistory(id,samples) {
       const entries = new Map((resourceHistory.get(id) ?? []).map(sample => [sample.at,sample]));
       for (const sample of samples) if (Number.isFinite(sample.at)) entries.set(sample.at,sample);
@@ -6684,7 +6707,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     function renderResourcePoint() {
       const sample = displayedSamples[Number($('profile-resource-point').value)];
       if (!sample) return;
-      const cpu = n => Math.round(n)+'%';
+      const cpu = n => new Intl.NumberFormat(launcherLanguage,{style:'percent',maximumFractionDigits:1}).format(n/100);
       const gib = n => (n/1024).toLocaleString(launcherLanguage,{maximumFractionDigits:1})+' '+translated('ГБ');
       $('profile-resource-cpu').textContent = cpu(sample.gameCpu)+' / '+cpu(sample.systemCpu);
       $('profile-resource-memory').textContent = gib(sample.gameMemory)+' / '+gib(sample.systemMemory);
@@ -6696,12 +6719,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         marker.setAttribute('x1',x);
         marker.setAttribute('x2',x);
       }
-      const memoryHigh = sample.systemMemory >= sample.totalMemory*.9;
-      let advice = '';
-      if (memoryHigh) advice = 'ОЗУ почти заполнена. Закрой тяжёлые приложения. Если память занимает Minecraft, проверь объём сборки и текстур.';
-      else if (sample.systemCpu >= 85 && sample.gameCpu >= sample.systemCpu*.65) advice = 'Основная нагрузка на процессор идёт от Minecraft. Уменьши дальность симуляции или ограничь частоту кадров.';
-      else if (sample.systemCpu >= 85) advice = 'Часть нагрузки идёт от других процессов. Проверь вкладку «Процессы» в Диспетчере задач.';
-      writeLocale($('profile-resource-advice'),advice);
+      const memory = resourceMetric === 'memory';
+      writeLocale($('profile-resource-game'),'Minecraft · {0}',memory ? gib(sample.gameMemory) : cpu(sample.gameCpu));
+      const reading = (resourceHistory.get(profileContent.id) ?? []).findLast(point =>
+        point.at <= sample.at && point.at >= sample.at - 6000 && point.processes);
+      const other = reading?.processes[resourceMetric];
+      if (other) {
+        writeLocale($('profile-resource-other'),'Самый нагруженный из измеренных фоновых процессов · {0} (PID {1}) · {2} · {3}',
+          other.name,String(other.pid),memory ? gib(other.value) : cpu(other.value),new Date(reading.at).toLocaleTimeString(launcherLanguage));
+      } else {
+        writeLocale($('profile-resource-other'),'Для этого момента нет замера фоновых процессов.');
+      }
     }
     function renderProfileResources(id) {
       const history = resourceHistory.get(id) ?? [];
@@ -6743,9 +6771,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     $('profile-resource-metrics').addEventListener('click', event => {
       const button = event.target.closest('[data-metric]');
       if (!button) return;
+      resourceMetric = button.dataset.metric;
       for (const option of button.parentElement.children) option.setAttribute('aria-pressed',String(option===button));
       $('profile-resource-cpu-card').hidden = button.dataset.metric !== 'cpu';
       $('profile-resource-memory-card').hidden = button.dataset.metric !== 'memory';
+      renderResourcePoint();
     });
     $('profile-resource-point').addEventListener('input',renderResourcePoint);
     for (const plot of $('profile-resource-panel').querySelectorAll('.resource-plot')) {
