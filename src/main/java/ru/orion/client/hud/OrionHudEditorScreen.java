@@ -67,9 +67,12 @@ public final class OrionHudEditorScreen extends Screen {
     private boolean moving, freeGesture;
     private int sliderRow = -1;
     private int inspectorX = -1, inspectorY;
+    private Inspector closingInspector;
+    private final float[] inspectorToggles = new float[3];
     private float catalogProgress, inspectorProgress, gridProgress;
     private long animationAt;
     private long openedAt;
+    private long gridUntil;
 
     private OrionHudEditorScreen(OrionConfigManager manager) {
         this(manager, null);
@@ -120,7 +123,8 @@ public final class OrionHudEditorScreen extends Screen {
 
     public static boolean editing(Minecraft client) {
         var screen = GleamMinecraft.screen(client);
-        return screen instanceof OrionHudEditorScreen || chatEditor != null && screen == chatEditor.chat && !chatEditor.preview;
+        return screen instanceof OrionHudEditorScreen editor ? !editor.preview
+                : chatEditor != null && screen == chatEditor.chat && !chatEditor.preview;
     }
 
     public static boolean editingIsland() {
@@ -147,6 +151,9 @@ public final class OrionHudEditorScreen extends Screen {
     @Override protected void init() {
         openedAt = System.nanoTime();
         finishGesture();
+        inspectorX = -1;
+        closingInspector = null;
+        gridUntil = 0;
     }
 
     @Override public void removed() {
@@ -206,12 +213,14 @@ public final class OrionHudEditorScreen extends Screen {
             if (catalogProgress > 0) {
                 int start = scene.mark();
                 drawCatalog(scene);
-                scene.animateParts(start, catalogProgress, -5 * (1 - catalogProgress));
+                float progress = ease(catalogProgress);
+                scene.animateParts(start, progress, -5 * (1 - progress));
             }
             if (inspectorProgress > 0) {
                 int start = scene.mark();
                 drawInspector(scene);
-                scene.animateParts(start, inspectorProgress, -4 * (1 - inspectorProgress));
+                float progress = ease(inspectorProgress);
+                scene.animateParts(start, progress, -4 * (1 - progress));
             }
         }
         button(scene, width - 81, BAR_Y, 72, preview ? "Редактировать" : "Просмотр", preview);
@@ -227,12 +236,21 @@ public final class OrionHudEditorScreen extends Screen {
         if (!config.isAnimationsEnabled()) delta = 1F;
         catalogProgress = approach(catalogProgress, catalog, delta);
         inspectorProgress = approach(inspectorProgress, inspector, delta);
-        boolean showGrid = gesture != null && !freeGesture && config.isHudEditorSnap();
+        boolean showGrid = gesture != null && freeGesture ? false
+                : now < gridUntil || gesture != null && config.isHudEditorSnap();
         gridProgress = approach(gridProgress, showGrid, delta);
+        if (inspectorProgress == 0) closingInspector = null;
+        inspectorToggles[0] = approach(inspectorToggles[0], config.isTargetHudEquipment(), delta);
+        inspectorToggles[1] = approach(inspectorToggles[1], config.isTargetHudPing(), delta);
+        inspectorToggles[2] = approach(inspectorToggles[2], config.isTargetHudAttackOnly(), delta);
     }
 
     private static float approach(float value, boolean show, float step) {
         return Math.clamp(value + (show ? step : -step), 0F, 1F);
+    }
+
+    private static float ease(float value) {
+        return value * value * (3F - 2F * value);
     }
 
     private void grid(GuiGraphicsExtractor context) {
@@ -310,8 +328,8 @@ public final class OrionHudEditorScreen extends Screen {
         boolean after = enabled(widget.regionId());
         if (before != after) OrionHudDrag.transition(widget.regionId(), after);
         if (!after && widget.regionId().equals(selected)) {
-            selected = null;
             inspector = false;
+            selected = null;
             finishGesture();
         }
         changed = true;
@@ -351,9 +369,9 @@ public final class OrionHudEditorScreen extends Screen {
         scene.icon("M4 5h12M4 10h12M4 15h12M8 3v4m4 1v4m-5 1v4", x + 10, y + 7, 9, ACCENT, false);
         text(scene, title + " · " + tr("Настройки"), x + 24, y + 5, w - 31, 13, 7, TEXT, "left");
         if (panel.rows() == 5) {
-            toggleRow(scene, panel, 21, "Показывать снаряжение", config.isTargetHudEquipment());
-            toggleRow(scene, panel, 36, "Показывать пинг", config.isTargetHudPing());
-            toggleRow(scene, panel, 51, "Показывать только после атаки", config.isTargetHudAttackOnly());
+            toggleRow(scene, panel, 21, "Показывать снаряжение", inspectorToggles[0]);
+            toggleRow(scene, panel, 36, "Показывать пинг", inspectorToggles[1]);
+            toggleRow(scene, panel, 51, "Показывать только после атаки", inspectorToggles[2]);
         }
         float scale = config.getHudElementScale(region.scaleId());
         drawSlider(scene, panel, 0, "Масштаб", Math.round(scale * 100) + "%", (scale - .35F) / 3.65F);
@@ -364,8 +382,9 @@ public final class OrionHudEditorScreen extends Screen {
     }
 
     private Inspector inspectorLayout() {
+        if (!inspector) return closingInspector;
         var region = region(selected);
-        if (region == null || !inspector && inspectorProgress <= 0) return null;
+        if (region == null) return closingInspector;
         int panelWidth = Math.min(INSPECTOR_W, Math.max(1, width - 12));
         int rows = OrionTargetHud.ID.equals(region.id()) ? 5 : 1;
         if (inspectorX < 0) {
@@ -374,15 +393,21 @@ public final class OrionHudEditorScreen extends Screen {
             inspectorX = Math.clamp(x, 6, Math.max(6, width - panelWidth - 6));
             inspectorY = Math.clamp(region.y(), PANEL_Y, Math.max(PANEL_Y, height - (rows == 5 ? 119 : 48) - 17));
         }
-        return new Inspector(region, inspectorX, inspectorY, panelWidth, rows);
+        closingInspector = new Inspector(region, inspectorX, inspectorY, panelWidth, rows);
+        return closingInspector;
     }
 
-    private static void toggleRow(OrionHudView.Scene scene, Inspector panel, int offset, String label, boolean checked) {
+    private static void toggleRow(OrionHudView.Scene scene, Inspector panel, int offset, String label, float progress) {
         int x = panel.x(), y = panel.y() + offset, w = panel.width();
         text(scene, tr(label), x + 10, y, w - 34, 13, 7, MUTED, "left");
         int left = x + w - 28;
-        scene.box(left, y + 2, 18, 9, 4.5F, checked ? "#295840" : "#21292f", checked ? "#65d7a098" : "#46544f");
-        scene.box(left + (checked ? 10 : 3), y + 4, 5, 5, 2.5F, checked ? ACCENT : "#899992", null);
+        scene.box(left, y + 2, 18, 9, 4.5F, "#21292f", "#46544f");
+        int first = scene.mark();
+        if (progress > 0) {
+            scene.box(left, y + 2, 18, 9, 4.5F, "#295840", "#65d7a098");
+            scene.animateParts(first, progress, 0);
+        }
+        scene.box(left + 3 + 7 * progress, y + 4, 5, 5, 2.5F, progress > .5F ? ACCENT : "#899992", null);
     }
 
     private static int sliderTop(Inspector panel, int row) {
@@ -447,6 +472,7 @@ public final class OrionHudEditorScreen extends Screen {
             }
             var top = hit(x, y);
             if (top != null) {
+                showGridAfterClick(event);
                 boolean close = inspector && top.id().equals(selected);
                 if (!close) inspectorX = -1;
                 selected = top.id(); catalog = false; inspector = !close;
@@ -510,12 +536,17 @@ public final class OrionHudEditorScreen extends Screen {
                 return true;
             }
             boolean resize = onHandle(top, x, y);
+            showGridAfterClick(event);
             if (!top.id().equals(selected)) inspector = false;
             catalog = false; selected = top.id();
             gesture = new Gesture(top, x, y, config.getHudElementScale(top.scaleId()), resize);
             freeGesture = event.hasAltDown();
         }
         return true;
+    }
+
+    private void showGridAfterClick(MouseButtonEvent event) {
+        gridUntil = event.hasAltDown() ? 0 : System.nanoTime() + 300_000_000L;
     }
 
     private OrionHudDrag.Region hit(double x, double y) {
@@ -657,6 +688,7 @@ public final class OrionHudEditorScreen extends Screen {
 
     private void togglePreview() {
         preview = !preview; finishGesture(); catalog = inspector = false;
+        gridUntil = 0;
     }
 
     @Override public boolean keyPressed(KeyEvent event) {

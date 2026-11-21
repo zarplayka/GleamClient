@@ -3707,13 +3707,14 @@ public final class OrionClickGuiScreen extends Screen {
             };
             case FREE_LOOK -> new Setting[]{
                     new KeybindSetting("Клавиша обзора", OrionKeybinds::getFreeLookKey),
-                    new ToggleSetting("Переключение по нажатию", config::isFreeLookToggle, config::setFreeLookToggle)
+                    new ToggleSetting("Переключение по нажатию", config::isFreeLookToggle, config::setFreeLookToggle),
+                    new ToggleSetting("Анимация", config::isFreeLookAnimation, config::setFreeLookAnimation)
             };
             case POTIONS -> new Setting[]{
                     new ToggleSetting("Скрывать ванильные иконки эффектов", config::isPotionsHideVanilla, config::setPotionsHideVanilla),
             };
             case TARGET_HUD -> new Setting[]{
-                    new ChoiceSetting("Расположение", new String[]{"На экране", "Сбоку от цели в 3D"},
+                    new ChoiceSetting("Расположение", new String[]{"На экране", "За целью в 3D"},
                             () -> config.isTargetHudWorld() ? 1 : 0, value -> config.setTargetHudWorld(value == 1)),
                     new ToggleSetting("Показывать только после атаки", config::isTargetHudAttackOnly, config::setTargetHudAttackOnly),
                     new ToggleSetting("Только игроки", config::isTargetHudPlayersOnly, config::setTargetHudPlayersOnly),
