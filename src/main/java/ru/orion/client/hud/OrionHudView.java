@@ -66,7 +66,7 @@ public final class OrionHudView {
         if (!scene.state.equals(previous) || theme != lastTheme
                 || !java.util.Objects.equals(accent, lastAccent)) {
             var state = new JsonObject();
-            state.add("parts", light ? scene.lightParts() : scene.parts);
+            state.add("parts", scene.themedParts(theme));
             state.addProperty("light", light);
             state.addProperty("glass", glass);
             state.addProperty("gleamHud", gleamHud);
@@ -143,6 +143,10 @@ public final class OrionHudView {
         private final JsonArray parts = new JsonArray();
         private boolean animated;
 
+        JsonArray themedParts(int theme) {
+            return theme == 4 ? lightParts() : theme == 5 ? glassParts() : parts;
+        }
+
         private List<OrionGlassCompositor.Panel> glassPanels() {
             var panels = new java.util.ArrayList<OrionGlassCompositor.Panel>();
             for (var entry : parts) {
@@ -169,6 +173,28 @@ public final class OrionHudView {
                 }
             }
             return result;
+        }
+
+        private JsonArray glassParts() {
+            var result = parts.deepCopy();
+            for (var entry : result) {
+                var part = entry.getAsJsonObject();
+                if (!"box".equals(part.get("kind").getAsString())) continue;
+                String raw = part.get("color").getAsString();
+                if (!raw.startsWith("#")) continue;
+                int tint = glassFill(argb(raw));
+                part.addProperty("color", color(tint));
+                if (part.has("border") && tint != argb(raw)) part.addProperty("border", "#f0f8ff38");
+            }
+            return result;
+        }
+
+        private static int glassFill(int value) {
+            int r = value >> 16 & 255, g = value >> 8 & 255, b = value & 255, alpha = value >>> 24;
+            if (Math.max(r, Math.max(g, b)) <= 80 && alpha >= 48) {
+                return Math.round(alpha * .57F) << 24 | 0x20262c;
+            }
+            return value;
         }
 
         private static int lightColor(int value, boolean surface) {
@@ -331,6 +357,7 @@ public final class OrionHudView {
                             case "well" -> light ? 0x16526985 : 0x0dffffff;
                             case "divider" -> light ? 0x38526985 : 0x1cffffff;
                             default -> light ? lightColor(argb(part.get("color").getAsString()), true)
+                                    : glass ? glassFill(argb(part.get("color").getAsString()))
                                     : argb(part.get("color").getAsString());
                         };
                         context.fill(left, top, left + partWidth, top + partHeight, OrionHudDrag.tint(fadeColor(color, opacity)));
@@ -394,7 +421,7 @@ public final class OrionHudView {
             *///?}
         }
 
-        private static int argb(String color) {
+        static int argb(String color) {
             if (color.equals("var(--text)")) return 0xfff5f5f8;
             if (color.equals("var(--muted)")) return 0xffa9aab8;
             long rgba = Long.parseLong(color.substring(1), 16);

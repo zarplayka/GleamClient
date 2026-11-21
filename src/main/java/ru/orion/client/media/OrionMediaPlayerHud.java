@@ -33,6 +33,7 @@ import java.nio.charset.StandardCharsets;
 
 /** Мост острова HUD: HTML/CSS/JS через Lumen, данные и команды остаются в менеджерах Java. */
 public final class OrionMediaPlayerHud {
+    private static final Identifier GLASS_MASK = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "hud_island_glass");
     private static final String ROOT = "/assets/orion-client/";
     private static final String VERSION = FabricLoader.getInstance().getModContainer(OrionClient.MOD_ID)
             .map(mod -> mod.getMetadata().getVersion().getFriendlyString()).orElse("");
@@ -220,6 +221,13 @@ public final class OrionMediaPlayerHud {
 
     private void drawView(GuiGraphicsExtractor graphics, Minecraft client, boolean hud) {
         float scale = client.getWindow().getGuiScale();
+        if (previous != null && previous.get("glass").getAsBoolean() && bounds != null && OrionHudDrag.opacity() >= .99F) {
+            int x = Math.round(bounds.x() / scale), y = Math.round(bounds.y() / scale);
+            int w = Math.round(bounds.width() / scale), h = Math.round(bounds.height() / scale);
+            if (w > 0 && h > 0) ru.orion.client.hud.OrionGlassCompositor.INSTANCE.submitBackground(GLASS_MASK,
+                    graphics, x, y, w, h, w, h, java.util.List.of(new ru.orion.client.hud.OrionGlassCompositor.Panel(
+                            0, 0, w, h, 2 * bounds.radius() / scale)), false);
+        }
         if (view.draw(graphics, 0, 0, graphics.guiWidth(), graphics.guiHeight(),
                 1F / scale, 1F / scale, OrionHudDrag.opacity())) {
             renderedAt = System.nanoTime();
@@ -427,6 +435,7 @@ public final class OrionMediaPlayerHud {
     }
 
     private void dispose() {
+        ru.orion.client.hud.OrionGlassCompositor.INSTANCE.releaseMask(GLASS_MASK);
         OrionHudDrag.forget("island");
         view.dispose();
         previous = null;
