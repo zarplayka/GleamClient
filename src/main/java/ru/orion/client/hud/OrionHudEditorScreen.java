@@ -23,7 +23,7 @@ public final class OrionHudEditorScreen extends Screen {
     private static final String PANEL = "#0f1216eb", BORDER = "#edf7f226", TEXT = "#eef6f1";
     private static final String MUTED = "#aab7b0", ACCENT = "#65d7a0", LINE = "#65d7a0b3";
     private static final int BAR_Y = 10, BAR_H = 19, ROW = 17, HANDLE = 8, PANEL_WIDTH = 136;
-    private static final int PANEL_Y = 35;
+    private static final int PANEL_Y = 35, INSPECTOR_W = 156;
     private static final int[] STEPS = {8, 16, 24, 32};
 
     private record Widget(String id, String name, Predicate<OrionConfig> enabled,
@@ -48,6 +48,12 @@ public final class OrionHudEditorScreen extends Screen {
 
     private record Snap(int position, int line, OrionHudDrag.Region peer) {}
     private record Gesture(OrionHudDrag.Region region, double x, double y, float scale, boolean resize) {}
+    private record Inspector(OrionHudDrag.Region widget, int x, int y, int width, int rows) {
+        int height() { return rows == 5 ? 119 : 48; }
+        boolean contains(double px, double py) {
+            return px >= x && px < x + width && py >= y && py < y + height();
+        }
+    }
 
     private final OrionConfigManager manager;
     private final OrionConfig config;
@@ -58,6 +64,11 @@ public final class OrionHudEditorScreen extends Screen {
     private Gesture gesture;
     private Snap guideX, guideY;
     private boolean preview, catalog, inspector, changed;
+    private boolean moving, freeGesture;
+    private int sliderRow = -1;
+    private int inspectorX = -1, inspectorY;
+    private float catalogProgress, inspectorProgress, gridProgress;
+    private long animationAt;
     private long openedAt;
 
     private OrionHudEditorScreen(OrionConfigManager manager) {
@@ -92,9 +103,9 @@ public final class OrionHudEditorScreen extends Screen {
             ScreenMouseEvents.allowMouseClick(screen).register((current, event) ->
                     chatEditor != editor || !editor.mouseClicked(event, false));
             ScreenMouseEvents.allowMouseDrag(screen).register((current, event, dx, dy) ->
-                    chatEditor != editor || editor.gesture == null || !editor.mouseDragged(event, dx, dy));
+                    chatEditor != editor || !editor.pointerCaptured() || !editor.mouseDragged(event, dx, dy));
             ScreenMouseEvents.allowMouseRelease(screen).register((current, event) ->
-                    chatEditor != editor || editor.gesture == null || !editor.mouseReleased(event));
+                    chatEditor != editor || !editor.pointerCaptured() || !editor.mouseReleased(event));
             ScreenMouseEvents.allowMouseScroll(screen).register((current, x, y, dx, dy) ->
                     chatEditor != editor || !editor.mouseScrolled(x, y, dx, dy));
         });
@@ -112,8 +123,19 @@ public final class OrionHudEditorScreen extends Screen {
         return screen instanceof OrionHudEditorScreen || chatEditor != null && screen == chatEditor.chat && !chatEditor.preview;
     }
 
-    public static boolean draggingIsland() {
-        return chatEditor != null && chatEditor.gesture != null && chatEditor.gesture.region().id().equals("island");
+    public static boolean editingIsland() {
+        return chatEditor != null && !chatEditor.preview && "island".equals(chatEditor.selected);
+    }
+
+    public static boolean claimsIslandPointer(double x, double y) {
+        if (chatEditor == null || chatEditor.preview) return false;
+        var editor = chatEditor;
+        var panel = editor.inspectorLayout();
+        if (editor.inspector && panel != null && panel.contains(x, y)) return true;
+        if (editor.catalog && x >= 9 && x < 9 + PANEL_WIDTH && y >= PANEL_Y
+                && y < PANEL_Y + 19 + editor.catalogRows() * ROW) return true;
+        var region = editor.region("island");
+        return region != null && (editor.onHandle(region, x, y) || editor.onTag(region, x, y));
     }
 
     public static boolean islandHeader(double y, double top, double width, double height) {
@@ -162,9 +184,10 @@ public final class OrionHudEditorScreen extends Screen {
         var client = Minecraft.getInstance();
         if (client.player == null || client.level == null || width <= 0 || height <= 0) return;
         regions = OrionHudDrag.regions().stream().filter(region -> !region.movable() || enabled(region.id())).toList();
+        animate();
         var scene = new OrionHudView.Scene(width, height);
         if (!preview) {
-            if (config.isHudEditorSnap()) grid(context);
+            if (gridProgress > 0) grid(context);
             guides(context);
             for (var region : regions) {
                 if (region.movable()) drawWidget(scene, region, mouseX, mouseY);
@@ -180,8 +203,16 @@ public final class OrionHudEditorScreen extends Screen {
             button(scene, 95, BAR_Y + 2, 15, catalog ? "×" : "+", catalog);
             button(scene, 115, BAR_Y + 2, 24, config.getHudEditorGridStep() + " px", false);
             text(scene, tr("Alt — без привязки"), 0, height - (chat == null ? 18 : 34), width, 12, 7, MUTED, "center");
-            if (catalog) drawCatalog(scene);
-            else if (inspector) drawInspector(scene);
+            if (catalogProgress > 0) {
+                int start = scene.mark();
+                drawCatalog(scene);
+                scene.animateParts(start, catalogProgress, -5 * (1 - catalogProgress));
+            }
+            if (inspectorProgress > 0) {
+                int start = scene.mark();
+                drawInspector(scene);
+                scene.animateParts(start, inspectorProgress, -4 * (1 - inspectorProgress));
+            }
         }
         button(scene, width - 81, BAR_Y, 72, preview ? "Редактировать" : "Просмотр", preview);
         if (chat == null) button(scene, width - 104, BAR_Y, 20, "×", false);
@@ -189,10 +220,26 @@ public final class OrionHudEditorScreen extends Screen {
         overlay.draw(context, scene, 0, 0, width, height);
     }
 
+    private void animate() {
+        long now = System.nanoTime();
+        float delta = animationAt == 0 ? 1F : Math.clamp((now - animationAt) / 150_000_000F, 0F, 1F);
+        animationAt = now;
+        if (!config.isAnimationsEnabled()) delta = 1F;
+        catalogProgress = approach(catalogProgress, catalog, delta);
+        inspectorProgress = approach(inspectorProgress, inspector, delta);
+        boolean showGrid = moving && !freeGesture && config.isHudEditorSnap();
+        gridProgress = showGrid ? approach(gridProgress, true, delta) : 0F;
+    }
+
+    private static float approach(float value, boolean show, float step) {
+        return Math.clamp(value + (show ? step : -step), 0F, 1F);
+    }
+
     private void grid(GuiGraphicsExtractor context) {
         int step = config.getHudEditorGridStep();
-        for (int x = 0; x < width; x += step) context.fill(x, 0, x + 1, height, 0x14cce3da);
-        for (int y = 0; y < height; y += step) context.fill(0, y, width, y + 1, 0x14cce3da);
+        int color = Math.round(25 * gridProgress) << 24 | 0xcce3da;
+        for (int x = 0; x < width; x += step) context.fill(x, 0, x + 1, height, color);
+        for (int y = 0; y < height; y += step) context.fill(0, y, width, y + 1, color);
     }
 
     private void guides(GuiGraphicsExtractor context) {
@@ -235,8 +282,7 @@ public final class OrionHudEditorScreen extends Screen {
         }
         if (active || hovered) {
             scene.box(x, y, w, h, 3, "#00000000", LINE);
-            scene.box(x + Math.max(0, w - HANDLE), y + Math.max(0, h - HANDLE), Math.min(w, HANDLE),
-                    Math.min(h, HANDLE), 2, ACCENT, PANEL);
+            scene.box(handleX(region), handleY(region), HANDLE, HANDLE, 2, ACCENT, PANEL);
         }
     }
 
@@ -277,24 +323,72 @@ public final class OrionHudEditorScreen extends Screen {
         scene.box(9, PANEL_Y, PANEL_WIDTH, 19 + rows * ROW, 7, PANEL, BORDER);
         text(scene, tr("Виджеты"), 16, PANEL_Y + 2, PANEL_WIDTH - 14, 15, 8, TEXT, "left");
         for (int i = 0; i < rows; i++) {
+            int first = scene.mark();
             var widget = WIDGETS.get(catalogOffset + i);
             int y = PANEL_Y + 17 + i * ROW;
             scene.box(13, y, PANEL_WIDTH - 8, ROW - 2, 4, "#edf7f20a", BORDER);
             text(scene, widget.name(), 19, y, PANEL_WIDTH - 29, ROW - 2, 8, TEXT, "left");
             text(scene, widget.enabled().test(config) ? "−" : "+", PANEL_WIDTH - 9, y, 17, ROW - 2,
                     9, ACCENT, "center");
+            float appear = Math.clamp((catalogProgress - i * .025F) * 1.28F, 0F, 1F);
+            scene.animateParts(first, appear, 3 * (1 - appear));
         }
     }
 
     private void drawInspector(OrionHudView.Scene scene) {
+        var panel = inspectorLayout();
+        if (panel == null) return;
+        int x = panel.x(), y = panel.y(), w = panel.width();
+        var region = panel.widget();
+        scene.box(x, y, w, panel.height(), 7, PANEL, BORDER);
+        String title = WIDGETS.stream().filter(widget -> region.id().equals(widget.regionId()) && widget.enabled().test(config))
+                .map(Widget::name).findFirst().orElse(region.id());
+        text(scene, title + " · " + tr("Настройки"), x + 10, y + 5, w - 24, 13, 8, TEXT, "left");
+        if (panel.rows() == 5) {
+            toggleRow(scene, panel, 21, "Показывать снаряжение", config.isTargetHudEquipment());
+            toggleRow(scene, panel, 36, "Показывать пинг", config.isTargetHudPing());
+            toggleRow(scene, panel, 51, "Показывать только после атаки", config.isTargetHudAttackOnly());
+        }
+        float scale = config.getHudElementScale(region.scaleId());
+        drawSlider(scene, panel, 0, "Масштаб", Math.round(scale * 100) + "%", (scale - .35F) / 3.65F);
+        if (panel.rows() == 5) {
+            drawSlider(scene, panel, 1, "Удерживать цель", config.getTargetHudHoldSeconds() + " s",
+                    config.getTargetHudHoldSeconds() / 10F);
+        }
+    }
+
+    private Inspector inspectorLayout() {
         var region = region(selected);
-        if (region == null) return;
-        scene.box(9, PANEL_Y, PANEL_WIDTH, 61, 7, PANEL, BORDER);
-        text(scene, "X " + region.x() + "   Y " + region.y(), 17, PANEL_Y + 3, 107, 14, 8, TEXT, "left");
-        int scale = Math.round(config.getHudElementScale(region.scaleId()) * 100);
-        text(scene, tr("Масштаб") + "  " + scale + "%", 17, PANEL_Y + 21, 107, 12, 8, TEXT, "left");
-        boxButton(scene, 17, PANEL_Y + 36, 22, 17, "−", false);
-        boxButton(scene, 43, PANEL_Y + 36, 22, 17, "+", false);
+        if (region == null || !inspector && inspectorProgress <= 0) return null;
+        int panelWidth = Math.min(INSPECTOR_W, Math.max(1, width - 12));
+        int rows = OrionTargetHud.ID.equals(region.id()) ? 5 : 1;
+        if (inspectorX < 0) {
+            int x = region.x() + region.width() + 10;
+            if (x + panelWidth > width - 6) x = region.x() - panelWidth - 10;
+            inspectorX = Math.clamp(x, 6, Math.max(6, width - panelWidth - 6));
+            inspectorY = Math.clamp(region.y(), PANEL_Y, Math.max(PANEL_Y, height - (rows == 5 ? 119 : 48) - 17));
+        }
+        return new Inspector(region, inspectorX, inspectorY, panelWidth, rows);
+    }
+
+    private static void toggleRow(OrionHudView.Scene scene, Inspector panel, int offset, String label, boolean checked) {
+        int x = panel.x(), y = panel.y() + offset, w = panel.width();
+        text(scene, tr(label), x + 10, y, w - 34, 13, 7, MUTED, "left");
+        boxButton(scene, x + w - 22, y + 1, 11, 11, checked ? "✓" : "", checked);
+    }
+
+    private static int sliderTop(Inspector panel, int row) {
+        return panel.y() + (panel.rows() == 5 ? 67 : 20) + row * 24;
+    }
+
+    private static void drawSlider(OrionHudView.Scene scene, Inspector panel, int row, String name, String value, float fraction) {
+        int x = panel.x() + 10, w = panel.width() - 20, y = sliderTop(panel, row);
+        text(scene, tr(name), x, y, w - 42, 12, 7, MUTED, "left");
+        text(scene, value, x + w - 40, y, 40, 12, 7, ACCENT, "right");
+        float fill = Math.round(w * fraction);
+        scene.box(x, y + 16, w, 2, 1, "#30413a", null);
+        if (fill > 0) scene.box(x, y + 16, fill, 2, 1, ACCENT, null);
+        scene.box(x + fill - 3, y + 14, 6, 6, 3, PANEL, ACCENT);
     }
 
     private void button(OrionHudView.Scene scene, int x, int y, int w, String title, boolean active) {
@@ -338,9 +432,16 @@ public final class OrionHudEditorScreen extends Screen {
         double x = event.x(), y = event.y();
         if (chat != null && y >= height - 14) return false;
         if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT && !preview) {
+            var panel = inspectorLayout();
+            if (inspector && panel != null && panel.contains(x, y)) {
+                inspector = false;
+                return true;
+            }
             var top = hit(x, y);
             if (top != null) {
-                selected = top.id(); catalog = false; inspector = true;
+                boolean close = inspector && top.id().equals(selected);
+                if (!close) inspectorX = -1;
+                selected = top.id(); catalog = false; inspector = !close;
                 return true;
             }
             return chat == null;
@@ -364,18 +465,29 @@ public final class OrionHudEditorScreen extends Screen {
             }
         }
         if (preview) return chat == null;
+        var panel = inspectorLayout();
+        if (inspector && panel != null && panel.contains(x, y)) {
+            if (panel.rows() == 5 && y >= panel.y() + 21 && y < panel.y() + 66) {
+                switch ((int) (y - panel.y() - 21) / 15) {
+                    case 0 -> config.setTargetHudEquipment(!config.isTargetHudEquipment());
+                    case 1 -> config.setTargetHudPing(!config.isTargetHudPing());
+                    case 2 -> config.setTargetHudAttackOnly(!config.isTargetHudAttackOnly());
+                }
+                changed = true;
+            } else {
+                int row = y >= sliderTop(panel, 1) && panel.rows() == 5 ? 1 : 0;
+                if (y >= sliderTop(panel, row) + 10 && y < sliderTop(panel, row) + 23) {
+                    sliderRow = row;
+                    updateSlider(panel, x);
+                }
+            }
+            return true;
+        }
         if (x >= 9 && x < 9 + PANEL_WIDTH && y >= PANEL_Y) {
             if (catalog && y < PANEL_Y + 19 + catalogRows() * ROW) {
                 int row = (int) (y - PANEL_Y - 17);
                 if (row >= 0 && row / ROW < catalogRows()) {
                     toggle(WIDGETS.get(catalogOffset + row / ROW));
-                }
-                return true;
-            }
-            if (inspector && y < PANEL_Y + 61) {
-                if (y >= PANEL_Y + 36 && y < PANEL_Y + 53 && x >= 17 && x < 65) {
-                    var region = region(selected);
-                    if (region != null) scale(region, x < 39 ? -.05F : x >= 43 ? .05F : 0);
                 }
                 return true;
             }
@@ -389,7 +501,7 @@ public final class OrionHudEditorScreen extends Screen {
                 hide(top.id());
                 return true;
             }
-            boolean resize = x >= top.x() + top.width() - HANDLE && y >= top.y() + top.height() - HANDLE;
+            boolean resize = onHandle(top, x, y);
             if (!top.id().equals(selected)) inspector = false;
             catalog = false; selected = top.id();
             gesture = new Gesture(top, x, y, config.getHudElementScale(top.scaleId()), resize);
@@ -398,6 +510,8 @@ public final class OrionHudEditorScreen extends Screen {
     }
 
     private OrionHudDrag.Region hit(double x, double y) {
+        var current = region(selected);
+        if (current != null && current.movable() && onHandle(current, x, y)) return current;
         var island = chat == null ? null : region("island");
         if (island != null && enabled("island") && island.contains(x, y)
                 && islandHeader(y, island.y(), island.width(), island.height())) return island;
@@ -412,11 +526,24 @@ public final class OrionHudEditorScreen extends Screen {
         for (int i = regions.size() - 1; i >= 0; i--) {
             var region = regions.get(i);
             if (!region.movable() || !enabled(region.id())) continue;
-            boolean handle = x >= region.x() + region.width() - HANDLE && y >= region.y() + region.height() - HANDLE;
-            if (region.contains(x, y) && (chat == null || !region.id().equals("island") || handle && region.id().equals(selected))) return region;
+            if (region.contains(x, y) && (chat == null || !region.id().equals("island") || editingIsland())) return region;
         }
         return null;
     }
+
+    private int handleX(OrionHudDrag.Region region) {
+        return Math.clamp(region.x() + region.width() - 2, 0, Math.max(0, width - HANDLE));
+    }
+
+    private int handleY(OrionHudDrag.Region region) {
+        return Math.clamp(region.y() + region.height() - 2, 0, Math.max(0, height - HANDLE - (chat == null ? 0 : 14)));
+    }
+
+    private boolean onHandle(OrionHudDrag.Region region, double x, double y) {
+        return x >= handleX(region) && x < handleX(region) + HANDLE && y >= handleY(region) && y < handleY(region) + HANDLE;
+    }
+
+    private boolean pointerCaptured() { return gesture != null || sliderRow >= 0; }
 
     private boolean onTag(OrionHudDrag.Region region, double x, double y) {
         int top = tagY(region);
@@ -428,7 +555,13 @@ public final class OrionHudEditorScreen extends Screen {
     }
 
     @Override public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
-        if (gesture == null || preview || event.button() != InputConstants.MOUSE_BUTTON_LEFT) return true;
+        if (preview || event.button() != InputConstants.MOUSE_BUTTON_LEFT) return true;
+        if (sliderRow >= 0) {
+            var panel = inspectorLayout();
+            if (panel != null) updateSlider(panel, event.x());
+            return true;
+        }
+        if (gesture == null) return true;
         var start = gesture.region();
         double offsetX = event.x() - gesture.x(), offsetY = event.y() - gesture.y();
         if (gesture.resize()) {
@@ -437,6 +570,9 @@ public final class OrionHudEditorScreen extends Screen {
             config.setHudElementScale(start.scaleId(), scale);
             start.setPosition().accept(start.x(), start.y());
         } else {
+            if (!moving && Math.hypot(offsetX, offsetY) < 2) return true;
+            moving = true;
+            freeGesture = event.hasAltDown();
             var live = region(start.id());
             if (live == null) return true;
             int maxX = Math.max(0, width - live.width()), maxY = Math.max(0, height - live.height());
@@ -479,9 +615,15 @@ public final class OrionHudEditorScreen extends Screen {
         return best;
     }
 
-    private void scale(OrionHudDrag.Region region, float delta) {
-        config.setHudElementScale(region.scaleId(), config.getHudElementScale(region.scaleId()) + delta);
-        region.setPosition().accept(region.x(), region.y());
+    private void updateSlider(Inspector panel, double x) {
+        float fraction = (float) Math.clamp((x - panel.x() - 10) / Math.max(1, panel.width() - 20), 0, 1);
+        if (sliderRow == 0) {
+            var region = panel.widget();
+            config.setHudElementScale(region.scaleId(), Math.round((.35F + 3.65F * fraction) * 100) / 100F);
+            region.setPosition().accept(region.x(), region.y());
+        } else {
+            config.setTargetHudHoldSeconds(Math.round(10 * fraction));
+        }
         changed = true;
     }
 
@@ -491,7 +633,7 @@ public final class OrionHudEditorScreen extends Screen {
     }
 
     private void finishGesture() {
-        gesture = null; guideX = guideY = null;
+        gesture = null; guideX = guideY = null; moving = false; freeGesture = false; sliderRow = -1;
     }
 
     private void togglePreview() {

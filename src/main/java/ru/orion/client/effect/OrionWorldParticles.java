@@ -17,6 +17,7 @@ import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfigManager;
 
@@ -76,9 +77,9 @@ public final class OrionWorldParticles {
         // Скорость спавна пропорциональна цели, иначе большие значения не набираются:
         // частицы живут ~4.2 с, и фиксированные 5 штук за тик спавна дают потолок ~300.
         int spawnCount = Math.min(Math.max(1, targetCount / 50), targetCount - particles.size());
+        int color = OrionRainbow.orElse(parseColor(configManager.getConfig().getWorldParticlesColor()));
         for (int i = 0; i < spawnCount; i++) {
-            particles.add(createParticle(current, now,
-                    OrionRainbow.orElse(parseColor(configManager.getConfig().getWorldParticlesColor()))));
+            particles.add(createParticle(current, now, color));
         }
         lastSpawnMs = now;
     }
@@ -124,53 +125,42 @@ public final class OrionWorldParticles {
         Minecraft client = Minecraft.getInstance();
         Camera camera = GleamMinecraft.camera(client);
         Vec3 cameraPosition = camera.position();
-        Quaternionf cameraRotation = camera.rotation();
+        Quaternionf cameraRotation = new Quaternionf(camera.rotation());
         RenderType renderType = RenderTypes.entityTranslucentEmissive(GLOW_TEXTURE);
         long now = System.currentTimeMillis();
 
-        PoseStack poseStack = context.poseStack();
+        context.submitNodeCollector().submitCustomGeometry(context.poseStack(), renderType,
+                (pose, vertices) -> buildBatch(pose, vertices, cameraPosition, cameraRotation, now));
+    }
+
+    private void buildBatch(PoseStack.Pose pose, VertexConsumer vertices, Vec3 cameraPosition,
+                            Quaternionf cameraRotation, long now) {
+        var offset = new Vector3f();
+        var normal = cameraRotation.transform(0F, 0F, 1F, new Vector3f());
         for (Particle particle : particles) {
             float age = (now - particle.createdAtMs) / (float) LIFE_MS;
             float alpha = fade(age);
-            if (alpha <= 0.01F) {
+            if (alpha <= 0.01F || particle.position.distanceToSqr(cameraPosition) > 48 * 48) {
                 continue;
             }
 
             int color = withAlpha(particle.color, Math.round(180.0F * alpha));
             float size = SIZE * (0.7F + alpha * 0.3F);
 
-            poseStack.pushPose();
-            poseStack.translate(
-                    particle.position.x - cameraPosition.x,
-                    particle.position.y - cameraPosition.y,
-                    particle.position.z - cameraPosition.z
-            );
-            ru.orion.client.render.GleamPose.rotate(poseStack, cameraRotation);
-            ru.orion.client.render.GleamPose.rotate(poseStack, com.mojang.math.Axis.ZP.rotation(particle.rotation));
-            poseStack.scale(size, size, 1.0F);
-            context.submitNodeCollector().submitCustomGeometry(
-                    poseStack,
-                    renderType,
-                    (pose, vertexConsumer) -> buildQuad(pose, vertexConsumer, color)
-            );
-            poseStack.popPose();
+            float x = (float) (particle.position.x - cameraPosition.x);
+            float y = (float) (particle.position.y - cameraPosition.y);
+            float z = (float) (particle.position.z - cameraPosition.z);
+            float cos = Mth.cos(particle.rotation) * size, sin = Mth.sin(particle.rotation) * size;
+            for (int corner = 0; corner < 4; corner++) {
+                float u = corner == 1 || corner == 2 ? 1F : 0F;
+                float v = corner < 2 ? 1F : 0F;
+                float a = u * 2 - 1, b = 1 - v * 2;
+                cameraRotation.transform(a * cos - b * sin, a * sin + b * cos, 0F, offset);
+                vertices.addVertex(pose, x + offset.x, y + offset.y, z + offset.z)
+                        .setUv(u, v).setColor(color).setOverlay(0).setLight(FULL_BRIGHT)
+                        .setNormal(pose, normal.x, normal.y, normal.z);
+            }
         }
-    }
-
-    private static void buildQuad(PoseStack.Pose pose, VertexConsumer vc, int color) {
-        addVertex(pose, vc, -1.0F, -1.0F, 0.0F, 1.0F, color);
-        addVertex(pose, vc, 1.0F, -1.0F, 1.0F, 1.0F, color);
-        addVertex(pose, vc, 1.0F, 1.0F, 1.0F, 0.0F, color);
-        addVertex(pose, vc, -1.0F, 1.0F, 0.0F, 0.0F, color);
-    }
-
-    private static void addVertex(PoseStack.Pose pose, VertexConsumer vc, float x, float y, float u, float v, int color) {
-        vc.addVertex(pose, x, y, 0.0F)
-                .setUv(u, v)
-                .setColor(color)
-                .setOverlay(0)
-                .setLight(FULL_BRIGHT)
-                .setNormal(pose, 0.0F, 0.0F, 1.0F);
     }
 
     private static float fade(float age) {

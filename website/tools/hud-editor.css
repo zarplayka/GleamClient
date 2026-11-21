@@ -34,9 +34,11 @@ body { margin: 0; }
 .grid {
   background-image: linear-gradient(#d8eae210 1px, transparent 1px), linear-gradient(90deg, #d8eae210 1px, transparent 1px);
   background-size: var(--step, 16px) var(--step, 16px);
-  transition: opacity 180ms var(--ease-out);
+  opacity: 0;
+  transition: opacity 110ms var(--ease-out);
 }
-.free .grid, .view .grid { opacity: 0; }
+.moving:not(.free) .grid { opacity: 1; }
+.view .grid { opacity: 0; }
 .view #stage::before { filter: none; }
 .view #stage::after { opacity: .24; }
 #hud-editor > header {

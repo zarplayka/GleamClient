@@ -43,6 +43,9 @@ public final class OrionBetterNearHud {
     private List<NearPlayer> previousPlayers;
     private int previousAccent;
     private int previousRainbowStep = Integer.MIN_VALUE;
+    private LocalPlayer sampledPlayer;
+    private int sampledTick = -1, sampledRadius;
+    private List<NearPlayer> sampledPlayers = List.of();
 
     private int guiWidth;
     private int guiHeight;
@@ -76,7 +79,14 @@ public final class OrionBetterNearHud {
         }
 
         boolean editing = OrionHudEditorScreen.editing(client);
-        List<NearPlayer> nearPlayers = collectNearPlayers(client, player, config.getBetterNearRadius());
+        int radius = config.getBetterNearRadius();
+        if (sampledPlayer != player || sampledTick != player.tickCount || sampledRadius != radius) {
+            sampledPlayer = player;
+            sampledTick = player.tickCount;
+            sampledRadius = radius;
+            sampledPlayers = collectNearPlayers(client, player, radius);
+        }
+        List<NearPlayer> nearPlayers = sampledPlayers;
         // В редакторе пустая панель остаётся доступной для перемещения.
         if (nearPlayers.isEmpty() && !editing) {
             release();
