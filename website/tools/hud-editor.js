@@ -15,7 +15,6 @@ const glyphs={
   heart:'M10 17 4 11a4 4 0 0 1 6-5 4 4 0 0 1 6 5z'
 };
 const widgetGlyphs={
-  status:'M2 10h4l2-6 4 12 2-6h4',
   keys:'M7 7h6v6H7zM7 7H5a2 2 0 1 1 2-2zm6 0V5a2 2 0 1 1 2 2zm0 6h2a2 2 0 1 1-2 2zm-6 0v2a2 2 0 1 1-2-2z',
   potions:'M10 3c2.7 3.5 5 6.1 5 9a5 5 0 1 1-10 0c0-2.9 2.3-5.5 5-9z',
   target:'M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0zM12.5 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z',
@@ -30,6 +29,7 @@ const widgetGlyphs={
 };
 function uiIcon(name){
   const widgetGlyph=widgetGlyphs[name];
+  if (!widgetGlyph && !glyphs[name]) return '';
   return '<svg class="ui-icon'+(widgetGlyph?' widget-icon':'')+'" viewBox="0 0 20 20" aria-hidden="true">'
     +'<path d="'+(widgetGlyph||glyphs[name])+'"/></svg>';
 }
@@ -42,7 +42,7 @@ const box=(x,y,w,h,radius,color)=>part('box',x,y,w,h,{radius,color});
 const well=(x,y,w,h,radius)=>part('well',x,y,w,h,{radius});
 const keyPart=(text,x,y,w=17,mouse='')=>part('key',x,y,w,17,{text,mouse,radius:6,pressed:text==='W'});
 const icon=(path,x,y,size,fill=false)=>part('icon',x,y,size,size,{path,fill,color:'var(--accent)'});
-const art=(image,x,y,size)=>({image,x,y,size});
+const art=(image,x,y,size,muted=false)=>({image,x,y,size,muted});
 const health='#b7df52', muted='var(--muted)';
 function targetScene(){
   return [panelPart(152,45,8),well(5,5,30,30,4),
@@ -53,11 +53,11 @@ function targetScene(){
     label('/ 20',59,16,24,12,8,muted),label('2.5 m',116,16,30,12,7.5,muted,'right'),
     box(6,39,140,3,1.5,'#a3b39329'),box(6,39,95,3,1.5,health)];
 }
-const effects=[panelPart(110,53,5),icon(widgetGlyphs.potions,8,5,11),
-  label('Эффекты',23,2,79,17,8,'var(--text)','left',true),rule(7,19,96)];
-for(const [index,[name,time]] of [['Скорость 2','1:42'],['Сила 1','0:38']].entries()){
-  const y=21+14*index;
-  effects.push(label(name,19,y,63,13,7),part('timer',79,y+1,23,11,{text:time}));
+const effects=[panelPart(123,56,4),part('icon',8,5,10,10,{path:widgetGlyphs.potions,color:'#8970e5'}),
+  label('Potions',22,2,89,15,8,'var(--text)','left',true)];
+for(const [index,[name,time]] of [['Resistance I','2m2s'],['Fire Resistance I','2m2s']].entries()){
+  const y=22+15*index;
+  effects.push(label(name,22,y,65,15,7.5,muted),label(time,88,y,26,15,7.5,'var(--text)','right',true));
 }
 const near=[panelPart(127,61,5),icon(widgetGlyphs.nearby,8,6,11),
   label('Игроки рядом',23,3,81,17,8,'var(--text)','left',true),
@@ -76,8 +76,8 @@ function score(text,glyph){
 }
 const catalog={
   status:{name:'HUD / MediaPlayer',w:366,h:34,x:.5,y:.055,on:true,island:true},
-  keys:{name:'Keystrokes',w:55,h:55,x:.18,y:.31,on:true,parts:[keyPart('W',19,0),keyPart('A',0,19),keyPart('S',19,19),keyPart('D',38,19),keyPart('',19,38,36),keyPart('',0,38,17,'L')]},
-  potions:{name:'Potions',w:110,h:53,x:.96,y:.32,on:true,parts:effects,art:[art(0,8,24,8),art(1,8,38,8)]},
+  keys:{name:'Keystrokes',w:55,h:55,x:.18,y:.31,on:true,parts:[keyPart('W',19,0),keyPart('A',0,19),keyPart('S',19,19),keyPart('D',38,19),keyPart('',19,38),keyPart('',0,38,17,'L'),keyPart('',38,38,17,'R')]},
+  potions:{name:'Potions',w:123,h:56,x:.96,y:.32,on:true,parts:effects,art:[art(2,9,25,8,true),art(2,9,40,8)]},
   target:{name:'TargetHud',w:152,h:45,x:.24,y:.64,on:true,parts:targetScene(),art:[art('face',6,6,28),...[7,8,9,10,3,5].map((id,i)=>art(id,39+10*i,28,9))]},
   nearby:{name:'BetterNear',w:127,h:61,x:.035,y:.43,on:true,parts:near},
   inventory:{name:'InventoryHUD',w:178,h:64,x:.94,y:.83,on:true,parts:inventory,art:[3,4,5,6].map((id,i)=>art(id,5+i*19,5,16))},
@@ -220,11 +220,6 @@ function mountScene(el,def,track=false){
     const view=frame.contentWindow.paradox;
     if(def.template==='world-invite.html')setupInvitePreview(doc,view,state);
     view.update(state);
-    if(el.dataset.key==='keys'){
-      const mouse=doc.querySelector('.key .mouse');
-      mouse.setAttribute('aria-label','Левая кнопка мыши');
-      mouse.innerHTML=uiIcon('mouse');
-    }
     if(def.template==='chat-notification.html')view.opening(1);
     if(!reducedMotion.matches&&!el.hidden&&!el.classList.contains('inactive')){
       surface.animate([{opacity:0,translate:'0 5px'},{opacity:1,translate:'0 0'}],
@@ -233,9 +228,10 @@ function mountScene(el,def,track=false){
   };
   frame.src='/editor-live/'+(def.island?'island/':def.template||'widgets.html');
   surface.append(frame);
-  for(const {image,x,y,size} of def.art||[]){
+  for(const {image,x,y,size,muted} of def.art||[]){
     const overlay=document.createElement('span');
     overlay.className='art';overlay.style.cssText='left:'+x+'px;top:'+y+'px;width:'+size+'px;height:'+size+'px';
+    if(muted)overlay.style.filter='grayscale(1)';
     if(image==='face'){
       overlay.style.backgroundImage="url('launcher-default-skin.png')";
       overlay.style.backgroundSize=(size*8)+'px';overlay.style.backgroundPosition=(-size)+'px '+(-size)+'px';
@@ -295,7 +291,7 @@ function save(){
 }
 function geometry(id){
   const el=$('widget-'+id), m=models[id];
-  const base=Math.min(1,Math.max(.55,stage.clientWidth/640));
+  const base=clamp(Math.min(stage.clientWidth/960,stage.clientHeight/540),.55,1);
   const scale=Math.min(m.scale*base,stage.clientWidth/el.offsetWidth,stage.clientHeight/el.offsetHeight);
   return {base,scale,w:Math.max(0,stage.clientWidth-el.offsetWidth*scale),h:Math.max(0,stage.clientHeight-el.offsetHeight*scale)};
 }

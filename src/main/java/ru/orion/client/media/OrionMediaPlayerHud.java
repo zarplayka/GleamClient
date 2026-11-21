@@ -25,6 +25,7 @@ import ru.orion.client.gui.OrionClickGuiScreen;
 import ru.orion.client.gui.OrionGuiLanguage;
 import ru.orion.client.gui.OrionLumenView;
 import ru.orion.client.hud.OrionHudDrag;
+import ru.orion.client.hud.OrionHudEditorScreen;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,6 +39,7 @@ public final class OrionMediaPlayerHud {
     private static byte[] document;
     private final OrionConfigManager manager;
     private final OrionMediaController controller;
+    private final OrionHudDrag drag = new OrionHudDrag("island");
     private final OrionLumenView view = new OrionLumenView("hud-island/index.html", "hud_island",
             ROOT + "fonts/paradox/ParadoxSans-Regular.ttf", OrionMediaPlayerHud::loadDocument);
     private JsonObject previous;
@@ -46,7 +48,9 @@ public final class OrionMediaPlayerHud {
     private Bounds bounds;
     private Bounds portrait;
     private boolean captured, visible, fallbackHud;
-    private long renderedAt;
+    private long renderedAt, lastCompactFrame;
+    private int lastFrameWidth, lastFrameHeight, lastFrameGuiScale;
+    private float collapsedWidth;
     private int coverGeneration = -1;
     private String coverAsset = "";
     private long lyricsRevision = -1;
@@ -73,12 +77,12 @@ public final class OrionMediaPlayerHud {
                 });
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (!(screen instanceof ChatScreen)) return;
-            ScreenEvents.afterExtract(screen).register((current, graphics, x, y, delta) -> drawIsland(graphics));
             ScreenMouseEvents.allowMouseClick(screen).register((current, event) -> {
                 if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || !interactive()) return true;
                 float ratio = client.getWindow().getGuiScale();
                 float x = (float) event.x() * ratio, y = (float) event.y() * ratio;
                 if (bounds == null || !bounds.contains(x, y)) return true;
+                if (OrionHudEditorScreen.editing(client) && OrionHudEditorScreen.islandHeader(y, bounds.y, bounds.width, bounds.height)) return true;
                 captured = true;
                 view.move(x, y);
                 view.press(x, y);
@@ -101,6 +105,14 @@ public final class OrionMediaPlayerHud {
             });
         });
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> dispose());
+    }
+
+    public void registerChatRendering() {
+        ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+            if (screen instanceof ChatScreen) {
+                ScreenEvents.afterExtract(screen).register((current, graphics, x, y, delta) -> drawIsland(graphics));
+            }
+        });
     }
 
     private boolean interactive() {
@@ -139,6 +151,23 @@ public final class OrionMediaPlayerHud {
         }
         visible = true;
         var window = client.getWindow();
+        int width = window.getWidth(), height = window.getHeight(), ratio = window.getGuiScale();
+        boolean chatPointer = chatPointerAvailable(client) && !OrionHudEditorScreen.draggingIsland();
+        boolean wasInteractive = previous != null && previous.get("interactive").getAsBoolean();
+        long now = System.nanoTime();
+        boolean compactCached = !chatPointer && !wasInteractive && !OrionHudEditorScreen.editing(client)
+                && previous != null && previous.get("hud").getAsBoolean() == config.isHudEnabled()
+                && previous.get("media").getAsBoolean() == config.isMediaPlayerEnabled()
+                && width == lastFrameWidth && height == lastFrameHeight && ratio == lastFrameGuiScale
+                && now - lastCompactFrame < 50_000_000L;
+        if (compactCached) {
+            drawView(graphics, client, config.isHudEnabled());
+            return;
+        }
+        lastCompactFrame = now;
+        lastFrameWidth = width;
+        lastFrameHeight = height;
+        lastFrameGuiScale = ratio;
         view.resize(window.getWidth(), window.getHeight(), 1F);
         if (controller.getCoverGeneration() != coverGeneration) {
             coverGeneration = controller.getCoverGeneration();
@@ -147,10 +176,9 @@ public final class OrionMediaPlayerHud {
             if (cover != null) view.registerImage(coverAsset, cover);
         }
 
-        JsonObject data = controller.viewState();
+        JsonObject data = config.isMediaPlayerEnabled() ? controller.viewState() : new JsonObject();
         if (config.isMediaPlayerEnabled() && config.getAnimatedLyrics().isEnabled() && controller.isActive())
             data.addProperty("lyricsStatus", lyricsStatus());
-        boolean chatPointer = chatPointerAvailable(client);
         data.addProperty("cover", coverAsset);
         data.addProperty("hud", config.isHudEnabled());
         data.addProperty("version", VERSION);
@@ -159,11 +187,12 @@ public final class OrionMediaPlayerHud {
         data.addProperty("light", config.getClickGuiTheme() == 4);
         data.addProperty("animated", config.isMediaPlayerAnimated());
         data.addProperty("accent", config.getClickGuiAccent());
-        data.addProperty("scale", islandScale(config) * Math.clamp(window.getWidth() / 1920F, .8F, 1.5F));
+        data.addProperty("scale", islandScale(config) * Math.clamp(Math.min(width / 1920F, height / 1080F), .55F, 1.5F));
         data.addProperty("placement", config.getMediaPlayerCorner());
         data.addProperty("custom", config.isMediaPlayerPositionCustom());
-        data.addProperty("x", config.getMediaPlayerX() * window.getGuiScale());
-        data.addProperty("y", Math.max(0, config.getExtraHudPosition("island", 1)) * window.getGuiScale());
+        var position = islandPosition(graphics, config, 0);
+        data.addProperty("x", position.x() * ratio);
+        data.addProperty("y", position.y() * ratio);
         data.addProperty("username", config.isHudEnabled() ? OrionNameProtect.replace(client.getUser().getName()) : "");
         data.addProperty("fps", config.isHudEnabled() ? client.getFps() : 0);
         data.addProperty("ping", ping(client));
@@ -178,20 +207,33 @@ public final class OrionMediaPlayerHud {
         } else {
             if (captured) cancelPointer();
             captured = false;
-            view.move(-1000, -1000);
+            if (wasInteractive) view.move(-1000, -1000);
         }
         view.frame();
+        drawView(graphics, client, config.isHudEnabled());
+    }
+
+    private void drawView(GuiGraphicsExtractor graphics, Minecraft client, boolean hud) {
+        float scale = client.getWindow().getGuiScale();
         if (view.draw(graphics, 0, 0, graphics.guiWidth(), graphics.guiHeight(),
-                1F / window.getGuiScale(), 1F / window.getGuiScale(), OrionHudDrag.opacity())) {
+                1F / scale, 1F / scale, OrionHudDrag.opacity())) {
             renderedAt = System.nanoTime();
         }
         receive();
-        if (config.isHudEnabled()) drawPortrait(graphics, client);
+        if (hud) drawPortrait(graphics, client);
         if (bounds != null) {
-            float scale = window.getGuiScale();
+            int offset = Math.round((bounds.width - collapsedWidth) / (2F * scale));
             OrionHudDrag.observe("island", Math.round(bounds.x / scale), Math.round(bounds.y / scale),
-                    Math.round(bounds.width / scale), Math.round(bounds.height / scale), this::setPosition, "media");
+                    Math.round(bounds.width / scale), Math.round(bounds.height / scale),
+                    drag.tracked(manager.getConfig(), graphics.guiWidth(), graphics.guiHeight(),
+                            (x, y) -> setPosition(x + offset, y)), "media");
         }
+    }
+
+    private OrionHudDrag.Position islandPosition(GuiGraphicsExtractor graphics, OrionConfig config, int defaultX) {
+        return drag.restore(config, graphics.guiWidth(), graphics.guiHeight(),
+                config.isMediaPlayerPositionCustom() ? config.getMediaPlayerX() : -1,
+                config.getExtraHudPosition("island", 1), defaultX, 0);
     }
 
     private void drawPortrait(GuiGraphicsExtractor graphics, Minecraft client) {
@@ -273,15 +315,17 @@ public final class OrionMediaPlayerHud {
         int width = Math.max(client.font.width(track) + 12, hud ? detailsX + client.font.width(details) + 6
                 : client.font.width(brand) + 12);
         int scaledWidth = (int) Math.ceil(width * scale);
-        int x = config.isMediaPlayerPositionCustom() ? config.getMediaPlayerX() : switch (config.getMediaPlayerCorner()) {
+        int defaultX = switch (config.getMediaPlayerCorner()) {
             case "TOP_LEFT" -> 5;
             case "TOP_RIGHT" -> screenWidth - scaledWidth - 5;
             default -> (screenWidth - scaledWidth) / 2;
         };
         int scaledHeight = (int) Math.ceil((track.isBlank() ? 17 : 30) * scale);
-        x = Math.clamp(x, 0, Math.max(0, screenWidth - scaledWidth));
-        int y = Math.clamp(config.getExtraHudPosition("island", 1), 0, Math.max(0, graphics.guiHeight() - scaledHeight));
-        OrionHudDrag.observe("island", x, y, scaledWidth, scaledHeight, this::setPosition, "media");
+        var position = islandPosition(graphics, config, defaultX);
+        int x = Math.clamp(position.x(), 0, Math.max(0, screenWidth - scaledWidth));
+        int y = Math.clamp(position.y(), 0, Math.max(0, graphics.guiHeight() - scaledHeight));
+        OrionHudDrag.observe("island", x, y, scaledWidth, scaledHeight,
+                drag.tracked(config, graphics.guiWidth(), graphics.guiHeight(), this::setPosition), "media");
         var pose = graphics.pose();
         pose.pushMatrix();
         try {
@@ -348,6 +392,7 @@ public final class OrionMediaPlayerHud {
             float x = event.get("x").getAsFloat(), y = event.get("y").getAsFloat();
             float w = event.get("width").getAsFloat(), h = event.get("height").getAsFloat(), r = event.get("radius").getAsFloat();
             if (Float.isFinite(x + y + w + h + r) && w > 0 && h > 0 && r >= 0) bounds = new Bounds(x, y, w, h, r);
+            collapsedWidth = event.has("collapsedWidth") ? event.get("collapsedWidth").getAsFloat() : w;
             return;
         }
         if ("portrait".equals(action)) {

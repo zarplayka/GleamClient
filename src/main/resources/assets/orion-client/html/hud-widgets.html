@@ -47,7 +47,7 @@ window.paradox = {update(state) {
     if (root.children.length !== state.parts.length || !root.querySelector('.key')) {
       root.innerHTML = state.parts.map(part => '<div class="part '+part.kind+'" style="'+geometry(part)+'"'
         +(part.kind === 'key' && part.mouse ? ' data-counter' : '')+'>'
-        +(part.kind === 'key' ? (part.mouse ? '<span class="mouse" aria-label="'+escapeHtml(part.mouse)+'"><svg viewBox="0 0 20 20"><path d="M6 6a4 4 0 0 1 8 0v7a4 4 0 0 1-8 0zm0 3h8m-4-7v7"/></svg></span>' : '')
+        +(part.kind === 'key' ? (part.mouse ? '<span class="mouse" aria-label="'+(part.mouse === 'R' ? 'RMB' : 'LMB')+'"><svg viewBox="0 0 20 20"><path d="M6 6a4 4 0 0 1 8 0v7a4 4 0 0 1-8 0zm0 3h8m-4-7v7"/><path d="'+(part.mouse === 'R' ? 'M12 5v2' : 'M8 5v2')+'"/></svg></span>' : '')
           +'<strong></strong>' : '')+'</div>').join('');
     }
     for (let i = 0; i < state.parts.length; ++i) {

@@ -92,27 +92,17 @@ public final class OrionBetterNearHud {
             previousRainbowStep = rainbowStep;
         }
         int height = HEADER_HEIGHT + Math.max(1, nearPlayers.size()) * ROW_HEIGHT + BOTTOM_PAD;
-        float scale = config.getHudElementScale("nearby");
+        float scale = config.getHudElementScale("nearby") * OrionHudView.layoutScale(context.guiWidth(), context.guiHeight());
         float fit = OrionHudView.fit(scale, PANEL_WIDTH, height, context.guiWidth(), context.guiHeight());
         guiWidth = Math.max(1, Math.round(PANEL_WIDTH * fit));
         guiHeight = Math.max(1, Math.round(height * fit));
 
-        int x = effectiveX(context, config);
-        int y = effectiveY(context, config);
-        var position=drag.update(x,y,guiWidth,guiHeight,(nx,ny)->{config.setBetterNearX(nx);config.setBetterNearY(ny);});
+        var position = drag.place(context, config, guiWidth, guiHeight, config.getBetterNearX(), config.getBetterNearY(),
+                context.guiWidth() - guiWidth - SCREEN_MARGIN, SCREEN_MARGIN, (x, y) -> {
+                    config.setBetterNearX(x);
+                    config.setBetterNearY(y);
+                });
         view.draw(context, scene, position.x(), position.y(), guiWidth, guiHeight);
-    }
-
-    private int effectiveX(GuiGraphicsExtractor context, OrionConfig config) {
-        int x = config.getBetterNearX() < 0
-                ? context.guiWidth() - guiWidth - SCREEN_MARGIN
-                : config.getBetterNearX();
-        return Mth.clamp(x, 0, Math.max(0, context.guiWidth() - guiWidth));
-    }
-
-    private int effectiveY(GuiGraphicsExtractor context, OrionConfig config) {
-        int y = config.getBetterNearY() < 0 ? SCREEN_MARGIN : config.getBetterNearY();
-        return Mth.clamp(y, 0, Math.max(0, context.guiHeight() - guiHeight));
     }
 
     private List<NearPlayer> collectNearPlayers(Minecraft client, LocalPlayer player, int radius) {

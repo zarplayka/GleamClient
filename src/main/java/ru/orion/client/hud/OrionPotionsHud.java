@@ -3,6 +3,7 @@ package ru.orion.client.hud;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -17,15 +18,19 @@ import java.util.List;
 
 public final class OrionPotionsHud {
     public static final String ID = "potions_hud";
-    private static final int WIDTH = 110, HEADER = 21, ROW = 14, INSET = 8, TIMER = 23;
+    private static final int WIDTH = 123, HEADER = 22, ROW = 15, INSET = 9;
+    private static final String[] LEVELS = {"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"};
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView(ID);
     private final OrionHudDrag drag = new OrionHudDrag(ID);
     private List<Effect> shown;
     private String emptyText;
     private OrionHudView.Scene scene;
+    private LocalPlayer sampledPlayer;
+    private int sampledTick;
+    private List<Effect> sampled = List.of();
 
-    private record Effect(Identifier sprite, String name, String duration, boolean expiring) {}
+    private record Effect(Identifier sprite, String name, String duration) {}
 
     public OrionPotionsHud(OrionConfigManager manager) {
         this.manager = manager;
@@ -42,10 +47,15 @@ public final class OrionPotionsHud {
             release();
             return;
         }
-        float tickRate = client.level.tickRateManager().tickrate();
-        var effects = client.player.getActiveEffects().stream().filter(MobEffectInstance::showIcon)
-                .sorted(Comparator.comparing(effect -> effect.getEffect().value().getDescriptionId()))
-                .map(effect -> describe(effect, tickRate)).toList();
+        if (sampledPlayer != client.player || sampledTick != client.player.tickCount) {
+            sampledPlayer = client.player;
+            sampledTick = client.player.tickCount;
+            float tickRate = client.level.tickRateManager().tickrate();
+            sampled = client.player.getActiveEffects().stream().filter(MobEffectInstance::showIcon)
+                    .sorted(Comparator.comparing(effect -> effect.getEffect().value().getDescriptionId()))
+                    .map(effect -> describe(effect, tickRate)).toList();
+        }
+        var effects = sampled;
         if (effects.isEmpty() && !OrionHudEditorScreen.editing(client)) {
             release();
             return;
@@ -56,20 +66,19 @@ public final class OrionPotionsHud {
             shown = effects;
             emptyText = empty;
             scene = new OrionHudView.Scene(WIDTH, height);
-            scene.panel(0, 0, WIDTH, height, 5);
-            scene.icon("M10 3c2.7 3.5 5 6.1 5 9a5 5 0 1 1-10 0c0-2.9 2.3-5.5 5-9z", 8, 5, 11, "var(--accent)", false);
-            scene.label(OrionGuiLanguage.translate("Эффекты"), 23, 2, 79, 17, 8, "var(--text)", "left", true);
-            scene.divider(7, 19, WIDTH - 14);
-            if (effects.isEmpty()) scene.label(empty, INSET, HEADER, WIDTH - 2 * INSET, ROW, 6F, "var(--muted)", "left", false);
-            int timerX = WIDTH - INSET - TIMER;
+            scene.panel(0, 0, WIDTH, height, 4);
+            scene.icon("M10 3c2.7 3.5 5 6.1 5 9a5 5 0 1 1-10 0c0-2.9 2.3-5.5 5-9z", 8, 5, 10, "#8970e5", false);
+            scene.label("Potions", 22, 2, 89, 15, 8, "var(--text)", "left", true);
+            if (effects.isEmpty()) scene.label(empty, INSET, HEADER, WIDTH - 2 * INSET, ROW, 7, "var(--muted)", "left", false);
             for (int i = 0; i < effects.size(); i++) {
                 Effect effect = effects.get(i);
                 int y = HEADER + i * ROW;
-                scene.label(effect.name, 19, y, timerX - 20, 13, 7, "var(--text)", "left", false);
-                scene.timer(effect.duration, timerX, y + 1, TIMER, 11, effect.expiring);
+                scene.label(effect.name, 22, y, 65, ROW, 7.5F, "var(--muted)", "left", false);
+                scene.label(effect.duration, 88, y, 26, ROW, 7.5F, "var(--text)", "right", true);
             }
         }
-        float fit = OrionHudView.fit(config.getHudScale() * config.getHudElementScale(ID),
+        float fit = OrionHudView.fit(config.getHudScale() * config.getHudElementScale(ID)
+                        * OrionHudView.layoutScale(graphics.guiWidth(), graphics.guiHeight()),
                 WIDTH, height, graphics.guiWidth(), graphics.guiHeight());
         int w = Math.max(1, Math.round(WIDTH * fit)), h = Math.max(1, Math.round(height * fit));
         var pos = drag.placeWidget(graphics, w, h, graphics.guiWidth() - w - 8, 68, manager);
@@ -93,11 +102,12 @@ public final class OrionPotionsHud {
     private static Effect describe(MobEffectInstance effect, float tickRate) {
         var type = effect.getEffect().value();
         var sprite = BuiltInRegistries.MOB_EFFECT.getKey(type).withPrefix("mob_effect/");
-        String name = type.getDisplayName().getString() + " " + (effect.getAmplifier() + 1);
+        int level = effect.getAmplifier() + 1;
+        String name = type.getDisplayName().getString() + " " + (level > 0 && level <= LEVELS.length ? LEVELS[level - 1] : level);
         int seconds = (int) Math.ceil(Math.max(0, effect.getDuration()) / (double) tickRate);
         int minutes = seconds / 60;
-        String duration = effect.isInfiniteDuration() ? "∞" : minutes + ":" + (seconds % 60 < 10 ? "0" : "") + seconds % 60;
-        return new Effect(sprite, name, duration, !effect.isInfiniteDuration() && seconds <= 10);
+        String duration = effect.isInfiniteDuration() ? "∞" : (minutes > 0 ? minutes + "m" : "") + seconds % 60 + "s";
+        return new Effect(sprite, name, duration);
     }
 
     private void release() {

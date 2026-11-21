@@ -36,14 +36,16 @@ public final class OrionInventoryHud {
                 return;
             }
         }
-        float elementScale = config.getHudScale() * config.getHudElementScale("inventory");
+        float elementScale = config.getHudScale() * config.getHudElementScale("inventory")
+                * OrionHudView.layoutScale(context.guiWidth(), context.guiHeight());
         float fit = OrionHudView.fit(elementScale, DESIGN_W, DESIGN_H, context.guiWidth(), context.guiHeight());
         int guiW = Math.max(1, Math.round(DESIGN_W * fit));
         int guiH = Math.max(1, Math.round(DESIGN_H * fit));
-        int x=config.getInventoryHudX()<0?context.guiWidth()-guiW-8:config.getInventoryHudX();
-        int y=config.getInventoryHudY()<0?(context.guiHeight()-guiH)/2:config.getInventoryHudY();
-        x=Math.max(0,Math.min(x,context.guiWidth()-guiW));y=Math.max(0,Math.min(y,context.guiHeight()-guiH));
-        var position=drag.update(x,y,guiW,guiH,(nx,ny)->{config.setInventoryHudX(nx);config.setInventoryHudY(ny);});
+        var position = drag.place(context, config, guiW, guiH, config.getInventoryHudX(), config.getInventoryHudY(),
+                context.guiWidth() - guiW - 8, (context.guiHeight() - guiH) / 2, (x, y) -> {
+                    config.setInventoryHudX(x);
+                    config.setInventoryHudY(y);
+                });
         view.draw(context, scene, position.x(), position.y(), guiW, guiH);
         context.nextStratum();
         var pose=context.pose();pose.pushMatrix();

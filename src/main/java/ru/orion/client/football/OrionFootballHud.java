@@ -55,16 +55,12 @@ public final class OrionFootballHud {
             updateScore(score);
             lastScore = score;
         }
-        float size = config.getHudElementScale(SCORE.getPath());
+        float size = config.getHudElementScale(SCORE.getPath()) * OrionHudView.layoutScale(context.guiWidth(), context.guiHeight());
         int width = Math.min(context.guiWidth(), Math.max(1, Math.round(scoreWidth * size)));
         int height = Math.min(context.guiHeight(), Math.max(1, Math.round(scoreHeight * size)));
-        int maxX = context.guiWidth() - width, maxY = context.guiHeight() - height;
-        int x = config.getFootballScoreX() < 0 ? maxX / 2 : Math.clamp(config.getFootballScoreX(), 0, maxX);
-        int y = Math.clamp(config.getFootballScoreY() < 0 ? context.guiHeight() / 2 - 53 : config.getFootballScoreY(), 0, maxY);
-        var position = drag.update(x, y, width, height, config::setFootballScorePosition);
-        x = position.x();
-        y = position.y();
-        scoreView.draw(context, scoreScene, x, y, width, height);
+        var position = drag.place(context, config, width, height, config.getFootballScoreX(), config.getFootballScoreY(),
+                (context.guiWidth() - width) / 2, context.guiHeight() / 2 - 53, config::setFootballScorePosition);
+        scoreView.draw(context, scoreScene, position.x(), position.y(), width, height);
         if (football.charging()) {
             renderCharge(context, Math.round(football.charge() * 100), 255);
         } else {
