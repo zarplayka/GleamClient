@@ -1219,7 +1219,7 @@ dependencies = [
 
 [[package]]
 name = "gleam-launcher"
-version = "0.1.85"
+version = "0.1.86"
 dependencies = [
  "base64 0.22.1",
  "chrono",
