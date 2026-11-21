@@ -195,14 +195,12 @@ function animate(now) {
     && mouse.y>=bounds.y-3 && mouse.y<=bounds.y+bounds.height+3;
   if (inside) { if(!hoverStarted)hoverStarted=now; lastHovered=now; } else hoverStarted=0;
   const target = state.interactive && (range || inside && now-hoverStarted>=85 || phase>.005 && now-lastHovered<130) ? 1 : 0;
-  if (!dragging) {
-    if (state.animated===false) {phase=target;speed=0;}
-    else {
-      const distance=phase-target, coefficient=speed+19*distance, decay=Math.exp(-19*delta);
-      phase=clamp(target+(distance+coefficient*delta)*decay);
-      speed=(speed-19*coefficient*delta)*decay;
-      if(Math.abs(phase-target)<.001 && Math.abs(speed)<.02){phase=target;speed=0;}
-    }
+  if (state.animated===false) {phase=target;speed=0;}
+  else {
+    const distance=phase-target, coefficient=speed+19*distance, decay=Math.exp(-19*delta);
+    phase=clamp(target+(distance+coefficient*delta)*decay);
+    speed=(speed-19*coefficient*delta)*decay;
+    if(Math.abs(phase-target)<.001 && Math.abs(speed)<.02){phase=target;speed=0;}
   }
   layout();
   if(phase>.2) updateProgress(now);
