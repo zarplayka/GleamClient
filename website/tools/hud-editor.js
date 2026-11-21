@@ -68,9 +68,8 @@ for(const [i,[name,distance]] of [['Quartz','8'],['Nova','21']].entries()){
   near.push(icon(i?'m5 11 5-5 5 5M10 6v9':'m7 6 7 0v7M14 6l-8 8',9,y+2,11),label(name,24,y,65,15,8),
     label(distance,80,y,28,15,8,'var(--text)','right',true),label('m',110,y,7,15,6.5,muted));
 }
-const inventory=[panelPart(178,80,5),icon(widgetGlyphs.inventory,6,3,11),
-  label('Инвентарь',21,1,105,15,8,'var(--text)','left',true),
-  rule(5,16,168),...Array.from({length:27},(_,i)=>box(4+i%9*19,20+Math.floor(i/9)*19,18,18,2,'#ffffff10'))];
+const inventory=[panelPart(178,64,5),
+  ...Array.from({length:27},(_,i)=>box(4+i%9*19,4+Math.floor(i/9)*19,18,18,2,'#ffffff10'))];
 function score(text,glyph){
   return [panelPart(67,18,4),icon(glyph,6,4,10),
     label(text,21,0,40,18,8,'var(--text)','left',true)];
@@ -81,7 +80,7 @@ const catalog={
   potions:{name:'Potions',w:110,h:53,x:.96,y:.32,on:true,parts:effects,art:[art(0,8,24,8),art(1,8,38,8)]},
   target:{name:'TargetHud',w:152,h:45,x:.24,y:.64,on:true,parts:targetScene(),art:[art('face',6,6,28),...[7,8,9,10,3,5].map((id,i)=>art(id,39+10*i,28,9))]},
   nearby:{name:'BetterNear',w:127,h:61,x:.035,y:.43,on:true,parts:near},
-  inventory:{name:'InventoryHUD',w:178,h:80,x:.94,y:.83,on:true,parts:inventory,art:[3,4,5,6].map((id,i)=>art(id,5+i*19,21,16))},
+  inventory:{name:'InventoryHUD',w:178,h:64,x:.94,y:.83,on:true,parts:inventory,art:[3,4,5,6].map((id,i)=>art(id,5+i*19,5,16))},
   football:{name:'Football · счёт',w:67,h:18,x:.5,y:.32,on:false,parts:score('Голы: 2',widgetGlyphs.football)},
   basketball:{name:'Basketball · счёт',w:67,h:18,x:.5,y:.4,on:false,parts:score('Счёт: 4',widgetGlyphs.basketball)},
   scoreboard:{name:'Scoreboard · контекст',w:84,h:27,x:1,y:.5,fixed:true,parts:[
