@@ -427,6 +427,13 @@ function findAlignment(position, size, limit, peers, axis){
   const anchors=[0,.5,1];
   let best=null;
   let nearest=alignmentDistance;
+  const extent=limit+size;
+  for(const fraction of anchors){
+    const snapped=fraction*limit,distance=Math.abs(snapped-position);
+    if(distance<=nearest){
+      nearest=distance;best={position:snapped,line:fraction*extent,peer:null,sameAnchor:true};
+    }
+  }
   // Prefer matching edges or centers when candidates are equally close.
   for(const fraction of anchors){
     for(const peer of peers){
@@ -453,12 +460,12 @@ function showAlignment(xMatch,yMatch,left,top,width,height){
   horizontal.hidden=!yMatch;
   if(xMatch){
     const {peer,line}=xMatch;
-    const start=Math.max(0,Math.min(top,peer.y)-10),end=Math.max(top+height,peer.y+peer.height)+10;
+    const start=peer?Math.max(0,Math.min(top,peer.y)-10):0,end=peer?Math.max(top+height,peer.y+peer.height)+10:stage.clientHeight;
     vertical.style.cssText='left:'+Math.round(line)+'px;top:'+start+'px;height:'+(end-start)+'px';
   }
   if(yMatch){
     const {peer,line}=yMatch;
-    const start=Math.max(0,Math.min(left,peer.x)-10),end=Math.max(left+width,peer.x+peer.width)+10;
+    const start=peer?Math.max(0,Math.min(left,peer.x)-10):0,end=peer?Math.max(left+width,peer.x+peer.width)+10:stage.clientWidth;
     horizontal.style.cssText='top:'+Math.round(line)+'px;left:'+start+'px;width:'+(end-start)+'px';
   }
 }
@@ -474,6 +481,7 @@ layers.onpointerdown=e=>{
   const bounds=widgetBounds(id,origin);
   drag={id,pointer:e.pointerId,x:e.clientX,y:e.clientY,left:bounds.x,top:bounds.y,width:bounds.width,height:bounds.height,
     peers:resize?[]:alignmentPeers(id,origin),base:g.base,scale:m.scale,resize,moved:false};
+  stage.classList.toggle('moving',snap&&!e.altKey);
   el.setPointerCapture(e.pointerId);e.preventDefault();
 };
 layers.onpointermove=e=>{
