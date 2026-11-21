@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-gleam-hud>
 <head>
 <meta charset="utf-8">
 <link rel="stylesheet" data-hud-theme href="hud-theme.css">
@@ -7,24 +7,24 @@
 *{box-sizing:border-box}
 body{margin:0;overflow:hidden}
 [hidden]{display:none!important}
-.invite{position:relative;margin:5px 2px 0;width:324px;height:69px;padding:8px 57px 9px 10px;opacity:0}
-.invite[data-click]{padding-right:79px}
-.main{display:flex;align-items:center;gap:9px}
-.face{display:flex;align-items:center;justify-content:center;width:34px;height:34px;flex:none;overflow:hidden;border:1px solid var(--line);border-radius:var(--hud-inner-radius);color:var(--accent);background:var(--well);font-size:13px}
-.face img{width:32px;height:32px;object-fit:cover}
+.invite{position:relative;display:flex;align-items:center;margin:2px;width:302px;height:66px;padding:9px 51px 10px 11px;border-radius:14px;opacity:0}
+.invite[data-click]{padding-right:81px}
+.main{display:flex;align-items:center;gap:9px;width:100%;min-width:0}
+.face{display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex:none;overflow:hidden;border:1px solid var(--accent);border-radius:7px;color:var(--accent);background:var(--well);font-size:13px}
+.face img{width:30px;height:30px;object-fit:cover}
 .copy{min-width:0;flex:1}
 .copy>*{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#title{font-size:13px;font-weight:700;line-height:16px}
-#world,#hint{font-size:11px;line-height:13px}
-#world{margin-top:2px;color:var(--muted)}
-#hint{margin-top:2px;color:var(--accent)}
-.hold-key{position:absolute;top:22px;right:16px;width:34px;height:28px;padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:11px}
-.invite[data-click] .hold-key{width:56px}
+#title{font-size:12px;font-weight:700;line-height:15px}
+#world,#hint{line-height:13px;margin-top:1px}
+#world{font-size:10.5px;color:var(--muted)}
+#hint{font-size:10px;color:var(--accent)}
+.hold-key{position:absolute;top:19px;right:18px;width:26px;height:26px;padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:11px;border-radius:50%}
+.invite[data-click] .hold-key{width:56px;border-radius:6px}
 .hold-key span{position:relative}
 #fill{position:absolute;bottom:0;left:0;width:100%;height:0;background:var(--accent);opacity:.36}
 .dismiss{position:absolute;top:2px;right:3px;color:var(--muted);width:18px;height:18px;display:flex;justify-content:center;align-items:center;font-size:15px;line-height:1}
-.countdown{position:absolute;left:10px;right:10px;bottom:6px;height:2px;overflow:hidden;border-radius:1px}
-#remaining{height:2px;background:var(--accent)}
+.countdown{position:absolute;left:13px;right:13px;bottom:5px;height:1px;overflow:hidden}
+#remaining{height:1px;background:var(--accent)}
 </style>
 </head>
 <body class="gleam-hud">

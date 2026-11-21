@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html data-gleam-hud>
 <head>
 <meta charset="utf-8">
 <link rel="stylesheet" data-hud-theme href="hud-theme.css">
@@ -45,7 +45,7 @@ body { margin: 0; overflow: hidden; font-size: 14px; }
       if (avatar) portrait.src = 'assets/' + avatar + '.png';
       const root = document.documentElement;
       root.toggleAttribute('data-light',light);
-      if (/^#[0-9a-f]{6}$/i.test(accent)) root.style.setProperty('--accent',accent);
+      if (light && /^#[0-9a-f]{6}$/i.test(accent)) root.style.setProperty('--accent',accent);
       else root.style.removeProperty('--accent');
     },
     opening(progress) {

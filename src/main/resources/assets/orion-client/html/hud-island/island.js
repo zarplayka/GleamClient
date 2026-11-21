@@ -84,7 +84,7 @@ function refresh() {
   document.documentElement.toggleAttribute('data-light',Boolean(state.light));
   island.toggleAttribute('data-solid',!state.glass);
   island.toggleAttribute('data-interactive',Boolean(state.interactive));
-  const accent = /^#[0-9a-f]{6}$/i.test(state.accent ?? '') ? state.accent : state.light ? '#596fa8' : '#c2d2f7';
+  const accent = !state.light ? '#65d7a0' : /^#[0-9a-f]{6}$/i.test(state.accent ?? '') ? state.accent : '#596fa8';
   island.style.setProperty('--accent',accent);
   for (const id of ['version','username','metrics']) $(id).hidden = !state.hud;
   text('version',state.version ?? '');
@@ -152,7 +152,7 @@ function layout() {
     window.innerHeight/expandedHeight);
   if (scale <= 0) return currentBounds;
   const width = mix(CAP_W,FULL_W,phase), height = mix(active()?TRACK_H:HUD_H,expandedHeight,phase);
-  const radius = mix(13,20,phase);
+  const radius = mix(21,20,phase);
   const edge = width*scale/2;
   let center = window.innerWidth/2;
   if (state.custom) center=(Number(state.x)||0)+CAP_W*scale/2;
@@ -167,7 +167,7 @@ function layout() {
     island.style.left=x/scale+'px';
     island.style.top=y/scale+'px';
     island.style.width=width+'px'; island.style.height=height+'px';
-    surface.style.borderRadius='0 0 '+radius+'px '+radius+'px';
+    surface.style.borderRadius=radius+'px';
     compact.style.opacity=String(clamp(1-phase/.25));
     full.style.opacity=String(clamp((phase-.22)/.7));
     full.style.transform='translateY('+mix(-8,0,phase)+'px)';
