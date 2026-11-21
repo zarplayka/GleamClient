@@ -79,6 +79,8 @@ public final class OrionMediaPlayerHud {
             if (!(screen instanceof ChatScreen)) return;
             ScreenMouseEvents.allowMouseClick(screen).register((current, event) -> {
                 if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || !interactive()) return true;
+                if (OrionHudEditorScreen.editingIsland()
+                        || OrionHudEditorScreen.claimsIslandPointer(event.x(), event.y())) return true;
                 float ratio = client.getWindow().getGuiScale();
                 float x = (float) event.x() * ratio, y = (float) event.y() * ratio;
                 if (bounds == null || !bounds.contains(x, y)) return true;
@@ -152,7 +154,8 @@ public final class OrionMediaPlayerHud {
         visible = true;
         var window = client.getWindow();
         int width = window.getWidth(), height = window.getHeight(), ratio = window.getGuiScale();
-        boolean chatPointer = chatPointerAvailable(client) && !OrionHudEditorScreen.draggingIsland();
+        boolean layoutEditing = OrionHudEditorScreen.editingIsland();
+        boolean chatPointer = chatPointerAvailable(client) && !layoutEditing;
         boolean wasInteractive = previous != null && previous.get("interactive").getAsBoolean();
         long now = System.nanoTime();
         boolean compactCached = !chatPointer && !wasInteractive && !OrionHudEditorScreen.editing(client)
@@ -183,6 +186,7 @@ public final class OrionMediaPlayerHud {
         data.addProperty("hud", config.isHudEnabled());
         data.addProperty("version", VERSION);
         data.addProperty("interactive", chatPointer);
+        data.addProperty("layoutEditing", layoutEditing);
         data.addProperty("media", config.isMediaPlayerEnabled());
         data.addProperty("light", config.getClickGuiTheme() == 4);
         data.addProperty("animated", config.isMediaPlayerAnimated());

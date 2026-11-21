@@ -203,6 +203,17 @@ public final class OrionHudView {
             part.addProperty("bold", bold);
         }
 
+        int mark() { return parts.size(); }
+
+        void animateParts(int from, float opacity, float shift) {
+            if (opacity >= 1F && shift == 0F) return;
+            for (int i = from; i < parts.size(); i++) {
+                var part = parts.get(i).getAsJsonObject();
+                part.addProperty("opacity", opacity * (part.has("opacity") ? part.get("opacity").getAsFloat() : 1F));
+                part.addProperty("y", part.get("y").getAsFloat() + shift);
+            }
+        }
+
         public void icon(String path, float x, float y, float size, String color, boolean fill) {
             JsonObject part = part("icon", x, y, size, size);
             part.addProperty("path", path);
@@ -231,6 +242,8 @@ public final class OrionHudView {
                         ? (light ? 0xff4257b2 : 0xffc2d2f7) : argb(customAccent);
                 for (var value : parts) {
                     var part = value.getAsJsonObject();
+                    float opacity = part.has("opacity") ? part.get("opacity").getAsFloat() : 1F;
+                    if (opacity < .02F) continue;
                     int left = Math.round(part.get("x").getAsFloat()), top = Math.round(part.get("y").getAsFloat());
                     int partWidth = Math.round(part.get("w").getAsFloat()), partHeight = Math.round(part.get("h").getAsFloat());
                     String kind = part.get("kind").getAsString();
@@ -261,7 +274,7 @@ public final class OrionHudView {
                             case "divider" -> 0x1cffffff;
                             default -> argb(part.get("color").getAsString());
                         };
-                        context.fill(left, top, left + partWidth, top + partHeight, OrionHudDrag.tint(color));
+                        context.fill(left, top, left + partWidth, top + partHeight, OrionHudDrag.tint(fadeColor(color, opacity)));
                     } else if (kind.equals("label") || kind.equals("timer")) {
                         boolean timer = kind.equals("timer");
                         boolean expiring = timer && part.get("expiring").getAsBoolean();
@@ -273,7 +286,7 @@ public final class OrionHudView {
                             String ink = part.get("color").getAsString();
                             color = ink.equals("var(--accent)") ? accent : argb(ink);
                         }
-                        color = OrionHudDrag.tint(color);
+                        color = OrionHudDrag.tint(fadeColor(color, opacity));
                         float scale = (timer ? 5.8F : part.get("size").getAsFloat()) / font.lineHeight;
                         String label = font.plainSubstrByWidth(part.get("text").getAsString(), Math.max(0, (int) (partWidth / scale)));
                         float textWidth = font.width(label) * scale;
@@ -299,6 +312,10 @@ public final class OrionHudView {
             } finally {
                 pose.popMatrix();
             }
+        }
+
+        private static int fadeColor(int color, float opacity) {
+            return color & 0xffffff | Math.round((color >>> 24) * opacity) << 24;
         }
 
         private static void fillTile(GuiGraphicsExtractor context, int x, int y, int width, int height, int color) {

@@ -14,7 +14,9 @@ import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.gui.OrionGuiLanguage;
 
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeMap;
 
 public final class OrionPotionsHud {
     public static final String ID = "potions_hud";
@@ -23,14 +25,25 @@ public final class OrionPotionsHud {
     private final OrionConfigManager manager;
     private final OrionHudView view = new OrionHudView(ID);
     private final OrionHudDrag drag = new OrionHudDrag(ID);
-    private List<Effect> shown;
+    private List<VisibleEffect> shown;
     private String emptyText;
     private OrionHudView.Scene scene;
     private LocalPlayer sampledPlayer;
     private int sampledTick;
     private List<Effect> sampled = List.of();
+    private final TreeMap<Identifier, EffectRow> rows = new TreeMap<>(Comparator.comparing(Identifier::toString));
+    private boolean effectsChanged;
+    private long animationAt;
 
     private record Effect(Identifier sprite, String name, String duration) {}
+    private record VisibleEffect(Effect effect, float y, float visibility) {}
+    private static final class EffectRow {
+        private Effect effect;
+        private float visibility;
+        private boolean present;
+
+        private EffectRow(Effect effect) { this.effect = effect; }
+    }
 
     public OrionPotionsHud(OrionConfigManager manager) {
         this.manager = manager;
@@ -45,22 +58,60 @@ public final class OrionPotionsHud {
         var config = manager.getConfig();
         if (client.player == null || client.level == null || (!config.isPotionsEnabled() && !drag.fadingOut())) {
             release();
+            sampledPlayer = null;
+            rows.clear();
+            animationAt = 0L;
             return;
         }
         if (sampledPlayer != client.player || sampledTick != client.player.tickCount) {
+            if (sampledPlayer != client.player) {
+                rows.clear();
+                animationAt = 0L;
+            }
             sampledPlayer = client.player;
             sampledTick = client.player.tickCount;
             float tickRate = client.level.tickRateManager().tickrate();
-            sampled = client.player.getActiveEffects().stream().filter(MobEffectInstance::showIcon)
+            var current = client.player.getActiveEffects().stream().filter(MobEffectInstance::showIcon)
                     .sorted(Comparator.comparing(effect -> effect.getEffect().value().getDescriptionId()))
                     .map(effect -> describe(effect, tickRate)).toList();
+            effectsChanged = !current.equals(sampled) || rows.isEmpty();
+            sampled = current;
         }
-        var effects = sampled;
-        if (effects.isEmpty() && !OrionHudEditorScreen.editing(client)) {
+        if (effectsChanged) {
+            rows.values().forEach(row -> row.present = false);
+            for (var effect : sampled) {
+                var row = rows.computeIfAbsent(effect.sprite(), unused -> new EffectRow(effect));
+                row.present = true;
+                row.effect = effect;
+            }
+            effectsChanged = false;
+        }
+        var clientEditing = OrionHudEditorScreen.editing(client);
+        long now = System.nanoTime();
+        float delta = animationAt == 0L || !config.isAnimationsEnabled() ? 1F
+                : Math.clamp((now - animationAt) / 190_000_000F, 0F, 1F);
+        animationAt = now;
+        var effects = new ArrayList<VisibleEffect>(rows.size());
+        float total = 0F;
+        float panelOpacity = clientEditing ? 1F : 0F;
+        var iterator = rows.values().iterator();
+        while (iterator.hasNext()) {
+            var row = iterator.next();
+            row.visibility = Math.clamp(row.visibility + (row.present ? delta : -delta), 0F, 1F);
+            if (row.visibility == 0F && !row.present) {
+                iterator.remove();
+                continue;
+            }
+            float opacity = row.visibility * row.visibility * (3 - 2 * row.visibility);
+            effects.add(new VisibleEffect(row.effect, HEADER + total + (1 - opacity) * 4, opacity));
+            total += ROW * opacity;
+            panelOpacity = Math.max(panelOpacity, opacity);
+        }
+        if (effects.isEmpty() && !clientEditing) {
             release();
             return;
         }
-        int height = HEADER + Math.max(1, effects.size()) * ROW + 4;
+        int height = HEADER + Math.max(ROW, Math.round(total)) + 4;
         String empty = OrionGuiLanguage.translate("Нет активных эффектов");
         if (!effects.equals(shown) || !empty.equals(emptyText)) {
             shown = effects;
@@ -69,12 +120,13 @@ public final class OrionPotionsHud {
             scene.panel(0, 0, WIDTH, height, 4);
             scene.icon("M10 3c2.7 3.5 5 6.1 5 9a5 5 0 1 1-10 0c0-2.9 2.3-5.5 5-9z", 8, 5, 10, "#8970e5", false);
             scene.label("Potions", 22, 2, 89, 15, 8, "var(--text)", "left", true);
+            scene.animateParts(0, panelOpacity, 0);
             if (effects.isEmpty()) scene.label(empty, INSET, HEADER, WIDTH - 2 * INSET, ROW, 7, "var(--muted)", "left", false);
-            for (int i = 0; i < effects.size(); i++) {
-                Effect effect = effects.get(i);
-                int y = HEADER + i * ROW;
-                scene.label(effect.name, 22, y, 65, ROW, 7.5F, "var(--muted)", "left", false);
-                scene.label(effect.duration, 88, y, 26, ROW, 7.5F, "var(--text)", "right", true);
+            for (var row : effects) {
+                int first = scene.mark();
+                scene.label(row.effect().name(), 22, row.y(), 65, ROW, 7.5F, "var(--muted)", "left", false);
+                scene.label(row.effect().duration(), 88, row.y(), 26, ROW, 7.5F, "var(--text)", "right", true);
+                scene.animateParts(first, row.visibility(), 0);
             }
         }
         float fit = OrionHudView.fit(config.getHudScale() * config.getHudElementScale(ID)
@@ -90,9 +142,10 @@ public final class OrionPotionsHud {
         try {
             pose.translate(pos.x(), pos.y());
             pose.scale(w / (float) WIDTH, h / (float) height);
-            for (int i = 0; i < effects.size(); i++) {
-                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, effects.get(i).sprite, INSET, HEADER + i * ROW + 3, 8, 8,
-                        OrionHudDrag.opacity());
+            for (var row : effects) {
+                if (row.visibility() <= 0F) continue;
+                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, row.effect().sprite(), INSET, Math.round(row.y()) + 3, 8, 8,
+                        OrionHudDrag.opacity() * row.visibility());
             }
         } finally {
             pose.popMatrix();
@@ -113,5 +166,6 @@ public final class OrionPotionsHud {
     private void release() {
         drag.cancel();
         view.dispose();
+        shown = null;
     }
 }

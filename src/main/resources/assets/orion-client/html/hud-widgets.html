@@ -35,7 +35,8 @@ const escapeHtml = value => String(value).replace(/[&<>"']/g, char =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]);
 function geometry(part) {
   return 'left:'+part.x+'px;top:'+part.y+'px;width:'+part.w+'px;height:'+part.h+'px;'
-    +(part.radius ? 'border-radius:'+part.radius+'px;' : '');
+    +(part.radius ? 'border-radius:'+part.radius+'px;' : '')
+    +(part.opacity === undefined ? '' : 'opacity:'+part.opacity+';');
 }
 window.paradox = {update(state) {
   const theme = document.documentElement;

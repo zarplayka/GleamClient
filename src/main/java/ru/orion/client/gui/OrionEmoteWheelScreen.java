@@ -18,7 +18,7 @@ import ru.orion.client.keybind.OrionKeybinds;
 public final class OrionEmoteWheelScreen extends Screen {
     private static final int WIDTH = 392, HEIGHT = 420;
     private static final int CENTER_X = WIDTH / 2, CENTER_Y = 196;
-    private static final int RADIUS = 103, INNER = 53, OUTER = 146;
+    private static final int RADIUS = 110, INNER = 74, OUTER = 146;
     private static final int CONTROL_Y = 354;
     private static final int OPTION_TOP = 117, OPTION_STEP = 36, PICKER_CONTROLS = 310;
     private static final long OPEN_NANOS = 210_000_000L;
@@ -62,7 +62,7 @@ public final class OrionEmoteWheelScreen extends Screen {
     }
 
     @Override public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, width, height, Math.round(44F * ease()) << 24);
+        context.fill(0, 0, width, height, Math.round(76F * ease()) << 24 | 0x0b1217);
     }
 
     @Override
