@@ -6,8 +6,40 @@ fn main() {
     }
     embed_client_jars();
     embed_curseforge_key();
+    embed_minecraft_profiler();
     export_cosmetic_preview();
     tauri_build::build();
+}
+
+fn java_tool(name: &str) -> std::path::PathBuf {
+    use std::{env, path::PathBuf};
+    env::var_os("JAVA_HOME")
+        .map(|home| PathBuf::from(home).join("bin").join(format!("{name}{}", env::consts::EXE_SUFFIX)))
+        .unwrap_or_else(|| PathBuf::from(name))
+}
+
+fn embed_minecraft_profiler() {
+    use std::{env, fs, path::PathBuf, process::Command};
+
+    const SOURCE: &str = "MinecraftProfiler.java";
+    println!("cargo:rerun-if-changed={SOURCE}");
+    println!("cargo:rerun-if-env-changed=JAVA_HOME");
+    let output = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let classes = tempfile::tempdir_in(&output).expect("stage Minecraft profiler classes");
+    let compiled = Command::new(java_tool("javac"))
+        .args(["--release", "21", "-encoding", "UTF-8", "-d"])
+        .arg(classes.path()).arg(SOURCE)
+        .status().expect("compile Minecraft profiler");
+    assert!(compiled.success(), "compile Minecraft profiler");
+
+    let manifest = output.join("minecraft-profiler.mf");
+    fs::write(&manifest, "Premain-Class: gleam.diagnostics.MinecraftProfiler\r\n\r\n")
+        .expect("write Minecraft profiler manifest");
+    let archived = Command::new(java_tool("jar"))
+        .args(["--create", "--file"]).arg(output.join("minecraft-profiler.jar"))
+        .arg("--manifest").arg(manifest).arg("-C").arg(classes.path()).arg(".")
+        .status().expect("package Minecraft profiler");
+    assert!(archived.success(), "package Minecraft profiler");
 }
 
 fn export_cosmetic_preview() {
@@ -25,11 +57,6 @@ fn export_cosmetic_preview() {
     let output = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let classes = output.join("cosmetic-preview-classes");
     fs::create_dir_all(&classes).expect("create cosmetic preview compiler output");
-    let java_tool = |name: &str| {
-        env::var_os("JAVA_HOME")
-            .map(|home| PathBuf::from(home).join("bin").join(format!("{name}{}", env::consts::EXE_SUFFIX)))
-            .unwrap_or_else(|| PathBuf::from(name))
-    };
     let compiled = Command::new(java_tool("javac"))
         .args(["-encoding", "UTF-8", "-d"]).arg(&classes).args(sources)
         .status().expect("compile cosmetic preview exporter with the project JDK");
