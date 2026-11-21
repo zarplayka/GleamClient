@@ -16,11 +16,11 @@ import ru.orion.client.keybind.OrionKeybinds;
 
 /** Shared hit-testing for the HTML view, hotkeys and the Minecraft fallback. */
 public final class OrionEmoteWheelScreen extends Screen {
-    private static final int WIDTH = 392, HEIGHT = 420;
-    private static final int CENTER_X = WIDTH / 2, CENTER_Y = 196;
+    private static final int WIDTH = 548, HEIGHT = 420;
+    private static final int CENTER_X = 196, CENTER_Y = 196;
     private static final int RADIUS = 110, INNER = 74, OUTER = 146;
     private static final int CONTROL_Y = 354;
-    private static final int OPTION_TOP = 117, OPTION_STEP = 36, PICKER_CONTROLS = 310;
+    private static final int PALETTE_X = 10, PALETTE_WIDTH = 144, OPTION_TOP = 83, OPTION_STEP = 24;
     private static final long OPEN_NANOS = 210_000_000L;
     private static final String[] LABELS = {"Эмоции", "Остановить", "Изменить круг", "Готово", "Сбросить",
             "Выбери слот", "Выбери эмоцию", "Пусто", "Назад", "Отпусти клавишу или нажми 1–6"};
@@ -30,15 +30,18 @@ public final class OrionEmoteWheelScreen extends Screen {
     private JsonObject previous;
     private boolean editing, introComplete;
     private int slotToEdit = -1;
+    private int dragged = -1;
 
     public OrionEmoteWheelScreen() { super(Component.literal("GleamClient Emotes")); }
 
     @Override public boolean isPauseScreen() { return false; }
 
-    private float scale() { return Math.max(.01F, Math.min(1F, Math.min((width - 8F) / WIDTH, (height - 8F) / HEIGHT))); }
+    private float scale() { return Math.max(.01F, Math.min(.74F, Math.min((width - 8F) / WIDTH, (height - 8F) / HEIGHT))); }
     private int left() { return Math.round((width - WIDTH * scale()) * .5F); }
     private int top() { return Math.round((height - HEIGHT * scale()) * .5F); }
-    private double pageX(double x) { return (x - left()) / scale(); }
+    private int wheelOffset() { return editing ? 151 : 78; }
+    private double canvasX(double x) { return (x - left()) / scale(); }
+    private double pageX(double x) { return canvasX(x) - wheelOffset(); }
     private double pageY(double y) { return (y - top()) / scale(); }
     private float opening() { return Math.clamp((System.nanoTime() - openedAt) / (float) OPEN_NANOS, 0F, 1F); }
     private float ease() { return 1F - (float) Math.pow(1F - opening(), 3); }
@@ -62,7 +65,7 @@ public final class OrionEmoteWheelScreen extends Screen {
     }
 
     @Override public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, width, height, Math.round(76F * ease()) << 24 | 0x0b1217);
+        context.fill(0, 0, width, height, Math.round(36F * ease()) << 24 | 0x0b1217);
     }
 
     @Override
@@ -77,12 +80,12 @@ public final class OrionEmoteWheelScreen extends Screen {
             if (GleamMinecraft.screen(minecraft) == this) onClose();
             return;
         }
-        int active = slotToEdit == -1 ? slotAt(mouseX, mouseY) : -1;
+        int active = slotAt(mouseX, mouseY);
         int[] slots = config.getEmoteSlots();
         if (view.ready()) {
             float scale = scale();
             view.resize(WIDTH, HEIGHT, Math.max(.5F, scale * minecraft.getWindow().getGuiScale()));
-            JsonObject state = state(config, active, slots, wheelX(mouseX), wheelY(mouseY));
+            JsonObject state = state(config, active, slots, mouseX, mouseY);
             if (!state.equals(previous)) {
                 view.update(state);
                 previous = state;
@@ -98,7 +101,7 @@ public final class OrionEmoteWheelScreen extends Screen {
         fallback(context, active, slots);
     }
 
-    private JsonObject state(OrionConfig config, int active, int[] slots, double x, double y) {
+    private JsonObject state(OrionConfig config, int active, int[] slots, double mouseX, double mouseY) {
         JsonObject state = new JsonObject();
         var labels = new JsonArray();
         for (String text : LABELS) labels.add(OrionGuiLanguage.translate(text));
@@ -121,15 +124,17 @@ public final class OrionEmoteWheelScreen extends Screen {
         state.addProperty("accent", config.getClickGuiAccent());
         state.addProperty("editing", editing);
         state.addProperty("slotToEdit", slotToEdit);
-        state.addProperty("option", slotToEdit < 0 ? 0 : optionAt(x, y));
-        String control = "";
-        if (slotToEdit >= 0 && y >= PICKER_CONTROLS && y < PICKER_CONTROLS + 28) {
-            if (x >= 66 && x < 192) control = "clear";
-            if (x >= 200 && x < 326) control = "back";
-        } else if (slotToEdit < 0) {
-            if (primaryControl(x, y)) control = editing ? "done" : "edit";
-            else if (resetControl(x, y)) control = "reset";
+        state.addProperty("offset", wheelOffset());
+        state.addProperty("option", editing ? optionAt(canvasX(mouseX), pageY(mouseY)) : -1);
+        state.addProperty("dragged", dragged);
+        if (dragged >= 0) {
+            state.addProperty("dragX", canvasX(mouseX));
+            state.addProperty("dragY", pageY(mouseY));
         }
+        String control = "";
+        double x = wheelX(mouseX), y = wheelY(mouseY);
+        if (primaryControl(x, y)) control = editing ? "done" : "edit";
+        else if (resetControl(x, y)) control = "reset";
         state.addProperty("control", control);
         return state;
     }
@@ -160,6 +165,7 @@ public final class OrionEmoteWheelScreen extends Screen {
         OrionClickGuiScreen.playInterfaceSound(minecraft, "click");
         editing = !editing;
         slotToEdit = -1;
+        dragged = -1;
     }
 
     private boolean primaryControl(double x, double y) {
@@ -171,12 +177,9 @@ public final class OrionEmoteWheelScreen extends Screen {
     }
 
     private static int optionAt(double x, double y) {
-        for (int id = 1; id <= OrionEmotes.NAMES.length; id++) {
-            int col = (id - 1) % 2, row = (id - 1) / 2;
-            int left = 66 + col * 134, top = OPTION_TOP + row * OPTION_STEP;
-            if (x >= left && x < left + 126 && y >= top && y < top + 30) return id;
-        }
-        return 0;
+        if (x < PALETTE_X || x >= PALETTE_X + PALETTE_WIDTH || y < OPTION_TOP) return -1;
+        int row = (int) (y - OPTION_TOP) / OPTION_STEP;
+        return row > OrionEmotes.NAMES.length ? -1 : row == OrionEmotes.NAMES.length ? 0 : row + 1;
     }
 
     @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
@@ -186,11 +189,9 @@ public final class OrionEmoteWheelScreen extends Screen {
         }
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) return super.mouseClicked(event, doubleClick);
         double x = wheelX(event.x()), y = wheelY(event.y());
-        if (slotToEdit >= 0) {
-            int id = optionAt(x, y);
-            if (id > 0) assign(id);
-            else if (y >= PICKER_CONTROLS && y < PICKER_CONTROLS + 28 && x >= 66 && x < 192) assign(0);
-            else if (y >= PICKER_CONTROLS && y < PICKER_CONTROLS + 28 && x >= 200 && x < 326) slotToEdit = -1;
+        int option = editing ? optionAt(canvasX(event.x()), pageY(event.y())) : -1;
+        if (option >= 0) {
+            dragged = option;
         } else if (primaryControl(x, y)) {
             toggleEditor();
         } else if (resetControl(x, y)) {
@@ -208,8 +209,19 @@ public final class OrionEmoteWheelScreen extends Screen {
         return true;
     }
 
+    @Override public boolean mouseReleased(MouseButtonEvent event) {
+        if (dragged < 0 || event.button() != InputConstants.MOUSE_BUTTON_LEFT) return super.mouseReleased(event);
+        int id = dragged;
+        dragged = -1;
+        int target = slotAt(event.x(), event.y());
+        if (target >= 0) slotToEdit = target;
+        if (slotToEdit >= 0 && (target >= 0 || optionAt(canvasX(event.x()), pageY(event.y())) == id)) assign(id);
+        return true;
+    }
+
     private void back() {
-        if (slotToEdit >= 0) slotToEdit = -1;
+        if (dragged >= 0) dragged = -1;
+        else if (slotToEdit >= 0) slotToEdit = -1;
         else if (editing) toggleEditor();
         else onClose();
     }
@@ -247,15 +259,11 @@ public final class OrionEmoteWheelScreen extends Screen {
     }
 
     private void fallback(GuiGraphicsExtractor context, int active, int[] slots) {
-        if (slotToEdit >= 0) {
-            label(context, LABELS[6], CENTER_X, 96);
-            for (int i = 0; i < OrionEmotes.NAMES.length; i++) {
-                label(context, (i + 1) + "  " + OrionGuiLanguage.translate(OrionEmotes.NAMES[i]),
-                        129 + i % 2 * 134, OPTION_TOP + 15 + i / 2 * OPTION_STEP);
+        if (editing) {
+            for (int i = 0; i <= OrionEmotes.NAMES.length; i++) {
+                label(context, i < OrionEmotes.NAMES.length ? OrionEmotes.NAMES[i] : LABELS[7],
+                        PALETTE_X + PALETTE_WIDTH / 2 - wheelOffset(), OPTION_TOP + i * OPTION_STEP + 12);
             }
-            label(context, LABELS[7], 129, PICKER_CONTROLS + 14);
-            label(context, LABELS[8], 263, PICKER_CONTROLS + 14);
-            return;
         }
         for (int slot = 0; slot < slots.length; slot++) {
             int id = slots[slot];
@@ -270,7 +278,7 @@ public final class OrionEmoteWheelScreen extends Screen {
 
     private void label(GuiGraphicsExtractor context, String text, int center, int middle) {
         String label = OrionGuiLanguage.translate(text);
-        int x = left() + Math.round((CENTER_X + (center - CENTER_X) * zoom()) * scale()) - font.width(label) / 2;
+        int x = left() + Math.round((wheelOffset() + CENTER_X + (center - CENTER_X) * zoom()) * scale()) - font.width(label) / 2;
         int y = top() + Math.round((CENTER_Y + (middle - CENTER_Y) * zoom()) * scale()) - 4;
         int color = Math.max(4, Math.round(ease() * 255)) << 24 | 0x00F4F5F8;
         //? if >=26.1 {
