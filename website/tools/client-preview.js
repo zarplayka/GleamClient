@@ -67,7 +67,7 @@ async function cropAtlas(url, columns, rows, names, start = 0) {
 
 async function clickGui() {
   connectBridge(() => {});
-  gameBackdrop('.window');
+  gameBackdrop('.window', true);
   const json = async url => {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`${url} (${response.status})`);
@@ -281,18 +281,20 @@ function mainMenu() {
   requestAnimationFrame(animate);
 }
 
-function gameBackdrop(surface) {
+function gameBackdrop(surface, title = false) {
   const backdrop = '/title/assets/gleam-title-panorama.png';
+  const titleCrop = title ? 'html[data-theme=glass] { background-position: left center; background-size: max(138vw, 245.333333vh) auto }' : '';
   const style = document.createElement('style');
   style.textContent = `
     html { background: url(${backdrop}) center / cover fixed }
+    ${titleCrop}
     html[data-theme=dark], html[data-theme=light] { background-image: linear-gradient(#10121a55,#10121a55), url(${backdrop}) }
     .preview-glass-layer { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none }
     html[data-preview-glass][data-theme=glass] .window,
     html[data-preview-glass][data-glass] .surface { background: transparent }
   `;
   document.head.append(style);
-  import('/client-preview-glass.js').then(({ previewGlass }) => previewGlass(surface, backdrop))
+  import('/client-preview-glass.js').then(({ previewGlass }) => previewGlass(surface, backdrop, title))
     .catch(error => console.warn('Liquid Glass preview:', error));
 }
 

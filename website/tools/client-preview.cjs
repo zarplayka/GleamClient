@@ -41,8 +41,9 @@ for (const language of ['en', 'de', 'es']) routes.set(`/clickgui/lang/${language
 
 routes.set('/client-preview-glass.js', tools('client-preview-glass.js'));
 routes.set('/liquid-glass.glsl', game('shaders/include/liquid_glass.glsl'));
+routes.set('/lumen-paint.fsh', game('shaders/core/lumen_paint.fsh'));
 
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.glsl': 'text/plain',
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.glsl': 'text/plain', '.fsh': 'text/plain',
   '.png': 'image/png', '.webp': 'image/webp', '.ttf': 'font/ttf' };
 const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
 const subscribers = new Set();
