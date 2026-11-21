@@ -1,24 +1,57 @@
 const vertex = `#version 300 es
+uniform vec2 resolution;
+uniform vec2 crop;
+uniform vec4 surface;
+uniform vec4 radii;
+out vec4 tint;
+out vec2 texCoord;
+out vec2 localPosition;
+flat out vec2 halfSize;
+flat out float radius;
+flat out ivec2 primitive;
+out vec2 guiPosition;
+flat out vec3 themeCircle;
 void main() {
     vec2 corner = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2);
     gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
+    guiPosition = vec2(corner.x, 1.0 - corner.y) * resolution;
+    halfSize = surface.zw * 0.5;
+    localPosition = guiPosition - surface.xy - halfSize;
+    texCoord = guiPosition * crop / resolution + vec2(0.0, (1.0 - crop.y) * 0.5);
+    radius = radii.x;
+    tint = vec4(1.0, 1.0, 1.0, 253.0 / 255.0);
+    primitive = ivec2(1, 0);
+    themeCircle = vec3(0.0);
 }`;
 
-export async function previewGlass(selector, backdrop) {
+async function shaderSource(path) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`Cannot load ${path}`);
+  return response.text();
+}
+
+function webLumenGlass(shader, optics) {
+  return shader
+    .replace(/^#version .*$/m, '#version 300 es\n#define LUMEN_GLASS\nprecision highp float;\nprecision highp int;')
+    .replace(/^#extension .*$/m, '')
+    .replace('#include <minecraft:dynamictransforms.glsl>', '#define ColorModulator vec4(1.0)')
+    .replace('#include <orion-client:liquid_glass.glsl>', optics)
+    .replace(/layout\(location = \d+\) (?=(?:flat )?in )/g, '');
+}
+
+export async function previewGlass(selector, backdrop, title) {
   const scene = new Image();
   scene.src = backdrop;
-  const [optics] = await Promise.all([
-    fetch('/liquid-glass.glsl').then(response => {
-      if (!response.ok) throw new Error('Cannot load Liquid Glass shader');
-      return response.text();
-    }),
+  const [optics, paint] = await Promise.all([
+    shaderSource('/liquid-glass.glsl'),
+    title ? shaderSource('/lumen-paint.fsh') : '',
     scene.decode()
   ]);
   const canvas = document.createElement('canvas');
   const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: false });
   if (!gl) return;
 
-  const fragment = `#version 300 es
+  const fragment = title ? webLumenGlass(paint, optics) : `#version 300 es
 precision highp float;
 uniform sampler2D scene;
 uniform vec2 resolution;
@@ -90,7 +123,7 @@ void main() {
       canvas.width = width;
       canvas.height = height;
     }
-    const cover = Math.max(width / scene.width, height / scene.height);
+    const cover = Math.max(width / scene.width, height / scene.height) * (title ? 1.38 : 1);
     gl.viewport(0, 0, width, height);
     gl.disable(gl.SCISSOR_TEST);
     gl.clear(gl.COLOR_BUFFER_BIT);
