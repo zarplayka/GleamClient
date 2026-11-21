@@ -33,7 +33,7 @@ import java.nio.charset.StandardCharsets;
 
 /** Мост острова HUD: HTML/CSS/JS через Lumen, данные и команды остаются в менеджерах Java. */
 public final class OrionMediaPlayerHud {
-    private static final Identifier GLASS_MASK = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "hud_island_glass");
+    private static final Identifier GLASS_SURFACE = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "hud_island_glass");
     private static final String ROOT = "/assets/orion-client/";
     private static final String VERSION = FabricLoader.getInstance().getModContainer(OrionClient.MOD_ID)
             .map(mod -> mod.getMetadata().getVersion().getFriendlyString()).orElse("");
@@ -149,7 +149,7 @@ public final class OrionMediaPlayerHud {
         if (!enabled && previous != null) {
             view.draw(graphics, 0, 0, graphics.guiWidth(), graphics.guiHeight(),
                     1F / client.getWindow().getGuiScale(), 1F / client.getWindow().getGuiScale(),
-                    OrionHudDrag.opacity(), GLASS_MASK, false);
+                    OrionHudDrag.opacity(), GLASS_SURFACE, false);
             if (previous.get("hud").getAsBoolean()) drawPortrait(graphics, client);
             return;
         }
@@ -223,7 +223,7 @@ public final class OrionMediaPlayerHud {
     private void drawView(GuiGraphicsExtractor graphics, Minecraft client, boolean hud) {
         float scale = client.getWindow().getGuiScale();
         if (view.draw(graphics, 0, 0, graphics.guiWidth(), graphics.guiHeight(),
-                1F / scale, 1F / scale, OrionHudDrag.opacity(), GLASS_MASK, false)) {
+                1F / scale, 1F / scale, OrionHudDrag.opacity(), GLASS_SURFACE, false)) {
             renderedAt = System.nanoTime();
         }
         receive();
@@ -429,7 +429,6 @@ public final class OrionMediaPlayerHud {
     }
 
     private void dispose() {
-        ru.orion.client.hud.OrionGlassCompositor.INSTANCE.releaseMask(GLASS_MASK);
         OrionHudDrag.forget("island");
         view.dispose();
         previous = null;

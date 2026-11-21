@@ -10,7 +10,6 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.resources.Identifier;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
-import ru.orion.client.hud.OrionGlassCompositor;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -28,7 +27,7 @@ final class OrionSiteMenu {
     private static final String ROOT = "/assets/orion-client/";
     private static final String MENU = ROOT + "html/menu/";
     private static final long STATE_REFRESH_NANOS = 50_000_000L;
-    private static final Identifier GLASS_MASK = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "clickgui_site_glass");
+    private static final Identifier GLASS_SURFACE = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "clickgui_site_glass");
     private record Avatar(String name, byte[] png) { }
     private static final Map<BufferedImage,Avatar> AVATARS = new java.util.WeakHashMap<>();
     private static Map<String,byte[]> menuImages;
@@ -58,7 +57,8 @@ final class OrionSiteMenu {
 
     void invalidateState() { nextStateAt = 0; }
 
-    boolean render(GuiGraphicsExtractor graphics, int width, int height, int mouseX, int mouseY, Supplier<JsonObject> snapshot) {
+    boolean render(GuiGraphicsExtractor graphics, int width, int height, int mouseX, int mouseY,
+                   boolean titleBackdrop, Supplier<JsonObject> snapshot) {
         var window = Minecraft.getInstance().getWindow();
         int pixelsX = window.getWidth(), pixelsY = window.getHeight();
         if (width < 1 || height < 1 || pixelsX < 1 || pixelsY < 1) return false;
@@ -90,7 +90,7 @@ final class OrionSiteMenu {
         }
         // Проекция GUI делит framebuffer на guiScale без округления размеров экрана.
         float drawScale = 1F / window.getGuiScale();
-        boolean drawn = view.draw(graphics,0,0,width,height,drawScale,drawScale,1F,GLASS_MASK,true);
+        boolean drawn = view.draw(graphics, 0, 0, width, height, drawScale, drawScale, 1F, GLASS_SURFACE, true, titleBackdrop);
         if (drawn && openedAt == 0) openedAt = System.nanoTime();
         receive();
         return drawn;
@@ -217,7 +217,6 @@ final class OrionSiteMenu {
         pointerX = pointerY = Float.NaN;
         openedAt = 0;
         openingFinished = false;
-        OrionGlassCompositor.INSTANCE.releaseMask(GLASS_MASK);
     }
 
     private void receive() {

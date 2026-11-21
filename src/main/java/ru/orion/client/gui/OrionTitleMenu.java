@@ -232,9 +232,24 @@ public final class OrionTitleMenu {
 
     static void drawBackdrop(GuiGraphicsExtractor graphics, int width, int height) {
         if (width < 1 || height < 1) return;
-        float zoom = Math.max(width / 1920F, height / 1080F) * 1.38F;
+        float zoom = backdropZoom(width, height);
         float v = (1F - height / (1080F * zoom)) / 2F;
         graphics.blit(PANORAMA, 0, 0, width, height, 0F, width / (1920F * zoom), v, 1F - v);
+    }
+
+    static float backdropZoom(int width, int height) {
+        return Math.max(width / 1920F, height / 1080F) * 1.38F;
+    }
+
+    static net.minecraft.client.gui.render.TextureSetup backdropTexture() {
+        var texture = Minecraft.getInstance().getTextureManager().getTexture(PANORAMA);
+        return net.minecraft.client.gui.render.TextureSetup.singleTexture(texture.getTextureView(),
+                com.mojang.blaze3d.systems.RenderSystem.getSamplerCache().getClampToEdge(
+                        //? if >=26.3 {
+                        com.mojang.renderpearl.api.textures.FilterMode.LINEAR));
+                        //?} else {
+                        /*com.mojang.blaze3d.textures.FilterMode.LINEAR));
+                        *///?}
     }
 
     private boolean render(GuiGraphicsExtractor graphics, JsonObject state) {

@@ -693,7 +693,7 @@ public final class OrionClickGuiScreen extends Screen {
     @Override
     public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
         if (titleParent instanceof net.minecraft.client.gui.screens.TitleScreen) OrionTitleMenu.drawBackdrop(context, width, height);
-        context.fill(0, 0, width, height, 0x66000000);
+        if (configManager.getConfig().getClickGuiTheme() != 5) context.fill(0, 0, width, height, 0x66000000);
         GleamMinecraft.extractDeferredSubtitles(minecraft);
     }
 
@@ -718,7 +718,8 @@ public final class OrionClickGuiScreen extends Screen {
                     siteSection = titlePage == TitlePage.SETTINGS ? "SETTINGS" : configManager.getConfig().getClickGuiLastSection();
                 siteMenu = new OrionSiteMenu(Arrays.stream(Action.VALUES).map(Enum::name).toArray(String[]::new),this::onSiteAction);
             }
-            siteActive = siteMenu.ready() && siteMenu.render(context,width,height,mouseX,mouseY,this::siteState);
+            siteActive = siteMenu.ready() && siteMenu.render(context, width, height, mouseX, mouseY,
+                    titleParent instanceof net.minecraft.client.gui.screens.TitleScreen, this::siteState);
             if (siteActive) {
                 drawCosmeticPreview(context);
                 return;
