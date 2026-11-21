@@ -1159,13 +1159,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .resource-plot { display:block; width:100%; height:clamp(170px,35vh,330px); color:var(--muted); cursor:crosshair;
       border-top:1px solid var(--border); background:repeating-linear-gradient(to top,var(--border) 0 1px,transparent 1px 25%) }
     .resource-plot polyline { fill:none; stroke-width:1.6; vector-effect:non-scaling-stroke }
-    .resource-plot .system-line { stroke:currentColor; opacity:.68 }
     .resource-plot .game-line { stroke:var(--accent) }
     .resource-plot .cursor-line { stroke:currentColor; stroke-opacity:.65; stroke-dasharray:3 3; vector-effect:non-scaling-stroke }
     .profile-resource-key { display:flex; align-items:center; flex-wrap:wrap; gap:14px; font-size:12px }
-    .profile-resource-key [data-series]::before { content:''; display:inline-block; width:12px; height:2px; margin-right:6px;
-      vertical-align:middle; background:var(--muted) }
-    .profile-resource-key [data-series="game"]::before { background:var(--accent) }
+    .profile-resource-key::before { content:''; width:12px; height:2px; margin-right:-8px; background:var(--accent) }
     .profile-resource-scale { display:flex; flex-direction:column; justify-content:space-between; text-align:right; font-size:11px; color:var(--muted) }
     .resource-timeline { display:grid; grid-template-columns:auto minmax(70px,1fr) auto; align-items:center; gap:10px; margin-top:12px;
       color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums }
@@ -1174,6 +1171,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       border-radius:10px; background:var(--home-surface); overflow-wrap:anywhere }
     .resource-attribution h3 { margin:0; font-size:13px }
     .resource-attribution p { font-variant-numeric:tabular-nums }
+    #profile-resource-method { color:var(--text); overflow-wrap:anywhere }
     #profile-content-entries { margin: 0; padding: 0; list-style: none }
     .profile-entry { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 12px; min-height: 71px; padding: 9px 12px }
     .profile-entry + .profile-entry { border-top: 1px solid var(--border) }
@@ -1799,27 +1797,28 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 <p id="profile-resource-empty" role="status">Запусти эту сборку, чтобы записать нагрузку.</p>
                 <div id="profile-resource-data" hidden>
                   <div class="profile-metrics">
-                    <div class="profile-resource-key"><span data-series="game">Minecraft</span><span data-series="system">Вся система</span></div>
+                    <div class="profile-resource-key">Minecraft</div>
                     <div id="profile-resource-cpu-card">
                       <strong id="profile-resource-cpu"></strong>
                       <div class="resource-chart">
                         <div class="profile-resource-scale" id="profile-resource-cpu-axis"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span></div>
-                        <svg class="resource-plot" id="resource-cpu-plot" viewBox="0 0 640 100" preserveAspectRatio="none" role="img" aria-label="График нагрузки на процессор"><polyline class="system-line"/><polyline class="game-line"/><line class="cursor-line" y1="0" y2="100"/></svg>
+                        <svg class="resource-plot" id="resource-cpu-plot" viewBox="0 0 640 100" preserveAspectRatio="none" role="img" aria-label="График нагрузки на процессор"><polyline class="game-line"/><line class="cursor-line" y1="0" y2="100"/></svg>
                       </div>
                     </div>
                     <div id="profile-resource-memory-card" hidden>
                       <strong id="profile-resource-memory"></strong>
                       <div class="resource-chart">
                         <div class="profile-resource-scale" id="profile-resource-memory-axis"><span></span><span></span><span></span><span></span><span>0</span></div>
-                        <svg class="resource-plot" id="resource-memory-plot" viewBox="0 0 640 100" preserveAspectRatio="none" role="img" aria-label="График потребления оперативной памяти"><polyline class="system-line"/><polyline class="game-line"/><line class="cursor-line" y1="0" y2="100"/></svg>
+                        <svg class="resource-plot" id="resource-memory-plot" viewBox="0 0 640 100" preserveAspectRatio="none" role="img" aria-label="График потребления оперативной памяти"><polyline class="game-line"/><line class="cursor-line" y1="0" y2="100"/></svg>
                       </div>
                     </div>
                     <div class="resource-timeline"><time id="profile-resource-start"></time><input type="range" id="profile-resource-point" min="0" max="0" value="0" aria-label="Момент на графике"><output id="profile-resource-time"></output></div>
                   </div>
                   <section class="resource-attribution" aria-labelledby="profile-resource-source">
-                    <h3 id="profile-resource-source">Процессы</h3>
-                    <p id="profile-resource-game"></p>
-                    <p id="profile-resource-other"></p>
+                    <h3 id="profile-resource-source">Внутри Minecraft</h3>
+                    <p id="profile-resource-measurement"></p>
+                    <p id="profile-resource-method" hidden></p>
+                    <p id="profile-resource-detail" hidden></p>
                   </section>
                 </div>
               </div>
@@ -2859,14 +2858,15 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Открываем Gleam Launcher':['Opening Gleam Launcher','Gleam Launcher wird geöffnet','Abriendo Gleam Launcher'],
       'Навигация':['Navigation','Navigation','Navegación'],
       'Ресурсы':['Resources','Ressourcen','Recursos'],
-      'Вся система':['Entire system','Gesamtsystem','Todo el sistema'],
-      'Процессы':['Processes','Prozesse','Procesos'],
-      'Minecraft · {0}':['Minecraft · {0}','Minecraft · {0}','Minecraft · {0}'],
-      'Самый нагруженный из измеренных фоновых процессов · {0} (PID {1}) · {2} · {3}':[
-        'Top measured background process · {0} (PID {1}) · {2} · {3}',
-        'Stärkster gemessener Hintergrundprozess · {0} (PID {1}) · {2} · {3}',
-        'Proceso en segundo plano medido con mayor uso · {0} (PID {1}) · {2} · {3}'],
-      'Для этого момента нет замера фоновых процессов.':['No background process reading at this time.','Für diesen Zeitpunkt liegt keine Messung der Hintergrundprozesse vor.','No hay medición de procesos en segundo plano en este momento.'],
+      'Внутри Minecraft':['Inside Minecraft','In Minecraft','Dentro de Minecraft'],
+      'Для этого момента нет профиля Java.':['No Java profile for this time.','Für diesen Zeitpunkt liegt kein Java-Profil vor.','No hay perfil de Java para este momento.'],
+      'Замер игры · {0} · {1} с':['Game sample · {0} · {1} s','Spielmessung · {0} · {1} s','Muestra del juego · {0} · {1} s'],
+      'Самый активный поток Java · {0} (№ {1}) · {2} с CPU':['Busiest Java thread · {0} (#{1}) · {2} s CPU','Aktivster Java-Thread · {0} (Nr. {1}) · {2} s CPU','Hilo de Java más activo · {0} (n.º {1}) · {2} s de CPU'],
+      'Метод в {0} снимках стека Java':['Method in {0} Java stack samples','Methode in {0} Java-Stackproben','Método en {0} muestras de pila de Java'],
+      'Данные о потоках за этот интервал недоступны.':['Thread data is unavailable for this interval.','Für dieses Intervall liegen keine Thread-Daten vor.','No hay datos de hilos para este intervalo.'],
+      'Куча Java · {0}':['Java heap · {0}','Java-Heap · {0}','Montículo de Java · {0}'],
+      'Куча Java · {0} из {1}':['Java heap · {0} of {1}','Java-Heap · {0} von {1}','Montículo de Java · {0} de {1}'],
+      'Основное место выделения объектов · {0} · ≈ {1} за интервал':['Top allocation site · {0} · ≈ {1} in this interval','Häufigste Allokationsstelle · {0} · ≈ {1} im Intervall','Origen principal de asignaciones · {0} · ≈ {1} en el intervalo'],
       'Причина из журнала игры':['Cause from the game log','Ursache aus dem Spielprotokoll','Causa del registro del juego'],
       'Игра завершилась без записи причины в журнале.':['The game exited without logging a cause.','Das Spiel wurde beendet, ohne eine Ursache zu protokollieren.','El juego se cerró sin registrar la causa.'],
       'Процессор':['CPU','Prozessor','Procesador'],
@@ -6709,26 +6709,51 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (!sample) return;
       const cpu = n => new Intl.NumberFormat(launcherLanguage,{style:'percent',maximumFractionDigits:1}).format(n/100);
       const gib = n => (n/1024).toLocaleString(launcherLanguage,{maximumFractionDigits:1})+' '+translated('ГБ');
-      $('profile-resource-cpu').textContent = cpu(sample.gameCpu)+' / '+cpu(sample.systemCpu);
-      $('profile-resource-memory').textContent = gib(sample.gameMemory)+' / '+gib(sample.systemMemory);
+      $('profile-resource-cpu').textContent = cpu(sample.gameCpu);
+      $('profile-resource-memory').textContent = gib(sample.gameMemory);
       $('profile-resource-time').value = new Date(sample.at).toLocaleTimeString(launcherLanguage);
-      [...$('profile-resource-memory-axis').children].forEach((item,i) => { item.textContent = i === 4 ? '0' : gib(sample.totalMemory * (4-i)/4); });
       const interval = displayedSamples.at(-1).at - resourceStart;
       const x = interval > 0 ? 640 * (sample.at - resourceStart) / interval : 640;
       for (const marker of $('profile-resource-panel').querySelectorAll('.cursor-line')) {
         marker.setAttribute('x1',x);
         marker.setAttribute('x2',x);
       }
-      const memory = resourceMetric === 'memory';
-      writeLocale($('profile-resource-game'),'Minecraft · {0}',memory ? gib(sample.gameMemory) : cpu(sample.gameCpu));
       const reading = (resourceHistory.get(profileContent.id) ?? []).findLast(point =>
-        point.at <= sample.at && point.at >= sample.at - 6000 && point.processes);
-      const other = reading?.processes[resourceMetric];
-      if (other) {
-        writeLocale($('profile-resource-other'),'Самый нагруженный из измеренных фоновых процессов · {0} (PID {1}) · {2} · {3}',
-          other.name,String(other.pid),memory ? gib(other.value) : cpu(other.value),new Date(reading.at).toLocaleTimeString(launcherLanguage));
-      } else {
-        writeLocale($('profile-resource-other'),'Для этого момента нет замера фоновых процессов.');
+        point.session === sample.session && point.at <= sample.at && point.at >= sample.at - 9000 && point.profile)?.profile;
+      const measurement = $('profile-resource-measurement');
+      const method = $('profile-resource-method');
+      const detail = $('profile-resource-detail');
+      method.hidden = detail.hidden = true;
+      if (!reading) {
+        writeLocale(measurement,'Для этого момента нет профиля Java.');
+        return;
+      }
+      const seconds = ms => (ms/1000).toLocaleString(launcherLanguage,{maximumFractionDigits:2});
+      writeLocale(measurement,'Замер игры · {0} · {1} с',
+        new Date(reading.at).toLocaleTimeString(launcherLanguage),seconds(reading.windowMs));
+      method.hidden = false;
+      if (resourceMetric === 'cpu') {
+        const thread = reading.threadName || '—';
+        if (!reading.threadId) {
+          writeLocale(method,'Данные о потоках за этот интервал недоступны.');
+          return;
+        }
+        writeLocale(method,'Самый активный поток Java · {0} (№ {1}) · {2} с CPU',
+          thread,String(reading.threadId),seconds(reading.threadCpuMs));
+        if (reading.method) {
+          writeLocale(detail,'{0} · {1}',reading.method,translated('Метод в {0} снимках стека Java',reading.methodSamples));
+          detail.hidden = false;
+        }
+        return;
+      }
+      const fromBytes = n => gib(n/(1024*1024));
+      const heap = fromBytes(reading.heapUsed);
+      if (reading.heapMax > 0) writeLocale(method,'Куча Java · {0} из {1}',heap,fromBytes(reading.heapMax));
+      else writeLocale(method,'Куча Java · {0}',heap);
+      if (reading.allocationMethod) {
+        writeLocale(detail,'{0} · {1}',translated('Основное место выделения объектов · {0} · ≈ {1} за интервал',
+          reading.allocationClass,fromBytes(reading.allocationWeight)),reading.allocationMethod);
+        detail.hidden = false;
       }
     }
     function renderProfileResources(id) {
@@ -6745,16 +6770,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (!displayedSamples.length) return;
       $('profile-resource-start').textContent = new Date(first).toLocaleTimeString(launcherLanguage);
       const x = t => last === first ? 640 : Math.max(0,640*(t-first)/(last-first));
-      const renderLine = (id,color,read) => {
+      const renderLine = (id,read) => {
         const points = displayedSamples.map(sample => x(sample.at).toFixed(1)+','+
           (100-Math.max(0,Math.min(100,read(sample)))).toFixed(1));
         if (points.length === 1) points.push(points[0]);
-        $(id).querySelector('.'+color+'-line').setAttribute('points',points.join(' '));
+        $(id).querySelector('.game-line').setAttribute('points',points.join(' '));
       };
-      renderLine('resource-cpu-plot','game',s => s.gameCpu);
-      renderLine('resource-cpu-plot','system',s => s.systemCpu);
-      renderLine('resource-memory-plot','game',s => s.gameMemory*100/Math.max(1,s.totalMemory));
-      renderLine('resource-memory-plot','system',s => s.systemMemory*100/Math.max(1,s.totalMemory));
+      renderLine('resource-cpu-plot',s => s.gameCpu);
+      const memoryCeiling = Math.max(1024,Math.ceil(Math.max(...displayedSamples.map(sample => sample.gameMemory))/1024)*1024);
+      renderLine('resource-memory-plot',s => s.gameMemory*100/memoryCeiling);
+      [...$('profile-resource-memory-axis').children].forEach((item,i) => {
+        item.textContent = i === 4 ? '0' : (memoryCeiling*(4-i)/4096).toLocaleString(launcherLanguage)+' '+translated('ГБ');
+      });
       slider.max = displayedSamples.length-1;
       const index = cursor === null ? -1 : displayedSamples.findIndex(sample => sample.at === cursor);
       slider.value = index < 0 ? slider.max : index;

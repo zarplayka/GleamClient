@@ -1290,6 +1290,7 @@ impl Installation {
         options: &LaunchOptions,
         session: &GameSession,
         extra: Vec<String>,
+        profiler: Option<&MinecraftProfiler>,
     ) -> Result<Command> {
         let mut java = Command::new(&self.runtime);
         java.current_dir(game_dir)
@@ -1349,6 +1350,9 @@ impl Installation {
                 .filter(|arg| !arg.starts_with("-Xmx") && !arg.starts_with("-Xms")),
         );
         java.arg(format!("-Xmx{}M", (options.memory * 1024.0).round() as u32));
+        if let Some(profiler) = profiler {
+            profiler.configure(&mut java);
+        }
         let log_argument = string(&version["logging"]["client"]["argument"])?;
         java.arg(log_argument.replace("${path}", self.log_config.to_str().ok_or("game_storage")?));
         for arg in arguments(&version["arguments"]["jvm"], !options.fullscreen)? {
@@ -1388,7 +1392,6 @@ pub fn cancel_minecraft_install(game: tauri::State<'_, Game>) -> Result<()> {
 #[cfg(windows)]
 mod process {
     use super::*;
-    use std::collections::HashMap;
     use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
 
     #[link(name = "kernel32")]
@@ -1402,24 +1405,6 @@ mod process {
             user: *mut [u32; 2],
         ) -> i32;
         fn WaitForSingleObject(handle: RawHandle, millis: u32) -> u32;
-        fn GetSystemTimes(idle: *mut [u32; 2], kernel: *mut [u32; 2], user: *mut [u32; 2]) -> i32;
-        fn CreateToolhelp32Snapshot(flags: u32, pid: u32) -> RawHandle;
-        fn Process32FirstW(snapshot: RawHandle, entry: *mut ProcessEntry) -> i32;
-        fn Process32NextW(snapshot: RawHandle, entry: *mut ProcessEntry) -> i32;
-    }
-
-    #[repr(C)]
-    struct ProcessEntry {
-        size: u32,
-        usage: u32,
-        pid: u32,
-        heap_id: usize,
-        module_id: u32,
-        threads: u32,
-        parent_pid: u32,
-        priority: i32,
-        flags: u32,
-        executable: [u16; 260],
     }
 
     #[repr(C)]
@@ -1441,104 +1426,43 @@ mod process {
         fn GetProcessMemoryInfo(process: RawHandle, counters: *mut ProcessMemory, size: u32) -> i32;
     }
 
-    #[derive(Default)]
     pub(super) struct ResourceMeter {
-        previous: Option<(u64, u64, u64)>,
-        process_sampled: Option<Instant>,
-        process_total: u64,
-        processes: HashMap<(u32, u64), u64>,
+        previous: Option<(Instant, u64)>,
+        cores: f64,
     }
 
-    fn ticks(value: [u32; 2]) -> u64 {
-        (u64::from(value[1]) << 32) | u64::from(value[0])
-    }
-
-    fn working_set(handle: RawHandle) -> Option<u64> {
-        let mut counters: ProcessMemory = unsafe { std::mem::zeroed() };
-        counters.size = std::mem::size_of::<ProcessMemory>() as u32;
-        (unsafe { GetProcessMemoryInfo(handle, &mut counters, counters.size) } != 0)
-            .then_some((counters.working_set as u64) >> 20)
+    impl Default for ResourceMeter {
+        fn default() -> Self {
+            Self {
+                previous: None,
+                cores: std::thread::available_parallelism().map_or(1, |count| count.get()) as f64,
+            }
+        }
     }
 
     impl ResourceMeter {
-        fn top_processes(&mut self, game_pid: u32, total: u64) -> Option<ProcessUsage> {
-            // System ticks include all logical processors, as in the main CPU series.
-            let now = Instant::now();
-            if self.process_sampled.is_some_and(|last| now.duration_since(last) < Duration::from_secs(5)) {
-                return None;
-            }
-            let snapshot = unsafe { CreateToolhelp32Snapshot(2, 0) };
-            if snapshot as isize == -1 { return None; }
-            let snapshot = unsafe { OwnedHandle::from_raw_handle(snapshot) };
-            let mut entry: ProcessEntry = unsafe { std::mem::zeroed() };
-            entry.size = std::mem::size_of::<ProcessEntry>() as u32;
-            let mut present = unsafe { Process32FirstW(snapshot.as_raw_handle(), &mut entry) };
-            if present == 0 { return None; }
-            self.process_sampled = Some(now);
-            let elapsed = total.saturating_sub(std::mem::replace(&mut self.process_total, total));
-            let previous = std::mem::take(&mut self.processes);
-            let (mut cpu, mut memory) = (None, None);
-            while present != 0 {
-                if entry.pid != 0 && entry.pid != game_pid {
-                    let handle = unsafe { OpenProcess(0x1000, 0, entry.pid) };
-                    if !handle.is_null() {
-                        let handle = unsafe { OwnedHandle::from_raw_handle(handle) };
-                        let raw = handle.as_raw_handle();
-                        let (mut created, mut exited, mut kernel, mut user) = ([0; 2], [0; 2], [0; 2], [0; 2]);
-                        let name_end = entry.executable.iter().position(|&unit| unit == 0).unwrap_or(entry.executable.len());
-                        let usage = |value| ProcessUsageEntry {
-                            pid: entry.pid,
-                            name: String::from_utf16_lossy(&entry.executable[..name_end]),
-                            value,
-                        };
-                        if unsafe { GetProcessTimes(raw, &mut created, &mut exited, &mut kernel, &mut user) } != 0 {
-                            let identity = (entry.pid, ticks(created));
-                            let current = ticks(kernel) + ticks(user);
-                            self.processes.insert(identity, current);
-                            if let Some(&prior) = previous.get(&identity).filter(|_| elapsed > 0) {
-                                let percent = (current.saturating_sub(prior) as f64 * 100.0 / elapsed as f64).min(100.0);
-                                if percent > 0.0 && cpu.as_ref().is_none_or(|entry: &ProcessUsageEntry| percent > entry.value) {
-                                    cpu = Some(usage(percent));
-                                }
-                            }
-                        }
-                        if let Some(mib) = working_set(raw) {
-                            if memory.as_ref().is_none_or(|entry: &ProcessUsageEntry| mib as f64 > entry.value) {
-                                memory = Some(usage(mib as f64));
-                            }
-                        }
-                    }
-                }
-                present = unsafe { Process32NextW(snapshot.as_raw_handle(), &mut entry) };
-            }
-            Some(ProcessUsage { cpu, memory })
-        }
-
-        pub(super) fn sample(&mut self, child: &std::process::Child) -> Option<ResourceSample> {
-            let (mut idle, mut kernel, mut user) = ([0; 2], [0; 2], [0; 2]);
-            if unsafe { GetSystemTimes(&mut idle, &mut kernel, &mut user) } == 0 { return None; }
-            let (mut created, mut exited, mut child_kernel, mut child_user) = ([0; 2], [0; 2], [0; 2], [0; 2]);
+        pub(super) fn sample(&mut self, child: &std::process::Child, session: u64) -> Option<ResourceSample> {
+            let (mut created, mut exited, mut kernel, mut user) = ([0; 2], [0; 2], [0; 2], [0; 2]);
             let handle = child.as_raw_handle();
-            if unsafe { GetProcessTimes(handle, &mut created, &mut exited, &mut child_kernel, &mut child_user) } == 0 {
+            if unsafe { GetProcessTimes(handle, &mut created, &mut exited, &mut kernel, &mut user) } == 0 {
                 return None;
             }
-            let total = ticks(kernel) + ticks(user);
-            let process = ticks(child_kernel) + ticks(child_user);
-            let idle = ticks(idle);
-            let prev = self.previous.replace((total, idle, process))?;
-            let elapsed = total.checked_sub(prev.0)?;
-            if elapsed == 0 { return None; }
-            let percent = |delta: u64| (delta as f64 * 100.0 / elapsed as f64).clamp(0.0, 100.0);
-            let memory = memory_status()?;
-            let game_memory = working_set(handle)?;
+            let ticks = |value: [u32; 2]| (u64::from(value[1]) << 32) | u64::from(value[0]);
+            let process_cpu = ticks(kernel) + ticks(user);
+            let now = Instant::now();
+            let (previous_at, previous_cpu) = self.previous.replace((now, process_cpu))?;
+            let elapsed = now.duration_since(previous_at).as_secs_f64();
+            if elapsed <= 0.0 { return None; }
+            let cpu_seconds = process_cpu.saturating_sub(previous_cpu) as f64 / 10_000_000.0;
+            let mut counters: ProcessMemory = unsafe { std::mem::zeroed() };
+            counters.size = std::mem::size_of::<ProcessMemory>() as u32;
+            if unsafe { GetProcessMemoryInfo(handle, &mut counters, counters.size) } == 0 { return None; }
             Some(ResourceSample {
                 at: timestamp(SystemTime::now()),
-                game_cpu: percent(process.saturating_sub(prev.2)),
-                system_cpu: percent(elapsed.saturating_sub(idle.saturating_sub(prev.1))),
-                game_memory,
-                system_memory: memory.total_physical.saturating_sub(memory.available_physical) >> 20,
-                total_memory: memory.total_physical >> 20,
-                processes: self.top_processes(child.id(), total),
+                session,
+                game_cpu: (cpu_seconds * 100.0 / (elapsed * self.cores)).clamp(0.0, 100.0),
+                game_memory: (counters.working_set as u64) >> 20,
+                profile: None,
             })
         }
     }
@@ -2018,7 +1942,8 @@ pub async fn launch_minecraft(
         drop(catalog_lock);
         progress("account", 97);
         let session = minecraft.game_session(&app, &options.account)?;
-        let mut command = installed.command(&game_dir, &options, &session, extra)?;
+        let profiler = MinecraftProfiler::stage(&installed.runtime);
+        let mut command = installed.command(&game_dir, &options, &session, extra, profiler.as_ref())?;
         let launch_log = game_dir.join("logs/gleam-launch.log");
         if let Some(log) = launch_log.parent().and_then(|dir| fs::create_dir_all(dir).ok())
             .and_then(|_| File::create(&launch_log).ok()) {
@@ -2093,6 +2018,7 @@ pub async fn launch_minecraft(
         let mut next_sync = started + Duration::from_secs(5);
         let mut next_sample = started;
         let mut next_history_save = started + Duration::from_secs(30);
+        let mut last_profile = 0;
         let result = loop {
             match child.try_wait() {
                 Ok(Some(status)) => {
@@ -2109,7 +2035,11 @@ pub async fn launch_minecraft(
             }
             if now >= next_sample {
                 #[cfg(windows)]
-                if let Some(sample) = meter.sample(&child) {
+                if let Some(mut sample) = meter.sample(&child, started_at) {
+                    if let Some(window) = profiler.as_ref().and_then(|probe| probe.read(child.id(), sample.at, last_profile)) {
+                        last_profile = window.at;
+                        sample.profile = Some(window);
+                    }
                     if samples.len() == RESOURCE_LIMIT { samples.pop_front(); }
                     let _ = app.emit("minecraft-resource-sample", json!({
                         "version": version, "instanceId": options.instance_id, "sample": sample,
@@ -2155,26 +2085,79 @@ const RESOURCE_FILE: &str = ".gleam-resources.json";
 #[serde(rename_all = "camelCase")]
 pub struct ResourceSample {
     at: u64,
+    #[serde(default)]
+    session: u64,
     game_cpu: f64,
-    system_cpu: f64,
     game_memory: u64,
-    system_memory: u64,
-    total_memory: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    processes: Option<ProcessUsage>,
+    profile: Option<ProfileWindow>,
 }
 
 #[derive(Deserialize, Serialize)]
-struct ProcessUsage {
-    cpu: Option<ProcessUsageEntry>,
-    memory: Option<ProcessUsageEntry>,
+#[serde(rename_all = "camelCase")]
+struct ProfileWindow {
+    at: u64,
+    window_ms: u64,
+    heap_used: u64,
+    heap_max: i64,
+    thread_id: u64,
+    thread_name: String,
+    thread_cpu_ms: u64,
+    method: String,
+    method_samples: u64,
+    allocation_class: String,
+    allocation_method: String,
+    allocation_weight: u64,
 }
 
-#[derive(Deserialize, Serialize)]
-struct ProcessUsageEntry {
-    pid: u32,
-    name: String,
-    value: f64,
+struct MinecraftProfiler(tempfile::TempDir);
+
+impl MinecraftProfiler {
+    fn stage(java: &Path) -> Option<Self> {
+        if cfg!(windows) && !java.with_file_name("instrument.dll").is_file() { return None; }
+        let directory = tempfile::Builder::new().prefix("gleam-minecraft-profile-").tempdir().ok()?;
+        let jar = directory.path().join("profiler.jar");
+        if jar.as_os_str().to_string_lossy().contains('=') { return None; }
+        fs::write(jar, include_bytes!(concat!(env!("OUT_DIR"), "/minecraft-profiler.jar"))).ok()?;
+        Some(Self(directory))
+    }
+
+    fn configure(&self, command: &mut Command) {
+        let mut argument = std::ffi::OsString::from("-javaagent:");
+        argument.push(self.0.path().join("profiler.jar"));
+        argument.push("=");
+        argument.push(self.0.path().join("snapshot.tsv"));
+        command.arg(argument);
+    }
+
+    fn read(&self, pid: u32, now: u64, previous_at: u64) -> Option<ProfileWindow> {
+        let path = self.0.path().join("snapshot.tsv");
+        let metadata = crate::profile_content::metadata(&path).ok().flatten()?;
+        if !metadata.is_file() || metadata.len() > 8192 { return None; }
+        let mut data = String::new();
+        File::open(path).ok()?.take(8193).read_to_string(&mut data).ok()?;
+        let mut value = data.split('\t');
+        if value.next()? != "gleam-profile-1" || value.next()?.parse::<u32>().ok()? != pid {
+            return None;
+        }
+        let at = value.next()?.parse::<u64>().ok()?;
+        if at <= previous_at || now.abs_diff(at) > 15_000 { return None; }
+        let profile = ProfileWindow {
+            at,
+            window_ms: value.next()?.parse().ok()?,
+            heap_used: value.next()?.parse().ok()?,
+            heap_max: value.next()?.parse().ok()?,
+            thread_id: value.next()?.parse().ok()?,
+            thread_name: value.next()?.to_owned(),
+            thread_cpu_ms: value.next()?.parse().ok()?,
+            method: value.next()?.to_owned(),
+            method_samples: value.next()?.parse().ok()?,
+            allocation_class: value.next()?.to_owned(),
+            allocation_method: value.next()?.to_owned(),
+            allocation_weight: value.next()?.parse().ok()?,
+        };
+        (value.next().is_none() && profile.window_ms >= 5_000).then_some(profile)
+    }
 }
 
 fn save_resources(game_dir: &Path, samples: &std::collections::VecDeque<ResourceSample>) {
@@ -2190,7 +2173,7 @@ pub async fn minecraft_resources(app: tauri::AppHandle, version: String, instanc
     tauri::async_runtime::spawn_blocking(move || {
         let game_dir = crate::profile_import::instance(&app, &version, instance_id.as_deref())?;
         let Ok(file) = File::open(game_dir.join(RESOURCE_FILE)) else { return Ok(Vec::new()); };
-        let history: Vec<ResourceSample> = serde_json::from_reader(file.take(1024 * 1024)).unwrap_or_default();
+        let history: Vec<ResourceSample> = serde_json::from_reader(file.take(2 * 1024 * 1024)).unwrap_or_default();
         Ok(history.into_iter().rev().take(RESOURCE_LIMIT).rev().collect())
     }).await.map_err(|_| "game_storage".to_owned())?
 }
