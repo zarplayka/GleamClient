@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -44,8 +43,6 @@ final class OrionSiteMenu {
     private long openedAt;
     private boolean openingFinished;
     private float sx = 1F, sy = 1F;
-    private GlassBounds glassBounds;
-    private record GlassBounds(float x, float y, float width, float height, float radius) {}
 
     OrionSiteMenu(String[] modules, Consumer<JsonObject> actions) {
         this.actions = actions;
@@ -93,17 +90,7 @@ final class OrionSiteMenu {
         }
         // Проекция GUI делит framebuffer на guiScale без округления размеров экрана.
         float drawScale = 1F / window.getGuiScale();
-        if (openingFinished && glassBounds != null) {
-            int x = Math.round(glassBounds.x() * drawScale);
-            int y = Math.round(glassBounds.y() * drawScale);
-            int w = Math.round(glassBounds.width() * drawScale);
-            int h = Math.round(glassBounds.height() * drawScale);
-            if (x >= 0 && y >= 0 && w > 0 && h > 0 && x + w <= width + 1 && y + h <= height + 1) {
-                OrionGlassCompositor.INSTANCE.submitBackground(GLASS_MASK, graphics, x, y, w, h, w, h,
-                        List.of(new OrionGlassCompositor.Panel(0, 0, w, h, glassBounds.radius() * drawScale * 2)), true);
-            }
-        }
-        boolean drawn = view.draw(graphics,0,0,width,height,drawScale,drawScale);
+        boolean drawn = view.draw(graphics,0,0,width,height,drawScale,drawScale,1F,GLASS_MASK,true);
         if (drawn && openedAt == 0) openedAt = System.nanoTime();
         receive();
         return drawn;
@@ -230,7 +217,6 @@ final class OrionSiteMenu {
         pointerX = pointerY = Float.NaN;
         openedAt = 0;
         openingFinished = false;
-        glassBounds = null;
         OrionGlassCompositor.INSTANCE.releaseMask(GLASS_MASK);
     }
 
@@ -256,21 +242,6 @@ final class OrionSiteMenu {
 
     private void dispatch(JsonObject event) {
         var type = event.get("action");
-        if (type != null && type.isJsonPrimitive() && "glass-bounds".equals(type.getAsString())) {
-            if (!event.has("x")) {
-                glassBounds = null;
-                OrionGlassCompositor.INSTANCE.releaseMask(GLASS_MASK);
-                return;
-            }
-            float x = event.get("x").getAsFloat(), y = event.get("y").getAsFloat();
-            float w = event.get("width").getAsFloat(), h = event.get("height").getAsFloat();
-            float radius = event.get("radius").getAsFloat();
-            if (Float.isFinite(x) && Float.isFinite(y) && Float.isFinite(w) && Float.isFinite(h) && Float.isFinite(radius)
-                    && x >= 0 && y >= 0 && w > 0 && h > 0 && radius >= 0 && radius <= 128) {
-                glassBounds = new GlassBounds(x, y, w, h, radius);
-            }
-            return;
-        }
         if (type != null && type.isJsonPrimitive()
                 && !"cosmetic-preview".equals(type.getAsString()) && !"ui-sound".equals(type.getAsString())) invalidateState();
         actions.accept(event);
@@ -326,7 +297,8 @@ final class OrionSiteMenu {
             if (document != null) return document;
             // Lumen не применяет селекторы вида :root[data-theme] и :root[data-density].
             String css = (string(MENU+"style.css") + "\n" + string(MENU+"lumen.css"))
-                    .replace("100dvh", "100vh").replace(":root[", "html[");
+                    .replace("100dvh", "100vh").replace(":root[", "html[")
+                    + "\nhtml[data-theme=glass] .window{background:#a443a4fd}";
             String index = string(MENU+"index.html")
                     .replace("<link rel=\"stylesheet\" href=\"style.css\">","<style>"+css+"</style>")
                     .replace("<script defer src=\"catalog.js\"></script>","")

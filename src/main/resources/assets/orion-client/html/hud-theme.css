@@ -29,7 +29,7 @@ html[data-gleam-hud]:not([data-light]){
 }
 html[data-gleam-hud] .gleam-hud-panel{border:1px solid var(--line)}
 :root[data-glass]:not([data-launcher-preview]){
-  --hud-glass:linear-gradient(158deg,#eff9ff43 0%,#7d8b9624 19%,#242a323d 60%,#a7bfd228 100%);
+  --hud-glass:linear-gradient(151deg,#eaf6ff27 0%,#acc4d010 22%,#23314018 64%,#c2e6ff1a 100%);
   --line:#f1f8ff47;--well:#0b111833;--hover:#eef6ff32;--track:#dfefff38;
   --hud-selected:#9bf0c960;--text:#fafcff;--muted:#d0dbe4;
 }

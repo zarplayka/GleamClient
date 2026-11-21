@@ -24,9 +24,10 @@ html[data-light] .timer{color:#f5f5f8}
 @media(prefers-reduced-motion:reduce){.key{transition:none}}
 html[data-gleam-hud] .panel{border:1px solid var(--line)}
 html[data-glass] .panel,html[data-glass] .key{
-  background:var(--hud-glass);border-color:#edf6ff53;
-  box-shadow:inset 0 1px 0 #f6fbff43,inset 0 -1px 0 #c6e1f326
+  background:var(--hud-glass);border-color:#edf6ff32;
+  box-shadow:inset 0 1px 0 #f6fbff27,inset 0 -1px 0 #c6e1f322
 }
+html[data-glass][data-gleam-hud] .key{border-radius:6px!important}
 html[data-glass] .key[data-pressed]{background:var(--hud-selected);border-color:#c5ffe1a3}
 html[data-glass] .well{border-color:#e8f4ff24}
 html[data-gleam-hud] .key{border-radius:3px!important}

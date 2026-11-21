@@ -148,7 +148,8 @@ public final class OrionMediaPlayerHud {
         }
         if (!enabled && previous != null) {
             view.draw(graphics, 0, 0, graphics.guiWidth(), graphics.guiHeight(),
-                    1F / client.getWindow().getGuiScale(), 1F / client.getWindow().getGuiScale(), OrionHudDrag.opacity());
+                    1F / client.getWindow().getGuiScale(), 1F / client.getWindow().getGuiScale(),
+                    OrionHudDrag.opacity(), GLASS_MASK, false);
             if (previous.get("hud").getAsBoolean()) drawPortrait(graphics, client);
             return;
         }
@@ -221,15 +222,8 @@ public final class OrionMediaPlayerHud {
 
     private void drawView(GuiGraphicsExtractor graphics, Minecraft client, boolean hud) {
         float scale = client.getWindow().getGuiScale();
-        if (previous != null && previous.get("glass").getAsBoolean() && bounds != null && OrionHudDrag.opacity() >= .99F) {
-            int x = Math.round(bounds.x() / scale), y = Math.round(bounds.y() / scale);
-            int w = Math.round(bounds.width() / scale), h = Math.round(bounds.height() / scale);
-            if (w > 0 && h > 0) ru.orion.client.hud.OrionGlassCompositor.INSTANCE.submitBackground(GLASS_MASK,
-                    graphics, x, y, w, h, w, h, java.util.List.of(new ru.orion.client.hud.OrionGlassCompositor.Panel(
-                            0, 0, w, h, 2 * bounds.radius() / scale)), false);
-        }
         if (view.draw(graphics, 0, 0, graphics.guiWidth(), graphics.guiHeight(),
-                1F / scale, 1F / scale, OrionHudDrag.opacity())) {
+                1F / scale, 1F / scale, OrionHudDrag.opacity(), GLASS_MASK, false)) {
             renderedAt = System.nanoTime();
         }
         receive();
@@ -455,7 +449,7 @@ public final class OrionMediaPlayerHud {
                 String html = new String(read(ROOT + "html/hud-island/index.html"), StandardCharsets.UTF_8);
                 String css = new String(read(ROOT + "html/hud-island/style.css"), StandardCharsets.UTF_8);
                 String js = new String(read(ROOT + "html/hud-island/island.js"), StandardCharsets.UTF_8);
-                document = bytes(html.replace("<link rel=\"stylesheet\" href=\"style.css\">", "<style>" + css + "</style>")
+                document = bytes(html.replace("<link rel=\"stylesheet\" href=\"style.css\">", "<style>" + css + "\nhtml[data-glass] .surface{background:#a443a4fd}</style>")
                         .replace("<script src=\"island.js\"></script>", "<script>" + js + "</script>"));
             }
             return document;
