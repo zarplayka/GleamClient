@@ -24,13 +24,13 @@ public final class OrionStatusHud {
     public OrionStatusHud(OrionConfigManager manager) { this.manager = manager; }
 
     public void register() {
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "status_panels"), this::render);
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "status_panels"), (context, tickCounter) -> drag.draw(context, () -> render(context, tickCounter)));
     }
 
     private void render(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
         var client = Minecraft.getInstance();
         var config = manager.getConfig();
-        if (client.player == null || !config.isKeystrokesEnabled()) {
+        if (client.player == null || (!config.isKeystrokesEnabled() && !drag.fadingOut())) {
             drag.cancel();
             view.dispose();
             return;

@@ -8,7 +8,6 @@ import net.minecraft.client.gui.Hud;
 //?} else {
 /*import net.minecraft.client.gui.Gui;
 *///?}
-import net.minecraft.world.scores.Objective;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -36,18 +35,6 @@ public abstract class HudScoreboardGlassMixin {
             at = @At("RETURN"))
     private void orion$endHud(GuiGraphicsExtractor context, DeltaTracker delta, CallbackInfo callback) {
         orion$scoreboardGlass.endFrame();
-    }
-
-    @Inject(method = "displayScoreboardSidebar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/world/scores/Objective;)V",
-            at = @At("HEAD"))
-    private void orion$beginSidebar(GuiGraphicsExtractor context, Objective objective, CallbackInfo callback) {
-        orion$scoreboardGlass.beginSidebar(context);
-    }
-
-    @Inject(method = "displayScoreboardSidebar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/world/scores/Objective;)V",
-            at = @At("RETURN"))
-    private void orion$endSidebar(GuiGraphicsExtractor context, Objective objective, CallbackInfo callback) {
-        orion$scoreboardGlass.endSidebar(context);
     }
 
     @Redirect(method = "displayScoreboardSidebar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/world/scores/Objective;)V",

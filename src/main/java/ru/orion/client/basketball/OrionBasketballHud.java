@@ -32,13 +32,13 @@ public final class OrionBasketballHud {
     }
 
     public void register() {
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "basketball"), this::render);
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "basketball"), (context, delta) -> drag.draw(context, () -> render(context, delta)));
     }
 
     private void render(GuiGraphicsExtractor context, DeltaTracker delta) {
         Minecraft client = Minecraft.getInstance();
         var config = manager.getConfig();
-        if (!config.isBasketballEnabled() || !config.isBasketballHud() || client.player == null) {
+        if (((!config.isBasketballEnabled() || !config.isBasketballHud()) && !drag.fadingOut()) || client.player == null) {
             release();
             return;
         }

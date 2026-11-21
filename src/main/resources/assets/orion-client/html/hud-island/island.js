@@ -8,6 +8,7 @@ let state = {}, phase = 0, speed = 0, lastFrame = 0;
 let mouse = {x:-1000,y:-1000}, hoverStarted = 0, lastHovered = -10000;
 let range = null, lastLayout = '', position = 0, positionAt = 0;
 let lastAudible = .7, meterFrame = -1, currentBounds = null, displayedService = '';
+let lastPortrait = '';
 const clock = () => performance.now();
 const send = (action,values={}) => window.webkit?.messageHandlers?.paradox?.postMessage(JSON.stringify({action,...values}));
 const t = key => state.labels?.[key] ?? key;
@@ -82,11 +83,10 @@ function refresh() {
   const playing = active() && state.playing;
   const service = serviceFor(state.source);
   document.documentElement.toggleAttribute('data-light',Boolean(state.light));
-  island.toggleAttribute('data-solid',!state.glass);
   island.toggleAttribute('data-interactive',Boolean(state.interactive));
   const accent = !state.light ? '#65d7a0' : /^#[0-9a-f]{6}$/i.test(state.accent ?? '') ? state.accent : '#596fa8';
   island.style.setProperty('--accent',accent);
-  for (const id of ['version','username','metrics']) $(id).hidden = !state.hud;
+  for (const id of ['version','identity','metrics']) $(id).hidden = !state.hud;
   text('version',state.version ?? '');
   text('username',state.username ?? '');
   text('fps',state.fps ?? '—');
@@ -176,6 +176,14 @@ function layout() {
     currentBounds={x,y,width:width*scale,height:height*scale,radius:radius*scale};
     send('bounds',currentBounds);
     lastLayout=signature;
+  }
+  if (state.hud) {
+    const face=$('player-face').getBoundingClientRect();
+    const portrait=[face.left,face.top,face.width].map(value=>value.toFixed(2)).join(',');
+    if (portrait !== lastPortrait) {
+      send('portrait',{x:face.left,y:face.top,size:face.width});
+      lastPortrait=portrait;
+    }
   }
   return currentBounds;
 }
