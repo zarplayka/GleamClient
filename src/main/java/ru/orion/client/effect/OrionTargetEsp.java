@@ -369,7 +369,7 @@ public final class OrionTargetEsp {
         float rise = Math.min(.60F, height * .32F);
         double phase = System.nanoTime() / 1e9 * 2.3 % Math.TAU;
         var rotation = new Quaternionf(camera.rotation());
-        int points = 8 + detail * 3;
+        int points = 6 + detail * 2;
         context.submitNodeCollector().submitCustomGeometry(poseStack,
                 OrionEspRenderTypes.texturedDepthTested(texture("ghost-glow")),
                 (pose, vertices) -> buildGhost(pose, vertices, rotation, phase, radius, rise, alpha, color1, color2, points));
@@ -382,13 +382,15 @@ public final class OrionTargetEsp {
         for (int lane = 0; lane < 3; lane++) {
             for (int i = points - 1; i >= 0; i--) {
                 float strength = 1 - i / (float) points;
-                double angle = phase + lane * Math.TAU / 3 - i * 1.78 / points;
-                double y = Math.sin(angle * 2 + lane * .8) * rise;
+                double angle = phase + lane * Math.TAU / 3 - i * 1.21 / points;
+                double y = Math.sin(angle + lane * .72) * rise + (lane - 1) * .12;
                 sprites.pushPose();
                 sprites.translate(Math.sin(angle) * radius, y, Math.cos(angle) * radius);
                 ru.orion.client.render.GleamPose.rotate(sprites, rotation);
-                int color = withAlpha(lerpColor(color1, color2, strength), Math.round((i == 0 ? 172 : 64) * alpha * strength * strength));
-                buildTexturedQuad(sprites.last(), vertices, .033F + (i == 0 ? .127F : .079F) * strength, color);
+                int shade = lerpColor(color1, color2, strength);
+                int color = withAlpha(lerpColor(shade, 0xffc7f5ff, i == 0 ? .80F : .34F),
+                        Math.round((i == 0 ? 163 : 44) * alpha * strength * strength));
+                buildTexturedQuad(sprites.last(), vertices, .024F + (i == 0 ? .13F : .059F) * strength, color);
                 sprites.popPose();
             }
         }
@@ -397,25 +399,26 @@ public final class OrionTargetEsp {
     private static void buildLightning(PoseStack.Pose pose, VertexConsumer vertices, Vec3 anchor,
                                        double time, float radius, float height, int detail, float alpha, float hit,
                                        int color, int highlight) {
-        long cycle = (long) (time * 4);
-        float phase = (float) (time * 4 - cycle);
-        float intensity = alpha * (.55F + .30F * (float) Math.sin(Math.PI * phase) + .15F * hit);
-        int count = 2 + detail, steps = 7 + detail * 2;
+        long cycle = (long) (time * 2.8);
+        float phase = (float) (time * 2.8 - cycle);
+        float intensity = alpha * (.24F + .52F * (float) Math.sin(Math.PI * phase) + .24F * hit);
+        int count = 2 + (detail == 2 ? 1 : 0), steps = 6 + detail * 2;
         for (int arc = 0; arc < count; arc++) {
-            double start = time * .85 + arc * Math.TAU / count;
-            Vec3 previous = energyPoint(start, radius, -height);
+            double start = time * 1.18 + arc * Math.TAU / count;
+            double base = Math.sin(cycle * .79 + arc * 1.7) * height * .42;
+            Vec3 previous = energyPoint(start, radius, base - height * .42);
             for (int i = 1; i <= steps; i++) {
                 double t = i / (double) steps;
                 long seed = cycle * 137 + arc * 113L + i * 971L;
                 double jitter = Math.sin(seed * 3.116) * Math.sin(Math.PI * t);
-                Vec3 point = energyPoint(start + t * 1.43 + jitter * .36, radius * (1 + jitter * .22),
-                        height * (2 * t - 1) + jitter * .10);
-                energyRibbon(pose, vertices, previous, point, anchor, .039F, withAlpha(color, Math.round(73 * intensity)));
-                energyRibbon(pose, vertices, previous, point, anchor, .010F,
-                        withAlpha(lerpColor(highlight, WHITE, .67F), Math.round(240 * intensity)));
-                if (i == steps / 3 || i == steps * 2 / 3) {
-                    Vec3 tip = energyPoint(start + t * 1.43 + .7 * Math.signum(jitter), radius * 1.47, point.y + .22);
-                    energyRibbon(pose, vertices, point, tip, anchor, .009F, withAlpha(highlight, Math.round(137 * intensity)));
+                Vec3 point = energyPoint(start + t * 1.56 + jitter * .23, radius * (1.14 + jitter * .15),
+                        base + height * (.84 * t - .42) + jitter * .13);
+                energyRibbon(pose, vertices, previous, point, anchor, .034F, withAlpha(color, Math.round(47 * intensity)));
+                energyRibbon(pose, vertices, previous, point, anchor, .008F,
+                        withAlpha(lerpColor(highlight, 0xffe6faff, .72F), Math.round(242 * intensity)));
+                if (i == steps / 2) {
+                    Vec3 tip = energyPoint(start + t * 1.56 + .5 * Math.signum(jitter), radius * 1.52, point.y + .18);
+                    energyRibbon(pose, vertices, point, tip, anchor, .007F, withAlpha(highlight, Math.round(125 * intensity)));
                 }
                 previous = point;
             }
@@ -428,7 +431,7 @@ public final class OrionTargetEsp {
 
     private static void energyRibbon(PoseStack.Pose pose, VertexConsumer vertices, Vec3 a, Vec3 b, Vec3 anchor,
                                      float thickness, int color) {
-        Vec3 side = b.subtract(a).cross(anchor.add(a).add(b).scale(.5)).normalize().scale(thickness);
+        Vec3 side = b.subtract(a).cross(anchor.add(a.add(b).scale(.5))).normalize().scale(thickness);
         addColorVertex(pose, vertices, a.subtract(side), color);
         addColorVertex(pose, vertices, a.add(side), color);
         addColorVertex(pose, vertices, b.add(side), color);
@@ -440,18 +443,17 @@ public final class OrionTargetEsp {
         double size = radius * (1.21 + .15 * hit);
         for (int ring = 0; ring < 2; ring++) {
             int direction = ring == 0 ? 1 : -1;
-            for (int segment = 0; segment < 8; segment++) {
-                double angle = segment * Math.TAU / 8 + time * direction * .95;
-                int ink = withAlpha(lerpColor(color, highlight, (float) (.5 + .5 * Math.sin(angle - time * 2))),
-                        Math.round(alpha * (ring == 0 ? 205 : 145)));
-                Vec3 left = energyPoint(angle, size * .96, direction * height * .54 + Math.sin(angle) * .17);
-                Vec3 middle = energyPoint(angle + .31, size * 1.10, direction * height * .54 + Math.sin(angle + .31) * .17);
-                Vec3 right = energyPoint(angle + .63, size * .96, direction * height * .54 + Math.sin(angle + .63) * .17);
-                Vec3 inset = energyPoint(angle + .31, size * .96, middle.y);
-                addColorVertex(pose, vertices, left, ink);
-                addColorVertex(pose, vertices, middle, ink);
-                addColorVertex(pose, vertices, right, ink);
-                addColorVertex(pose, vertices, inset, ink);
+            double rotation = time * direction * .95;
+            for (int segment = 0; segment < 30; segment++) {
+                double angle = segment * Math.TAU / 30 + rotation, end = angle + Math.TAU / 30;
+                float glow = (float) Math.pow(.5 + .5 * Math.cos(angle * 2 - rotation * 4), 2);
+                int ink = withAlpha(lerpColor(color, highlight, glow), Math.round(alpha * (24 + 177 * glow)));
+                double y1 = direction * height * .48 + Math.sin(angle + ring) * .20;
+                double y2 = direction * height * .48 + Math.sin(end + ring) * .20;
+                addColorVertex(pose, vertices, energyPoint(angle, size, y1 - .012), ink);
+                addColorVertex(pose, vertices, energyPoint(angle, size, y1 + .012), ink);
+                addColorVertex(pose, vertices, energyPoint(end, size, y2 + .012), ink);
+                addColorVertex(pose, vertices, energyPoint(end, size, y2 - .012), ink);
             }
         }
     }

@@ -3950,7 +3950,7 @@ public final class OrionClickGuiScreen extends Screen {
                     new SliderSetting("Размер щита", 0.2F, 1F, config::getSmallShieldScale, config::setSmallShieldScale, "x")
             };
             case VIEW_MODEL -> new Setting[]{
-                    new ValueSetting("ViewModel", () -> tr("Открой чат и перетащи метку руки. Колесо меняет глубину.")),
+                    new ValueSetting("ViewModel", () -> tr("Потяни за видимую руку в чате. Колесо меняет глубину.")),
                     new SliderSetting("Правая рука X", -1F, 1F, () -> config.getViewModelOffset(true, 0), v -> config.setViewModelOffset(true, 0, v), ""),
                     new SliderSetting("Правая рука Y", -1F, 1F, () -> config.getViewModelOffset(true, 1), v -> config.setViewModelOffset(true, 1, v), ""),
                     new SliderSetting("Правая рука Z", -1F, 1F, () -> config.getViewModelOffset(true, 2), v -> config.setViewModelOffset(true, 2, v), ""),

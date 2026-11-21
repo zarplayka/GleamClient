@@ -37,8 +37,7 @@ layout(location = 0) out vec4 fragColor;
 /*out vec4 fragColor;
 *///?}
 
-const float BLUR_OFFSET = 4.5;
-const float GLASS_OPACITY = 0.48;
+const float BLUR_OFFSET = 7.0;
 
 void main() {
     vec4 foreground = texture(Sampler0, texCoord0);
@@ -60,7 +59,13 @@ void main() {
     }
 
     vec2 pixel = 1.0 / vec2(textureSize(Sampler1, 0));
-    vec2 screenUv = gl_FragCoord.xy * pixel;
+    vec2 maskStep = 1.8 / vec2(textureSize(Sampler2, 0));
+    float left = texture(Sampler2, texCoord0 - vec2(maskStep.x, 0.0)).a;
+    float right = texture(Sampler2, texCoord0 + vec2(maskStep.x, 0.0)).a;
+    float top = texture(Sampler2, texCoord0 - vec2(0.0, maskStep.y)).a;
+    float bottom = texture(Sampler2, texCoord0 + vec2(0.0, maskStep.y)).a;
+    vec2 rimDirection = vec2(right - left, bottom - top);
+    vec2 screenUv = gl_FragCoord.xy * pixel + rimDirection * pixel * 2.5;
     vec2 uvMin = pixel * 0.5;
     vec2 uvMax = vec2(1.0) - uvMin;
     vec2 offset = pixel * BLUR_OFFSET;
@@ -71,10 +76,12 @@ void main() {
     blurred += texture(Sampler1, clamp(screenUv + vec2(offset.x, -offset.y), uvMin, uvMax)).rgb * 0.125;
     blurred += texture(Sampler1, clamp(screenUv + vec2(-offset.x, offset.y), uvMin, uvMax)).rgb * 0.125;
     float luminance = dot(blurred, vec3(0.2126, 0.7152, 0.0722));
-    // Сохраняем цвет мира, слегка приглушая детали под светлыми надписями.
-    vec3 glass = mix(vec3(luminance), blurred, 1.08);
-    glass = mix(glass, vec3(0.18, 0.19, 0.20), 0.16);
-    float glassAlpha = coverage * GLASS_OPACITY;
+    // У яркого фона сильнее затемняется середина. Кромка сохраняет отражённый свет.
+    float tint = mix(0.18, 0.70, smoothstep(0.18, 0.85, luminance));
+    vec3 glass = mix(mix(vec3(luminance), blurred, 0.72), vec3(0.055, 0.071, 0.088), tint);
+    float rim = clamp(dot(rimDirection, vec2(0.45, 0.88)), 0.0, 1.0);
+    glass += vec3(0.27, 0.31, 0.35) * rim;
+    float glassAlpha = coverage * 0.91;
     float alpha = foreground.a + glassAlpha * (1.0 - foreground.a);
     vec3 premultiplied = foreground.rgb * foreground.a
             + glass * glassAlpha * (1.0 - foreground.a);

@@ -225,13 +225,7 @@ public final class OrionHudEditorScreen extends Screen {
                 float progress = ease(inspectorProgress);
                 scene.animateParts(start, progress, -4 * (1 - progress));
             }
-            if (canEditHands()) {
-                for (int hand = -1; hand <= 1; hand += 2) {
-                    var box = handHandle(hand);
-                    boxButton(scene, box.x(), box.y(), box.width(), 16, tr(hand > 0 ? "Правая рука" : "Левая рука"),
-                            handDrag == hand || box.contains(mouseX, mouseY));
-                }
-            }
+
         }
         button(scene, width - 81, BAR_Y, 72, preview ? "Редактировать" : "Просмотр", preview);
         if (chat == null) button(scene, width - 104, BAR_Y, 20, "×", false);
@@ -577,25 +571,52 @@ public final class OrionHudEditorScreen extends Screen {
                 && Minecraft.getInstance().options.getCameraType().isFirstPerson();
     }
 
-    private record HandHandle(int x, int y, int width) {
-        boolean contains(double mx, double my) {
-            return mx >= x && mx < x + width && my >= y && my < y + 16;
+    private HandHit leftHand, rightHand;
+    private record HandHit(float x, float y, float right, float bottom, float depth, long time, int width, int height) {
+        boolean contains(double mx, double my, int w, int h, long now) {
+            return width == w && height == h && now - time < 220_000_000L
+                    && mx >= x && mx <= right && my >= y && my <= bottom;
         }
     }
 
-    private HandHandle handHandle(int hand) {
-        int w = Math.min(87, Math.max(30, width / 4));
-        float unit = Math.min(width, height) * .52F;
-        int x = Math.round(width * (hand > 0 ? .79F : .21F) - w / 2F + config.getViewModelOffset(hand > 0, 0) * unit);
-        int y = Math.round(height * .76F - config.getViewModelOffset(hand > 0, 1) * unit);
-        return new HandHandle(Math.clamp(x, 3, Math.max(3, width - w - 3)),
-                Math.clamp(y, BAR_Y + BAR_H + 4, Math.max(BAR_Y + BAR_H + 4, height - 45)), w);
+    public static void recordHand(boolean right, com.mojang.blaze3d.vertex.PoseStack pose,
+                                  net.minecraft.world.phys.AABB bounds) {
+        var editor = chatEditor;
+        if (editor == null || !editor.canEditHands() || editor.width < 1 || editor.height < 1) return;
+        var camera = GleamMinecraft.levelState(Minecraft.getInstance()).cameraRenderState;
+        if (camera == null || !camera.initialized) return;
+        var projection = ru.orion.client.render.GleamCameraMatrices.projection(camera);
+        if (projection == null) return;
+        var transform = new org.joml.Matrix4f(projection)
+                .mul(com.mojang.blaze3d.systems.RenderSystem.getModelViewStack()).mul(pose.last().pose());
+        float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, depth = Float.POSITIVE_INFINITY;
+        var point = new org.joml.Vector4f();
+        for (int corner = 0; corner < 8; corner++) {
+            transform.transform((float) ((corner & 1) == 0 ? bounds.minX : bounds.maxX),
+                    (float) ((corner & 2) == 0 ? bounds.minY : bounds.maxY),
+                    (float) ((corner & 4) == 0 ? bounds.minZ : bounds.maxZ), 1F, point);
+            if (point.w <= .03F || !Float.isFinite(point.w)) continue;
+            float x = (.5F + .5F * point.x / point.w) * editor.width;
+            float y = (.5F - .5F * point.y / point.w) * editor.height;
+            if (!Float.isFinite(x) || !Float.isFinite(y)) continue;
+            minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+            minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+            depth = Math.min(depth, point.w);
+        }
+        if (minX > maxX || minY > maxY || maxX < 0 || maxY < 0 || minX > editor.width || minY > editor.height) return;
+        var hit = new HandHit(minX - 2, minY - 2, maxX + 2, maxY + 2, depth, System.nanoTime(), editor.width, editor.height);
+        if (right) editor.rightHand = hit;
+        else editor.leftHand = hit;
     }
 
     private int handAt(double x, double y) {
         if (!canEditHands()) return 0;
-        if (handHandle(1).contains(x, y)) return 1;
-        return handHandle(-1).contains(x, y) ? -1 : 0;
+        long now = System.nanoTime();
+        boolean right = rightHand != null && rightHand.contains(x, y, width, height, now);
+        boolean left = leftHand != null && leftHand.contains(x, y, width, height, now);
+        if (right && (!left || rightHand.depth() <= leftHand.depth())) return 1;
+        return left ? -1 : 0;
     }
 
     private void showGridAfterClick(MouseButtonEvent event) {

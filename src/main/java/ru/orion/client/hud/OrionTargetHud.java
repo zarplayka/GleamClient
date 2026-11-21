@@ -1,5 +1,6 @@
 package ru.orion.client.hud;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -8,14 +9,12 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.client.renderer.rendertype.OrionEspRenderTypes;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -30,15 +29,28 @@ import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.effect.OrionNameProtect;
 import org.joml.Vector3f;
 import ru.orion.client.render.GleamPose;
+import ru.orion.client.gui.OrionInterfaceFonts;
+
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.GradientPaint;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Line2D;
+import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 
 public final class OrionTargetHud {
     public static final String ID = "target_hud";
     private static final int WIDTH = 152, BAR_INSET = 6;
-    private static final float WORLD_UNIT = 1.10F / WIDTH;
+    private static final int PIXEL_SCALE = 3;
+    private static final float WORLD_UNIT = 1.46F / WIDTH;
+    private static final Identifier WORLD_CARD = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "target_hud_world");
     private static final int FULL_LIGHT = 0xF000F0;
     private static final int BAR_WIDTH = WIDTH - BAR_INSET * 2;
     private static final Layout SCREEN = new Layout(45, 6, 28, 39, 39);
-    private static final Layout ATTACHED = new Layout(48, 6, 31, 42, 42);
     private static final String HEALTH = "#b7df52", ABSORPTION = "#e8b967";
     private static final EquipmentSlot[] EQUIPMENT = { EquipmentSlot.HEAD, EquipmentSlot.CHEST,
             EquipmentSlot.LEGS, EquipmentSlot.FEET, EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND };
@@ -55,6 +67,12 @@ public final class OrionTargetHud {
     private double shownHealth;
     private Readout previous;
     private OrionHudView.Scene scene;
+    private DynamicTexture worldTexture;
+    private BufferedImage worldCanvas;
+    private long worldTextureAt;
+    private WorldReadout previousWorld;
+
+    private record WorldReadout(Readout data, int theme) {}
 
     private record Layout(int height, int faceY, int faceSize, int textX, int barY) {}
 
@@ -86,6 +104,15 @@ public final class OrionTargetHud {
         target = attacked = barTarget = null;
         drag.cancel();
         view.dispose();
+        releaseWorld();
+    }
+
+    private void releaseWorld() {
+        if (worldTexture == null) return;
+        Minecraft.getInstance().getTextureManager().release(WORLD_CARD);
+        worldTexture = null;
+        worldCanvas = null;
+        previousWorld = null;
     }
 
     private static boolean valid(Minecraft client, LivingEntity candidate, OrionConfig config) {
@@ -257,8 +284,11 @@ public final class OrionTargetHud {
     private void renderWorld(LevelRenderContext context) {
         var client = Minecraft.getInstance();
         var config = manager.getConfig();
-        if (!config.isTargetHudWorld() || !config.isTargetHudEnabled() || client.player == null
-                || client.level == null || OrionHudEditorScreen.editing(client)) return;
+        if (!config.isTargetHudWorld() || !config.isTargetHudEnabled() || client.player == null || client.level == null) {
+            releaseWorld();
+            return;
+        }
+        if (OrionHudEditorScreen.editing(client)) return;
         //? if >=26.2 {
         if (client.gameRenderer.gameRenderState().guiRenderState.isHudHidden) return;
         //?} else {
@@ -272,21 +302,25 @@ public final class OrionTargetHud {
             return;
         }
 
-        var layout = ATTACHED;
-        var data = read(client, living, config);
+        Readout data = read(client, living, config);
+        Layout layout = SCREEN;
+        WorldReadout card = new WorldReadout(data, config.getClickGuiTheme());
+        long now = System.nanoTime();
+        if (previousWorld == null || !card.equals(previousWorld) && now - worldTextureAt >= 40_000_000L) {
+            updateWorldTexture(client, card);
+            worldTextureAt = now;
+        }
+        if (worldTexture == null) return;
         float unit = WORLD_UNIT * config.getHudScale() * config.getHudElementScale(ID);
         float partial = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
-        Vec3 torso = living.getPosition(partial).add(0, living.getBbHeight() * .66, 0).subtract(camera.pos);
-        // Camera-space support of the interpolated box keeps the entire face and name outside the silhouette.
+        Vec3 torso = living.getPosition(partial).add(0, living.getBbHeight() * .60, 0).subtract(camera.pos);
         var side = camera.orientation.transform(new Vector3f(1, 0, 0));
         var back = camera.orientation.transform(new Vector3f(0, 0, -1));
-        float widthSupport = (Math.abs(side.x) + Math.abs(side.z)) * living.getBbWidth() * .5F;
-        float heightSupport = Math.abs(side.y) * living.getBbHeight() * .66F;
-        double depth = living.getBbWidth() * .45F + .15F;
-        double offset = WIDTH * unit * .5 + widthSupport + heightSupport + .10F;
+        double silhouette = (Math.abs(side.x) + Math.abs(side.z)) * living.getBbWidth() * .5;
+        double horizontal = WIDTH * unit * .5 + silhouette * .88 + .025;
+        double depth = living.getBbWidth() * .45F + .13F;
         Vec3 anchor = torso.add(back.x * depth, back.y * depth, back.z * depth)
-                .add(side.x * offset, side.y * offset, side.z * offset);
-
+                .subtract(side.x * horizontal, side.y * horizontal, side.z * horizontal);
         PoseStack pose = context.poseStack();
         pose.pushPose();
         try {
@@ -294,48 +328,14 @@ public final class OrionTargetHud {
             GleamPose.rotate(pose, camera.orientation);
             pose.scale(unit, -unit, unit);
             pose.translate(-WIDTH / 2F, -layout.height / 2F, 0);
-            var collector = context.submitNodeCollector();
-            boolean light = config.getClickGuiTheme() == 4;
-            int ink = light ? 0xff222b38 : 0xfff4f6f5;
-            int secondary = light ? 0xff526071 : 0xffaab2bb;
-            int health = light ? 0xff3d6c18 : 0xffb7df52;
-            collector.submitCustomGeometry(pose, OrionEspRenderTypes.worldLyricsSolid(), (matrix, vertices) -> {
-                worldPanel(matrix, vertices, 0, 0, WIDTH, layout.height, 7, 0, light ? 0xffabbccc : 0xff53636a);
-                worldPanel(matrix, vertices, 1, 1, WIDTH - 2, layout.height - 2, 6, 1.4F, light ? 0xfff0f5fc : 0xff111820);
-                worldPanel(matrix, vertices, 5, layout.faceY - 1, layout.faceSize + 2, layout.faceSize + 2, 3, 2.4F,
-                        light ? 0xffdbe5f1 : 0xff26353c);
-                worldRect(matrix, vertices, BAR_INSET, layout.barY, BAR_WIDTH, 3, 2.4F, light ? 0xffd4ded2 : 0xff32403a);
-                if (data.fill > 0) worldRect(matrix, vertices, BAR_INSET, layout.barY, data.fill, 3, 3.2F, health);
-                int shield = Math.min(data.absorption, BAR_WIDTH - data.fill);
-                if (shield > 0) worldRect(matrix, vertices, BAR_INSET + data.fill, layout.barY, shield, 3, 3.2F, 0xffe8b967);
-            });
+            worldQuad(context, pose, WORLD_CARD, 0, 0, WIDTH, layout.height, 0, 0, 0, 1, 1);
             if (living instanceof AbstractClientPlayer player) {
                 Identifier skin = player.getSkin().body().texturePath();
-                worldFace(context, pose, skin, layout, 8, 3.7F);
+                worldQuad(context, pose, skin, 6, layout.faceY, layout.faceSize, layout.faceSize, 1.4F, .125F, .125F, .25F, .25F);
                 if (player.isModelPartShown(net.minecraft.world.entity.player.PlayerModelPart.HAT)) {
-                    worldFace(context, pose, skin, layout, 40, 4.4F);
+                    worldQuad(context, pose, skin, 6, layout.faceY, layout.faceSize, layout.faceSize, 2.2F, .625F, .125F, .75F, .25F);
                 }
-            } else {
-                worldLabel(context, pose, "◎", 13, layout.faceY + 9, 1.4F, 0xffb7df52);
             }
-            int nameLimit = WIDTH - layout.textX - (data.ping < 0 ? 8 : 35);
-            worldLabel(context, pose, client.font.plainSubstrByWidth(data.name, nameLimit), layout.textX, 5, 1F, ink);
-            if (data.ping >= 0) {
-                String ping = data.ping + " ms";
-                worldLabel(context, pose, ping, WIDTH - 6 - client.font.width(ping) * .75F, 6, .75F,
-                        data.ping < 150 ? (light ? 0xff1f764d : 0xff67d99b)
-                                : data.ping < 300 ? (light ? 0xff805414 : 0xfff1c067) : (light ? 0xffae3448 : 0xffee8f8f));
-            }
-            worldLabel(context, pose, data.health, layout.textX, 17, .85F, health);
-            float next = layout.textX + client.font.width(data.health) * .85F + 3;
-            String max = "/ " + data.maxHealth;
-            worldLabel(context, pose, max, next, 17, .85F, secondary);
-            float distanceX = WIDTH - 6 - client.font.width(data.distance) * .75F;
-            next += client.font.width(max) * .85F + 3;
-            if (!data.extraHealth.isEmpty() && next + client.font.width(data.extraHealth) * .75F < distanceX - 2) {
-                worldLabel(context, pose, data.extraHealth, next, 17, .75F, light ? 0xff825011 : 0xffe8b967);
-            }
-            worldLabel(context, pose, data.distance, distanceX, 17, .75F, secondary);
             if (data.equipment) {
                 for (int i = 0; i < EQUIPMENT.length; i++) {
                     var item = living.getItemBySlot(EQUIPMENT[i]);
@@ -343,9 +343,9 @@ public final class OrionTargetHud {
                     var state = new ItemStackRenderState();
                     client.getItemModelResolver().updateForLiving(state, item, ItemDisplayContext.GUI, living);
                     pose.pushPose();
-                    pose.translate(layout.textX + 6 + i * 14, 33, 5.2F);
-                    pose.scale(11, -11, 3);
-                    state.submit(pose, collector, FULL_LIGHT, 0, 0);
+                    pose.translate(layout.textX + (i * 17 + 8) * .58F, layout.barY - 11 + 8 * .58F, 3.2F);
+                    pose.scale(16 * .58F, -16 * .58F, 3);
+                    state.submit(pose, context.submitNodeCollector(), FULL_LIGHT, 0, 0);
                     pose.popPose();
                 }
             }
@@ -354,34 +354,110 @@ public final class OrionTargetHud {
         }
     }
 
-    private static void worldPanel(PoseStack.Pose pose, VertexConsumer vertices, float x, float y,
-                                   float w, float h, int radius, float z, int color) {
-        worldRect(pose, vertices, x, y + radius, w, h - 2 * radius, z, color);
-        for (int i = 0; i < radius; i++) {
-            double dy = radius - i - .5;
-            float inset = radius - (float) Math.sqrt(radius * radius - dy * dy);
-            worldRect(pose, vertices, x + inset, y + i, w - 2 * inset, 1, z, color);
-            worldRect(pose, vertices, x + inset, y + h - i - 1, w - 2 * inset, 1, z, color);
+    private void updateWorldTexture(Minecraft client, WorldReadout card) {
+        int width = WIDTH * PIXEL_SCALE, height = SCREEN.height * PIXEL_SCALE;
+        if (worldCanvas == null) worldCanvas = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = worldCanvas.createGraphics();
+        try {
+            g.setComposite(AlphaComposite.Clear);
+            g.fillRect(0, 0, width, height);
+            g.setComposite(AlphaComposite.SrcOver);
+            g.scale(PIXEL_SCALE, PIXEL_SCALE);
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            paintCard(g, scene(card.data(), SCREEN), card.theme());
+        } finally {
+            g.dispose();
+        }
+        if (worldTexture == null) {
+            worldTexture = new DynamicTexture(() -> "Gleam TargetHUD", new NativeImage(width, height, true));
+            client.getTextureManager().register(WORLD_CARD, worldTexture);
+        }
+        var image = worldTexture.getPixels();
+        int[] colors = ((java.awt.image.DataBufferInt) worldCanvas.getRaster().getDataBuffer()).getData();
+        for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) image.setPixel(x, y, colors[y * width + x]);
+        worldTexture.upload();
+        previousWorld = card;
+    }
+
+    private static void paintCard(Graphics2D g, OrionHudView.Scene scene, int theme) {
+        for (var entry : scene.themedParts(theme)) {
+            var part = entry.getAsJsonObject();
+            float x = part.get("x").getAsFloat(), y = part.get("y").getAsFloat();
+            float w = part.get("w").getAsFloat(), h = part.get("h").getAsFloat();
+            if (w <= 0 || h <= 0) continue;
+            String kind = part.get("kind").getAsString();
+            float radius = part.has("radius") ? 2 * part.get("radius").getAsFloat() : 0F;
+            var area = new RoundRectangle2D.Float(x, y, w, h, radius, radius);
+            switch (kind) {
+                case "panel" -> {
+                    if (theme == 4) g.setPaint(new GradientPaint(x, y, new Color(0xf3f6fc), x, y + h, new Color(0xe7ecf7)));
+                    else if (theme == 5) g.setPaint(new GradientPaint(x, y, new Color(0xd352626f, true),
+                            x, y + h, new Color(0xdc222930, true)));
+                    else g.setColor(new Color(0xeb0f1216, true));
+                    g.fill(area);
+                    paintBorder(g, x, y, w, h, radius, theme == 4 ? 0x26414b69 : theme == 5 ? 0x53edf6ff : 0x26edf7f2);
+                }
+                case "well" -> {
+                    g.setColor(new Color(theme == 4 ? 0x0a414b69 : theme == 5 ? 0x330b1118 : 0x08ffffff, true));
+                    g.fill(area);
+                    paintBorder(g, x, y, w, h, radius, theme == 4 ? 0x26414b69 : theme == 5 ? 0x24e8f4ff : 0x26edf7f2);
+                }
+                case "box" -> {
+                    g.setColor(new Color(OrionHudView.Scene.argb(part.get("color").getAsString()), true));
+                    g.fill(area);
+                    if (part.has("border")) paintBorder(g, x, y, w, h, radius,
+                            OrionHudView.Scene.argb(part.get("border").getAsString()));
+                }
+                case "label" -> {
+                    Graphics2D label = (Graphics2D) g.create();
+                    try {
+                        label.clip(new java.awt.geom.Rectangle2D.Float(x, y, w, h));
+                        label.setFont(OrionInterfaceFonts.face(part.get("bold").getAsBoolean() ? 3 : 0, part.get("size").getAsFloat()));
+                        label.setColor(new Color(OrionHudView.Scene.argb(part.get("color").getAsString()), true));
+                        String text = part.get("text").getAsString();
+                        var metrics = label.getFontMetrics();
+                        float offset = "right".equals(part.get("align").getAsString()) ? Math.max(0, w - metrics.stringWidth(text)) : 0;
+                        label.drawString(text, x + offset, y + (h + metrics.getAscent() - metrics.getDescent()) / 2F);
+                    } finally {
+                        label.dispose();
+                    }
+                }
+                case "icon" -> {
+                    // The non-player portrait uses the same reticle geometry as the HUD's SVG.
+                    Graphics2D icon = (Graphics2D) g.create();
+                    try {
+                        icon.translate(x, y);
+                        icon.scale(w / 20F, h / 20F);
+                        icon.setColor(new Color(OrionHudView.Scene.argb(part.get("color").getAsString()), true));
+                        icon.setStroke(new BasicStroke(1.4F, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                        icon.draw(new Ellipse2D.Float(4, 4, 12, 12));
+                        icon.draw(new Line2D.Float(10, 2, 10, 6));
+                        icon.draw(new Line2D.Float(10, 14, 10, 18));
+                        icon.draw(new Line2D.Float(2, 10, 6, 10));
+                        icon.draw(new Line2D.Float(14, 10, 18, 10));
+                    } finally {
+                        icon.dispose();
+                    }
+                }
+            }
         }
     }
 
-    private static void worldRect(PoseStack.Pose pose, VertexConsumer vertices, float x, float y,
-                                  float width, float height, float z, int color) {
-        vertices.addVertex(pose.pose(), x, y, z).setColor(color);
-        vertices.addVertex(pose.pose(), x, y + height, z).setColor(color);
-        vertices.addVertex(pose.pose(), x + width, y + height, z).setColor(color);
-        vertices.addVertex(pose.pose(), x + width, y, z).setColor(color);
+    private static void paintBorder(Graphics2D g, float x, float y, float w, float h, float radius, int color) {
+        if (w < 1F || h < 1F) return;
+        g.setColor(new Color(color, true));
+        g.draw(new RoundRectangle2D.Float(x + .5F, y + .5F, w - 1, h - 1,
+                Math.max(0, radius - 1), Math.max(0, radius - 1)));
     }
 
-    private static void worldFace(LevelRenderContext context, PoseStack pose, Identifier skin,
-                                  Layout layout, int faceU, float z) {
-        float x = 6, y = layout.faceY, size = layout.faceSize;
-        float u0 = faceU / 64F, u1 = (faceU + 8) / 64F;
-        context.submitNodeCollector().submitCustomGeometry(pose, RenderTypes.text(skin), (matrix, vertices) -> {
-            faceVertex(matrix, vertices, x, y, z, u0, .125F);
-            faceVertex(matrix, vertices, x, y + size, z, u0, .25F);
-            faceVertex(matrix, vertices, x + size, y + size, z, u1, .25F);
-            faceVertex(matrix, vertices, x + size, y, z, u1, .125F);
+    private static void worldQuad(LevelRenderContext context, PoseStack pose, Identifier texture,
+                                  float x, float y, float w, float h, float z, float u0, float v0, float u1, float v1) {
+        context.submitNodeCollector().submitCustomGeometry(pose, RenderTypes.text(texture), (matrix, vertices) -> {
+            faceVertex(matrix, vertices, x, y, z, u0, v0);
+            faceVertex(matrix, vertices, x, y + h, z, u0, v1);
+            faceVertex(matrix, vertices, x + w, y + h, z, u1, v1);
+            faceVertex(matrix, vertices, x + w, y, z, u1, v0);
         });
     }
 
@@ -389,13 +465,4 @@ public final class OrionTargetHud {
         vertices.addVertex(pose.pose(), x, y, z).setUv(u, v).setLight(FULL_LIGHT).setColor(-1);
     }
 
-    private static void worldLabel(LevelRenderContext context, PoseStack pose, String text,
-                                   float x, float y, float scale, int color) {
-        pose.pushPose();
-        pose.translate(x, y, 4.8F);
-        pose.scale(scale, scale, 1);
-        context.submitNodeCollector().submitText(pose, 0, 0, Component.literal(text).getVisualOrderText(), false,
-                Font.DisplayMode.NORMAL, FULL_LIGHT, color, 0, 0);
-        pose.popPose();
-    }
 }
