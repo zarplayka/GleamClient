@@ -168,6 +168,7 @@ async function clickGui() {
     const module = byModule.get(id);
     switch (action) {
       case 'cosmetic-preview': showPortrait(message); return;
+      case 'glass-bounds': return;
       case 'section': saveSession('gleam-preview-page', { page: message.page }); return;
       case 'close': openScreen('title'); return;
       case 'look':

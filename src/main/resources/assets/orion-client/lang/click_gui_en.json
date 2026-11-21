@@ -1284,5 +1284,17 @@
   "Всплеск": "Burst",
   "Расширяющееся кольцо на месте прыжка": "An expanding ring appears where you jump",
   "Звук при настройке": "Preview on change",
-  "Проигрывать звук после изменения громкости": "Play the sound after changing its volume"
+  "Проигрывать звук после изменения громкости": "Play the sound after changing its volume",
+  "Стекло": "Glass",
+  "Молнии": "Lightning",
+  "Орбиты": "Orbits",
+  "Правая рука": "Right hand",
+  "Левая рука": "Left hand",
+  "Открой чат и перетащи метку руки. Колесо меняет глубину.": "Open chat and drag a hand marker. Scroll to adjust depth.",
+  "Правая рука X": "Right hand X",
+  "Правая рука Y": "Right hand Y",
+  "Правая рука Z": "Right hand Z",
+  "Левая рука X": "Left hand X",
+  "Левая рука Y": "Left hand Y",
+  "Левая рука Z": "Left hand Z"
 }

@@ -83,6 +83,7 @@ function refresh() {
   const playing = active() && state.playing;
   const service = serviceFor(state.source);
   document.documentElement.toggleAttribute('data-light',Boolean(state.light));
+  document.documentElement.toggleAttribute('data-glass',Boolean(state.glass));
   island.toggleAttribute('data-interactive',Boolean(state.interactive));
   const accent = !state.light ? '#65d7a0' : /^#[0-9a-f]{6}$/i.test(state.accent ?? '') ? state.accent : '#596fa8';
   island.style.setProperty('--accent',accent);

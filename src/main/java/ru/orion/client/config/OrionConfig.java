@@ -325,6 +325,8 @@ public final class OrionConfig {
     private float viewModelX = 0.0F;
     private float viewModelY = 0.0F;
     private float viewModelZ = 0.0F;
+    private float[] viewModelRight;
+    private float[] viewModelLeft;
     private boolean hudEnabled = true;
     private boolean scoreboardGlassEnabled = true;
     private java.util.Map<String, Boolean> hudElementGlass = new java.util.HashMap<>();
@@ -992,6 +994,26 @@ public final class OrionConfig {
     public void setViewModelY(float value) { viewModelY = value; }
     public float getViewModelZ() { return viewModelZ; }
     public void setViewModelZ(float value) { viewModelZ = value; }
+    public float getViewModelOffset(boolean right, int axis) {
+        float[] position = right ? viewModelRight : viewModelLeft;
+        if (position != null) return position[axis];
+        return switch (axis) { case 0 -> (right ? 1 : -1) * viewModelX; case 1 -> viewModelY; default -> viewModelZ; };
+    }
+
+    public void setViewModelOffsets(boolean right, float x, float y, float z) {
+        float[] position = {viewModelCoordinate(x), viewModelCoordinate(y), viewModelCoordinate(z)};
+        if (right) viewModelRight = position;
+        else viewModelLeft = position;
+    }
+
+    public void setViewModelOffset(boolean right, int axis, float value) {
+        setViewModelOffsets(right, axis == 0 ? value : getViewModelOffset(right, 0),
+                axis == 1 ? value : getViewModelOffset(right, 1), axis == 2 ? value : getViewModelOffset(right, 2));
+    }
+
+    private static float viewModelCoordinate(float value) {
+        return Float.isFinite(value) ? Math.clamp(value, -1F, 1F) : 0F;
+    }
 
     public boolean isHudEnabled() {
         return hudEnabled;
@@ -1458,7 +1480,7 @@ public final class OrionConfig {
     }
 
     public void setClickGuiTheme(int clickGuiTheme) {
-        this.clickGuiTheme = clickGuiTheme == 4 ? 4 : 3;
+        this.clickGuiTheme = clickGuiTheme >= 3 && clickGuiTheme <= 5 ? clickGuiTheme : 3;
     }
 
     public boolean isHealthTagsEnabled() {
@@ -1756,7 +1778,11 @@ public final class OrionConfig {
         hudElementScales.replaceAll((key, value) -> Float.isFinite(value) ? clamp(value, .35F, 4F) : 1F);
         if (hudElementGlass == null) hudElementGlass = new java.util.HashMap<>();
         hudElementGlass.entrySet().removeIf(entry -> entry.getKey() == null || entry.getValue() == null);
-        clickGuiTheme = clickGuiTheme == 4 ? 4 : 3;
+        if (viewModelLeft == null || viewModelLeft.length != 3) viewModelLeft = null;
+        else setViewModelOffsets(false, viewModelLeft[0], viewModelLeft[1], viewModelLeft[2]);
+        if (viewModelRight == null || viewModelRight.length != 3) viewModelRight = null;
+        else setViewModelOffsets(true, viewModelRight[0], viewModelRight[1], viewModelRight[2]);
+        setClickGuiTheme(clickGuiTheme);
         clickGuiWindowSize = normalizeClickGuiSize(clickGuiWindowSize);
         setClickGuiLanguage(clickGuiLanguage);
         setClickGuiWindowPosition(clickGuiWindowX, clickGuiWindowY);
@@ -1801,7 +1827,7 @@ public final class OrionConfig {
             mediaPlayerCorner = "TOP_CENTER";
         }
         aspectStretch = clamp(aspectStretch, 0.05F, 2.0F);
-        targetEspTexture = targetEspTexture == 5 ? 1 : Math.clamp(targetEspTexture, 0, 4);
+        targetEspTexture = targetEspTexture == 5 ? 1 : Math.clamp(targetEspTexture, 0, 7);
         setTargetEspDetail(targetEspDetail);
         setHitBoxStyle(hitBoxStyle);
         setHitBoxWidth(hitBoxWidth);

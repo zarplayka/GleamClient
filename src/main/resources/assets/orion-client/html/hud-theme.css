@@ -9,7 +9,7 @@
   --hud-radius:7px;--hud-inner-radius:4px;
 }
 .gleam-hud,.gleam-hud-panel,.gleam-hud-key{font-family:GleamHud,sans-serif}
-html[data-light]{
+:root[data-light]:not([data-launcher-preview]){
   --accent:#4257b2;--text:#242735;--muted:#586174;--line:#414b6926;
   --top:#f3f6fc;--surface:#e7ecf7;--well:#414b690a;--hover:#37466e18;--track:#abb5c9;
   --hud-glass:linear-gradient(180deg,#f3f6fcde,#e7ecf7b0 65%);
@@ -28,3 +28,8 @@ html[data-gleam-hud]:not([data-light]){
   --hud-panel:#0f1216eb;--hud-glass:#0f1216cf;--hud-selected:#65d7a021;
 }
 html[data-gleam-hud] .gleam-hud-panel{border:1px solid var(--line)}
+:root[data-glass]:not([data-launcher-preview]){
+  --hud-glass:linear-gradient(165deg,#596f87be 0%,#283644ce 34%,#141c27dc 74%,#263747d0 100%);
+  --line:#d5eaff3d;--well:#8baac628;--hover:#bfd7f130;--track:#506276;
+  --hud-selected:#516e67dc;--text:#f2f7ff;--muted:#c0ccdb;
+}

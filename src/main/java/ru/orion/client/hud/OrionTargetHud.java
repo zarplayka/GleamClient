@@ -34,7 +34,7 @@ import ru.orion.client.render.GleamPose;
 public final class OrionTargetHud {
     public static final String ID = "target_hud";
     private static final int WIDTH = 152, BAR_INSET = 6;
-    private static final float WORLD_UNIT = 1.25F / WIDTH;
+    private static final float WORLD_UNIT = 1.10F / WIDTH;
     private static final int FULL_LIGHT = 0xF000F0;
     private static final int BAR_WIDTH = WIDTH - BAR_INSET * 2;
     private static final Layout SCREEN = new Layout(45, 6, 28, 39, 39);
@@ -222,7 +222,6 @@ public final class OrionTargetHud {
     private static OrionHudView.Scene scene(Readout data, Layout layout) {
         var scene = new OrionHudView.Scene(WIDTH, layout.height);
         scene.panel(0, 0, WIDTH, layout.height, 8);
-        scene.box(0, 0, WIDTH, layout.height, 8, "#0e1119e8", "#c1d4ad30");
         scene.well(5, layout.faceY - 1, layout.faceSize + 2, layout.faceSize + 2, 4);
         if (!data.portrait) {
             int iconSize = 16;
@@ -277,13 +276,16 @@ public final class OrionTargetHud {
         var data = read(client, living, config);
         float unit = WORLD_UNIT * config.getHudScale() * config.getHudElementScale(ID);
         float partial = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
-        Vec3 torso = living.getPosition(partial).add(0, living.getBbHeight() * .52, 0).subtract(camera.pos);
-        Vec3 away = torso.normalize();
-        // Put the whole board past the entity's bounding box, with one edge extending behind the model.
+        Vec3 torso = living.getPosition(partial).add(0, living.getBbHeight() * .66, 0).subtract(camera.pos);
+        // Camera-space support of the interpolated box keeps the entire face and name outside the silhouette.
         var side = camera.orientation.transform(new Vector3f(1, 0, 0));
-        double depth = living.getBbWidth() * .71 + living.getBbHeight() * .52 * Math.abs(away.y) + .13;
-        double offset = WIDTH * unit * .5 + living.getBbWidth() * .27;
-        Vec3 anchor = torso.add(away.scale(depth)).add(side.x * offset, side.y * offset, side.z * offset);
+        var back = camera.orientation.transform(new Vector3f(0, 0, -1));
+        float widthSupport = (Math.abs(side.x) + Math.abs(side.z)) * living.getBbWidth() * .5F;
+        float heightSupport = Math.abs(side.y) * living.getBbHeight() * .66F;
+        double depth = living.getBbWidth() * .45F + .15F;
+        double offset = WIDTH * unit * .5 + widthSupport + heightSupport + .10F;
+        Vec3 anchor = torso.add(back.x * depth, back.y * depth, back.z * depth)
+                .add(side.x * offset, side.y * offset, side.z * offset);
 
         PoseStack pose = context.poseStack();
         pose.pushPose();
@@ -293,41 +295,47 @@ public final class OrionTargetHud {
             pose.scale(unit, -unit, unit);
             pose.translate(-WIDTH / 2F, -layout.height / 2F, 0);
             var collector = context.submitNodeCollector();
+            boolean light = config.getClickGuiTheme() == 4;
+            int ink = light ? 0xff222b38 : 0xfff4f6f5;
+            int secondary = light ? 0xff526071 : 0xffaab2bb;
+            int health = light ? 0xff3d6c18 : 0xffb7df52;
             collector.submitCustomGeometry(pose, OrionEspRenderTypes.worldLyricsSolid(), (matrix, vertices) -> {
-                worldRect(matrix, vertices, 0, 0, WIDTH, layout.height, 0, 0xff34453a);
-                worldRect(matrix, vertices, 1, 1, WIDTH - 2, layout.height - 2, .12F, 0xff0e1119);
-                worldRect(matrix, vertices, 5, layout.faceY - 1, layout.faceSize + 2, layout.faceSize + 2, .25F, 0xff202a2d);
-                worldRect(matrix, vertices, BAR_INSET, layout.barY, BAR_WIDTH, 3, .25F, 0xff2e3a32);
-                if (data.fill > 0) worldRect(matrix, vertices, BAR_INSET, layout.barY, data.fill, 3, .4F, 0xffb7df52);
+                worldPanel(matrix, vertices, 0, 0, WIDTH, layout.height, 7, 0, light ? 0xffabbccc : 0xff53636a);
+                worldPanel(matrix, vertices, 1, 1, WIDTH - 2, layout.height - 2, 6, 1.4F, light ? 0xfff0f5fc : 0xff111820);
+                worldPanel(matrix, vertices, 5, layout.faceY - 1, layout.faceSize + 2, layout.faceSize + 2, 3, 2.4F,
+                        light ? 0xffdbe5f1 : 0xff26353c);
+                worldRect(matrix, vertices, BAR_INSET, layout.barY, BAR_WIDTH, 3, 2.4F, light ? 0xffd4ded2 : 0xff32403a);
+                if (data.fill > 0) worldRect(matrix, vertices, BAR_INSET, layout.barY, data.fill, 3, 3.2F, health);
                 int shield = Math.min(data.absorption, BAR_WIDTH - data.fill);
-                if (shield > 0) worldRect(matrix, vertices, BAR_INSET + data.fill, layout.barY, shield, 3, .4F, 0xffe8b967);
+                if (shield > 0) worldRect(matrix, vertices, BAR_INSET + data.fill, layout.barY, shield, 3, 3.2F, 0xffe8b967);
             });
             if (living instanceof AbstractClientPlayer player) {
                 Identifier skin = player.getSkin().body().texturePath();
-                worldFace(context, pose, skin, layout, 8, .45F);
+                worldFace(context, pose, skin, layout, 8, 3.7F);
                 if (player.isModelPartShown(net.minecraft.world.entity.player.PlayerModelPart.HAT)) {
-                    worldFace(context, pose, skin, layout, 40, .6F);
+                    worldFace(context, pose, skin, layout, 40, 4.4F);
                 }
             } else {
                 worldLabel(context, pose, "◎", 13, layout.faceY + 9, 1.4F, 0xffb7df52);
             }
             int nameLimit = WIDTH - layout.textX - (data.ping < 0 ? 8 : 35);
-            worldLabel(context, pose, client.font.plainSubstrByWidth(data.name, nameLimit), layout.textX, 5, 1F, 0xfff4f6f5);
+            worldLabel(context, pose, client.font.plainSubstrByWidth(data.name, nameLimit), layout.textX, 5, 1F, ink);
             if (data.ping >= 0) {
                 String ping = data.ping + " ms";
                 worldLabel(context, pose, ping, WIDTH - 6 - client.font.width(ping) * .75F, 6, .75F,
-                        data.ping < 150 ? 0xff67d99b : data.ping < 300 ? 0xfff1c067 : 0xffee8f8f);
+                        data.ping < 150 ? (light ? 0xff1f764d : 0xff67d99b)
+                                : data.ping < 300 ? (light ? 0xff805414 : 0xfff1c067) : (light ? 0xffae3448 : 0xffee8f8f));
             }
-            worldLabel(context, pose, data.health, layout.textX, 17, .85F, 0xffb7df52);
+            worldLabel(context, pose, data.health, layout.textX, 17, .85F, health);
             float next = layout.textX + client.font.width(data.health) * .85F + 3;
             String max = "/ " + data.maxHealth;
-            worldLabel(context, pose, max, next, 17, .85F, 0xffaab2bb);
+            worldLabel(context, pose, max, next, 17, .85F, secondary);
             float distanceX = WIDTH - 6 - client.font.width(data.distance) * .75F;
             next += client.font.width(max) * .85F + 3;
             if (!data.extraHealth.isEmpty() && next + client.font.width(data.extraHealth) * .75F < distanceX - 2) {
-                worldLabel(context, pose, data.extraHealth, next, 17, .75F, 0xffe8b967);
+                worldLabel(context, pose, data.extraHealth, next, 17, .75F, light ? 0xff825011 : 0xffe8b967);
             }
-            worldLabel(context, pose, data.distance, distanceX, 17, .75F, 0xffaab2bb);
+            worldLabel(context, pose, data.distance, distanceX, 17, .75F, secondary);
             if (data.equipment) {
                 for (int i = 0; i < EQUIPMENT.length; i++) {
                     var item = living.getItemBySlot(EQUIPMENT[i]);
@@ -335,7 +343,7 @@ public final class OrionTargetHud {
                     var state = new ItemStackRenderState();
                     client.getItemModelResolver().updateForLiving(state, item, ItemDisplayContext.GUI, living);
                     pose.pushPose();
-                    pose.translate(layout.textX + 6 + i * 14, 33, 1.5F);
+                    pose.translate(layout.textX + 6 + i * 14, 33, 5.2F);
                     pose.scale(11, -11, 3);
                     state.submit(pose, collector, FULL_LIGHT, 0, 0);
                     pose.popPose();
@@ -343,6 +351,17 @@ public final class OrionTargetHud {
             }
         } finally {
             pose.popPose();
+        }
+    }
+
+    private static void worldPanel(PoseStack.Pose pose, VertexConsumer vertices, float x, float y,
+                                   float w, float h, int radius, float z, int color) {
+        worldRect(pose, vertices, x, y + radius, w, h - 2 * radius, z, color);
+        for (int i = 0; i < radius; i++) {
+            double dy = radius - i - .5;
+            float inset = radius - (float) Math.sqrt(radius * radius - dy * dy);
+            worldRect(pose, vertices, x + inset, y + i, w - 2 * inset, 1, z, color);
+            worldRect(pose, vertices, x + inset, y + h - i - 1, w - 2 * inset, 1, z, color);
         }
     }
 
@@ -373,7 +392,7 @@ public final class OrionTargetHud {
     private static void worldLabel(LevelRenderContext context, PoseStack pose, String text,
                                    float x, float y, float scale, int color) {
         pose.pushPose();
-        pose.translate(x, y, .75F);
+        pose.translate(x, y, 4.8F);
         pose.scale(scale, scale, 1);
         context.submitNodeCollector().submitText(pose, 0, 0, Component.literal(text).getVisualOrderText(), false,
                 Font.DisplayMode.NORMAL, FULL_LIGHT, color, 0, 0);

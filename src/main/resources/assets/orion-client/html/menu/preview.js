@@ -1111,8 +1111,9 @@ function renderSettings() {
     + chatPreference('chat-sound-toggle','chatNotificationSound','Звук сообщений')
     + chatPreference('fake-punishment-toggle','showFakePunishments','Показывать чужие розыгрыши',false)
     + '</div></section><section><h2>' + text(t('Оформление')) + '</h2>'
-    + '<div class="sheet look-block"><h3>' + text(t('Тема ClickGUI')) + '</h3><p>' + text(t('Выбери оформление меню')) + '</p><div class="look-options" role="group" aria-label="' + text(t('Тема ClickGUI')) + '">'
+    + '<div class="sheet look-block"><h3>' + text(t('Тема ClickGUI')) + '</h3><p>' + text(t('Выбери оформление меню')) + '</p><div class="look-options window-options" role="group" aria-label="' + text(t('Тема ClickGUI')) + '">'
     + lookTile('theme','dark',t('Тёмная'),'dark',state.density) + lookTile('theme','light',t('Светлая'),'light',state.density)
+    + lookTile('theme','glass',t('Стекло'),'glass',state.density)
     + '</div>' + accentPicker() + '</div><div class="sheet interface-sounds">'
     + chatPreference('interface-sounds','interfaceSounds','Звуки интерфейса')
     + '</div></section><section><h2>' + text(t('Окно')) + '</h2><div class="sheet look-block">'
@@ -1212,10 +1213,23 @@ function windowTravel() {
   const stage = $('stage').getBoundingClientRect(), menu = $('window').getBoundingClientRect();
   return [Math.max(0,(stage.width - menu.width) / 2 - 5),Math.max(0,(stage.height - menu.height) / 2 - 5)];
 }
+let lastGlassBounds = '';
 function positionWindow() {
   const [width,height] = windowTravel(), scale = state.windowScale / 100;
   $('window').style.setProperty('left',width * state.windowX / (1000 * scale) + 'px');
   $('window').style.setProperty('top',height * state.windowY / (1000 * scale) + 'px');
+  if (typeof sendGame === 'function') {
+    let bounds = '';
+    if (state.theme === 'glass') {
+      const {x,y,width,height} = $('window').getBoundingClientRect();
+      bounds = [x,y,width,height,16 * scale].map(Math.round).join(',');
+    }
+    if (bounds !== lastGlassBounds) {
+      lastGlassBounds = bounds;
+      const [x,y,width,height,radius] = bounds.split(',').map(Number);
+      sendGame('glass-bounds',bounds ? {x,y,width,height,radius} : {});
+    }
+  }
   scheduleCosmeticPreview();
 }
 let windowDrag;
@@ -1663,7 +1677,7 @@ $('search').addEventListener('input', event => {
   state.query = event.target.value;
   render(true,false);
 });
-$('theme').addEventListener('click', event => changeTheme((themeRequest?.theme ?? state.theme) === 'dark' ? 'light' : 'dark',event.currentTarget));
+$('theme').addEventListener('click', event => changeTheme((themeRequest?.theme ?? state.theme) === 'light' ? 'dark' : 'light',event.currentTarget));
 $('density').addEventListener('click', () => { state.density = state.density === 'normal' ? 'compact' : 'normal'; applyLook(); });
 $('close-window').addEventListener('click', () => sendGame('close'));
 $('reopen').addEventListener('click', () => {

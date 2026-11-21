@@ -123,14 +123,19 @@ public final class OrionGlassCompositor {
 
     void submitBackground(Identifier id, GuiGraphicsExtractor context, int x, int y, int width, int height,
                           int designWidth, int designHeight, List<Panel> panels) {
-        int scale = Math.clamp(Minecraft.getInstance().getWindow().getGuiScale(), 1, 6);
+        submitBackground(id, context, x, y, width, height, designWidth, designHeight, panels, false);
+    }
+
+    public void submitBackground(Identifier id, GuiGraphicsExtractor context, int x, int y, int width, int height,
+                                 int designWidth, int designHeight, List<Panel> panels, boolean screenGlass) {
+        int scale = Math.clamp(Minecraft.getInstance().getWindow().getGuiScale(), 1, 2);
         updateMask(id, new MaskLayout(width * scale, height * scale, designWidth, designHeight, panels));
         if (transparent == null) {
             NativeImage pixels = new NativeImage(1, 1, true);
             pixels.setPixel(0, 0, 0);
             transparent = new DynamicTexture(() -> "orion_glass_transparent", pixels);
         }
-        submit(id, context, transparent, x, y, width, height);
+        if (submit(id, context, transparent, x, y, width, height, screenGlass)) context.nextStratum();
     }
 
     public boolean submit(Identifier id, GuiGraphicsExtractor context, DynamicTexture foreground,

@@ -65,6 +65,9 @@ public final class OrionHudEditorScreen extends Screen {
     private Snap guideX, guideY;
     private boolean preview, catalog, inspector, changed;
     private boolean moving, freeGesture;
+    private int handDrag;
+    private double handStartX, handStartY;
+    private float handOffsetX, handOffsetY;
     private int sliderRow = -1;
     private int inspectorX = -1, inspectorY;
     private Inspector closingInspector;
@@ -221,6 +224,13 @@ public final class OrionHudEditorScreen extends Screen {
                 drawInspector(scene);
                 float progress = ease(inspectorProgress);
                 scene.animateParts(start, progress, -4 * (1 - progress));
+            }
+            if (canEditHands()) {
+                for (int hand = -1; hand <= 1; hand += 2) {
+                    var box = handHandle(hand);
+                    boxButton(scene, box.x(), box.y(), box.width(), 16, tr(hand > 0 ? "Правая рука" : "Левая рука"),
+                            handDrag == hand || box.contains(mouseX, mouseY));
+                }
             }
         }
         button(scene, width - 81, BAR_Y, 72, preview ? "Редактировать" : "Просмотр", preview);
@@ -458,6 +468,14 @@ public final class OrionHudEditorScreen extends Screen {
             catalogOffset = Math.clamp(catalogOffset + (int) Math.signum(-vertical), 0, Math.max(0, WIDGETS.size() - capacity));
             return true;
         }
+        var panel = inspectorLayout();
+        int hand = handAt(x, y);
+        if (hand != 0 && vertical != 0 && !(inspector && panel != null && panel.contains(x, y))) {
+            boolean right = hand > 0;
+            config.setViewModelOffset(right, 2, config.getViewModelOffset(right, 2) + (float) Math.signum(vertical) * .06F);
+            changed = true;
+            return true;
+        }
         return chat == null;
     }
 
@@ -526,6 +544,15 @@ public final class OrionHudEditorScreen extends Screen {
                 return true;
             }
         }
+        int hand = handAt(x, y);
+        if (hand != 0) {
+            handDrag = hand;
+            handStartX = x;
+            handStartY = y;
+            handOffsetX = config.getViewModelOffset(hand > 0, 0);
+            handOffsetY = config.getViewModelOffset(hand > 0, 1);
+            return true;
+        }
         var top = hit(x, y);
         if (top == null) {
             catalog = inspector = false; selected = null;
@@ -543,6 +570,32 @@ public final class OrionHudEditorScreen extends Screen {
             freeGesture = event.hasAltDown();
         }
         return true;
+    }
+
+    private boolean canEditHands() {
+        return chat != null && !preview && config.isViewModelEnabled()
+                && Minecraft.getInstance().options.getCameraType().isFirstPerson();
+    }
+
+    private record HandHandle(int x, int y, int width) {
+        boolean contains(double mx, double my) {
+            return mx >= x && mx < x + width && my >= y && my < y + 16;
+        }
+    }
+
+    private HandHandle handHandle(int hand) {
+        int w = Math.min(87, Math.max(30, width / 4));
+        float unit = Math.min(width, height) * .52F;
+        int x = Math.round(width * (hand > 0 ? .79F : .21F) - w / 2F + config.getViewModelOffset(hand > 0, 0) * unit);
+        int y = Math.round(height * .76F - config.getViewModelOffset(hand > 0, 1) * unit);
+        return new HandHandle(Math.clamp(x, 3, Math.max(3, width - w - 3)),
+                Math.clamp(y, BAR_Y + BAR_H + 4, Math.max(BAR_Y + BAR_H + 4, height - 45)), w);
+    }
+
+    private int handAt(double x, double y) {
+        if (!canEditHands()) return 0;
+        if (handHandle(1).contains(x, y)) return 1;
+        return handHandle(-1).contains(x, y) ? -1 : 0;
     }
 
     private void showGridAfterClick(MouseButtonEvent event) {
@@ -583,7 +636,7 @@ public final class OrionHudEditorScreen extends Screen {
         return x >= handleX(region) && x < handleX(region) + HANDLE && y >= handleY(region) && y < handleY(region) + HANDLE;
     }
 
-    private boolean pointerCaptured() { return gesture != null || sliderRow >= 0; }
+    private boolean pointerCaptured() { return gesture != null || sliderRow >= 0 || handDrag != 0; }
 
     private boolean onTag(OrionHudDrag.Region region, double x, double y) {
         int top = tagY(region);
@@ -596,6 +649,14 @@ public final class OrionHudEditorScreen extends Screen {
 
     @Override public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
         if (preview || event.button() != InputConstants.MOUSE_BUTTON_LEFT) return true;
+        if (handDrag != 0) {
+            boolean right = handDrag > 0;
+            float unit = Math.max(1F, Math.min(width, height) * .52F);
+            config.setViewModelOffsets(right, handOffsetX + (float) (event.x() - handStartX) / unit,
+                    handOffsetY - (float) (event.y() - handStartY) / unit, config.getViewModelOffset(right, 2));
+            changed = true;
+            return true;
+        }
         if (sliderRow >= 0) {
             var panel = inspectorLayout();
             if (panel != null) updateSlider(panel, event.x());
@@ -683,6 +744,7 @@ public final class OrionHudEditorScreen extends Screen {
     }
 
     private void finishGesture() {
+        handDrag = 0;
         gesture = null; guideX = guideY = null; moving = false; freeGesture = false; sliderRow = -1;
     }
 

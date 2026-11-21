@@ -29,7 +29,7 @@ public final class OrionHudView {
     private final Identifier id;
     private JsonObject previous;
     private int lastWidth, lastHeight, lastDrawWidth, lastDrawHeight, lastScale;
-    private boolean lastLight;
+    private int lastTheme;
     private String lastAccent;
     private long animateUntil;
 
@@ -59,18 +59,22 @@ public final class OrionHudView {
         view.resize(scene.width, scene.height, Math.max(1F, scale * Math.max(
                 width / (float) scene.width, height / (float) scene.height)));
         var config = OrionClient.getConfigOrNull();
-        boolean light = config != null && config.getClickGuiTheme() == 4;
+        int theme = config == null || !gleamHud ? 3 : config.getClickGuiTheme();
+        boolean light = theme == 4;
+        boolean glass = theme == 5;
         String accent = gleamHud && !light ? "#65d7a0" : config == null ? "#c2d2f7" : config.getClickGuiAccent();
-        if (!scene.state.equals(previous) || light != lastLight
+        if (!scene.state.equals(previous) || theme != lastTheme
                 || !java.util.Objects.equals(accent, lastAccent)) {
             var state = new JsonObject();
-            state.add("parts", scene.parts);
+            state.add("parts", light ? scene.lightParts() : scene.parts);
             state.addProperty("light", light);
+            state.addProperty("glass", glass);
             state.addProperty("gleamHud", gleamHud);
             state.addProperty("accent", accent);
             view.update(state);
             previous = scene.state;
-            lastLight = light;
+            if (lastTheme == 5 && !glass) OrionGlassCompositor.INSTANCE.releaseMask(id);
+            lastTheme = theme;
             lastAccent = accent;
             ACTIVE.add(this);
             if (scene.animated) animateUntil = System.nanoTime() + 180_000_000L;
@@ -84,6 +88,11 @@ public final class OrionHudView {
         lastDrawWidth = width;
         lastDrawHeight = height;
         lastScale = scale;
+        if (glass && OrionHudDrag.opacity() >= .99F && !"hud_editor".equals(id.getPath())) {
+            var panels = scene.glassPanels();
+            if (!panels.isEmpty()) OrionGlassCompositor.INSTANCE.submitBackground(id, context,
+                    x, y, width, height, scene.width, scene.height, panels);
+        }
         if (!view.draw(context, x, y, width, height, width / (float) scene.width, height / (float) scene.height,
                 OrionHudDrag.opacity())) {
             scene.fallback(context, x, y, width, height, gleamHud);
@@ -133,6 +142,53 @@ public final class OrionHudView {
         private final JsonObject state = new JsonObject();
         private final JsonArray parts = new JsonArray();
         private boolean animated;
+
+        private List<OrionGlassCompositor.Panel> glassPanels() {
+            var panels = new java.util.ArrayList<OrionGlassCompositor.Panel>();
+            for (var entry : parts) {
+                var part = entry.getAsJsonObject();
+                String kind = part.get("kind").getAsString();
+                if (!kind.equals("panel") && !kind.equals("key")) continue;
+                panels.add(new OrionGlassCompositor.Panel(part.get("x").getAsFloat(), part.get("y").getAsFloat(),
+                        part.get("w").getAsFloat(), part.get("h").getAsFloat(), 2 * part.get("radius").getAsFloat()));
+            }
+            return panels;
+        }
+
+        private JsonArray lightParts() {
+            var result = parts.deepCopy();
+            for (var entry : result) {
+                var part = entry.getAsJsonObject();
+                if (part.has("color") && part.get("color").getAsString().startsWith("#")) {
+                    boolean box = "box".equals(part.get("kind").getAsString());
+                    part.addProperty("color", color(lightColor(argb(part.get("color").getAsString()), box)));
+                }
+                if (part.has("border") && part.get("border").getAsString().startsWith("#")) {
+                    int old = argb(part.get("border").getAsString());
+                    part.addProperty("border", color((old & 0xff000000) | 0x52667c));
+                }
+            }
+            return result;
+        }
+
+        private static int lightColor(int value, boolean surface) {
+            int r = value >> 16 & 255, g = value >> 8 & 255, b = value & 255, a = value >>> 24;
+            int brightness = (r * 21 + g * 72 + b * 7) / 100;
+            int chroma = Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
+            if (surface && a > 0) {
+                if (brightness < 108) {
+                    return a << 24 | (220 + r / 6) << 16 | (228 + g / 7) << 8 | (236 + b / 8);
+                }
+                if (chroma < 34 && a < 100) return a << 24 | 0x536985;
+                if (chroma < 34) return a << 24 | 0x6a7987;
+                return a << 24 | (r * 3 / 5) << 16 | (g * 3 / 5) << 8 | b * 3 / 5;
+            }
+            if (!surface && brightness > 139) {
+                return chroma < 34 ? a << 24 | 0x263344
+                        : a << 24 | (r * 53 / 100) << 16 | (g * 53 / 100) << 8 | b * 53 / 100;
+            }
+            return value;
+        }
 
         public Scene(int width, int height) {
             this.width = Math.max(1, width);
@@ -235,7 +291,8 @@ public final class OrionHudView {
                 pose.translate(x, y).scale(w / (float) width, h / (float) height);
                 var font = Minecraft.getInstance().font;
                 var config = OrionClient.getConfigOrNull();
-                boolean light = config != null && config.getClickGuiTheme() == 4;
+                boolean light = gleamHud && config != null && config.getClickGuiTheme() == 4;
+                boolean glass = gleamHud && config != null && config.getClickGuiTheme() == 5;
                 String customAccent = config == null ? "" : config.getClickGuiAccent();
                 boolean darkGleam = gleamHud && !light;
                 int accent = darkGleam ? 0xff65d7a0 : customAccent.isEmpty()
@@ -251,6 +308,7 @@ public final class OrionHudView {
                         boolean pressed = part.get("pressed").getAsBoolean();
                         int fill = darkGleam ? (pressed ? 0xeb1b2b29 : 0xeb0f1216)
                                 : pressed ? (light ? 0xffdce3f7 : 0xff292e41) : (light ? 0xf2e7ecf7 : 0xf217181f);
+                        if (glass && !pressed) fill = 0xbd202a34;
                         int ink = OrionHudDrag.tint(pressed ? accent : (light ? 0xff242735 : 0xfff5f5f8));
                         fillTile(context, left, top, partWidth, partHeight, OrionHudDrag.tint(fill));
                         String mouse = part.get("mouse").getAsString();
@@ -269,10 +327,11 @@ public final class OrionHudView {
                         }
                     } else if (kind.equals("panel") || kind.equals("box") || kind.equals("well") || kind.equals("divider")) {
                         int color = switch (kind) {
-                            case "panel" -> darkGleam ? 0xeb0f1216 : 0xf517181f;
-                            case "well" -> 0x0dffffff;
-                            case "divider" -> 0x1cffffff;
-                            default -> argb(part.get("color").getAsString());
+                            case "panel" -> light ? 0xf1edf3fb : glass ? 0xbd202a34 : darkGleam ? 0xeb0f1216 : 0xf517181f;
+                            case "well" -> light ? 0x16526985 : 0x0dffffff;
+                            case "divider" -> light ? 0x38526985 : 0x1cffffff;
+                            default -> light ? lightColor(argb(part.get("color").getAsString()), true)
+                                    : argb(part.get("color").getAsString());
                         };
                         context.fill(left, top, left + partWidth, top + partHeight, OrionHudDrag.tint(fadeColor(color, opacity)));
                     } else if (kind.equals("label") || kind.equals("timer")) {
@@ -284,7 +343,7 @@ public final class OrionHudView {
                         if (timer) color = expiring ? 0xff17181f : darkGleam ? accent : light ? 0xfff5f5f8 : 0xff17181f;
                         else {
                             String ink = part.get("color").getAsString();
-                            color = ink.equals("var(--accent)") ? accent : argb(ink);
+                            color = ink.equals("var(--accent)") ? accent : light ? lightColor(argb(ink), false) : argb(ink);
                         }
                         color = OrionHudDrag.tint(fadeColor(color, opacity));
                         float scale = (timer ? 5.8F : part.get("size").getAsFloat()) / font.lineHeight;
