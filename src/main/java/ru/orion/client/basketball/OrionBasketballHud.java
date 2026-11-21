@@ -56,16 +56,12 @@ public final class OrionBasketballHud {
             lastScore = score;
         }
 
-        float size = config.getHudElementScale(SCORE.getPath());
+        float size = config.getHudElementScale(SCORE.getPath()) * OrionHudView.layoutScale(context.guiWidth(), context.guiHeight());
         int width = Math.min(context.guiWidth(), Math.max(1, Math.round(scoreWidth * size)));
         int height = Math.min(context.guiHeight(), Math.max(1, Math.round(scoreHeight * size)));
-        int maxX = context.guiWidth() - width, maxY = context.guiHeight() - height;
-        int x = config.getBasketballScoreX() < 0 ? maxX / 2 : Math.clamp(config.getBasketballScoreX(), 0, maxX);
-        int y = Math.clamp(config.getBasketballScoreY() < 0 ? context.guiHeight() / 2 - 48 : config.getBasketballScoreY(), 0, maxY);
-        var position = drag.update(x, y, width, height, config::setBasketballScorePosition);
-        x = position.x();
-        y = position.y();
-        scoreView.draw(context, scoreScene, x, y, width, height);
+        var position = drag.place(context, config, width, height, config.getBasketballScoreX(), config.getBasketballScoreY(),
+                (context.guiWidth() - width) / 2, context.guiHeight() / 2 - 48, config::setBasketballScorePosition);
+        scoreView.draw(context, scoreScene, position.x(), position.y(), width, height);
 
         int alpha = Math.round(game.indicatorAlpha() * 255);
         if (alpha > 0) {

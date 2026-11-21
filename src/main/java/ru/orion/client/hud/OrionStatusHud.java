@@ -37,26 +37,27 @@ public final class OrionStatusHud {
         }
         var options = client.options;
         KeyMapping[] keys = {options.keyUp, options.keyLeft, options.keyDown, options.keyRight,
-                options.keyJump, options.keyAttack};
+                options.keyJump, options.keyAttack, options.keyUse};
         int pressed = 0;
         for (int i = 0; i < keys.length; i++) if (keys[i].isDown()) pressed |= 1 << i;
         var labels = List.of(keyLabel(keys[0]), keyLabel(keys[1]), keyLabel(keys[2]), keyLabel(keys[3]),
                 keys[4].isDefault() ? "" : keyLabel(keys[4]));
-        State state = new State(pressed, OrionClickCounter.count(false), labels);
+        State state = new State(pressed, OrionClickCounter.count(false), OrionClickCounter.count(true), labels);
         if (!state.equals(previous)) {
             scene = new OrionHudView.Scene(SIZE, SIZE);
             key(state, 0, labels.getFirst(), "", STEP, 0, KEY_SIZE);
             for (int i = 1; i <= 3; i++) key(state, i, labels.get(i), "", (i - 1) * STEP, STEP, KEY_SIZE);
-            key(state, 4, labels.get(4), "", STEP, STEP * 2, SIZE - STEP);
+            key(state, 4, labels.get(4), "", STEP, STEP * 2, KEY_SIZE);
             key(state, 5, state.leftCps == 0 ? "" : Integer.toString(state.leftCps), "L", 0, STEP * 2, KEY_SIZE);
+            key(state, 6, state.rightCps == 0 ? "" : Integer.toString(state.rightCps), "R", STEP * 2, STEP * 2, KEY_SIZE);
             previous = state;
         }
-        float scale = config.getHudScale() * config.getHudElementScale("keystrokes");
+        float scale = config.getHudScale() * config.getHudElementScale("keystrokes")
+                * OrionHudView.layoutScale(context.guiWidth(), context.guiHeight());
         float fit = OrionHudView.fit(scale, SIZE, SIZE, context.guiWidth(), context.guiHeight());
         int size = Math.max(1, Math.round(SIZE * fit));
-        int x = Math.clamp(config.getKeystrokesX() < 0 ? 8 : config.getKeystrokesX(), 0, context.guiWidth() - size);
-        int y = Math.clamp(config.getKeystrokesY() < 0 ? context.guiHeight() - size - 45 : config.getKeystrokesY(), 0, context.guiHeight() - size);
-        var position = drag.update(x, y, size, size, (nx, ny) -> {
+        var position = drag.place(context, config, size, size, config.getKeystrokesX(), config.getKeystrokesY(),
+                8, context.guiHeight() - size - 45, (nx, ny) -> {
             config.setKeystrokesX(nx);
             config.setKeystrokesY(ny);
         });
@@ -71,5 +72,5 @@ public final class OrionStatusHud {
         scene.key(x, y, width, KEY_SIZE, label, mouse, (state.pressed & 1 << index) != 0);
     }
 
-    private record State(int pressed, int leftCps, List<String> labels) {}
+    private record State(int pressed, int leftCps, int rightCps, List<String> labels) {}
 }

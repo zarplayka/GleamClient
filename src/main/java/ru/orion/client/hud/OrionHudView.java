@@ -96,6 +96,10 @@ public final class OrionHudView {
                 Math.max(1, screenHeight - 8) / (float) height));
     }
 
+    public static float layoutScale(int width, int height) {
+        return Math.clamp(Math.min(width / 480F, height / 270F), .55F, 1F);
+    }
+
     public static String color(int argb) {
         return String.format(Locale.ROOT, "#%06x%02x", argb & 0xffffff, argb >>> 24);
     }

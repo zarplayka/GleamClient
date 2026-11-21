@@ -173,7 +173,7 @@ function layout() {
     full.style.transform='translateY('+mix(-8,0,phase)+'px)';
     full.style.pointerEvents=phase>.95?'auto':'none';
     $('header').setAttribute('aria-expanded',String(phase>.95));
-    currentBounds={x,y,width:width*scale,height:height*scale,radius:radius*scale};
+    currentBounds={x,y,width:width*scale,height:height*scale,radius:radius*scale,collapsedWidth:CAP_W*scale};
     send('bounds',currentBounds);
     lastLayout=signature;
   }
