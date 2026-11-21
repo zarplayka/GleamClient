@@ -35,20 +35,31 @@ public final class OrionChinaHeadRenderer {
     }
 
     private void render(LevelRenderContext context) {
-        if (!configManager.getConfig().isChinaHeadEnabled()) {
-            return;
-        }
-
         Minecraft client = Minecraft.getInstance();
         LocalPlayer player = client.player;
-        if (player == null || client.options.getCameraType().isFirstPerson() || !player.isAlive() || player.isInvisible()) {
-            return;
-        }
-
+        if (player == null || client.level == null) return;
+        boolean local = configManager.getConfig().isChinaHeadEnabled() && !client.options.getCameraType().isFirstPerson();
+        boolean remote = OrionBadgePresence.hasChinaHats();
+        if (!local && !remote) return;
         Camera camera = GleamMinecraft.camera(client);
         float tickDelta = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
-        Vec3 playerPosition = interpolatedPosition(player, tickDelta);
         Vec3 cameraPosition = camera.position();
+        if (local && player.isAlive() && !player.isInvisible() && !player.isSpectator())
+            draw(context, player, tickDelta, cameraPosition, parseColor(configManager.getConfig().getAccentColor()));
+        if (remote) {
+            for (var other : client.level.players()) {
+                if (other != player && other.isAlive() && !other.isInvisible() && !other.isSpectator()
+                        && other.distanceToSqr(cameraPosition) <= 64 * 64
+                        && "hat".equals(OrionBadgePresence.hat(other.getUUID()))) {
+                    draw(context, other, tickDelta, cameraPosition, 0x65d7a0);
+                }
+            }
+        }
+    }
+
+    private void draw(LevelRenderContext context, net.minecraft.world.entity.player.Player player, float tickDelta,
+                      Vec3 cameraPosition, int accent) {
+        Vec3 playerPosition = interpolatedPosition(player, tickDelta);
 
         PoseStack poseStack = context.poseStack();
         poseStack.pushPose();
@@ -58,7 +69,6 @@ public final class OrionChinaHeadRenderer {
                 playerPosition.z - cameraPosition.z
         );
 
-        int accent = parseColor(configManager.getConfig().getAccentColor());
         RenderType renderType = RenderTypes.debugTriangleFan();
         context.submitNodeCollector().submitCustomGeometry(
                 poseStack,

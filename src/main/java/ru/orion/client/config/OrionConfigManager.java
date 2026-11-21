@@ -238,6 +238,7 @@ public final class OrionConfigManager {
     public void setChinaHeadEnabled(boolean chinaHeadEnabled) {
         config.setChinaHeadEnabled(chinaHeadEnabled);
         save();
+        ru.orion.client.effect.OrionBadgePresence.requestRefresh();
     }
 
     public void setMotionBlurEnabled(boolean value) { config.setMotionBlurEnabled(value); save(); }

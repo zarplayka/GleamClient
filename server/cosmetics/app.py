@@ -23,6 +23,8 @@ from basketball import BasketballRooms
 
 LOG = logging.getLogger("orion.cosmetics")
 MAX_PLAYERS = 100
+HATS = frozenset(("", "hat", "santa_hat", "fawn_hood", "snowman_top_hat", "gingerbread_house_hat",
+                  "newsboy_cap", "aviator_helmet", "traveller_hat"))
 
 def compact_uuid(value):
     if not isinstance(value, str) or not re.fullmatch(r"[0-9a-fA-F-]{32,36}", value):
@@ -94,7 +96,8 @@ class Store:
             columns = {row[1] for row in await cursor.fetchall()}
         for column, definition in (("emote", "INTEGER NOT NULL DEFAULT 0"),
                                    ("emote_started", "REAL NOT NULL DEFAULT 0"),
-                                   ("pet", "TEXT NOT NULL DEFAULT ''")):
+                                   ("pet", "TEXT NOT NULL DEFAULT ''"),
+                                   ("hat", "TEXT NOT NULL DEFAULT ''")):
             if column not in columns:
                 await self.db.execute("ALTER TABLE players ADD COLUMN " + column + " " + definition)
         async with self.db.execute("PRAGMA table_info(shared_configs)") as cursor:
@@ -192,6 +195,9 @@ class Store:
         ids = self.players(payload)
         halo, wings = payload.get("halo", False), payload.get("wings", 0)
         pet = payload.get("pet", "")
+        hat = payload.get("hat")
+        if "hat" in payload and (not isinstance(hat, str) or hat not in HATS):
+            raise web.HTTPBadRequest(reason="Invalid hat")
         if (not isinstance(halo, bool) or isinstance(wings, bool) or not isinstance(wings, int)
                 or not 0 <= wings <= 7 or pet not in (
                     "", "ember_fox", "moss_turtle", "moon_moth", "rhm_tarnkappe",
@@ -203,21 +209,24 @@ class Store:
                 old = await cursor.fetchone()
             if old is None:
                 raise web.HTTPUnauthorized(reason="Unknown player")
+            if hat is None:
+                hat = old["hat"]
             updated = (not old["online"] or old["online_until"] <= now or bool(old["halo"]) != halo
-                       or old["wings"] != wings or old["pet"] != pet)
+                       or old["wings"] != wings or old["pet"] != pet or old["hat"] != hat)
             try:
-                await self.db.execute("UPDATE players SET halo=?, wings=?, pet=?, online=1, online_until=?, updated_at=? WHERE uuid=?",
-                                      (int(halo), wings, pet, now + self.presence_ttl, now, player))
+                await self.db.execute("UPDATE players SET halo=?, wings=?, pet=?, hat=?, online=1, online_until=?, updated_at=? WHERE uuid=?",
+                                      (int(halo), wings, pet, hat, now + self.presence_ttl, now, player))
                 if updated:
                     await self.bump()
                 rows = []
                 if ids:
                     placeholders = ",".join("?" for _ in ids)
-                    async with self.db.execute("SELECT uuid,halo,wings,pet,emote,emote_started FROM players WHERE uuid IN (" + placeholders + ") AND online=1 AND online_until>?", (*ids, now)) as cursor:
+                    async with self.db.execute("SELECT uuid,halo,wings,pet,hat,emote,emote_started FROM players WHERE uuid IN (" + placeholders + ") AND online=1 AND online_until>?", (*ids, now)) as cursor:
                         rows = await cursor.fetchall()
                 response = {"online": [r["uuid"] for r in rows], "halos": [r["uuid"] for r in rows if r["halo"]],
                             "wings": {r["uuid"]: r["wings"] for r in rows if r["wings"]},
                             "pets": {r["uuid"]: r["pet"] for r in rows if r["pet"]},
+                            "hats": {r["uuid"]: r["hat"] for r in rows if r["hat"]},
                             "emotes": {r["uuid"]: {"id": r["emote"], "started": r["emote_started"],
                                                    "elapsed": max(0, now - r["emote_started"])}
                                        for r in rows if r["emote"] and 0 <= now - r["emote_started"] < 12},

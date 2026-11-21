@@ -1115,6 +1115,23 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .profile-content-actions .icon { width: 15px; height: 15px }
     #profile-content-count { color: var(--muted); font-size: 12px }
     .profile-content-list { flex: 1; min-height: 195px; border: 1px solid var(--border); border-radius: 10px; background: var(--home-surface) }
+    .profile-extra { padding: 18px 24px; display: grid; gap: 14px }
+    .profile-extra p { margin: 0; color: var(--muted); font-size: 13px }
+    .profile-options, .profile-metrics { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap: 12px }
+    .profile-options label { display: grid; gap: 5px; font-size: 12px }
+    .profile-options select,.profile-options input,.profile-options textarea { color: var(--text); background: var(--home-surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px; width:100% }
+    .profile-options .profile-wide { grid-column: 1/-1 }
+    .profile-option-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+    .profile-metrics div { padding: 10px; border: 1px solid var(--border); border-radius: 8px; min-width: 0 }
+    .profile-metrics strong { display: block; margin-top: 5px; font-variant-numeric: tabular-nums }
+    .resource-plot { display: block; width: 100%; height: 100px; color: var(--muted);
+      background: repeating-linear-gradient(to top,var(--border) 0 1px,transparent 1px 25%) }
+    .resource-plot polyline { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke }
+    .resource-plot .system-line { stroke: currentColor; opacity: .7 }
+    .resource-plot .game-line { stroke: var(--accent) }
+    .profile-resource-key { margin: 0; display: flex; justify-content: space-between; gap: 12px; align-items: center; font-size: 12px; flex-wrap: wrap }
+    .profile-resource-key [data-series="game"] { color: var(--selected-text) }
+    #profile-resource-point { flex: 1; accent-color: var(--accent) }
     #profile-content-entries { margin: 0; padding: 0; list-style: none }
     .profile-entry { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 12px; min-height: 71px; padding: 9px 12px }
     .profile-entry + .profile-entry { border-top: 1px solid var(--border) }
@@ -1722,8 +1739,41 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 <button type="button" data-profile-section="worlds" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg><span>Миры</span></button>
                 <button type="button" data-profile-section="servers" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-display"/></svg><span>Серверы</span></button>
                 <button type="button" data-profile-section="logs" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg><span>Логи</span></button>
+                <button type="button" data-profile-section="resources" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-display"/></svg><span>Ресурсы</span></button>
+                <button type="button" data-profile-section="settings" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg><span>Настройки</span></button>
               </div>
-              <div class="profile-content">
+              <div class="profile-extra" id="profile-resource-panel" hidden>
+                <div class="profile-resource-key"><span data-series="game">Minecraft</span><span>Вся система</span>
+                  <label><span>Период</span> <select id="profile-resource-window"><option value="5">5 мин</option><option value="15">15 мин</option><option value="30">30 мин</option></select></label>
+                </div>
+                <p id="profile-resource-empty" role="status">Запусти эту сборку, чтобы записать нагрузку.</p>
+                <div id="profile-resource-data" hidden>
+                  <div class="profile-metrics">
+                    <div><span>Процессор</span><strong id="profile-resource-cpu"></strong>
+                      <svg class="resource-plot" id="resource-cpu-plot" viewBox="0 0 640 100" preserveAspectRatio="none" role="img" aria-label="График нагрузки на процессор"><polyline class="system-line"/><polyline class="game-line"/></svg>
+                    </div>
+                    <div><span>Оперативная память</span><strong id="profile-resource-memory"></strong>
+                      <svg class="resource-plot" id="resource-memory-plot" viewBox="0 0 640 100" preserveAspectRatio="none" role="img" aria-label="График потребления оперативной памяти"><polyline class="system-line"/><polyline class="game-line"/></svg>
+                    </div>
+                  </div>
+                  <div class="profile-resource-key"><input type="range" id="profile-resource-point" min="0" max="0" value="0" aria-label="Момент на графике"><output id="profile-resource-time"></output></div>
+                  <p id="profile-resource-advice" role="status"></p>
+                </div>
+              </div>
+              <form class="profile-extra" id="profile-settings-panel" hidden>
+                <div class="profile-options">
+                  <label><span>Память, ГБ</span><input id="instance-memory" type="number" step=".25" min="2" placeholder="Из общих настроек"></label>
+                  <label><span>Ширина окна</span><input id="instance-width" type="number" min="320" max="8192" placeholder="Из общих настроек"></label>
+                  <label><span>Высота окна</span><input id="instance-height" type="number" min="240" max="8192" placeholder="Из общих настроек"></label>
+                  <label><span>Режим окна</span><select id="instance-mode"><option value="">Из общих настроек</option><option value="windowed">Оконный</option><option value="fullscreen">Полноэкранный</option></select></label>
+                  <label><span>Моды оптимизации</span><select id="instance-optimizers"><option value="">Из общих настроек</option><option value="on">Устанавливать</option><option value="off">Не устанавливать</option></select></label>
+                  <label><span>Fabric Loader</span><input id="instance-loader" maxlength="11" placeholder="Из общих настроек"></label>
+                  <label class="profile-wide"><span>Аргументы JVM</span><textarea id="instance-arguments" maxlength="4096" rows="2" spellcheck="false"></textarea></label>
+                  <label class="profile-wide"><span><input id="instance-inherit-jvm" type="checkbox" style="width:auto"> Использовать общие аргументы JVM</span></label>
+                </div>
+                <div class="profile-option-actions"><button class="button primary" type="submit">Сохранить</button><button class="button" type="button" id="instance-reset">Сбросить</button><span id="instance-settings-result" role="status"></span></div>
+              </form>
+              <div class="profile-content" id="profile-file-panel">
                 <div class="profile-content-tools" id="profile-content-types">
                   <div class="segmented-tabs profile-content-kinds" role="group" aria-label="Тип содержимого" id="profile-content-kinds">
                     <button type="button" data-profile-kind="mods" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg><span>Моды</span><span id="profile-mods-tab-count" aria-hidden="true" hidden></span></button>
@@ -1760,6 +1810,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </div>
         </div>
       </section>
+      <dialog class="minecraft-dialog" id="game-crash-dialog" aria-labelledby="game-crash-title">
+        <header class="minecraft-dialog-header"><h2 id="game-crash-title"></h2></header>
+        <p id="game-crash-code"></p>
+        <p id="game-crash-advice"></p>
+        <div class="profile-option-actions">
+          <button type="button" class="button primary" id="game-crash-fix" hidden></button>
+          <button type="button" class="button" id="game-crash-logs">Посмотреть логи</button>
+          <form method="dialog"><button class="button">Закрыть</button></form>
+        </div>
+      </dialog>
       <dialog class="minecraft-dialog" id="create-profile-dialog" aria-labelledby="create-profile-heading">
         <header class="minecraft-dialog-header"><h2 id="create-profile-heading">Создать сборку</h2><button class="minecraft-dialog-close" id="create-profile-close" type="button" aria-label="Закрыть"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header>
         <form class="profile-form" id="create-profile-form">
@@ -2717,6 +2777,21 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       'Аккаунт Gleam':['Gleam account','Gleam-Konto','Cuenta Gleam'],
       'Открываем Gleam Launcher':['Opening Gleam Launcher','Gleam Launcher wird geöffnet','Abriendo Gleam Launcher'],
       'Навигация':['Navigation','Navigation','Navegación'],
+      'Ресурсы':['Resources','Ressourcen','Recursos'],
+      'Вся система':['Entire system','Gesamtsystem','Todo el sistema'],
+      'Процессор':['CPU','Prozessor','Procesador'],
+      'Период':['Time range','Zeitraum','Periodo'],
+      '5 мин':['5 min','5 Min.','5 min'],
+      '15 мин':['15 min','15 Min.','15 min'],
+      '30 мин':['30 min','30 Min.','30 min'],
+      'Из общих настроек':['Use global setting','Globale Einstellung verwenden','Usar ajuste global'],
+      'Использовать общие аргументы JVM':['Use global JVM arguments','Globale JVM-Argumente verwenden','Usar argumentos globales de JVM'],
+      'Устанавливать':['Install','Installieren','Instalar'],
+      'Не устанавливать':['Skip installation','Installation überspringen','Omitir instalación'],
+      'Настройки сборки':['Build settings','Instanzeinstellungen','Ajustes de instancia'],
+      'Посмотреть логи':['View logs','Protokolle ansehen','Ver registros'],
+      'Настройки сборки сохранены.':['Build settings saved.','Instanzeinstellungen gespeichert.','Ajustes de instancia guardados.'],
+      'Общие настройки восстановлены.':['Global settings restored.','Globale Einstellungen wiederhergestellt.','Ajustes globales restaurados.'],
       'Свернуть боковое меню':['Collapse sidebar','Seitenleiste einklappen','Contraer barra lateral'],
       'Развернуть боковое меню':['Expand sidebar','Seitenleiste ausklappen','Expandir barra lateral'],
       'Назад':['Back','Zurück','Atrás'],
@@ -5482,12 +5557,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       let detail = '';
       let failed = false;
       let busy = false;
+      const instance = readInstanceSettings(launchedProfileId);
       const options = {
-        version,account:selectedMinecraftAccount,memory:selectedMemory(),
+        version,account:selectedMinecraftAccount,memory:Math.min(instance.memory ?? selectedMemory(),memoryLimits.maximum),
         instanceId,
-        width:settings.gameWidth,height:settings.gameHeight,
-        fullscreen:settings.windowMode === 'fullscreen',jvmArguments:settings.jvmArguments,
-        fabricLoader:settings.fabricLoader,installOptimizers:settings.installOptimizers,worldInvite:world?.id ?? null,serverAddress
+        width:instance.width ?? settings.gameWidth,height:instance.height ?? settings.gameHeight,
+        fullscreen:(instance.mode ?? settings.windowMode) === 'fullscreen',jvmArguments:instance.jvm ?? settings.jvmArguments,
+        fabricLoader:instance.loader ?? settings.fabricLoader,installOptimizers:instance.optimizers ?? settings.installOptimizers,worldInvite:world?.id ?? null,serverAddress
       };
       $('download-item-title').textContent = instanceId ? profile.name+' · Minecraft '+version : 'Minecraft '+version;
       setProgress(progress,0);
@@ -5498,7 +5574,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         await window.__TAURI__.core.invoke('launch_minecraft',{options});
       } catch (error) {
         const code = String(error.message || error);
-        const [kind,exitCode] = code.split(':');
+        const [kind,exitCode,diagnosis] = code.split(':');
         busy = kind === 'game_busy';
         failed = kind !== 'game_cancelled';
         title = failed ? launchErrors[kind] || 'Не удалось запустить Minecraft' : 'Запуск отменён';
@@ -5507,6 +5583,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           detail = Array.isArray(message) ? translated(message[0],translated(message[1])) : message;
         }
         if (kind === 'game_exit' && /^-?\d+$/.test(exitCode)) detail = translated('Код выхода: {0}',exitCode);
+        if (kind === 'game_exit' || kind === 'game_spawn' || kind === 'game_jvm_quotes') {
+          showGameCrash(launchedProfileId,title,detail,kind === 'game_jvm_quotes' ? 'jvm_option' : diagnosis);
+        }
       } finally {
         launchPending = launchCancelling = running = false;
         runningVersion = null;
@@ -6357,6 +6436,158 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       const profile = defaultProfiles.get(id);
       return profile ? {gameVersion:profile.version} : {profileId:id};
     }
+
+    const instanceKey = id => 'gleam.launcher.instance.' + id;
+    function readInstanceSettings(id) {
+      try {
+        const data = JSON.parse(localStorage.getItem(instanceKey(id))) || {};
+        const parsed = {};
+        if (Number.isFinite(data.memory) && data.memory >= 2) parsed.memory = data.memory;
+        if (validDimension(gameDimensions.gameWidth,data.width)) parsed.width = data.width;
+        if (validDimension(gameDimensions.gameHeight,data.height)) parsed.height = data.height;
+        if (['windowed','fullscreen'].includes(data.mode)) parsed.mode = data.mode;
+        if (typeof data.optimizers === 'boolean') parsed.optimizers = data.optimizers;
+        if (data.loader === 'auto' || supportedLoaderVersion(data.loader)) parsed.loader = data.loader;
+        if (typeof data.jvm === 'string') parsed.jvm = data.jvm.slice(0,4096);
+        return parsed;
+      } catch { return {}; }
+    }
+
+    function renderInstanceSettings(id) {
+      const options = readInstanceSettings(id);
+      $('instance-memory').max = memoryLimits.maximum;
+      $('instance-memory').value = options.memory === undefined ? '' : Math.min(options.memory,memoryLimits.maximum);
+      for (const field of ['width','height','mode','loader']) $('instance-'+field).value = options[field] ?? '';
+      $('instance-optimizers').value = options.optimizers === undefined ? '' : options.optimizers ? 'on' : 'off';
+      $('instance-arguments').value = options.jvm ?? '';
+      $('instance-inherit-jvm').checked = options.jvm === undefined;
+      $('instance-arguments').disabled = $('instance-inherit-jvm').checked;
+      $('instance-settings-result').textContent = '';
+    }
+
+    $('instance-inherit-jvm').addEventListener('change',event => {
+      $('instance-arguments').disabled = event.target.checked;
+    });
+    $('profile-settings-panel').addEventListener('submit',event => {
+      event.preventDefault();
+      const id = profileContent.id;
+      if (!id) return;
+      const data = {};
+      for (const field of ['memory','width','height']) {
+        const input = $('instance-'+field);
+        if (input.value) data[field] = input.valueAsNumber;
+      }
+      if ($('instance-mode').value) data.mode = $('instance-mode').value;
+      if ($('instance-optimizers').value) data.optimizers = $('instance-optimizers').value === 'on';
+      const loader = $('instance-loader').value.trim();
+      if (loader && loader !== 'auto' && !supportedLoaderVersion(loader)) {
+        writeLocale($('instance-settings-result'),'Укажи auto или поддерживаемую версию Fabric Loader.');
+        return;
+      }
+      if (loader) data.loader = loader;
+      if (!$('instance-inherit-jvm').checked) data.jvm = $('instance-arguments').value;
+      try {
+        localStorage.setItem(instanceKey(id),JSON.stringify(data));
+        writeLocale($('instance-settings-result'),'Настройки сборки сохранены.');
+      } catch { writeLocale($('instance-settings-result'),'Не удалось сохранить настройки сборки.'); }
+    });
+    $('instance-reset').addEventListener('click',() => {
+      if (!profileContent.id) return;
+      try {
+        localStorage.removeItem(instanceKey(profileContent.id));
+        renderInstanceSettings(profileContent.id);
+        writeLocale($('instance-settings-result'),'Общие настройки восстановлены.');
+      } catch { writeLocale($('instance-settings-result'),'Не удалось сохранить настройки сборки.'); }
+    });
+
+    let crashProfile = null;
+    function showGameCrash(id,title,detail,reason) {
+      const suggestions = {
+        heap:['Память Java закончилась. Увеличь выделенную память для этой сборки, если в системе есть запас ОЗУ.','Настройки сборки'],
+        memory_reservation:['Java не смогла зарезервировать память. Закрой тяжёлые программы или уменьши выделенную память.','Настройки сборки'],
+        jvm_option:['Java отклонила один из аргументов запуска. Проверь аргументы JVM в настройках этой сборки.','Настройки сборки'],
+        mods:['Fabric обнаружил несовместимые моды. Открой логи, чтобы узнать их названия и нужные версии.'],
+        graphics:['Графический драйвер не предоставил нужную версию OpenGL. Проверь драйвер видеокарты и выбранный графический адаптер.']
+      };
+      const tip = suggestions[reason] ?? ['Причину не удалось определить автоматически. Подробности могут быть в логах сборки.'];
+      crashProfile = id;
+      writeLocale($('game-crash-title'),title);
+      $('game-crash-code').textContent = detail;
+      writeLocale($('game-crash-advice'),tip[0]);
+      $('game-crash-fix').hidden = !tip[1];
+      if (tip[1]) writeLocale($('game-crash-fix'),tip[1]);
+      const dialog = $('game-crash-dialog');
+      if (!dialog.open) dialog.showModal();
+    }
+    function openCrashSection(kind) {
+      $('game-crash-dialog').close();
+      if (!profileById(crashProfile)) return;
+      navigate('profiles',crashProfile);
+      void loadProfileContent(crashProfile,kind);
+    }
+    $('game-crash-fix').addEventListener('click',() => openCrashSection('settings'));
+    $('game-crash-logs').addEventListener('click',() => openCrashSection('logs'));
+
+    const resourceHistory = new Map();
+    let displayedSamples = [];
+    function updateResourceHistory(id,samples) {
+      const entries = new Map((resourceHistory.get(id) ?? []).map(sample => [sample.at,sample]));
+      for (const sample of samples) if (Number.isFinite(sample.at)) entries.set(sample.at,sample);
+      const sorted = [...entries.values()].sort((a,b) => a.at-b.at);
+      const last = sorted.at(-1)?.at ?? 0;
+      resourceHistory.set(id,sorted.filter(sample => sample.at >= last - 30*60*1000).slice(-1800));
+    }
+    function renderResourcePoint() {
+      const sample = displayedSamples[Number($('profile-resource-point').value)];
+      if (!sample) return;
+      const cpu = n => Math.round(n)+'%';
+      const gib = n => (n/1024).toLocaleString(launcherLanguage,{maximumFractionDigits:1})+' '+translated('ГБ');
+      $('profile-resource-cpu').textContent = cpu(sample.gameCpu)+' / '+cpu(sample.systemCpu);
+      $('profile-resource-memory').textContent = gib(sample.gameMemory)+' / '+gib(sample.systemMemory);
+      $('profile-resource-time').value = new Date(sample.at).toLocaleTimeString(launcherLanguage);
+      const memoryHigh = sample.systemMemory >= sample.totalMemory*.9;
+      let advice = '';
+      if (memoryHigh) advice = 'ОЗУ почти заполнена. Закрой тяжёлые приложения. Если память занимает Minecraft, проверь объём сборки и текстур.';
+      else if (sample.systemCpu >= 85 && sample.gameCpu >= sample.systemCpu*.65) advice = 'Основная нагрузка на процессор идёт от Minecraft. Уменьши дальность симуляции или ограничь частоту кадров.';
+      else if (sample.systemCpu >= 85) advice = 'Часть нагрузки идёт от других процессов. Проверь вкладку «Процессы» в Диспетчере задач.';
+      writeLocale($('profile-resource-advice'),advice);
+    }
+    function renderProfileResources(id) {
+      const history = resourceHistory.get(id) ?? [];
+      const minutes = Number($('profile-resource-window').value);
+      const last = history.at(-1)?.at ?? 0;
+      const first = Math.max(last - minutes*60*1000,history[0]?.at ?? last);
+      const slider = $('profile-resource-point');
+      const cursor = Number(slider.value) === Number(slider.max) ? null : displayedSamples[Number(slider.value)]?.at;
+      displayedSamples = history.filter(sample => sample.at >= first);
+      $('profile-resource-empty').hidden = displayedSamples.length > 0;
+      $('profile-resource-data').hidden = !displayedSamples.length;
+      if (!displayedSamples.length) return;
+      const x = t => last === first ? 640 : Math.max(0,640*(t-first)/(last-first));
+      const renderLine = (id,color,read) => {
+        const points = displayedSamples.map(sample => x(sample.at).toFixed(1)+','+
+          (100-Math.max(0,Math.min(100,read(sample)))).toFixed(1));
+        if (points.length === 1) points.push(points[0]);
+        $(id).querySelector('.'+color+'-line').setAttribute('points',points.join(' '));
+      };
+      renderLine('resource-cpu-plot','game',s => s.gameCpu);
+      renderLine('resource-cpu-plot','system',s => s.systemCpu);
+      renderLine('resource-memory-plot','game',s => s.gameMemory*100/Math.max(1,s.totalMemory));
+      renderLine('resource-memory-plot','system',s => s.systemMemory*100/Math.max(1,s.totalMemory));
+      slider.max = displayedSamples.length-1;
+      const index = cursor === null ? -1 : displayedSamples.findIndex(sample => sample.at === cursor);
+      slider.value = index < 0 ? slider.max : index;
+      renderResourcePoint();
+    }
+    $('profile-resource-window').addEventListener('change',() => renderProfileResources(profileContent.id));
+    $('profile-resource-point').addEventListener('input',renderResourcePoint);
+    window.__TAURI__?.event.listen('minecraft-resource-sample',({payload}) => {
+      const id = payload.instanceId ?? defaultProfileId(payload.version);
+      updateResourceHistory(id,[payload.sample]);
+      if (profileContent.id === id && profileContent.kind === 'resources'
+          && pageHistory[historyIndex].profileId === id) renderProfileResources(id);
+    }).catch(() => {});
+
     const profileContent = {id:null,kind:'mods',entries:[],serverStatuses:new Map(),summary:null,request:0,loading:false,error:'',toggling:false};
     const profileContentFilter = $('profile-content-filter');
     const profileContentSearch = $('profile-content-search');
@@ -6543,6 +6774,26 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       Object.assign(state,{id:profileId,kind,entries:[],serverStatuses:new Map(),loading:true,error:''});
       const section = ['mods','shaders','resourcepacks'].includes(kind) ? 'content' : kind;
       for (const button of $('profile-content-tabs').children) button.setAttribute('aria-pressed',String(button.dataset.profileSection === section));
+      $('profile-resource-panel').hidden = kind !== 'resources';
+      $('profile-settings-panel').hidden = kind !== 'settings';
+      $('profile-file-panel').hidden = kind === 'resources' || kind === 'settings';
+      if (kind === 'settings') { renderInstanceSettings(profileId); return; }
+      if (kind === 'resources') {
+        const profile = profileById(profileId);
+        renderProfileResources(profileId);
+        if (window.__TAURI__ && profile?.playable) {
+          try {
+            const samples = await window.__TAURI__.core.invoke('minecraft_resources',
+              {version:profile.version,instanceId:profileInstanceId(profile)});
+            updateResourceHistory(profileId,samples);
+            if (state.request === request) renderProfileResources(profileId);
+          } catch {
+            if (state.request === request && !resourceHistory.get(profileId)?.length)
+              writeLocale($('profile-resource-empty'),'Не удалось прочитать данные нагрузки.');
+          }
+        }
+        return;
+      }
       for (const button of $('profile-content-kinds').children) button.setAttribute('aria-pressed',String(button.dataset.profileKind === kind));
       $('profile-content-types').hidden = section !== 'content';
       $('profile-find-mods').hidden = section !== 'content' || !profileById(profileId)?.playable;
