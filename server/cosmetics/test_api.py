@@ -313,6 +313,28 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cleared["pets"], {})
         self.assertGreater(cleared["revision"], result["revision"])
 
+    async def test_hats_presence_and_older_heartbeat(self):
+        player, headers, _ = await self.login()
+        _, observer, _ = await self.login("HatObserver")
+        compact = uuid.UUID(player).hex
+
+        async def send(session, payload, expected=200):
+            response = await self.client.post("/v1/presence", headers=session, json=payload)
+            self.assertEqual(response.status, expected)
+            if expected == 200:
+                return await response.json()
+
+        before = await send(headers, {})
+        equipped = await send(headers, {"hat": "santa_hat"})
+        self.assertGreater(equipped["revision"], before["revision"])
+        await send(headers, {})
+        observed = await send(observer, {"players": [player]})
+        self.assertEqual(observed["hats"], {compact: "santa_hat"})
+        await send(headers, {"hat": "unknown"}, 400)
+        cleared = await send(headers, {"hat": "", "players": [player]})
+        self.assertEqual(cleared["hats"], {})
+        self.assertGreater(cleared["revision"], observed["revision"])
+
     async def test_signed_challenge_is_single_use(self):
         _, _, payload = await self.login()
         response = await self.client.post("/v1/verify", json=payload)

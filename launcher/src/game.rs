@@ -1401,6 +1401,63 @@ mod process {
             user: *mut [u32; 2],
         ) -> i32;
         fn WaitForSingleObject(handle: RawHandle, millis: u32) -> u32;
+        fn GetSystemTimes(idle: *mut [u32; 2], kernel: *mut [u32; 2], user: *mut [u32; 2]) -> i32;
+    }
+
+    #[repr(C)]
+    struct ProcessMemory {
+        size: u32,
+        page_faults: u32,
+        peak_working_set: usize,
+        working_set: usize,
+        peak_paged_pool: usize,
+        paged_pool: usize,
+        peak_nonpaged_pool: usize,
+        nonpaged_pool: usize,
+        pagefile: usize,
+        peak_pagefile: usize,
+    }
+
+    #[link(name = "psapi")]
+    extern "system" {
+        fn GetProcessMemoryInfo(process: RawHandle, counters: *mut ProcessMemory, size: u32) -> i32;
+    }
+
+    #[derive(Default)]
+    pub(super) struct ResourceMeter {
+        previous: Option<(u64, u64, u64)>,
+    }
+
+    impl ResourceMeter {
+        pub(super) fn sample(&mut self, child: &std::process::Child) -> Option<ResourceSample> {
+            let (mut idle, mut kernel, mut user) = ([0; 2], [0; 2], [0; 2]);
+            if unsafe { GetSystemTimes(&mut idle, &mut kernel, &mut user) } == 0 { return None; }
+            let (mut created, mut exited, mut child_kernel, mut child_user) = ([0; 2], [0; 2], [0; 2], [0; 2]);
+            let handle = child.as_raw_handle();
+            if unsafe { GetProcessTimes(handle, &mut created, &mut exited, &mut child_kernel, &mut child_user) } == 0 {
+                return None;
+            }
+            let ticks = |value: [u32; 2]| (u64::from(value[1]) << 32) | u64::from(value[0]);
+            let total = ticks(kernel) + ticks(user);
+            let process = ticks(child_kernel) + ticks(child_user);
+            let idle = ticks(idle);
+            let prev = self.previous.replace((total, idle, process))?;
+            let elapsed = total.checked_sub(prev.0)?;
+            if elapsed == 0 { return None; }
+            let percent = |delta: u64| (delta as f64 * 100.0 / elapsed as f64).clamp(0.0, 100.0);
+            let memory = memory_status()?;
+            let mut counters: ProcessMemory = unsafe { std::mem::zeroed() };
+            counters.size = std::mem::size_of::<ProcessMemory>() as u32;
+            if unsafe { GetProcessMemoryInfo(handle, &mut counters, counters.size) } == 0 { return None; }
+            Some(ResourceSample {
+                at: timestamp(SystemTime::now()),
+                game_cpu: percent(process.saturating_sub(prev.2)),
+                system_cpu: percent(elapsed.saturating_sub(idle.saturating_sub(prev.1))),
+                game_memory: (counters.working_set as u64) >> 20,
+                system_memory: memory.total_physical.saturating_sub(memory.available_physical) >> 20,
+                total_memory: memory.total_physical >> 20,
+            })
+        }
     }
 
     #[derive(Deserialize, Serialize)]
@@ -1879,6 +1936,11 @@ pub async fn launch_minecraft(
         progress("account", 97);
         let session = minecraft.game_session(&app, &options.account)?;
         let mut command = installed.command(&game_dir, &options, &session, extra)?;
+        let launch_log = game_dir.join("logs/gleam-launch.log");
+        if let Some(log) = launch_log.parent().and_then(|dir| fs::create_dir_all(dir).ok())
+            .and_then(|_| File::create(&launch_log).ok()) {
+            command.stderr(Stdio::from(log));
+        }
         let gleam_auth = auth.game_auth()?;
         let gleam_session = gleam_auth.as_ref().map(|session| session.stage_game_session(&game_dir)).transpose()?;
         let mut settings_sync = gleam_auth.and_then(|session| {
@@ -1942,27 +2004,44 @@ pub async fn launch_minecraft(
                 }
             });
         }
-        let result = if let Some(sync) = &mut settings_sync {
-            let interval = Duration::from_secs(5);
-            let mut next_save = Instant::now() + interval;
-            loop {
-                match child.try_wait() {
-                    Ok(Some(status)) => {
-                        let _ = sync.save(&game_dir, true);
-                        break Ok(status);
-                    }
-                    Ok(None) => {}
-                    Err(error) => break Err(error),
+        #[cfg(windows)]
+        let mut meter = process::ResourceMeter::default();
+        let mut samples = std::collections::VecDeque::new();
+        let mut next_sync = started + Duration::from_secs(5);
+        let mut next_sample = started;
+        let mut next_history_save = started + Duration::from_secs(30);
+        let result = loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    if let Some(sync) = &mut settings_sync { let _ = sync.save(&game_dir, true); }
+                    break Ok(status);
                 }
-                if Instant::now() >= next_save {
-                    let _ = sync.save(&game_dir, false);
-                    next_save = Instant::now() + interval;
-                }
-                std::thread::sleep(Duration::from_millis(500));
+                Ok(None) => {}
+                Err(error) => break Err(error),
             }
-        } else {
-            child.wait()
+            let now = Instant::now();
+            if now >= next_sync {
+                if let Some(sync) = &mut settings_sync { let _ = sync.save(&game_dir, false); }
+                next_sync = now + Duration::from_secs(5);
+            }
+            if now >= next_sample {
+                #[cfg(windows)]
+                if let Some(sample) = meter.sample(&child) {
+                    if samples.len() == RESOURCE_LIMIT { samples.pop_front(); }
+                    samples.push_back(sample);
+                    let _ = app.emit("minecraft-resource-sample", json!({
+                        "version": version, "instanceId": options.instance_id, "sample": sample,
+                    }));
+                }
+                next_sample = now + Duration::from_secs(1);
+            }
+            if now >= next_history_save && !samples.is_empty() {
+                save_resources(&game_dir, &samples);
+                next_history_save = now + Duration::from_secs(30);
+            }
+            std::thread::sleep(Duration::from_millis(250));
         };
+        if !samples.is_empty() { save_resources(&game_dir, &samples); }
         if let Some(sessions) = &mut activity {
             if let Some(session) = sessions.last_mut() {
                 session.ended_at = Some(started_at.saturating_add(started.elapsed().as_millis() as u64));
@@ -1972,12 +2051,82 @@ pub async fn launch_minecraft(
         *game.status.lock().map_err(|_| "game_install")? = Status::Finishing;
         let result = result.map_err(|_| "game_exit")?;
         if !result.success() {
-            return Err(format!("game_exit:{}", result.code().unwrap_or(-1)));
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+            return Err(format!("game_exit:{}:{}", result.code().unwrap_or(-1),
+                               crash_reason(&game_dir, &launch_log, started_at)));
         }
         Ok(())
     })
     .await
     .map_err(|_| "game_install".to_owned())?
+}
+
+const RESOURCE_LIMIT: usize = 1800;
+const RESOURCE_FILE: &str = ".gleam-resources.json";
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceSample {
+    at: u64,
+    game_cpu: f64,
+    system_cpu: f64,
+    game_memory: u64,
+    system_memory: u64,
+    total_memory: u64,
+}
+
+fn save_resources(game_dir: &Path, samples: &std::collections::VecDeque<ResourceSample>) {
+    if let Ok(mut temporary) = tempfile::NamedTempFile::new_in(game_dir) {
+        if serde_json::to_writer(&mut temporary, samples).is_ok() {
+            let _ = temporary.persist(game_dir.join(RESOURCE_FILE));
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn minecraft_resources(app: tauri::AppHandle, version: String, instance_id: Option<String>) -> Result<Vec<ResourceSample>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let game_dir = crate::profile_import::instance(&app, &version, instance_id.as_deref())?;
+        let Ok(file) = File::open(game_dir.join(RESOURCE_FILE)) else { return Ok(Vec::new()); };
+        let history: Vec<ResourceSample> = serde_json::from_reader(file.take(512 * 1024)).unwrap_or_default();
+        Ok(history.into_iter().rev().take(RESOURCE_LIMIT).rev().collect())
+    }).await.map_err(|_| "game_storage".to_owned())?
+}
+
+fn crash_reason(game_dir: &Path, launch_log: &Path, started_at: u64) -> &'static str {
+    use std::io::{Seek, SeekFrom};
+    let tail = |path: &Path| -> Option<String> {
+        let mut file = File::open(path).ok()?;
+        let metadata = file.metadata().ok()?;
+        if timestamp(metadata.modified().ok()?).saturating_add(1000) < started_at { return None; }
+        file.seek(SeekFrom::Start(metadata.len().saturating_sub(96 * 1024))).ok()?;
+        let mut bytes = Vec::new();
+        file.take(96 * 1024).read_to_end(&mut bytes).ok()?;
+        Some(String::from_utf8_lossy(&bytes).to_ascii_lowercase())
+    };
+    for path in [launch_log, &game_dir.join("logs/latest.log")] {
+        let Some(log) = tail(path) else { continue; };
+        if log.contains("could not reserve enough space") || log.contains("native memory allocation") {
+            return "memory_reservation";
+        }
+        if log.contains("outofmemoryerror") && (log.contains("java heap space") || log.contains("gc overhead limit")) {
+            return "heap";
+        }
+        if log.contains("unrecognized vm option") || log.contains("improperly specified vm option") {
+            return "jvm_option";
+        }
+        if log.contains("incompatible mods found") || log.contains("mod resolution encountered an incompatible mod set") {
+            return "mods";
+        }
+        if log.contains("glfw error 65542") || log.contains("does not support opengl") {
+            return "graphics";
+        }
+    }
+    "unknown"
 }
 
 #[derive(Serialize)]
@@ -1996,9 +2145,8 @@ pub fn memory_limits() -> MemoryLimits {
 }
 
 #[cfg(windows)]
-fn physical_memory_gib() -> Option<f64> {
-    #[repr(C)]
-    struct MemoryStatus {
+#[repr(C)]
+struct MemoryStatus {
         length: u32,
         load: u32,
         total_physical: u64,
@@ -2008,7 +2156,10 @@ fn physical_memory_gib() -> Option<f64> {
         total_virtual: u64,
         available_virtual: u64,
         available_extended_virtual: u64,
-    }
+}
+
+#[cfg(windows)]
+fn memory_status() -> Option<MemoryStatus> {
     #[link(name = "kernel32")]
     extern "system" {
         fn GlobalMemoryStatusEx(status: *mut MemoryStatus) -> i32;
@@ -2016,7 +2167,12 @@ fn physical_memory_gib() -> Option<f64> {
     let mut status: MemoryStatus = unsafe { std::mem::zeroed() };
     status.length = std::mem::size_of::<MemoryStatus>() as u32;
     let success = unsafe { GlobalMemoryStatusEx(&mut status) } != 0;
-    (success && status.total_physical > 0).then_some(status.total_physical as f64 / 1_073_741_824.0)
+    (success && status.total_physical > 0).then_some(status)
+}
+
+#[cfg(windows)]
+fn physical_memory_gib() -> Option<f64> {
+    memory_status().map(|status| status.total_physical as f64 / 1_073_741_824.0)
 }
 
 #[cfg(not(windows))]

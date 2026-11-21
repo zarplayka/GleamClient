@@ -19,6 +19,7 @@ import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfig;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -528,6 +529,48 @@ public final class OrionFakePrefix {
     public static Component configuredPrefixComponent() {
         OrionConfig config = OrionClient.getConfigOrNull();
         return config == null || !config.isFakePrefixEnabled() ? Component.empty() : parse(activePreset(config).prefix());
+    }
+
+    public static Comparator<PlayerInfo> tabComparator(Comparator<PlayerInfo> vanilla) {
+        var client = Minecraft.getInstance();
+        var config = OrionClient.getConfigOrNull();
+        if (client.player == null || client.getConnection() == null || config == null || !config.isFakePrefixEnabled()) return vanilla;
+        Component fake = configuredPrefixComponent();
+        String prefix = prefixWithoutVoiceChat(fake);
+        var font = rankFont(fake);
+        if (prefix.isBlank() && font.isEmpty()) return vanilla;
+        var self = client.player.getUUID();
+        var players = client.getConnection().getListedOnlinePlayers();
+        var target = players.stream().filter(info -> !self.equals(info.getProfile().id()) && matchesRank(info, prefix, font))
+                .min(vanilla).orElse(null);
+        if (target == null) return vanilla;
+
+        return Comparator.<PlayerInfo>comparingInt(info -> (self.equals(info.getProfile().id()) ? target : info).getTabListOrder())
+                .reversed()
+                .thenComparing(info -> info.getGameMode() == net.minecraft.world.level.GameType.SPECTATOR)
+                .thenComparing(info -> {
+                    var team = (self.equals(info.getProfile().id()) ? target : info).getTeam();
+                    return team == null ? "" : team.getName();
+                })
+                .thenComparing(info -> info.getProfile().name(), String.CASE_INSENSITIVE_ORDER);
+    }
+
+    private static boolean matchesRank(PlayerInfo player, String prefix, Optional<Identifier> font) {
+        var team = player.getTeam();
+        Component tab = player.getTabListDisplayName();
+        Component teamPrefix = team == null ? Component.empty() : team.getPlayerPrefix();
+        if (font.isPresent()) return font.equals(rankFont(teamPrefix)) || tab != null && font.equals(rankFont(tab));
+        if (prefix.equalsIgnoreCase(prefixWithoutVoiceChat(teamPrefix))) return true;
+        String observed = tab == null ? null : detectPrefixBeforePlayer(tab.getString(), player.getProfile().name());
+        return observed != null && prefix.equalsIgnoreCase(normalizePrefix(observed));
+    }
+
+    private static Optional<Identifier> rankFont(Component component) {
+        return component.visit((style, part) -> {
+            if (style.getFont() instanceof FontDescription.Resource resource
+                    && resource.id().getPath().startsWith("groups/")) return Optional.of(resource.id());
+            return Optional.empty();
+        }, Style.EMPTY);
     }
 
     private static OrionConfig.FakePrefixPreset activePreset(OrionConfig config) {
