@@ -281,9 +281,12 @@ function mainMenu() {
   requestAnimationFrame(animate);
 }
 
-function gameBackdrop(surface, title = false) {
-  const backdrop = '/title/assets/gleam-title-panorama.png';
-  const titleCrop = title ? 'html[data-theme=glass] { background-position: left center; background-size: max(138vw, 245.333333vh) auto }' : '';
+function gameBackdrop(surface, lumen = false) {
+  const world = new URLSearchParams(location.search).get('scene') === 'world';
+  const backdrop = world ? '/assets/gameplay-baseline.webp' : '/title/assets/gleam-title-panorama.png';
+  const mode = lumen ? (world ? 'world' : 'title') : '';
+  const titleCrop = mode === 'title'
+    ? 'html[data-theme=glass], html[data-glass] { background-position: left center; background-size: max(138vw, 245.333333vh) auto }' : '';
   const style = document.createElement('style');
   style.textContent = `
     html { background: url(${backdrop}) center / cover fixed }
@@ -294,12 +297,12 @@ function gameBackdrop(surface, title = false) {
     html[data-preview-glass][data-glass] .surface { background: transparent }
   `;
   document.head.append(style);
-  import('/client-preview-glass.js').then(({ previewGlass }) => previewGlass(surface, backdrop, title))
+  import('/client-preview-glass.js').then(({ previewGlass }) => previewGlass(surface, backdrop, mode))
     .catch(error => console.warn('Liquid Glass preview:', error));
 }
 
 function mediaHud() {
-  gameBackdrop('#island .surface');
+  gameBackdrop('#island .surface', true);
   const visual = readSession(previewSettings, {});
   const tracks = [['Sweden', 'C418'], ['Aria Math', 'C418'], ['Otherside', 'Lena Raine']];
   let index = 0;

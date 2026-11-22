@@ -134,15 +134,12 @@ void main() {
     vec4 color = tint;
 #ifdef LUMEN_GLASS
     vec2 normal = distanceGradient / pixel;
-    bool panorama = primitive.x == 1;
-    float vertical = panorama ? sign(dFdy(texCoord.y)) : (tint.r > 0.998 ? -1.0 : 1.0);
-    vec2 lightNormal = vec2(normal.x, normal.y * vertical);
-    vec2 sampleStep = panorama ? abs(vec2(dFdx(texCoord.x), dFdy(texCoord.y))) : 1.0 / vec2(textureSize(Sampler0, 0));
-    vec2 uv = panorama ? texCoord : gl_FragCoord.xy * sampleStep;
-    vec2 refraction = panorama ? lightNormal : normal;
+    vec2 uvGradient = vec2(dFdx(texCoord.x), dFdy(texCoord.y));
+    vec2 lightNormal = vec2(normal.x, normal.y * sign(dFdy(guiPosition.y)));
+    vec2 refraction = normal * sign(uvGradient);
     float depth = clamp(min(halfSize.x, halfSize.y) * 0.24 / pixel, 4.0, 17.0);
     float bevel = clamp(-distance / (pixel * depth), 0.0, 1.0);
-    color = vec4(liquidGlass(Sampler0, uv, sampleStep, refraction, lightNormal, bevel), tint.a * coverage(distance, pixel));
+    color = vec4(liquidGlass(Sampler0, texCoord, abs(uvGradient), refraction, lightNormal, bevel), tint.a * coverage(distance, pixel));
 #elif defined(LUMEN_TEXTURED)
     color *= primitive.x == 12 ? sampleGradient(texCoord) : texture(Sampler0, texCoord);
     if (radius > 0.0) color.a *= coverage(distance, pixel);

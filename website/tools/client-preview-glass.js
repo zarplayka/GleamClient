@@ -1,6 +1,7 @@
 const vertex = `#version 300 es
 uniform vec2 resolution;
 uniform vec2 crop;
+uniform bool world;
 uniform vec4 surface;
 uniform vec4 radii;
 out vec4 tint;
@@ -17,10 +18,12 @@ void main() {
     guiPosition = vec2(corner.x, 1.0 - corner.y) * resolution;
     halfSize = surface.zw * 0.5;
     localPosition = guiPosition - surface.xy - halfSize;
-    texCoord = guiPosition * crop / resolution + vec2(0.0, (1.0 - crop.y) * 0.5);
+    vec2 point = guiPosition / resolution;
+    texCoord = world ? vec2(point.x, 1.0 - point.y)
+        : point * crop + vec2(0.0, (1.0 - crop.y) * 0.5);
     radius = radii.x;
     tint = vec4(1.0, 1.0, 1.0, 253.0 / 255.0);
-    primitive = ivec2(1, 0);
+    primitive = ivec2(0);
     themeCircle = vec3(0.0);
 }`;
 
@@ -39,19 +42,20 @@ function webLumenGlass(shader, optics) {
     .replace(/layout\(location = \d+\) (?=(?:flat )?in )/g, '');
 }
 
-export async function previewGlass(selector, backdrop, title) {
+export async function previewGlass(selector, backdrop, mode) {
+  const world = mode === 'world';
   const scene = new Image();
   scene.src = backdrop;
   const [optics, paint] = await Promise.all([
     shaderSource('/liquid-glass.glsl'),
-    title ? shaderSource('/lumen-paint.fsh') : '',
+    mode ? shaderSource('/lumen-paint.fsh') : '',
     scene.decode()
   ]);
   const canvas = document.createElement('canvas');
   const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: false });
   if (!gl) return;
 
-  const fragment = title ? webLumenGlass(paint, optics) : `#version 300 es
+  const fragment = mode ? webLumenGlass(paint, optics) : `#version 300 es
 precision highp float;
 uniform sampler2D scene;
 uniform vec2 resolution;
@@ -94,13 +98,17 @@ void main() {
   const crop = gl.getUniformLocation(program, 'crop');
   const surface = gl.getUniformLocation(program, 'surface');
   const radii = gl.getUniformLocation(program, 'radii');
+  gl.uniform1i(gl.getUniformLocation(program, 'world'), Number(world));
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scene);
+  const frameBuffer = world ? document.createElement('canvas') : null;
+  const frameContext = frameBuffer?.getContext('2d');
+  if (frameBuffer) frameBuffer.width = 0;
+  if (!world) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scene);
 
   const root = document.documentElement;
   canvas.className = 'preview-glass-layer';
@@ -123,7 +131,15 @@ void main() {
       canvas.width = width;
       canvas.height = height;
     }
-    const cover = Math.max(width / scene.width, height / scene.height) * (title ? 1.38 : 1);
+    const cover = Math.max(width / scene.width, height / scene.height) * (mode === 'title' ? 1.38 : 1);
+    if (frameBuffer && (frameBuffer.width !== width || frameBuffer.height !== height)) {
+      frameBuffer.width = width;
+      frameBuffer.height = height;
+      const drawWidth = scene.width * cover, drawHeight = scene.height * cover;
+      frameContext.drawImage(scene, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, frameBuffer);
+    }
     gl.viewport(0, 0, width, height);
     gl.disable(gl.SCISSOR_TEST);
     gl.clear(gl.COLOR_BUFFER_BIT);
