@@ -472,13 +472,21 @@ public final class OrionLumenView {
                     if (backdrop != null) {
                         pipeline = Paint.GLASS;
                         texture = backdrop;
-                        color = color & 0xff000000 | (compositor.bottomOrigin() ? 0xffffff : 0xfeffff);
+                        color = color & 0xff000000 | 0xffffff;
                         if (titleBackdrop) {
-                            kind = 1;
                             float zoom = OrionTitleMenu.backdropZoom(width, height);
                             u0 = 1F / (1920F * zoom);
                             v0 = 1F / (1080F * zoom);
                             v1 = (1F - height * v0) / 2F;
+                        } else {
+                            var window = Minecraft.getInstance().getWindow();
+                            float guiScale = window.getGuiScale();
+                            u0 = guiScale / window.getWidth();
+                            v0 = guiScale / window.getHeight();
+                            if (compositor.bottomOrigin()) {
+                                v0 = -v0;
+                                v1 = 1F;
+                            }
                         }
                     } else {
                         color = Math.round((color >>> 24) * .89F) << 24 | 0x1c2833;
@@ -650,7 +658,7 @@ public final class OrionLumenView {
             int corner = Math.clamp(Math.round(radius * 16F), 0, 8191);
             float u = u0 + (u1 - u0) * dx / width;
             float v = v0 + (v1 - v0) * dy / height;
-            if (pipeline == GLASS && kind == 1) {
+            if (pipeline == GLASS) {
                 u = u0 * (pose.m00() * x + pose.m10() * y + pose.m20());
                 v = v1 + v0 * (pose.m01() * x + pose.m11() * y + pose.m21());
             }
