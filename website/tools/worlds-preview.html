@@ -68,9 +68,95 @@ button{font:inherit;color:inherit}
 .search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:13px}
 .search input::placeholder{color:var(--subtle)}
 .clock{font-weight:600;font-size:15px;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
-.account{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 4px;border-radius:999px;background:var(--chip);border:1px solid var(--chip-line);font-size:13px;font-weight:600;max-width:170px}
-.account span:last-child{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.avatar{flex:none;width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#6b8cff,#a47bff);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;image-rendering:pixelated}
+.account-picker{position:relative;z-index:6}
+.account{
+  display:flex;align-items:center;gap:8px;height:34px;max-width:192px;padding:0 9px 0 4px;
+  border:1px solid var(--chip-line);border-radius:999px;background:var(--chip);
+  font-size:13px;font-weight:600;cursor:pointer;transition:background .2s,border-color .2s;
+}
+.account:hover,.account[aria-expanded="true"]{background:var(--hover);border-color:var(--accent)}
+.account-name{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.account .account-chevron{width:12px;height:12px;color:var(--muted);transition:transform .25s}
+.account[aria-expanded="true"] .account-chevron{transform:rotate(180deg)}
+.account-picker button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.account-symbols{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
+.profile-avatar{
+  display:block;flex:none;width:32px;height:32px;border:1px solid var(--panel-line);border-radius:9px;
+  background-color:var(--tile-bg);background-size:100% 100%;image-rendering:pixelated;
+}
+.profile-avatar[data-face="steve"]{
+  background-image:url('launcher-default-skin.png');background-size:800% 800%;background-position:14.2857% 14.2857%;
+}
+.account .profile-avatar{width:24px;height:24px;border-radius:50%}
+
+.account-panel{
+  position:absolute;top:calc(100% + 12px);right:0;width:356px;max-height:min(var(--account-space, 580px), 580px);
+  display:flex;flex-direction:column;gap:13px;padding:15px;overflow:hidden;
+  border:1px solid var(--panel-line);border-radius:22px;background:#171b23;box-shadow:0 22px 58px var(--glow);
+  transform-origin:calc(100% - 24px) 0;transform:translateY(-8px) scale(.955,.97);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .18s,transform .23s cubic-bezier(.2,.75,.24,1),visibility 0s linear .23s;
+}
+.account-panel[data-open]{
+  transform:none;opacity:1;visibility:visible;pointer-events:auto;
+  transition:opacity .2s,transform .34s cubic-bezier(.17,.85,.25,1.13),visibility 0s;
+}
+:root[data-theme="light"] .account-panel{background:#f6f8fc}
+:root[data-theme="glass"] .account-panel{background:#10161eb8;backdrop-filter:blur(18px) saturate(1.4)}
+.account-panel-head,.account-list-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.account-panel-head h2{margin:0;font-size:16px;letter-spacing:-.3px}
+.account-panel-head kbd{height:19px;color:var(--muted);font-size:10px}
+.account-profile{
+  position:relative;display:grid;grid-template-columns:54px minmax(0,1fr) auto;align-items:center;gap:12px;
+  padding:12px;border:1px solid color-mix(in srgb,var(--accent) 42%,var(--panel-line));border-radius:15px;
+  background:color-mix(in srgb,var(--accent) 12%,var(--chip));
+}
+.account-profile .profile-avatar{width:54px;height:54px;border-color:var(--chip-line);border-radius:11px}
+.profile-copy{display:grid;min-width:0;gap:3px}
+.profile-copy strong{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:14px;line-height:1.25}
+.account-profile .profile-copy strong{font-size:17px;letter-spacing:-.3px}
+.profile-copy small{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--muted);font-size:11px}
+.profile-active{display:flex;align-items:center;gap:5px;color:var(--accent);white-space:nowrap;font-size:11px;font-weight:700}
+.profile-active svg.i{width:13px;height:13px}
+.account-list-title,.account-add-title{margin:0;color:var(--muted);font-size:12px;font-weight:600}
+.account-count{font-variant-numeric:tabular-nums;color:var(--subtle)}
+.account-list{display:grid;gap:5px;min-height:0;max-height:228px;margin:0 -4px;padding:4px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.account-list-title{margin-bottom:4px}
+.account-saved{display:flex;flex-direction:column;min-height:0}
+.account-saved h3{flex:none}
+.account-row{
+  display:grid;grid-template-columns:minmax(0,1fr) 31px;align-items:center;gap:3px;
+  min-height:51px;border:1px solid var(--panel-line);border-radius:11px;background:var(--chip);padding-right:5px;
+  transition:background .2s,border-color .2s;
+}
+.account-row[data-active]{border-color:color-mix(in srgb,var(--accent) 47%,var(--panel-line));background:color-mix(in srgb,var(--accent) 10%,var(--chip))}
+.account-choice{
+  display:grid;grid-template-columns:32px minmax(0,1fr) 16px;align-items:center;gap:9px;min-width:0;
+  padding:6px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;
+}
+.account-choice:hover,.account-edit:hover,.account-add button:hover{background:var(--hover)}
+.account-check{color:var(--accent);opacity:0;transform:translateX(-5px) scale(.8);transition:opacity .2s,transform .27s cubic-bezier(.2,.8,.2,1)}
+.account-check svg.i{width:16px;height:16px;display:block}
+.account-row[data-active] .account-check{opacity:1;transform:none}
+.account-edit{
+  display:grid;place-items:center;width:31px;height:31px;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;
+}
+.account-edit svg.i{width:16px;height:16px}
+.account-add{flex:none;border-top:1px solid var(--panel-line);padding-top:10px}
+.account-add-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:6px}
+.account-add button{
+  display:flex;align-items:center;justify-content:center;gap:6px;min-height:33px;padding:0 7px;
+  border:1px solid var(--panel-line);border-radius:9px;background:var(--chip);font-size:12px;font-weight:600;cursor:pointer;
+}
+.account-add button svg.i{width:14px;height:14px;color:var(--accent)}
+.account-panel[data-open] :is(.account-profile,.account-row,.account-add){animation:account-enter .35s cubic-bezier(.19,.82,.25,1) backwards;animation-delay:var(--account-delay,25ms)}
+.account-add{--account-delay:110ms}
+@keyframes account-enter{from{opacity:.35;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.account-form-error{color:var(--danger);margin:8px 0 0;font-size:13px}
+.dialog-box .row.account-form-actions{justify-content:space-between}
+.account-form-buttons{display:flex;gap:10px}
+.account-dialog-submit{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.account-dialog-submit:hover{background:var(--accent);filter:brightness(1.07)}
 .icon-btn{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;border:1px solid var(--chip-line);background:var(--chip);cursor:pointer;transition:background-color .18s}
 .icon-btn:hover{background:var(--hover)}
 svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -195,7 +281,10 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px
 .ping.p1 i:nth-child(1){background:var(--danger)}
 
 .short .shelf{display:none}
-@media(prefers-reduced-motion:reduce){.bg img,.tile,.focus-label{transition:none}}
+@media(prefers-reduced-motion:reduce){
+  .bg img,.tile,.focus-label{transition:none}
+  .account-picker *{transition:none!important;animation:none!important}
+}
 
 /* Панель превью — не часть игрового интерфейса */
 .dev{position:fixed;right:14px;bottom:14px;z-index:20;font:12px system-ui,sans-serif;color:#e8eaf0}
@@ -215,6 +304,12 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px
 </style>
 </head>
 <body>
+<svg class="account-symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="account-down" viewBox="0 0 24 24"><path d="m5 9 7 7 7-7"/></symbol>
+  <symbol id="account-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="account-edit" viewBox="0 0 24 24"><path d="m4 20 4.2-1.1L19 8.1 15.9 5 5 15.8 4 20Zm9.8-12.9 3.1 3.1"/></symbol>
+  <symbol id="account-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+</svg>
 <div id="stage" class="zone-tiles">
   <div class="bg"><img id="bgA" alt=""><img id="bgB" alt=""><div class="shade"></div></div>
 
@@ -228,7 +323,32 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px
     </nav>
     <div class="status">
       <label class="search" id="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="query" placeholder="Поиск по названию" tabindex="-1"></label>
-      <div class="account"><span class="avatar">S</span><span>Steve_Builder</span></div>
+      <div class="account-picker" id="accountPicker">
+        <button type="button" class="account" id="accountTrigger" aria-label="Аккаунты Minecraft" aria-expanded="false" aria-controls="accountPanel">
+          <span class="profile-avatar" id="accountAvatar" aria-hidden="true"></span>
+          <span class="account-name" id="accountName"></span>
+          <svg class="i account-chevron" aria-hidden="true"><use href="#account-down"/></svg>
+        </button>
+        <section class="account-panel" id="accountPanel" aria-labelledby="accountHeading" inert>
+          <header class="account-panel-head"><h2 id="accountHeading">Аккаунты Minecraft</h2><kbd aria-hidden="true">Esc</kbd></header>
+          <div class="account-profile" id="activeProfile" aria-live="polite">
+            <span class="profile-avatar" id="activeAvatar" aria-hidden="true"></span>
+            <span class="profile-copy" id="activeProfileCopy"><strong id="activeAccountName"></strong><small id="activeAccountType"></small></span>
+            <span class="profile-active"><svg class="i" aria-hidden="true"><use href="#account-check"/></svg>Активен</span>
+          </div>
+          <section class="account-saved" aria-labelledby="accountSaved">
+            <h3 class="account-list-title" id="accountSaved">Сохранённые <span class="account-count" id="accountCount"></span></h3>
+            <div class="account-list" id="accountList" role="group" aria-labelledby="accountSaved"></div>
+          </section>
+          <section class="account-add" aria-labelledby="accountAddTitle">
+            <h3 class="account-add-title" id="accountAddTitle">Добавить аккаунт</h3>
+            <div class="account-add-actions">
+              <button type="button" data-account-type="microsoft"><svg class="i" aria-hidden="true"><use href="#account-plus"/></svg>Microsoft</button>
+              <button type="button" data-account-type="offline"><svg class="i" aria-hidden="true"><use href="#account-plus"/></svg>Офлайн</button>
+            </div>
+          </section>
+        </section>
+      </div>
       <span class="clock" id="clock">00:00</span>
       <button class="icon-btn" id="back" title="Назад (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     </div>
@@ -261,7 +381,7 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px
   <footer class="hints" id="hints"></footer>
 
   <div class="menu-pop" id="pop" role="menu"></div>
-  <div class="dialog" id="dialog"><div class="dialog-box" id="dialogBox"></div></div>
+  <div class="dialog" id="dialog" inert><div class="dialog-box" id="dialogBox" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"></div></div>
   <div class="toast" id="toast"><span class="spinner" id="toastSpin"></span><span id="toastText"></span></div>
 </div>
 
@@ -276,6 +396,16 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px
   </div>
   <button id="devToggle">Превью ▾</button>
 </div>
+<template id="accountRow">
+  <div class="account-row">
+    <button type="button" class="account-choice" aria-pressed="false">
+      <span class="profile-avatar" aria-hidden="true"></span>
+      <span class="profile-copy"><strong></strong><small></small></span>
+      <span class="account-check" aria-hidden="true"><svg class="i"><use href="#account-check"/></svg></span>
+    </button>
+    <button type="button" class="account-edit"><svg class="i" aria-hidden="true"><use href="#account-edit"/></svg></button>
+  </div>
+</template>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -339,6 +469,7 @@ function layoutStage() {
   const scale = Math.min(2, Math.max(.6, Math.min(w / 1280, h / 720)));
   stage.style.width = w / scale + 'px'; stage.style.height = h / scale + 'px';
   stage.style.transform = `scale(${scale})`;
+  stage.style.setProperty('--account-space', Math.max(188, h / scale - 94) + 'px');
   stage.classList.toggle('short', h / scale < 690);
   placeTiles();
 }
@@ -650,11 +781,24 @@ function moveServer(dir) {
   state.focus.multi = j + 1; buildTiles(); placeTiles(); renderHero();
 }
 
-function dialog(html, onOpen) {
-  $('dialogBox').innerHTML = html; $('dialog').classList.add('open'); state.dialog = true;
-  onOpen?.($('dialogBox'));
+let dialogReturnFocus;
+function dialog(html, onOpen, returnFocus) {
+  const overlay = $('dialog'), box = $('dialogBox');
+  dialogReturnFocus = returnFocus;
+  box.innerHTML = html;
+  box.querySelector('h3')?.setAttribute('id', 'dialogTitle');
+  overlay.inert = false;
+  overlay.classList.add('open'); state.dialog = true;
+  onOpen?.(box);
 }
-function closeDialog() { $('dialog').classList.remove('open'); state.dialog = null; }
+function closeDialog() {
+  const overlay = $('dialog');
+  overlay.classList.remove('open');
+  overlay.inert = true;
+  state.dialog = null;
+  dialogReturnFocus?.focus();
+  dialogReturnFocus = null;
+}
 $('dialog').addEventListener('click', e => { if (e.target === $('dialog')) closeDialog(); });
 function confirmDelete() {
   const it = current(), single = state.tab === 'single';
@@ -719,6 +863,192 @@ function toast(text, busy) {
   toastTimer = setTimeout(() => $('toast').classList.remove('show'), busy ? 2600 : 1800);
 }
 
+// ——— аккаунты Minecraft в превью ———
+const accountPicker = $('accountPicker'), accountTrigger = $('accountTrigger');
+const accountPanel = $('accountPanel'), accountList = $('accountList');
+const accountKey = 'gleam-worlds-preview-minecraft-accounts';
+const accountTypes = {microsoft:'Microsoft', offline:'Офлайн-профиль'};
+const accountNamePattern = /^[a-zA-Z0-9_]{3,16}$/;
+const defaultAccounts = [
+  {id:'steve', name:'Steve_Builder', type:'microsoft', face:'steve'},
+  {id:'nyx', name:'Nyx_Orbit', type:'microsoft', face:'nyx'},
+  {id:'copper', name:'CopperFox', type:'offline', face:'copper'},
+];
+
+function paintedFace(palette) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 8;
+  const painter = canvas.getContext('2d');
+  const rows = ['hhhhhhhh','hhhhhssh','hhsssssh','hssssssh','hswerweh','hsssssah','hssmmssh','hhcttchh'];
+  for (const [y, row] of rows.entries()) {
+    for (const [x, pixel] of [...row].entries()) {
+      painter.fillStyle = palette[pixel];
+      painter.fillRect(x, y, 1, 1);
+    }
+  }
+  return 'url(' + canvas.toDataURL() + ')';
+}
+
+const accountFaces = {
+  steve: '',
+  nyx: paintedFace({h:'#222338', s:'#d9a191', w:'#fff1ed', e:'#9883e4', r:'#d69f93', a:'#ba807b', m:'#974d5e', c:'#6b58aa', t:'#c5b7fa'}),
+  copper: paintedFace({h:'#8b462d', s:'#ecb783', w:'#fff3d9', e:'#337d6c', r:'#cc895d', a:'#bf7753', m:'#9a5541', c:'#387865', t:'#78be9c'}),
+};
+const accountState = loadAccounts();
+let accountOpen = false, profileAnimation, profileAvatarAnimation, headerAccountAnimation;
+
+function loadAccounts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(accountKey));
+    if (Array.isArray(saved?.profiles)) {
+      const ids = new Set();
+      const profiles = saved.profiles.filter(account => {
+        if (typeof account?.id !== 'string' || ids.has(account.id) || typeof account.name !== 'string' || !accountNamePattern.test(account.name)) return false;
+        if (!Object.hasOwn(accountTypes, account.type) || !Object.hasOwn(accountFaces, account.face)) return false;
+        ids.add(account.id);
+        return true;
+      });
+      if (profiles.length) return {profiles, active:ids.has(saved.active) ? saved.active : profiles[0].id};
+    }
+  } catch { /* Storage is optional for the preview. */ }
+  return {profiles:defaultAccounts.map(account => ({...account})), active:defaultAccounts[0].id};
+}
+
+function saveAccounts() {
+  try { localStorage.setItem(accountKey, JSON.stringify(accountState)); } catch { /* Keep the current session usable. */ }
+}
+
+function setAvatar(node, face) {
+  node.dataset.face = face;
+  node.style.backgroundImage = accountFaces[face];
+}
+
+function updateActiveAccount(animate) {
+  const account = accountState.profiles.find(profile => profile.id === accountState.active);
+  const headerName = $('accountName'), avatar = $('activeAvatar'), copy = $('activeProfileCopy');
+  headerName.textContent = account.name;
+  accountTrigger.setAttribute('aria-label', 'Аккаунты Minecraft, текущий профиль ' + account.name);
+  $('activeAccountName').textContent = account.name;
+  $('activeAccountType').textContent = accountTypes[account.type] + (account.type === 'microsoft' ? ' · Java Edition' : '');
+  setAvatar($('accountAvatar'), account.face);
+  setAvatar(avatar, account.face);
+
+  for (const row of accountList.children) {
+    const active = row.dataset.accountId === account.id;
+    row.toggleAttribute('data-active', active);
+    row.querySelector('.account-choice').setAttribute('aria-pressed', String(active));
+  }
+
+  profileAnimation?.cancel(); profileAvatarAnimation?.cancel(); headerAccountAnimation?.cancel();
+  if (!animate || reducedMotion.matches) return;
+  profileAnimation = copy.animate([{opacity:.3, transform:'translateY(7px)'}, {opacity:1, transform:'none'}],
+    {duration:250, easing:'cubic-bezier(.2,.8,.2,1)'});
+  profileAvatarAnimation = avatar.animate([{opacity:.6, transform:'scale(.82) rotate(-6deg)'}, {opacity:1, transform:'none'}],
+    {duration:320, easing:'cubic-bezier(.18,.88,.26,1.19)'});
+  headerAccountAnimation = headerName.animate([{opacity:.45, transform:'translateY(4px)'}, {opacity:1, transform:'none'}],
+    {duration:210, easing:'ease-out'});
+}
+
+function renderAccounts(animate = false) {
+  const template = $('accountRow').content.firstElementChild;
+  const rows = accountState.profiles.map((account, i) => {
+    const row = template.cloneNode(true);
+    row.dataset.accountId = account.id;
+    row.style.setProperty('--account-delay', `${Math.min(5, i) * 26 + 45}ms`);
+    setAvatar(row.querySelector('.profile-avatar'), account.face);
+    row.querySelector('strong').textContent = account.name;
+    row.querySelector('small').textContent = accountTypes[account.type];
+    row.querySelector('.account-edit').setAttribute('aria-label', 'Управление профилем ' + account.name);
+    row.querySelector('.account-edit').title = 'Управление профилем';
+    return row;
+  });
+  accountList.replaceChildren(...rows);
+  $('accountCount').textContent = rows.length;
+  updateActiveAccount(animate);
+}
+
+function showAccounts(open, restoreFocus = false) {
+  if (accountOpen === open) return;
+  accountOpen = open;
+  accountTrigger.setAttribute('aria-expanded', String(open));
+  accountPanel.toggleAttribute('data-open', open);
+  accountPanel.inert = !open;
+  if (open) {
+    closeMenu();
+    const selected = accountList.querySelector('[aria-pressed="true"]');
+    selected?.focus({preventScroll:true});
+    selected?.scrollIntoView({block:'nearest'});
+  } else if (restoreFocus) accountTrigger.focus({preventScroll:true});
+}
+
+function openAccountEditor(type, account) {
+  showAccounts(false);
+  const title = account ? 'Управление профилем' : type === 'microsoft' ? 'Добавить Microsoft' : 'Добавить офлайн-профиль';
+  const note = account ? accountTypes[type] : type === 'microsoft' ? 'Демонстрационный профиль Microsoft для превью.' : 'Профиль для запуска с локальным ником.';
+  const remove = account && accountState.profiles.length > 1 ? '<button class="btn red" id="accountRemove">Удалить</button>' : '<span></span>';
+  dialog(`<h3>${title}</h3><p>${note}</p>
+    <label class="field"><span>Ник Minecraft</span><input id="accountInput" maxlength="16" autocomplete="off" spellcheck="false" value="${account ? esc(account.name) : ''}"></label>
+    <div class="account-form-error" id="accountError" role="alert" hidden></div>
+    <div class="row account-form-actions">${remove}<div class="account-form-buttons"><button class="btn" id="dCancel">Отмена</button><button class="btn account-dialog-submit" id="dOk">${account ? 'Сохранить' : 'Добавить'}</button></div></div>`, box => {
+      const input = box.querySelector('#accountInput'), error = box.querySelector('#accountError');
+      input.focus(); input.select();
+      input.oninput = () => { error.hidden = true; input.removeAttribute('aria-invalid'); input.removeAttribute('aria-describedby'); };
+      box.querySelector('#dCancel').onclick = closeDialog;
+      const removeButton = box.querySelector('#accountRemove');
+      if (removeButton) removeButton.onclick = () => confirmAccountRemoval(account);
+      box.querySelector('#dOk').onclick = () => {
+        const name = input.value.trim();
+        const duplicate = accountState.profiles.some(profile => profile !== account && profile.type === type && profile.name.toLowerCase() === name.toLowerCase());
+        if (!accountNamePattern.test(name) || duplicate) {
+          error.textContent = duplicate ? 'Профиль с таким ником уже сохранён' : 'Ник содержит от 3 до 16 латинских букв, цифр или знаков подчёркивания';
+          error.hidden = false;
+          input.setAttribute('aria-invalid', 'true'); input.setAttribute('aria-describedby', error.id);
+          input.focus(); return;
+        }
+        if (account) account.name = name;
+        else {
+          const profile = {id:crypto.randomUUID(), name, type, face:type === 'offline' ? 'copper' : 'steve'};
+          accountState.profiles.push(profile);
+          accountState.active = profile.id;
+        }
+        saveAccounts(); closeDialog(); renderAccounts(true); showAccounts(true);
+      };
+    }, accountTrigger);
+}
+
+function confirmAccountRemoval(account) {
+  dialog(`<h3>Удалить профиль «${esc(account.name)}»?</h3><p>Он исчезнет из списка превью.</p>
+    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn red" id="dOk">Удалить</button></div>`, box => {
+      const cancel = box.querySelector('#dCancel');
+      cancel.onclick = closeDialog; cancel.focus();
+      box.querySelector('#dOk').onclick = () => {
+        accountState.profiles = accountState.profiles.filter(profile => profile !== account);
+        if (accountState.active === account.id) accountState.active = accountState.profiles[0].id;
+        saveAccounts(); closeDialog(); renderAccounts(true); showAccounts(true);
+      };
+    }, accountTrigger);
+}
+
+accountTrigger.addEventListener('click', () => showAccounts(!accountOpen));
+accountPanel.addEventListener('click', e => {
+  const add = e.target.closest('[data-account-type]');
+  if (add) { openAccountEditor(add.dataset.accountType); return; }
+  const row = e.target.closest('.account-row');
+  if (!row) return;
+  const account = accountState.profiles.find(profile => profile.id === row.dataset.accountId);
+  if (e.target.closest('.account-edit')) { openAccountEditor(account.type, account); return; }
+  if (e.target.closest('.account-choice') && accountState.active !== account.id) {
+    accountState.active = account.id;
+    saveAccounts(); updateActiveAccount(true);
+  }
+});
+accountPicker.addEventListener('focusout', e => {
+  if (e.relatedTarget && !accountPicker.contains(e.relatedTarget)) showAccounts(false);
+});
+document.addEventListener('pointerdown', e => {
+  if (!accountPicker.contains(e.target)) showAccounts(false);
+});
+
 // ——— разделы и поиск ———
 function setTab(tab) {
   if (tab === state.tab) return;
@@ -751,9 +1081,37 @@ function hints() {
 // ——— клавиатура и колесо ———
 addEventListener('keydown', e => {
   if (state.dialog) {
+    if (dialogReturnFocus === accountTrigger) {
+      if (e.key === 'Escape') { e.preventDefault(); closeDialog(); }
+      if (e.key === 'Enter' && e.target.id === 'accountInput') { e.preventDefault(); $('dOk')?.click(); }
+      if (e.key === 'Tab') {
+        const controls = [...$('dialogBox').querySelectorAll('button,input')];
+        const boundary = e.shiftKey ? controls[0] : controls.at(-1);
+        if (document.activeElement === boundary || !$('dialogBox').contains(document.activeElement)) {
+          e.preventDefault(); (e.shiftKey ? controls.at(-1) : controls[0])?.focus();
+        }
+      }
+      return;
+    }
     if (e.key === 'Escape') closeDialog();
     if (e.key === 'Enter') $('dialogBox').querySelector('#dOk')?.click();
     return;
+  }
+  if (accountOpen) {
+    if (e.key === 'Escape') { e.preventDefault(); showAccounts(false, true); }
+    if (['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
+      const choices = [...accountList.querySelectorAll('.account-choice')];
+      const rowChoice = document.activeElement.closest('.account-row')?.querySelector('.account-choice');
+      const start = choices.indexOf(rowChoice);
+      const index = e.key === 'Home' ? 0 : e.key === 'End' ? choices.length - 1
+        : Math.max(0, Math.min(choices.length - 1, start + (e.key === 'ArrowUp' ? -1 : 1)));
+      e.preventDefault(); choices[index]?.focus();
+    }
+    return;
+  }
+  if (e.target === accountTrigger) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); showAccounts(true); return; }
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Tab') return;
   }
   if (document.activeElement === query) {
     if (e.key === 'Escape') { e.preventDefault(); closeSearch(); }
@@ -813,7 +1171,7 @@ $('swatches').querySelectorAll('button').forEach(b => b.onclick = () => { accent
 $('optEmpty').onchange = e => { state.empty = e.target.checked; state.focus[state.tab] = 0; refresh(); };
 $('optLong').onchange = e => { state.long = e.target.checked; refresh(); };
 
-buildTiles(); layoutStage(); renderHero();
+renderAccounts(); buildTiles(); layoutStage(); renderHero();
 addEventListener('resize', layoutStage);
 </script>
 </body>
