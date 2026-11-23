@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gleam Worlds</title>
 <!-- Прототип консольного меню одиночной и сетевой игры. Только для согласования дизайна:
-     игровая версия будет собрана в resources/html и получит данные из Java через мост Lumen. -->
+     игровая версия будет собрана в resources/html и получит данные из Java через мост Lumen.
+     В настройках клиента будет выбор: это меню или стандартные экраны Minecraft. -->
 <style>
 @font-face{font-family:Paradox;src:url("../../src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-Regular.ttf")}
 @font-face{font-family:Paradox;src:url("../../src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-Medium.ttf");font-weight:500}
@@ -60,7 +61,7 @@ button{font:inherit;color:inherit}
 :root[data-theme="light"] .tab[aria-selected="true"]{color:#fff}
 .tabs kbd{margin:0 4px}
 .status{margin-left:auto;display:flex;align-items:center;gap:10px}
-.search{display:flex;align-items:center;gap:8px;height:34px;width:34px;padding:0 9px;border-radius:999px;background:var(--chip);border:1px solid var(--chip-line);overflow:hidden;transition:width .28s cubic-bezier(.2,.8,.2,1)}
+.search{display:flex;align-items:center;gap:8px;height:34px;width:34px;padding:0 7px;border-radius:999px;background:var(--chip);border:1px solid var(--chip-line);overflow:hidden;transition:width .28s cubic-bezier(.2,.8,.2,1)}
 .search.open{width:230px}
 .search svg{flex:none;cursor:pointer}
 .search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:13px}
@@ -204,16 +205,6 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px
 .dev label{display:flex;align-items:center;gap:8px;margin-top:6px;color:#c9cdd8;cursor:pointer}
 .dev small{display:block;margin-top:6px;color:#8a90a0;line-height:15px}
 
-/* Имитация ванильного экрана для режима «Ванильное» */
-.vanilla{position:fixed;inset:0;z-index:15;display:flex;flex-direction:column;align-items:center;background:#2b1d12 repeating-linear-gradient(45deg,#3a2817 0 8px,#33230f 8px 16px);font:16px monospace;color:#fff;text-shadow:2px 2px #3f3f3f}
-.vanilla .head{margin:22px 0 10px}
-.vanilla .list{width:min(560px,92vw);flex:1;overflow:auto;background:#000a;border-top:2px solid #000;border-bottom:2px solid #000;padding:6px 0}
-.vanilla .row{display:flex;gap:10px;padding:6px 10px;margin:2px 8px;border:2px solid transparent}
-.vanilla .row.sel{border-color:#fff;background:#0008}
-.vanilla .row i{width:48px;height:48px;background:#556;flex:none}
-.vanilla .row small{display:block;color:#a8a8a8;text-shadow:none}
-.vanilla .btns{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:min(620px,94vw);margin:10px 0 18px}
-.vanilla .btns span{width:200px;height:24px;line-height:22px;text-align:center;background:#6f6f6f;border:2px solid #222;font-size:13px}
 </style>
 </head>
 <body>
@@ -267,19 +258,8 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px
   <div class="toast" id="toast"><span class="spinner" id="toastSpin"></span><span id="toastText"></span></div>
 </div>
 
-<div class="vanilla" id="vanilla" hidden>
-  <div class="head" id="vanillaHead">Выбор мира</div>
-  <div class="list" id="vanillaList"></div>
-  <div class="btns" id="vanillaBtns"></div>
-</div>
-
 <div class="dev" id="dev">
   <div class="dev-panel" id="devPanel" hidden>
-    <section><h4>Настройки GleamClient → Интерфейс</h4>
-      <div style="margin-bottom:6px;color:#c9cdd8">Меню одиночной и сетевой игры</div>
-      <div class="seg" id="segStyle"><button data-v="gleam" class="on">GleamClient</button><button data-v="vanilla">Ванильное</button></div>
-      <small>Так переключатель будет выглядеть в клиенте. «Ванильное» открывает стандартные экраны Minecraft.</small>
-    </section>
     <section><h4>Тема</h4><div class="seg" id="segTheme"><button data-v="dark" class="on">Тёмная</button><button data-v="light">Светлая</button><button data-v="glass">Стекло</button></div></section>
     <section><h4>Акцент</h4><div class="swatches" id="swatches"></div></section>
     <section><h4>Проверка вёрстки</h4>
@@ -671,7 +651,7 @@ function setTab(tab) {
   if (tab === state.tab) return;
   state.tab = tab; state.zone = 'tiles'; closeMenu();
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === tab));
-  buildTiles(); placeTiles(); renderHero(); syncZone(); renderVanilla();
+  buildTiles(); placeTiles(); renderHero(); syncZone();
 }
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
 const search = $('search'), query = $('query');
@@ -693,7 +673,6 @@ function hints() {
 
 // ——— клавиатура и колесо ———
 addEventListener('keydown', e => {
-  if (!$('vanilla').hidden) return;
   if (state.dialog) {
     if (e.key === 'Escape') closeDialog();
     if (e.key === 'Enter') $('dialogBox').querySelector('#dOk')?.click();
@@ -741,7 +720,6 @@ tick(); setInterval(tick, 15000);
 $('devToggle').onclick = () => $('devPanel').hidden = !$('devPanel').hidden;
 function seg(id, fn) { $(id).querySelectorAll('button').forEach(b => b.onclick = () => { $(id).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); fn(b.dataset.v); }); }
 seg('segTheme', v => { document.documentElement.dataset.theme = v; applyAccent(); });
-seg('segStyle', v => { $('vanilla').hidden = v !== 'vanilla'; renderVanilla(); });
 const ACCENTS = [['#a9b4ff','#4257b2'],['#7ee0c0','#16865f'],['#ffb37a','#b4561a'],['#ff8fb4','#b42a5c'],['#e8eaf0','#2b3346']];
 let accentIndex = 0;
 function applyAccent() {
@@ -753,16 +731,8 @@ $('swatches').innerHTML = ACCENTS.map((a, i) => `<button style="background:${a[0
 $('swatches').querySelectorAll('button').forEach(b => b.onclick = () => { accentIndex = +b.dataset.i; $('swatches').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); applyAccent(); });
 $('optEmpty').onchange = e => { state.empty = e.target.checked; state.focus[state.tab] = 0; refresh(); syncZone(); };
 $('optLong').onchange = e => { state.long = e.target.checked; refresh(); };
-function renderVanilla() {
-  const single = state.tab === 'single';
-  $('vanillaHead').textContent = single ? 'Выбор мира' : 'Сетевая игра';
-  $('vanillaList').innerHTML = (single ? WORLDS : SERVERS).map((it, i) =>
-    `<div class="row${i ? '' : ' sel'}"><i style="background:url('${single ? SHOTS[it.shot] : it.iconUrl}') center/cover;image-rendering:pixelated"></i><div>${esc(it.name)}<small>${single ? `${it.mode}, ${it.played}` : esc(it.address)}</small></div></div>`).join('');
-  $('vanillaBtns').innerHTML = (single ? ['Играть','Создать мир','Изменить','Удалить','Пересоздать','Отмена'] : ['Подключиться','Прямое подключение','Добавить','Изменить','Удалить','Обновить','Назад'])
-    .map(t => `<span>${t}</span>`).join('');
-}
 
-buildTiles(); layoutStage(); renderHero(); renderVanilla(); hints();
+buildTiles(); layoutStage(); renderHero(); hints();
 addEventListener('resize', layoutStage);
 </script>
 </body>
