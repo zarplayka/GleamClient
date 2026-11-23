@@ -54,6 +54,7 @@ public final class OrionTitleMenu {
 
     public static void register() {
         OrionLumenView.registerPipelines();
+        OrionWorldBrowser.register();
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> INSTANCE.release());
     }
 

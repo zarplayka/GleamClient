@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Миры и серверы · GleamClient</title>
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    html {
+      color: var(--ink); font: 15px sans-serif;
+      --ink: #f4f5f9; --muted: #b3b8c7; --accent: #a9b4ff; --accent-ink: #181c33;
+      --panel: #141820e8; --field: #212631; --hover: #303646; --line: #edf3ff23;
+      --tile: #202633; --base: #080b12; --shade: linear-gradient(90deg,#080b12e8,#080b128e 47%,#080b1233 84%),linear-gradient(0deg,#080b12ef,transparent 68%);
+    }
+    html[data-theme="light"] {
+      --ink: #22283a; --muted: #546077; --accent: #4257b2; --accent-ink: #fff;
+      --panel: #f3f5f9; --field: #e2e7f0; --hover: #eef0f9; --line: #c4ccda;
+      --tile: #dce3f2; --base: #e7eaf1; --shade: linear-gradient(90deg,#e7eaf1fa,#e7eaf1c4 44%,#e7eaf120 85%),linear-gradient(0deg,#eef1f6f0,transparent 60%);
+    }
+    html[data-theme="glass"] {
+      --panel: #10161e73; --field: #161f2bc4; --hover: #edf1fb22; --line: #edf3ff37;
+      --shade: linear-gradient(90deg,#080b12bc,#080b126b 43%,#080b1215 88%),linear-gradient(0deg,#080b12da,transparent 62%);
+    }
+    button, input { color: inherit; font: inherit; }
+    button { cursor: pointer; border: 1px solid var(--line); background: var(--field); }
+    button:disabled { opacity: .5; cursor: default; }
+    button:not(:disabled):hover, button:not(:disabled):focus { background: var(--hover); }
+    button:focus, input:focus { outline: 1px solid var(--accent); outline-offset: 2px; }
+    .scene { display: flex; flex-direction: column; min-height: 100%; height: 100%; padding: 23px 5% 15px; background: var(--shade); }
+    .top, .tabs, .tools, .brand, .controls, .facts { display: flex; align-items: center; }
+    .top { gap: 22px; flex: none; }
+    .brand { gap: 9px; font-size: 17px; font-weight: bold; white-space: nowrap; }
+    .brand svg, .icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
+    .brand svg { color: var(--accent); width: 24px; }
+    .tabs { gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
+    .tabs button { height: 33px; padding: 0 12px; border: 0; border-radius: inherit; background: transparent; font-size: 13px; white-space: nowrap; }
+    .tabs button[aria-pressed="true"] { background: var(--ink); color: var(--base); font-weight: bold; }
+    .key { display: inline-flex; align-items: center; min-height: 20px; padding: 0 5px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); background: var(--panel); font: 11px sans-serif; }
+    .tabs .key { margin: 0 2px; }
+    .tools { margin-left: auto; gap: 7px; }
+    .tool { min-height: 34px; padding: 0 10px; border-radius: 999px; white-space: nowrap; font-size: 12px; }
+    .icon { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; }
+    #account { overflow: hidden; text-overflow: ellipsis; max-width: 134px; }
+    input { min-height: 35px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); }
+    #search { width: 154px; min-height: 33px; border-radius: 999px; }
+    main { display: flex; flex-direction: column; min-height: 0; flex: 1; padding-top: 21px; overflow: auto; }
+    .rail { position: relative; flex: none; height: 131px; overflow: hidden; margin: 0 -6px; }
+    .tile {
+      position: absolute; top: 24px; left: 0; width: 89px; height: 89px; padding: 0; overflow: hidden;
+      border-radius: 13px; background: var(--tile); box-shadow: 0 10px 20px #06090f59;
+      transform-origin: 0 50%; transition: transform .37s cubic-bezier(.2,.8,.2,1), opacity .22s, box-shadow .22s;
+    }
+    .tile img { display: block; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; pointer-events: none; }
+    .tile .initial { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 30px; font-weight: bold; color: var(--accent); }
+    .tile.create { border-style: dashed; background: var(--panel); }
+    .tile[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), 0 12px 24px #04070e88; }
+    .tile.offside { opacity: 0; pointer-events: none; }
+    .rail-label { position: absolute; top: 37px; left: 0; width: 224px; height: 57px; pointer-events: none; transition: transform .37s cubic-bezier(.2,.8,.2,1); }
+    .rail-label strong, .rail-label small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rail-label strong { margin: 5px 0 4px; font-size: 20px; }
+    .rail-label small { color: var(--muted); font-size: 12px; }
+    .hero { flex: none; margin: 9px 0 22px; max-width: 670px; min-height: 220px; }
+    .hero h1 { overflow: hidden; margin: 8px 0 10px; font-size: 47px; line-height: 1.07; letter-spacing: -1.55px; text-overflow: ellipsis; white-space: nowrap; }
+    .pill { display: inline-flex; align-items: center; min-height: 23px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--accent); font-size: 12px; font-weight: bold; }
+    .facts { flex-wrap: wrap; gap: 8px 17px; color: var(--muted); font-size: 13px; }
+    .facts code { color: var(--ink); overflow-wrap: anywhere; }
+    .description { min-height: 18px; margin: 12px 0 0; max-width: 60ch; overflow-wrap: anywhere; white-space: pre-line; color: var(--muted); line-height: 1.4; }
+    .controls { flex-wrap: wrap; gap: 7px; margin-top: 17px; }
+    .action { min-height: 42px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: bold; white-space: nowrap; }
+    .play { min-width: 150px; background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .play:not(:disabled):hover, .play:not(:disabled):focus { background: var(--accent); opacity: .9; }
+    .shelf { display: flex; flex: none; gap: 9px; margin: auto 0 10px; }
+    .info { min-width: 152px; max-width: 290px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }
+    .info strong, .info span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .info strong { margin-bottom: 4px; font-size: 16px; }
+    .info span { color: var(--muted); font-size: 11px; }
+    .hints { display: flex; flex: none; align-items: center; flex-wrap: wrap; gap: 5px 14px; margin-top: 10px; color: var(--muted); font-size: 11px; }
+    .hints span { display: inline-flex; align-items: center; gap: 5px; }
+    .modal { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 17px; background: #090d16b3; }
+    .form { width: 380px; max-width: 100%; padding: 18px; border: 1px solid var(--line); border-radius: 15px; background: var(--panel); box-shadow: 0 18px 45px #070b147d; }
+    .form h2 { margin: 0 0 13px; font-size: 20px; }
+    .form label { display: block; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
+    .form input { display: block; width: 100%; margin-top: 4px; color: var(--ink); }
+    #form-status { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+    .form .controls { justify-content: end; }
+    @media (max-width: 755px) { .top { gap: 10px; } .tools { gap: 5px; } .tabs button { padding-inline: 6px; } .tabs .key, .brand span { display: none; } }
+    @media (max-height: 585px) { .scene { padding-top: 12px; } main { padding-top: 12px; } .hero { margin-top: 4px; min-height: 0; } .hero h1 { font-size: 39px; } .rail { height: 118px; } }
+    @media (prefers-reduced-motion: reduce) { .tile, .rail-label { transition: none; } }
+  </style>
+</head>
+<body>
+  <div class="scene">
+    <header class="top">
+      <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.5"/></svg><span>GleamClient</span></div>
+      <nav class="tabs" aria-label="Режим игры">
+        <kbd class="key">Q</kbd><button data-action="single" id="single">Одиночная игра</button>
+        <button data-action="multi" id="multi">Сетевая игра</button><kbd class="key">E</kbd>
+      </nav>
+      <div class="tools">
+        <button id="protocol" class="tool" data-action="protocol" hidden>ViaFabricPlus</button>
+        <input id="search" type="text" maxlength="64" placeholder="Поиск" aria-label="Поиск" hidden>
+        <button class="icon" id="search-button" data-action="search" aria-label="Поиск"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4 4"/></svg></button>
+        <button class="tool" id="account" data-action="account" aria-label="Аккаунты Minecraft"></button>
+        <button class="icon" id="close" data-action="back" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+    </header>
+    <main>
+      <div class="rail" id="rail" aria-label="Список миров и серверов">
+        <div id="tiles"></div>
+        <div class="rail-label" id="rail-label"><strong id="rail-name"></strong><small id="rail-type"></small></div>
+      </div>
+      <section class="hero" aria-labelledby="name">
+        <span class="pill" id="tag"></span>
+        <h1 id="name"></h1>
+        <div class="facts"><code id="address" hidden></code><span id="version" hidden></span></div>
+        <p class="description" id="description"></p>
+        <div class="controls">
+          <button class="action play" id="play" data-action="play"></button>
+          <button class="action" id="edit" data-action="edit" hidden>Изменить</button>
+          <button class="action" id="delete" data-action="delete" hidden>Удалить</button>
+          <button class="action" id="recreate" data-action="recreate" hidden>Пересоздать</button>
+          <button class="action" id="direct" data-action="direct" hidden>По адресу</button>
+          <button class="action" id="refresh" data-action="refresh" hidden>Обновить</button>
+        </div>
+      </section>
+      <section class="shelf" aria-label="Сведения">
+        <div class="info" id="players-card" hidden><strong id="online"></strong><span data-label="Игроки"></span></div>
+        <div class="info" id="ping-card" hidden><strong id="ping"></strong><span data-label="Пинг"></span></div>
+        <div class="info" id="saved-card" hidden><strong id="saved"></strong><span data-label="Последняя игра"></span></div>
+      </section>
+    </main>
+    <footer class="hints"><span><kbd class="key">← →</kbd><b data-label="Выбрать"></b></span><span><kbd class="key">Enter</kbd><b data-label="Запустить"></b></span><span><kbd class="key">Q E</kbd><b data-label="Раздел"></b></span><span><kbd class="key">/</kbd><b data-label="Поиск"></b></span><span><kbd class="key">Esc</kbd><b data-label="Назад"></b></span></footer>
+  </div>
+  <div class="modal" id="modal" hidden>
+    <section class="form" role="dialog" aria-modal="true" aria-labelledby="form-title">
+      <h2 id="form-title"></h2>
+      <label id="name-field"><span data-label="Название"></span><input id="server-name" maxlength="128" autocomplete="off"></label>
+      <label id="address-field"><span data-label="Адрес"></span><input id="server-address" maxlength="255" autocomplete="off" spellcheck="false"></label>
+      <p id="form-status" role="status"></p>
+      <div class="controls"><button class="action" id="cancel" data-action="back">Отмена</button><button class="action play" id="save" data-action="save-server"></button></div>
+    </section>
+  </div>
+  <script>
+  const $ = id => document.getElementById(id);
+  const tiles = $('tiles');
+  const search = $('search');
+  const nameInput = $('server-name'), addressInput = $('server-address');
+  const page = { state: null, visible: [], selected: '', layoutKey: '', entriesKey: '', modal: '' };
+  const tileNodes = new Map();
+  for (const id of ['single','multi','edit','delete','recreate','direct','refresh','cancel']) $(id).dataset.label = $(id).textContent;
+  function t(label) { return (page.state.labels || {})[label] || label; }
+
+  function send(action, fields = {}) {
+    window.webkit.messageHandlers.paradox.postMessage(JSON.stringify({ action, ...fields }));
+  }
+
+  function filteredEntries() {
+    const state = page.state;
+    const query = search.value.trim().toLowerCase();
+    const entries = state.entries.filter(item => (item.name + ' ' + (item.address || '')).toLowerCase().includes(query));
+    entries.unshift({id:'+', kind:'create', name:t(state.single ? 'Создать мир' : 'Добавить сервер'),
+      tag:t(state.single ? 'Одиночная игра' : 'Сетевая игра'), canPlay:true});
+    return entries;
+  }
+
+  function updateRail() {
+    page.visible = filteredEntries();
+    if (!page.visible.some(item => item.id === page.selected)) page.selected = page.visible.length > 1 ? page.visible[1].id : '+';
+    const key = JSON.stringify(page.visible.map(item => [item.id, item.name, item.icon]));
+    if (key !== page.entriesKey) {
+      page.entriesKey = key;
+      const visibleIds = new Set(page.visible.map(item => item.id));
+      for (const [id, tile] of tileNodes.entries()) {
+        if (!visibleIds.has(id)) { tile.remove(); tileNodes.delete(id); }
+      }
+      for (let i = 0; i < page.visible.length; i++) {
+        const item = page.visible[i];
+        let tile = tileNodes.get(item.id);
+        if (!tile) {
+          tile = document.createElement('button');
+          tile.type = 'button';
+          tile.className = 'tile' + (item.kind === 'create' ? ' create' : '');
+          tile.dataset.action = 'select';
+          tile.dataset.id = item.id;
+          tileNodes.set(item.id, tile);
+        }
+        tile.setAttribute('aria-label', item.name);
+        const image = item.icon || '';
+        if (tile.dataset.icon !== image || !image && tile.dataset.name !== item.name) {
+          tile.dataset.icon = image;
+          tile.dataset.name = item.name;
+          tile.textContent = '';
+          if (image) {
+            const icon = document.createElement('img');
+            icon.alt = '';
+            icon.src = image;
+            tile.appendChild(icon);
+          } else {
+            const initial = document.createElement('span');
+            initial.className = 'initial';
+            initial.textContent = item.kind === 'create' ? '+' : item.name.slice(0, 1).toUpperCase();
+            tile.appendChild(initial);
+          }
+        }
+        if (tiles.children[i] !== tile) tiles.insertBefore(tile, tiles.children[i] || null);
+      }
+    }
+    const index = Math.max(0, page.visible.findIndex(item => item.id === page.selected));
+    const anchor = Math.max(0, index - 1);
+    const layoutKey = JSON.stringify(page.visible.map(item => item.id)) + ':' + index;
+    if (layoutKey !== page.layoutKey) {
+      page.layoutKey = layoutKey;
+      for (let i = 0; i < tiles.children.length; i++) {
+        const tile = tiles.children[i];
+        const x = 6 + (i - anchor) * 100 + (i > index ? 259 : 0);
+        tile.style.transform = 'translate(' + x + 'px,' + (i === index ? -6 : 0) + 'px) scale(' + (i === index ? 1.23 : 1) + ')';
+        tile.setAttribute('aria-current', i === index ? 'true' : 'false');
+        tile.tabIndex = i === index ? 0 : -1;
+        tile.classList.toggle('offside', x < -89);
+      }
+      $('rail-label').style.transform = 'translateX(' + (133 + (index - anchor) * 100) + 'px)';
+    }
+    updateDetails(page.visible[index]);
+  }
+
+  function field(id, value) {
+    const node = $(id);
+    node.textContent = value || '';
+    node.hidden = !value;
+  }
+
+  function updateDetails(item) {
+    $('rail-name').textContent = item.name;
+    $('rail-type').textContent = item.tag;
+    $('name').textContent = item.name;
+    $('tag').textContent = item.tag;
+    field('address', item.address);
+    field('version', item.version);
+    $('description').textContent = item.description || '';
+    $('play').textContent = item.play || (item.kind === 'create' ? item.name : t(page.state.single ? 'Играть' : 'Подключиться'));
+    $('play').disabled = !item.canPlay;
+    const saved = item.kind === 'server' || item.kind === 'world';
+    $('edit').hidden = !saved;
+    $('delete').hidden = !saved;
+    $('recreate').hidden = item.kind !== 'world';
+    $('edit').disabled = item.canEdit === false;
+    $('delete').disabled = item.canDelete === false;
+    $('recreate').disabled = item.canRecreate === false;
+    $('direct').hidden = page.state.single;
+    $('refresh').hidden = page.state.single;
+    for (const [card, id, value] of [['players-card','online',item.online],['ping-card','ping',item.ping],['saved-card','saved',item.when]]) {
+      $(card).hidden = !value;
+      $(id).textContent = value || '';
+    }
+  }
+
+  function updateForm(state) {
+    const next = state.form || '';
+    $('modal').hidden = !next;
+    if (!next) { page.modal = ''; return; }
+    $('form-title').textContent = t({add:'Добавить сервер',edit:'Изменить сервер',direct:'Прямое подключение',delete:'Удалить сервер' }[next]);
+    $('name-field').hidden = next === 'direct' || next === 'delete';
+    $('address-field').hidden = next === 'delete';
+    $('form-status').textContent = state.status || (next === 'delete' ? state.formName : '');
+    $('save').textContent = t(next === 'direct' ? 'Подключиться' : next === 'delete' ? 'Удалить' : 'Сохранить');
+    if (page.modal !== next) {
+      nameInput.value = state.formName;
+      addressInput.value = state.formAddress;
+      (next === 'direct' ? addressInput : next === 'delete' ? $('cancel') : nameInput).focus();
+    }
+    page.modal = next;
+  }
+
+  window.paradox = {
+    update(state) {
+      const modeChanged = !page.state || page.state.single !== state.single;
+      if (modeChanged) { search.value = ''; search.hidden = true; }
+      const explicitSelection = !page.state || page.state.selected !== state.selected;
+      const relabel = !page.state || JSON.stringify(page.state.labels) !== JSON.stringify(state.labels);
+      page.state = state;
+      if (relabel) {
+        for (const node of document.querySelectorAll('[data-label]')) node.textContent = t(node.dataset.label);
+        search.placeholder = t('Поиск');
+        $('search-button').setAttribute('aria-label', t('Поиск'));
+        $('account').setAttribute('aria-label', t('Аккаунты Minecraft'));
+        $('close').setAttribute('aria-label', t('Назад'));
+      }
+      document.documentElement.setAttribute('data-theme', state.theme);
+      const root = document.documentElement.style;
+      if (/^#[0-9a-f]{6}$/i.test(state.accent)) {
+        const c = [1,3,5].map(i => parseInt(state.accent.slice(i,i+2),16) / 255);
+        const lightness = c.map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((a,v,i) => a + v * [.2126,.7152,.0722][i],0);
+        root.setProperty('--accent',state.accent);
+        root.setProperty('--accent-ink',lightness > .179 ? '#101219' : '#fff');
+      } else {
+        root.removeProperty('--accent');
+        root.removeProperty('--accent-ink');
+      }
+      $('single').setAttribute('aria-pressed', state.single ? 'true' : 'false');
+      $('multi').setAttribute('aria-pressed', state.single ? 'false' : 'true');
+      $('multi').disabled = !state.multiplayer;
+      $('account').textContent = state.account;
+      $('protocol').hidden = !state.hasProtocolButton;
+      if (modeChanged || explicitSelection) page.selected = state.selected;
+      updateRail();
+      updateForm(state);
+    },
+    editShortcut(shortcut) {
+      const field = document.activeElement;
+      if (field !== search && field !== nameInput && field !== addressInput) return;
+      if (shortcut.command === 'select') field.select();
+      if (shortcut.command === 'paste') {
+        const start = field.selectionStart == null ? field.value.length : field.selectionStart;
+        const end = field.selectionEnd == null ? start : field.selectionEnd;
+        const value = shortcut.text.replace(/[\r\n]/g,'').slice(0, field.maxLength - (field.value.length - (end - start)));
+        field.value = field.value.slice(0, start) + value + field.value.slice(end);
+        if (typeof field.setSelectionRange === 'function') field.setSelectionRange(start + value.length, start + value.length);
+        if (field === search) updateRail();
+      }
+    }
+  };
+
+  function select(id) {
+    if (id === page.selected) return;
+    page.selected = id;
+    updateRail();
+    send('select', {id});
+  }
+  function move(delta) {
+    const index = page.visible.findIndex(item => item.id === page.selected);
+    const target = page.visible[Math.max(0, Math.min(page.visible.length - 1, index + delta))];
+    if (target) select(target.id);
+  }
+  function toggleSearch(show = search.hidden) {
+    search.hidden = !show;
+    if (show) search.focus();
+    else { search.value = ''; search.blur(); updateRail(); }
+  }
+  search.addEventListener('input', () => updateRail());
+  function activate(action, id = page.selected) {
+    if (!page.state) return;
+    if (action === 'search') { toggleSearch(); return; }
+    if (action === 'select') { select(id); return; }
+    if (action === 'save-server') { send(action, {name:nameInput.value,address:addressInput.value}); return; }
+    send(action, {id});
+  }
+  document.addEventListener('click', event => {
+    const button = event.target.closest('button[data-action]');
+    if (button && !button.disabled) activate(button.dataset.action,button.dataset.id || page.selected);
+  });
+  document.addEventListener('dblclick', event => {
+    const tile = event.target.closest('.tile');
+    if (tile) activate('play', tile.dataset.id);
+  });
+  let wheel = 0;
+  $('rail').addEventListener('wheel', event => {
+    event.preventDefault();
+    wheel += Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (Math.abs(wheel) >= 40) { move(Math.sign(wheel)); wheel = 0; }
+  }, {passive:false});
+  document.addEventListener('keydown', event => {
+    if (!page.state) return;
+    const key = event.key;
+    const focused = document.activeElement;
+    if (key === 'Escape') {
+      if (!page.modal && !search.hidden) toggleSearch(false); else activate('back');
+    } else if (key === 'Tab') {
+      const root = page.modal ? $('modal') : document;
+      const nodes = Array.from(root.querySelectorAll('button,input')).filter(node => !node.disabled && node.tabIndex !== -1 && !node.closest('[hidden]'));
+      if (!nodes.length) return;
+      const i = nodes.indexOf(focused), by = event.shiftKey ? -1 : 1;
+      nodes[i < 0 ? (by < 0 ? nodes.length - 1 : 0) : (i + by + nodes.length) % nodes.length].focus();
+    } else if (key === 'Enter' || key === ' ') {
+      if (key === ' ' && focused && focused.tagName === 'INPUT') return;
+      if (page.modal && (focused === nameInput || focused === addressInput)) activate('save-server');
+      else if (focused && focused.tagName === 'BUTTON' && !focused.classList.contains('tile') && !focused.disabled) focused.click();
+      else if (!page.modal && !$('play').disabled) activate('play');
+    } else if (!page.modal && !(focused && focused.tagName === 'INPUT')) {
+      if (key === 'ArrowLeft') move(-1);
+      else if (key === 'ArrowRight') move(1);
+      else if (key === 'q') activate('single');
+      else if (key === 'e' && page.state.multiplayer) activate('multi');
+      else if (key === '/') toggleSearch(true);
+      else if (key === 'F5' && !page.state.single) activate('refresh');
+      else return;
+    } else return;
+    event.preventDefault();
+  });
+  </script>
+</body>
+</html>
