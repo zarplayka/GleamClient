@@ -466,8 +466,8 @@ public final class OrionLumenView {
                     var compositor = OrionGlassCompositor.INSTANCE;
                     TextureSetup backdrop = null;
                     if (ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.GLASS) != null) {
-                        backdrop = titleBackdrop ? OrionTitleMenu.backdropTexture()
-                                : compositor.captureSurface(graphics, bounds, glassSurface, screenGlass);
+                        backdrop = titleBackdrop ? OrionTitleMenu.blurredBackdropTexture()
+                                : compositor.captureSurface(graphics, glassSurface, screenGlass);
                     }
                     if (backdrop != null) {
                         pipeline = Paint.GLASS;

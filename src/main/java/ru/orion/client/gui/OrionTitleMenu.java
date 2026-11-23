@@ -241,6 +241,13 @@ public final class OrionTitleMenu {
         return Math.max(width / 1920F, height / 1080F) * 1.38F;
     }
 
+    /** Размытая панорама для стекла; в первом кадре, пока размытие не готово, — исходная. */
+    static net.minecraft.client.gui.render.TextureSetup blurredBackdropTexture() {
+        var texture = Minecraft.getInstance().getTextureManager().getTexture(PANORAMA);
+        var blurred = ru.orion.client.hud.OrionGlassCompositor.INSTANCE.blurredBackdrop(texture.getTextureView());
+        return blurred != null ? blurred : backdropTexture();
+    }
+
     static net.minecraft.client.gui.render.TextureSetup backdropTexture() {
         var texture = Minecraft.getInstance().getTextureManager().getTexture(PANORAMA);
         return net.minecraft.client.gui.render.TextureSetup.singleTexture(texture.getTextureView(),

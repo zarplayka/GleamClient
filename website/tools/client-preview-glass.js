@@ -4,6 +4,7 @@ uniform vec2 crop;
 uniform bool world;
 uniform vec4 surface;
 uniform vec4 radii;
+uniform float dpr;
 out vec4 tint;
 out vec2 texCoord;
 out vec2 localPosition;
@@ -16,12 +17,13 @@ void main() {
     vec2 corner = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2);
     gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
     guiPosition = vec2(corner.x, 1.0 - corner.y) * resolution;
-    halfSize = surface.zw * 0.5;
-    localPosition = guiPosition - surface.xy - halfSize;
+    // Как в игре: локальные координаты и радиус в CSS-пикселях.
+    halfSize = surface.zw * 0.5 / dpr;
+    localPosition = (guiPosition - surface.xy) / dpr - halfSize;
     vec2 point = guiPosition / resolution;
     texCoord = world ? vec2(point.x, 1.0 - point.y)
         : point * crop + vec2(0.0, (1.0 - crop.y) * 0.5);
-    radius = radii.x;
+    radius = radii.x / dpr;
     tint = vec4(1.0, 1.0, 1.0, 253.0 / 255.0);
     primitive = ivec2(0);
     themeCircle = vec3(0.0);
@@ -40,6 +42,21 @@ function webLumenGlass(shader, optics) {
     .replace('#include <minecraft:dynamictransforms.glsl>', '#define ColorModulator vec4(1.0)')
     .replace('#include <orion-client:liquid_glass.glsl>', optics)
     .replace(/layout\(location = \d+\) (?=(?:flat )?in )/g, '');
+}
+
+// Игра размывает копию кадра (Dual Kawase до 1/8); в превью то же делает canvas-фильтр.
+const BLUR = 10;
+
+function blurred(image, width, height, x, y, drawWidth, drawHeight, radius) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  // Чёткая подложка не даёт размытию затемнять края кадра.
+  context.drawImage(image, x, y, drawWidth, drawHeight);
+  context.filter = `blur(${radius}px)`;
+  context.drawImage(image, x, y, drawWidth, drawHeight);
+  return canvas;
 }
 
 export async function previewGlass(selector, backdrop, mode) {
@@ -62,6 +79,7 @@ uniform vec2 resolution;
 uniform vec2 crop;
 uniform vec4 surface;
 uniform vec4 radii;
+uniform float dpr;
 out vec4 color;
 ${optics}
 void main() {
@@ -75,11 +93,12 @@ void main() {
     float distance = length(corner) + min(max(q.x, q.y), 0.0) - radius;
     float coverage = clamp(0.5 - distance, 0.0, 1.0);
     if (coverage <= 0.0) discard;
-    vec2 normal = (length(corner) > 0.0 ? normalize(corner) : (q.x > q.y ? vec2(1, 0) : vec2(0, 1))) * sign(local);
-    float depth = clamp(min(halfSize.x, halfSize.y) * 0.24, 4.0, 17.0);
+    float halfMin = min(halfSize.x, halfSize.y);
+    float bevel = glassBevel(halfMin, dpr);
+    vec2 normal = glassNormal(local, halfSize, min(max(radius, bevel), halfMin));
     vec2 pixel = crop / resolution;
     vec2 uv = point * pixel + (1.0 - crop) * 0.5;
-    color = vec4(liquidGlass(scene, uv, pixel, normal, normal, clamp(-distance / depth, 0.0, 1.0)), coverage);
+    color = vec4(liquidGlass(scene, uv, pixel, normal, max(-distance, 0.0), bevel, dpr), coverage);
 }`;
   const program = gl.createProgram();
   for (const [type, source] of [[gl.VERTEX_SHADER, vertex], [gl.FRAGMENT_SHADER, fragment]]) {
@@ -98,6 +117,7 @@ void main() {
   const crop = gl.getUniformLocation(program, 'crop');
   const surface = gl.getUniformLocation(program, 'surface');
   const radii = gl.getUniformLocation(program, 'radii');
+  const pixelRatio = gl.getUniformLocation(program, 'dpr');
   gl.uniform1i(gl.getUniformLocation(program, 'world'), Number(world));
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -108,7 +128,7 @@ void main() {
   const frameBuffer = world ? document.createElement('canvas') : null;
   const frameContext = frameBuffer?.getContext('2d');
   if (frameBuffer) frameBuffer.width = 0;
-  if (!world) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scene);
+  if (!world) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, blurred(scene, scene.width, scene.height, 0, 0, scene.width, scene.height, BLUR / Math.max(innerWidth * devicePixelRatio / scene.width, innerHeight * devicePixelRatio / scene.height)));
 
   const root = document.documentElement;
   canvas.className = 'preview-glass-layer';
@@ -136,7 +156,7 @@ void main() {
       frameBuffer.width = width;
       frameBuffer.height = height;
       const drawWidth = scene.width * cover, drawHeight = scene.height * cover;
-      frameContext.drawImage(scene, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+      frameContext.drawImage(blurred(scene, width, height, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight, BLUR), 0, 0);
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, frameBuffer);
     }
@@ -145,6 +165,7 @@ void main() {
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.enable(gl.SCISSOR_TEST);
     gl.uniform2f(resolution, width, height);
+    gl.uniform1f(pixelRatio, scale);
     gl.uniform2f(crop, width / (cover * scene.width), height / (cover * scene.height));
     const surfaces = new Set(document.querySelectorAll(selector));
     for (const element of observed) {

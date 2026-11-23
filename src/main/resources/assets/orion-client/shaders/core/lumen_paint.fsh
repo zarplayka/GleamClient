@@ -70,6 +70,10 @@ float boxDistance(vec2 position, float r) {
     return min(max(corner.x, corner.y), 0.0) + length(max(corner, 0.0)) - r;
 }
 
+float safeDerivative(float value) {
+    return abs(value) < 0.000001 ? 0.000001 : value;
+}
+
 float coverage(float distance, float pixel) {
     return clamp(0.5 - distance / pixel, 0.0, 1.0);
 }
@@ -133,13 +137,17 @@ void main() {
     float pixel = max(length(distanceGradient), 0.001);
     vec4 color = tint;
 #ifdef LUMEN_GLASS
-    vec2 normal = distanceGradient / pixel;
-    vec2 uvGradient = vec2(dFdx(texCoord.x), dFdy(texCoord.y));
-    vec2 lightNormal = vec2(normal.x, normal.y * sign(dFdy(guiPosition.y)));
-    vec2 refraction = normal * sign(uvGradient);
-    float depth = clamp(min(halfSize.x, halfSize.y) * 0.24 / pixel, 4.0, 17.0);
-    float bevel = clamp(-distance / (pixel * depth), 0.0, 1.0);
-    color = vec4(liquidGlass(Sampler0, texCoord, abs(uvGradient), refraction, lightNormal, bevel), tint.a * coverage(distance, pixel));
+    // Размер CSS-пикселя берём из линейной localPosition: градиент SDF рвётся на диагоналях.
+    float cssPerPx = max(length(vec2(dFdx(localPosition.x), dFdy(localPosition.x))), 0.0001);
+    float halfMin = min(halfSize.x, halfSize.y);
+    float scale = 1.0 / cssPerPx;
+    float bevel = glassBevel(halfMin * scale, scale);
+    vec2 normal = glassNormal(localPosition, halfSize, min(max(r, bevel * cssPerPx), halfMin));
+    vec2 uvPerCss = vec2(dFdx(texCoord.x) / safeDerivative(dFdx(localPosition.x)),
+                         dFdy(texCoord.y) / safeDerivative(dFdy(localPosition.y)));
+    vec3 glass = liquidGlass(Sampler0, texCoord, uvPerCss * cssPerPx, normal,
+        max(-distance, 0.0) * scale, bevel, scale);
+    color = vec4(glass, tint.a * coverage(distance, cssPerPx));
 #elif defined(LUMEN_TEXTURED)
     color *= primitive.x == 12 ? sampleGradient(texCoord) : texture(Sampler0, texCoord);
     if (radius > 0.0) color.a *= coverage(distance, pixel);
