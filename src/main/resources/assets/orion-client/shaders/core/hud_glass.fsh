@@ -59,17 +59,20 @@ void main() {
     }
     if (coverage <= 0.001) {
         if (foreground.a <= 0.001) discard;
-        fragColor = foreground * vertexColor * ColorModulator;
+        fragColor = foreground * ColorModulator;
         return;
     }
 
-    vec2 pixel = 1.0 / vec2(textureSize(Sampler1, 0));
+    // Цвет вершины несёт параметры: r — начало координат OpenGL, g — масштаб, b — ширина скоса.
+    float scale = max(vertexColor.g * (255.0 / 32.0), 0.25);
+    float bevel = max(vertexColor.b * (255.0 / 4.0), 1.0);
+    // Размытый фон хранится в половинном разрешении framebuffer.
+    vec2 screen = vec2(textureSize(Sampler1, 0)) * 2.0;
+    vec2 uvPerPx = vec2(1.0, vertexColor.r > 0.5 ? -1.0 : 1.0) / screen;
+    // Маска: r — расстояние до края (до 96 px), gb — нормаль наружу в ориентации GUI.
     vec2 normal = shape.gb * 2.0 - 1.0;
-    vec2 screenNormal = vec2(normal.x, vertexColor.r > 0.998 ? -normal.y : normal.y);
-    vec3 glass = liquidGlass(Sampler1, gl_FragCoord.xy * pixel, pixel, screenNormal, normal, shape.r);
-    float glassAlpha = coverage;
-    float alpha = foreground.a + glassAlpha * (1.0 - foreground.a);
-    vec3 premultiplied = foreground.rgb * foreground.a
-            + glass * glassAlpha * (1.0 - foreground.a);
-    fragColor = vec4(premultiplied / max(alpha, 0.001), alpha) * vertexColor * ColorModulator;
+    vec3 glass = liquidGlass(Sampler1, gl_FragCoord.xy / screen, uvPerPx, normal, shape.r * 96.0, bevel, scale);
+    float alpha = foreground.a + coverage * (1.0 - foreground.a);
+    vec3 premultiplied = foreground.rgb * foreground.a + glass * coverage * (1.0 - foreground.a);
+    fragColor = vec4(premultiplied / max(alpha, 0.001), alpha) * ColorModulator;
 }

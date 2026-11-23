@@ -32,7 +32,6 @@ import net.minecraft.client.renderer.state.gui.BlitRenderState;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix3x2f;
-import org.joml.Matrix3x2fc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
@@ -40,16 +39,21 @@ import ru.orion.client.mixin.GuiGraphicsExtractorAccessor;
 import ru.orion.client.mixin.RenderPipelinesAccessor;
 
 import java.util.HashMap;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
-/** Копирует фон до отрисовки GUI и объединяет его с маской и чётким Java2D-слоем. */
+/**
+ * Копирует мир перед отрисовкой GUI, размывает копию на GPU и отдаёт её стеклянным поверхностям.
+ * HUD получает маску формы с расстоянием до края и нормалью, Lumen считает форму в шейдере.
+ */
 public final class OrionGlassCompositor {
     public static final OrionGlassCompositor INSTANCE = new OrionGlassCompositor();
     private static final Logger LOGGER = LoggerFactory.getLogger(OrionClient.MOD_ID);
-    private static final long CAPTURE_INTERVAL_NANOS = 1_000_000_000L / 30L;
-    private static final int CAPTURE_PAD = 32;
+    /** Должно совпадать с GLASS_BEVEL в liquid_glass.glsl. */
+    private static final float BEVEL = 13F;
+    /** Максимальное расстояние до края, хранимое в маске (канал R). */
+    private static final float EDGE_RANGE = 96F;
     private static final RenderPipeline PIPELINE = RenderPipelinesAccessor.orion$registerOptional(
             RenderPipeline.builder(RenderPipelinesAccessor.orion$getGuiSnippet())
                     .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/hud_glass"))
@@ -68,20 +72,63 @@ public final class OrionGlassCompositor {
                     .withSampler("Sampler2")
                     *///?}
                     .build());
+    private static final RenderPipeline BLUR_DOWN = blurPipeline("glass_blur_down", "GLASS_BLUR_DOWN");
+    private static final RenderPipeline BLUR_UP = blurPipeline("glass_blur_up", "GLASS_BLUR_UP");
 
     private GpuTexture scene;
     private GpuTextureView sceneView;
+    private final BlurChain sceneBlur = new BlurChain("scene");
+    private final BlurChain titleBlur = new BlurChain("title");
+    private GpuTexture titleSource;
+    private boolean titleRequested;
+    private boolean titleReady;
     private boolean captureRequested;
     private boolean sceneCaptured;
-    private long lastCaptureNanos;
-    private final List<CaptureArea> captureAreas = new ArrayList<>();
-    private final List<CaptureArea> lastCaptureAreas = new ArrayList<>();
     private boolean bottomOrigin;
     private final Map<Identifier, MaskTexture> masks = new HashMap<>();
     private boolean shaderWarningLogged;
     private DynamicTexture transparent;
 
     private OrionGlassCompositor() {
+    }
+
+    private static RenderPipeline blurPipeline(String name, String define) {
+        return RenderPipelinesAccessor.orion$registerOptional(RenderPipeline.builder()
+                .withLocation(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "pipeline/" + name))
+                .withVertexShader("core/screenquad")
+                .withFragmentShader(Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, "core/glass_blur"))
+                .withShaderDefine(define)
+                //? if >=26.3 {
+                .withPrimitiveTopology(com.mojang.renderpearl.api.pipeline.PrimitiveTopology.TRIANGLES)
+                //?} elif >=26.2 {
+                /*.withPrimitiveTopology(com.mojang.blaze3d.PrimitiveTopology.TRIANGLES)
+                *///?} else {
+                /*.withVertexFormat(DefaultVertexFormat.EMPTY, VertexFormat.Mode.TRIANGLES)
+                *///?}
+                .withCull(false)
+                //? if >=26.1 {
+                .withDepthStencilState(Optional.empty())
+                //?} else {
+                /*.withDepthTestFunction(com.mojang.blaze3d.platform.DepthTestFunction.NO_DEPTH_TEST).withDepthWrite(false)
+                *///?}
+                //? if >=26.3 {
+                .withColorTargetState(com.mojang.renderpearl.api.pipeline.ColorTargetState.DEFAULT)
+                //?} elif >=26.1 {
+                /*.withColorTargetState(com.mojang.blaze3d.pipeline.ColorTargetState.DEFAULT)
+                *///?} else {
+                /*.withoutBlend()
+                *///?}
+                //? if >=26.2 {
+                .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+                //?} else {
+                /*.withSampler("Sampler0")
+                *///?}
+                .build());
+    }
+
+    /** Ширина скоса в пикселях framebuffer, как glassBevel() в шейдере. */
+    static float bevelPixels(float halfMinPixels, float scale) {
+        return Math.max(Math.min(halfMinPixels * .5F, BEVEL * scale), 1F);
     }
 
     public void updateMask(Identifier id, MaskLayout layout) {
@@ -98,27 +145,38 @@ public final class OrionGlassCompositor {
         NativeImage pixels = recreate ? new NativeImage(layout.pixelWidth(), layout.pixelHeight(), true) : mask.getPixels();
         if (!recreate) pixels.fillRect(0, 0, layout.pixelWidth(), layout.pixelHeight(), 0);
         float sx = layout.pixelWidth() / layout.designWidth(), sy = layout.pixelHeight() / layout.designHeight();
+        float framebuffer = layout.framebufferPerDesign();
+        float bevel = BEVEL * layout.scale();
         for (Panel panel : layout.panels()) {
-            float radius = Math.min(panel.arc(), Math.min(panel.width(), panel.height())) / 2;
-            float bevel = Math.clamp(radius * .72F, 2.5F, 13F);
+            bevel = Math.min(bevel, bevelPixels(Math.min(panel.width(), panel.height()) / 2 * framebuffer, layout.scale()));
+        }
+        bevel = Math.max(bevel, 1F);
+        float bevelDesign = bevel / framebuffer;
+        for (Panel panel : layout.panels()) {
+            float halfWidth = panel.width() / 2, halfHeight = panel.height() / 2;
+            float halfMin = Math.min(halfWidth, halfHeight);
+            float radius = Math.min(panel.arc() / 2, halfMin);
+            // Радиус нормали не меньше скоса: так внутри скоса нет диагонального шва.
+            float normalRadius = Math.min(Math.max(radius, bevelDesign), halfMin);
             int left = Math.max(0, (int) Math.floor(panel.x() * sx));
             int top = Math.max(0, (int) Math.floor(panel.y() * sy));
             int right = Math.min(layout.pixelWidth(), (int) Math.ceil((panel.x() + panel.width()) * sx));
             int bottom = Math.min(layout.pixelHeight(), (int) Math.ceil((panel.y() + panel.height()) * sy));
             for (int y = top; y < bottom; y++) for (int x = left; x < right; x++) {
-                float px = (x + .5F) / sx - panel.x() - panel.width() / 2;
-                float py = (y + .5F) / sy - panel.y() - panel.height() / 2;
-                float dx = Math.abs(px) - panel.width() / 2 + radius, dy = Math.abs(py) - panel.height() / 2 + radius;
-                float corner = (float) Math.hypot(Math.max(0, dx), Math.max(0, dy));
-                float distance = corner + Math.min(0, Math.max(dx, dy)) - radius;
+                float px = (x + .5F) / sx - panel.x() - halfWidth;
+                float py = (y + .5F) / sy - panel.y() - halfHeight;
+                float dx = Math.abs(px) - halfWidth + radius, dy = Math.abs(py) - halfHeight + radius;
+                float distance = (float) Math.hypot(Math.max(0, dx), Math.max(0, dy)) + Math.min(0, Math.max(dx, dy)) - radius;
                 int alpha = Math.round(255 * Math.clamp(.5F - distance * Math.min(sx, sy), 0, 1));
                 if (alpha == 0) continue;
-                float nx = corner > 0 ? Math.max(0, dx) / corner : dx >= dy ? 1 : 0;
-                float ny = corner > 0 ? Math.max(0, dy) / corner : dy > dx ? 1 : 0;
+                float nx0 = Math.abs(px) - halfWidth + normalRadius, ny0 = Math.abs(py) - halfHeight + normalRadius;
+                float corner = (float) Math.hypot(Math.max(0, nx0), Math.max(0, ny0));
+                float nx = corner > 0 ? Math.max(0, nx0) / corner : nx0 > ny0 ? 1 : 0;
+                float ny = corner > 0 ? Math.max(0, ny0) / corner : nx0 > ny0 ? 0 : 1;
                 int normalX = Math.round(127.5F * (1 + Math.copySign(nx, px)));
                 int normalY = Math.round(127.5F * (1 + Math.copySign(ny, py)));
-                int inset = Math.round(255 * Math.clamp(-distance / bevel, 0, 1));
-                pixels.setPixel(x, y, alpha << 24 | inset << 16 | normalX << 8 | normalY);
+                int edge = Math.round(255 * Math.clamp(-distance * framebuffer / EDGE_RANGE, 0, 1));
+                pixels.setPixel(x, y, alpha << 24 | edge << 16 | normalX << 8 | normalY);
             }
         }
         if (recreate) {
@@ -127,7 +185,7 @@ public final class OrionGlassCompositor {
         } else {
             mask.upload();
         }
-        masks.put(id, new MaskTexture(layout, mask));
+        masks.put(id, new MaskTexture(layout, mask, bevel));
     }
 
     void submitBackground(Identifier id, GuiGraphicsExtractor context, int x, int y, int width, int height,
@@ -139,10 +197,14 @@ public final class OrionGlassCompositor {
                                  int designWidth, int designHeight, List<Panel> panels, boolean screenGlass) {
         float guiScale = Minecraft.getInstance().getWindow().getGuiScale();
         var transform = context.pose();
-        float scaleX = Math.clamp(guiScale * (float) Math.hypot(transform.m00(), transform.m01()), .25F, 2F);
-        float scaleY = Math.clamp(guiScale * (float) Math.hypot(transform.m10(), transform.m11()), .25F, 2F);
-        updateMask(id, new MaskLayout(Math.max(1, Math.round(width * scaleX)),
-                Math.max(1, Math.round(height * scaleY)), designWidth, designHeight, panels));
+        float scaleX = guiScale * (float) Math.hypot(transform.m00(), transform.m01());
+        float scaleY = guiScale * (float) Math.hypot(transform.m10(), transform.m11());
+        // Разрешение маски ограничено, а расстояния в ней хранятся в настоящих пикселях экрана.
+        float maskX = Math.clamp(scaleX, .25F, 2F), maskY = Math.clamp(scaleY, .25F, 2F);
+        float framebuffer = width * scaleX / Math.max(1, designWidth);
+        updateMask(id, new MaskLayout(Math.max(1, Math.round(width * maskX)),
+                Math.max(1, Math.round(height * maskY)), designWidth, designHeight, panels,
+                framebuffer, Math.max(.25F, Math.min(scaleX, scaleY))));
         if (transparent == null) {
             NativeImage pixels = new NativeImage(1, 1, true);
             pixels.setPixel(0, 0, 0);
@@ -180,25 +242,20 @@ public final class OrionGlassCompositor {
                             0F, 1F, 0F, 1F, 0x00FFFFFF, new ScreenRectangle(0, 0, context.guiWidth(), context.guiHeight())));
             return true;
         }
-        try {
-            if (ru.orion.client.render.GleamGpu.pipelineOrNull(PIPELINE) == null) {
-                warnShaderUnavailable(null);
-                return false;
-            }
-        } catch (RuntimeException exception) {
-            warnShaderUnavailable(exception);
-            return false;
-        }
-        if (!requestScene(client, context, context.pose(), x, y, width, height)) return false;
+        if (!glassPipelinesReady(PIPELINE) || !requestScene(client)) return false;
 
         var sampler = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
-        TextureSetup textures = new TextureSetup(foreground.getTextureView(), sceneView, entry.texture().getTextureView(),
+        TextureSetup textures = new TextureSetup(foreground.getTextureView(), sceneBlur.output(), entry.texture().getTextureView(),
                 sampler, sampler, sampler);
         ScreenRectangle scissorArea = new ScreenRectangle(0, 0, context.guiWidth(), context.guiHeight());
+        // Цвет вершины передаёт шейдеру ориентацию framebuffer, масштаб и ширину скоса.
+        int scale = Math.clamp(Math.round(entry.layout().scale() * 32F), 1, 255);
+        int bevel = Math.clamp(Math.round(entry.bevel() * 4F), 4, 255);
+        int parameters = 0xff000000 | (bottomOrigin ? 0xff0000 : 0) | scale << 8 | bevel;
         ((GuiGraphicsExtractorAccessor) (Object) context).orion$getGuiRenderState()
                 .addGuiElement(new BlitRenderState(PIPELINE, textures,
                 new Matrix3x2f(context.pose()), x, y, x + width, y + height,
-                0.0F, 1.0F, 0.0F, 1.0F, bottomOrigin ? -1 : 0xfffeffff, scissorArea));
+                0.0F, 1.0F, 0.0F, 1.0F, parameters, scissorArea));
         return true;
     }
 
@@ -213,27 +270,60 @@ public final class OrionGlassCompositor {
                 *///?}
     }
 
-    public TextureSetup captureSurface(GuiGraphicsExtractor context, ScreenRectangle bounds, Identifier id, boolean screenGlass) {
+    /** Размытый мир для стеклянной поверхности Lumen; null — использовать обычную заливку. */
+    public TextureSetup captureSurface(GuiGraphicsExtractor context, Identifier id, boolean screenGlass) {
         Minecraft client = Minecraft.getInstance();
         if (!screenGlass && (!visibleOnHud(context, client)
                 || !OrionClient.getInstance().getConfigManager().getConfig().isHudElementGlass(id.getPath()))) return null;
-        if (!requestScene(client, context, new Matrix3x2f(), bounds.left(), bounds.top(), bounds.width(), bounds.height())) return null;
-        return TextureSetup.singleTexture(sceneView, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+        if (!glassPipelinesReady(null) || !requestScene(client)) return null;
+        return TextureSetup.singleTexture(sceneBlur.output(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+    }
+
+    /** Размытая статичная панорама главного меню; до первого размытия возвращает null. */
+    public TextureSetup blurredBackdrop(GpuTextureView source) {
+        if (source == null || source.isClosed() || !glassPipelinesReady(null)) return null;
+        GpuTexture texture = source.texture();
+        if (texture != titleSource || !titleBlur.matches(texture)) {
+            if (titleRequested) return null;
+            titleBlur.ensure(texture);
+            titleSource = texture;
+            titleReady = false;
+        }
+        if (!titleReady) {
+            titleRequested = true;
+            return null;
+        }
+        return TextureSetup.singleTexture(titleBlur.output(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
     }
 
     public boolean bottomOrigin() {
         return bottomOrigin;
     }
 
-    private boolean requestScene(Minecraft client, GuiGraphicsExtractor context, Matrix3x2fc pose,
-                                 int x, int y, int width, int height) {
+    private boolean glassPipelinesReady(RenderPipeline surface) {
+        try {
+            if ((surface != null && ru.orion.client.render.GleamGpu.pipelineOrNull(surface) == null)
+                    || ru.orion.client.render.GleamGpu.pipelineOrNull(BLUR_DOWN) == null
+                    || ru.orion.client.render.GleamGpu.pipelineOrNull(BLUR_UP) == null) {
+                warnShaderUnavailable(null);
+                return false;
+            }
+            return true;
+        } catch (RuntimeException exception) {
+            warnShaderUnavailable(exception);
+            return false;
+        }
+    }
+
+    private boolean requestScene(Minecraft client) {
         GpuTexture source = GleamMinecraft.mainTarget(client).getColorTexture();
         if (source == null || source.isClosed() || source.getWidth(0) <= 0 || source.getHeight(0) <= 0
                 || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0) return false;
         if (scene == null || scene.isClosed() || sceneView == null || sceneView.isClosed()
                 || scene.getWidth(0) != source.getWidth(0)
-                || scene.getHeight(0) != source.getHeight(0) || scene.getFormat() != source.getFormat()) {
-            // Уже собранные GUI-состояния продолжают использовать прежний sceneView до отрисовки.
+                || scene.getHeight(0) != source.getHeight(0) || scene.getFormat() != source.getFormat()
+                || !sceneBlur.matches(source)) {
+            // Уже собранные GUI-состояния продолжают использовать прежние текстуры до отрисовки.
             if (captureRequested) {
                 return false;
             }
@@ -242,6 +332,7 @@ public final class OrionGlassCompositor {
                     GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_TEXTURE_BINDING,
                     source.getFormat(), source.getWidth(0), source.getHeight(0), 1, 1);
             sceneView = RenderSystem.getDevice().createTextureView(scene);
+            sceneBlur.ensure(source);
             //? if >=26.2 {
             bottomOrigin = RenderSystem.getDevice().getDeviceInfo().backendName()
                     .toLowerCase(java.util.Locale.ROOT).contains("opengl");
@@ -249,10 +340,6 @@ public final class OrionGlassCompositor {
             /*bottomOrigin = true;
             *///?}
         }
-        CaptureArea area = CaptureArea.from(pose, x, y, width, height,
-                context.guiWidth(), context.guiHeight(), source.getWidth(0), source.getHeight(0), bottomOrigin);
-        if (area == null) return false;
-        if (!captureAreas.contains(area)) captureAreas.add(area);
         captureRequested = true;
         return sceneCaptured;
     }
@@ -264,8 +351,14 @@ public final class OrionGlassCompositor {
         }
     }
 
-    /** Получает актуальную текстуру render target непосредственно перед отрисовкой GUI. */
+    /** Копирует и размывает актуальный кадр непосредственно перед отрисовкой GUI. */
     public void captureBeforeGui(GpuTexture source) {
+        if (titleRequested) {
+            titleRequested = false;
+            if (titleSource != null && !titleSource.isClosed() && titleBlur.matches(titleSource)) {
+                titleReady = blur(RenderSystem.getDevice().createTextureView(titleSource), titleBlur, true);
+            }
+        }
         if (!captureRequested || source != GleamMinecraft.mainTarget(Minecraft.getInstance()).getColorTexture()) return;
         captureRequested = false;
         // Между extraction и render framebuffer может быть пересоздан при resize или смене мира.
@@ -275,40 +368,73 @@ public final class OrionGlassCompositor {
                 || (source.usage() & GpuTexture.USAGE_COPY_SRC) == 0
                 || source.getWidth(0) != scene.getWidth(0)
                 || source.getHeight(0) != scene.getHeight(0)
-                || source.getFormat() != scene.getFormat()) {
+                || source.getFormat() != scene.getFormat()
+                || !sceneBlur.matches(source)) {
             sceneCaptured = false;
-            captureAreas.clear();
             return;
         }
-        long now = System.nanoTime();
-        if (sceneCaptured && now - lastCaptureNanos < CAPTURE_INTERVAL_NANOS
-                && captureAreas.equals(lastCaptureAreas)) {
-            captureAreas.clear();
-            return;
-        }
+        // Копия всего кадра стоит доли миллисекунды и не отстаёт от камеры.
         var encoder = RenderSystem.getDevice().createCommandEncoder();
-        // Размер текстуры прежний: shader продолжает читать по gl_FragCoord.
-        // Копируем только видимые панели с запасом под выборки размытия.
-        for (CaptureArea area : captureAreas) {
-            encoder.copyTextureToTexture(source, scene, 0, area.x(), area.y(), area.x(), area.y(),
-                    area.width(), area.height());
-        }
+        encoder.copyTextureToTexture(source, scene, 0, 0, 0, 0, 0, scene.getWidth(0), scene.getHeight(0));
         //? if >=26.2 {
         encoder.submit();
         //?}
-        lastCaptureAreas.clear();
-        lastCaptureAreas.addAll(captureAreas);
-        captureAreas.clear();
-        lastCaptureNanos = now;
-        sceneCaptured = true;
+        sceneCaptured = blur(sceneView, sceneBlur, false);
+    }
+
+    /** Dual Kawase: три уменьшения и два увеличения до половины разрешения. */
+    private boolean blur(GpuTextureView source, BlurChain chain, boolean closeSource) {
+        try {
+            var down = ru.orion.client.render.GleamGpu.pipelineOrNull(BLUR_DOWN);
+            var up = ru.orion.client.render.GleamGpu.pipelineOrNull(BLUR_UP);
+            if (down == null || up == null || !chain.ready()) return false;
+            var sampler = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
+            var encoder = RenderSystem.getDevice().createCommandEncoder();
+            GpuTextureView input = source;
+            for (int level = 0; level < BlurChain.LEVELS; level++) {
+                var pipeline = level < BlurChain.DOWN_LEVELS ? down : up;
+                GpuTextureView target = chain.views[level];
+                //? if >=26.2 {
+                try (var pass = encoder.createRenderPass(() -> "GleamClient glass blur", target, Optional.empty())) {
+                //?} else {
+                /*try (var pass = encoder.createRenderPass(() -> "GleamClient glass blur", target, java.util.OptionalInt.empty())) {
+                *///?}
+                    pass.setPipeline(pipeline);
+                    //? if >=26.3 {
+                    pass.setUniform("Sampler0", input, sampler);
+                    //?} else {
+                    /*pass.bindTexture("Sampler0", input, sampler);
+                    *///?}
+                    pass.disableScissor();
+                    //? if >=26.2 {
+                    pass.draw(3, 1, 0, 0);
+                    //?} else {
+                    /*pass.draw(0, 3);
+                    *///?}
+                }
+                input = target;
+            }
+            //? if >=26.2 {
+            encoder.submit();
+            //?}
+            return true;
+        } catch (RuntimeException exception) {
+            warnShaderUnavailable(exception);
+            return false;
+        } finally {
+            if (closeSource) source.close();
+        }
     }
 
     public void close() {
         if (transparent != null) transparent.close();
         transparent = null;
         captureRequested = false;
-        captureAreas.clear();
         releaseScene();
+        titleBlur.close();
+        titleSource = null;
+        titleRequested = false;
+        titleReady = false;
         for (MaskTexture entry : masks.values()) {
             entry.texture().close();
         }
@@ -324,8 +450,6 @@ public final class OrionGlassCompositor {
 
     private void releaseScene() {
         sceneCaptured = false;
-        lastCaptureAreas.clear();
-        lastCaptureNanos = 0L;
         if (sceneView != null) {
             sceneView.close();
             sceneView = null;
@@ -334,37 +458,101 @@ public final class OrionGlassCompositor {
             scene.close();
             scene = null;
         }
+        sceneBlur.close();
     }
 
     public record Panel(float x, float y, float width, float height, float arc) {
     }
 
-    /** Координаты копирования в framebuffer, включая поворот/масштаб GUI и края blur. */
-    record CaptureArea(int x, int y, int width, int height) {
-        static CaptureArea from(Matrix3x2fc pose, int x, int y, int width, int height,
-                                int guiWidth, int guiHeight, int pixelWidth, int pixelHeight, boolean bottomOrigin) {
-            if (width <= 0 || height <= 0 || guiWidth <= 0 || guiHeight <= 0) return null;
-            float x0 = pose.m00() * x + pose.m10() * y + pose.m20();
-            float y0 = pose.m01() * x + pose.m11() * y + pose.m21();
-            float dx = pose.m00() * width, dy = pose.m01() * width;
-            float ex = pose.m10() * height, ey = pose.m11() * height;
-            float scaleX = pixelWidth / (float) guiWidth, scaleY = pixelHeight / (float) guiHeight;
-            int left = Math.max(0, (int) Math.floor((x0 + Math.min(0, dx) + Math.min(0, ex)) * scaleX) - CAPTURE_PAD);
-            int right = Math.min(pixelWidth, (int) Math.ceil((x0 + Math.max(0, dx) + Math.max(0, ex)) * scaleX) + CAPTURE_PAD);
-            int top = Math.max(0, (int) Math.floor((y0 + Math.min(0, dy) + Math.min(0, ey)) * scaleY) - CAPTURE_PAD);
-            int bottom = Math.min(pixelHeight, (int) Math.ceil((y0 + Math.max(0, dy) + Math.max(0, ey)) * scaleY) + CAPTURE_PAD);
-            if (right <= left || bottom <= top) return null;
-            return new CaptureArea(left, bottomOrigin ? pixelHeight - bottom : top, right - left, bottom - top);
+    /**
+     * Текстуры размытия: 1/2, 1/4, 1/8 при уменьшении и 1/4, 1/2 при увеличении.
+     * Результат — последняя, в половинном разрешении источника.
+     */
+    private static final class BlurChain {
+        static final int DOWN_LEVELS = 3;
+        static final int LEVELS = DOWN_LEVELS * 2 - 1;
+        private final String label;
+        private final GpuTexture[] textures = new GpuTexture[LEVELS];
+        private final GpuTextureView[] views = new GpuTextureView[LEVELS];
+        private int sourceWidth, sourceHeight;
+        private Object format;
+
+        BlurChain(String label) {
+            this.label = label;
+        }
+
+        boolean ready() {
+            for (int i = 0; i < LEVELS; i++) {
+                if (textures[i] == null || textures[i].isClosed() || views[i] == null || views[i].isClosed()) return false;
+            }
+            return true;
+        }
+
+        boolean matches(GpuTexture source) {
+            return ready() && sourceWidth == source.getWidth(0) && sourceHeight == source.getHeight(0)
+                    && format == source.getFormat();
+        }
+
+        void ensure(GpuTexture source) {
+            if (matches(source)) return;
+            close();
+            sourceWidth = source.getWidth(0);
+            sourceHeight = source.getHeight(0);
+            format = source.getFormat();
+            int width = sourceWidth, height = sourceHeight;
+            int[] widths = new int[LEVELS], heights = new int[LEVELS];
+            for (int i = 0; i < DOWN_LEVELS; i++) {
+                width = Math.max(1, (width + 1) / 2);
+                height = Math.max(1, (height + 1) / 2);
+                widths[i] = width;
+                heights[i] = height;
+            }
+            for (int i = DOWN_LEVELS; i < LEVELS; i++) {
+                width *= 2;
+                height *= 2;
+                widths[i] = width;
+                heights[i] = height;
+            }
+            for (int i = 0; i < LEVELS; i++) {
+                textures[i] = RenderSystem.getDevice().createTexture("orion_glass_blur_" + label + "_" + i,
+                        GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_TEXTURE_BINDING,
+                        source.getFormat(), widths[i], heights[i], 1, 1);
+                views[i] = RenderSystem.getDevice().createTextureView(textures[i]);
+            }
+        }
+
+        GpuTextureView output() {
+            return views[LEVELS - 1];
+        }
+
+        void close() {
+            for (int i = 0; i < LEVELS; i++) {
+                if (views[i] != null) views[i].close();
+                if (textures[i] != null) textures[i].close();
+                views[i] = null;
+                textures[i] = null;
+            }
+            sourceWidth = sourceHeight = 0;
+            format = null;
         }
     }
 
+    /**
+     * framebufferPerDesign — пикселей экрана на единицу макета, scale — пикселей экрана на GUI-пиксель.
+     * Расстояния в маске хранятся в пикселях экрана, поэтому не зависят от её разрешения.
+     */
     public record MaskLayout(int pixelWidth, int pixelHeight, float designWidth, float designHeight,
-                             List<Panel> panels) {
+                             List<Panel> panels, float framebufferPerDesign, float scale) {
         public MaskLayout {
             panels = List.copyOf(panels);
         }
+
+        public MaskLayout(int pixelWidth, int pixelHeight, float designWidth, float designHeight, List<Panel> panels) {
+            this(pixelWidth, pixelHeight, designWidth, designHeight, panels,
+                    pixelWidth / designWidth, Math.max(.25F, pixelWidth / designWidth));
+        }
     }
 
-    private record MaskTexture(MaskLayout layout, DynamicTexture texture) {
+    private record MaskTexture(MaskLayout layout, DynamicTexture texture, float bevel) {
     }
 }
