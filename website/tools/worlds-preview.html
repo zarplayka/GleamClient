@@ -90,9 +90,9 @@ button{font:inherit;color:inherit}
 .account .profile-avatar{width:24px;height:24px;border-radius:50%}
 
 .account-panel{
-  position:absolute;top:calc(100% + 12px);right:0;width:356px;max-height:min(var(--account-space, 580px), 580px);
-  display:flex;flex-direction:column;gap:13px;padding:15px;overflow:hidden;
-  border:1px solid var(--panel-line);border-radius:22px;background:#171b23;box-shadow:0 22px 58px var(--glow);
+  position:absolute;top:calc(100% + 8px);right:0;width:274px;max-height:min(var(--account-space, 340px), 340px);
+  display:flex;flex-direction:column;gap:7px;padding:9px;overflow:hidden;
+  border:1px solid var(--panel-line);border-radius:14px;background:#171b23;box-shadow:0 18px 42px var(--glow);
   transform-origin:calc(100% - 24px) 0;transform:translateY(-8px) scale(.955,.97);
   opacity:0;visibility:hidden;pointer-events:none;
   transition:opacity .18s,transform .23s cubic-bezier(.2,.75,.24,1),visibility 0s linear .23s;
@@ -103,56 +103,43 @@ button{font:inherit;color:inherit}
 }
 :root[data-theme="light"] .account-panel{background:#f6f8fc}
 :root[data-theme="glass"] .account-panel{background:#10161eb8;backdrop-filter:blur(18px) saturate(1.4)}
-.account-panel-head,.account-list-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.account-panel-head h2{margin:0;font-size:16px;letter-spacing:-.3px}
-.account-panel-head kbd{height:19px;color:var(--muted);font-size:10px}
-.account-profile{
-  position:relative;display:grid;grid-template-columns:54px minmax(0,1fr) auto;align-items:center;gap:12px;
-  padding:12px;border:1px solid color-mix(in srgb,var(--accent) 42%,var(--panel-line));border-radius:15px;
-  background:color-mix(in srgb,var(--accent) 12%,var(--chip));
-}
-.account-profile .profile-avatar{width:54px;height:54px;border-color:var(--chip-line);border-radius:11px}
-.profile-copy{display:grid;min-width:0;gap:3px}
-.profile-copy strong{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:14px;line-height:1.25}
-.account-profile .profile-copy strong{font-size:17px;letter-spacing:-.3px}
+.account-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 3px}
+.account-panel-head h2{margin:0;font-size:14px;letter-spacing:-.2px}
+.profile-copy{display:grid;min-width:0;gap:2px}
+.profile-copy strong{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px;line-height:1.2}
 .profile-copy small{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--muted);font-size:11px}
-.profile-active{display:flex;align-items:center;gap:5px;color:var(--accent);white-space:nowrap;font-size:11px;font-weight:700}
-.profile-active svg.i{width:13px;height:13px}
-.account-list-title,.account-add-title{margin:0;color:var(--muted);font-size:12px;font-weight:600}
-.account-count{font-variant-numeric:tabular-nums;color:var(--subtle)}
-.account-list{display:grid;gap:5px;min-height:0;max-height:228px;margin:0 -4px;padding:4px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
-.account-list-title{margin-bottom:4px}
-.account-saved{display:flex;flex-direction:column;min-height:0}
-.account-saved h3{flex:none}
+.account-count{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.account-list{display:grid;gap:3px;min-height:0;max-height:196px;margin:0 -3px;padding:3px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .account-row{
-  display:grid;grid-template-columns:minmax(0,1fr) 31px;align-items:center;gap:3px;
-  min-height:51px;border:1px solid var(--panel-line);border-radius:11px;background:var(--chip);padding-right:5px;
+  display:grid;grid-template-columns:minmax(0,1fr) 26px;align-items:center;gap:2px;
+  min-height:41px;border:1px solid transparent;border-radius:9px;background:var(--chip);padding-right:4px;
   transition:background .2s,border-color .2s;
 }
 .account-row[data-active]{border-color:color-mix(in srgb,var(--accent) 47%,var(--panel-line));background:color-mix(in srgb,var(--accent) 10%,var(--chip))}
 .account-choice{
-  display:grid;grid-template-columns:32px minmax(0,1fr) 16px;align-items:center;gap:9px;min-width:0;
-  padding:6px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;
+  display:grid;grid-template-columns:27px minmax(0,1fr) 14px;align-items:center;gap:7px;min-width:0;
+  padding:5px;border:0;border-radius:8px;background:transparent;text-align:left;cursor:pointer;
 }
+.account-row .profile-avatar{width:27px;height:27px;border-radius:7px}
 .account-choice:hover,.account-edit:hover,.account-add button:hover{background:var(--hover)}
 .account-check{color:var(--accent);opacity:0;transform:translateX(-5px) scale(.8);transition:opacity .2s,transform .27s cubic-bezier(.2,.8,.2,1)}
-.account-check svg.i{width:16px;height:16px;display:block}
+.account-check svg.i{width:14px;height:14px;display:block}
 .account-row[data-active] .account-check{opacity:1;transform:none}
 .account-edit{
-  display:grid;place-items:center;width:31px;height:31px;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;
+  display:grid;place-items:center;width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;
 }
-.account-edit svg.i{width:16px;height:16px}
-.account-add{flex:none;border-top:1px solid var(--panel-line);padding-top:10px}
-.account-add-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:6px}
+.account-edit svg.i{width:14px;height:14px}
+.account-add{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:5px;border-top:1px solid var(--panel-line);padding-top:6px}
 .account-add button{
-  display:flex;align-items:center;justify-content:center;gap:6px;min-height:33px;padding:0 7px;
-  border:1px solid var(--panel-line);border-radius:9px;background:var(--chip);font-size:12px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:4px;min-height:30px;padding:0 4px;
+  border:1px solid var(--panel-line);border-radius:7px;background:var(--chip);font-size:11px;font-weight:600;white-space:nowrap;cursor:pointer;
 }
-.account-add button svg.i{width:14px;height:14px;color:var(--accent)}
-.account-panel[data-open] :is(.account-profile,.account-row,.account-add){animation:account-enter .35s cubic-bezier(.19,.82,.25,1) backwards;animation-delay:var(--account-delay,25ms)}
-.account-add{--account-delay:110ms}
+.account-add button svg.i{width:13px;height:13px;color:var(--accent)}
+.account-panel[data-open] :is(.account-row,.account-add){animation:account-enter .28s cubic-bezier(.19,.82,.25,1) backwards;animation-delay:var(--account-delay,25ms)}
+.account-add{--account-delay:75ms}
 @keyframes account-enter{from{opacity:.35;transform:translateY(-5px)}to{opacity:1;transform:none}}
 .account-form-error{color:var(--danger);margin:8px 0 0;font-size:13px}
+.account-device-code{display:block;margin:14px 0 0;padding:10px 12px;border:1px solid var(--panel-line);border-radius:9px;background:var(--chip);color:var(--accent);font:700 17px monospace;letter-spacing:.12em;text-align:center;user-select:text}
 .dialog-box .row.account-form-actions{justify-content:space-between}
 .account-form-buttons{display:flex;gap:10px}
 .account-dialog-submit{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
@@ -308,7 +295,8 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px
   <symbol id="account-down" viewBox="0 0 24 24"><path d="m5 9 7 7 7-7"/></symbol>
   <symbol id="account-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
   <symbol id="account-edit" viewBox="0 0 24 24"><path d="m4 20 4.2-1.1L19 8.1 15.9 5 5 15.8 4 20Zm9.8-12.9 3.1 3.1"/></symbol>
-  <symbol id="account-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="account-microsoft" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 4v16M4 12h16"/></symbol>
+  <symbol id="account-offline" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1m3-12v6m-3-3h6"/></symbol>
 </svg>
 <div id="stage" class="zone-tiles">
   <div class="bg"><img id="bgA" alt=""><img id="bgB" alt=""><div class="shade"></div></div>
@@ -330,23 +318,12 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px
           <svg class="i account-chevron" aria-hidden="true"><use href="#account-down"/></svg>
         </button>
         <section class="account-panel" id="accountPanel" aria-labelledby="accountHeading" inert>
-          <header class="account-panel-head"><h2 id="accountHeading">Аккаунты Minecraft</h2><kbd aria-hidden="true">Esc</kbd></header>
-          <div class="account-profile" id="activeProfile" aria-live="polite">
-            <span class="profile-avatar" id="activeAvatar" aria-hidden="true"></span>
-            <span class="profile-copy" id="activeProfileCopy"><strong id="activeAccountName"></strong><small id="activeAccountType"></small></span>
-            <span class="profile-active"><svg class="i" aria-hidden="true"><use href="#account-check"/></svg>Активен</span>
+          <header class="account-panel-head"><h2 id="accountHeading">Аккаунты Minecraft</h2><span class="account-count" id="accountCount"></span></header>
+          <div class="account-list" id="accountList" role="group" aria-label="Сохранённые профили"></div>
+          <div class="account-add" role="group" aria-label="Добавить аккаунт">
+            <button type="button" data-account-type="microsoft" aria-label="Добавить аккаунт Microsoft"><svg class="i" aria-hidden="true"><use href="#account-microsoft"/></svg>Microsoft</button>
+            <button type="button" data-account-type="offline" aria-label="Добавить офлайн-профиль"><svg class="i" aria-hidden="true"><use href="#account-offline"/></svg>Офлайн-профиль</button>
           </div>
-          <section class="account-saved" aria-labelledby="accountSaved">
-            <h3 class="account-list-title" id="accountSaved">Сохранённые <span class="account-count" id="accountCount"></span></h3>
-            <div class="account-list" id="accountList" role="group" aria-labelledby="accountSaved"></div>
-          </section>
-          <section class="account-add" aria-labelledby="accountAddTitle">
-            <h3 class="account-add-title" id="accountAddTitle">Добавить аккаунт</h3>
-            <div class="account-add-actions">
-              <button type="button" data-account-type="microsoft"><svg class="i" aria-hidden="true"><use href="#account-plus"/></svg>Microsoft</button>
-              <button type="button" data-account-type="offline"><svg class="i" aria-hidden="true"><use href="#account-plus"/></svg>Офлайн</button>
-            </div>
-          </section>
         </section>
       </div>
       <span class="clock" id="clock">00:00</span>
@@ -895,7 +872,7 @@ const accountFaces = {
   copper: paintedFace({h:'#8b462d', s:'#ecb783', w:'#fff3d9', e:'#337d6c', r:'#cc895d', a:'#bf7753', m:'#9a5541', c:'#387865', t:'#78be9c'}),
 };
 const accountState = loadAccounts();
-let accountOpen = false, profileAnimation, profileAvatarAnimation, headerAccountAnimation;
+let accountOpen = false, profileAvatarAnimation, headerAccountAnimation;
 
 function loadAccounts() {
   try {
@@ -925,12 +902,9 @@ function setAvatar(node, face) {
 
 function updateActiveAccount(animate) {
   const account = accountState.profiles.find(profile => profile.id === accountState.active);
-  const headerName = $('accountName'), avatar = $('activeAvatar'), copy = $('activeProfileCopy');
+  const headerName = $('accountName'), avatar = $('accountAvatar');
   headerName.textContent = account.name;
   accountTrigger.setAttribute('aria-label', 'Аккаунты Minecraft, текущий профиль ' + account.name);
-  $('activeAccountName').textContent = account.name;
-  $('activeAccountType').textContent = accountTypes[account.type] + (account.type === 'microsoft' ? ' · Java Edition' : '');
-  setAvatar($('accountAvatar'), account.face);
   setAvatar(avatar, account.face);
 
   for (const row of accountList.children) {
@@ -939,14 +913,36 @@ function updateActiveAccount(animate) {
     row.querySelector('.account-choice').setAttribute('aria-pressed', String(active));
   }
 
-  profileAnimation?.cancel(); profileAvatarAnimation?.cancel(); headerAccountAnimation?.cancel();
+  profileAvatarAnimation?.cancel(); headerAccountAnimation?.cancel();
   if (!animate || reducedMotion.matches) return;
-  profileAnimation = copy.animate([{opacity:.3, transform:'translateY(7px)'}, {opacity:1, transform:'none'}],
-    {duration:250, easing:'cubic-bezier(.2,.8,.2,1)'});
   profileAvatarAnimation = avatar.animate([{opacity:.6, transform:'scale(.82) rotate(-6deg)'}, {opacity:1, transform:'none'}],
     {duration:320, easing:'cubic-bezier(.18,.88,.26,1.19)'});
   headerAccountAnimation = headerName.animate([{opacity:.45, transform:'translateY(4px)'}, {opacity:1, transform:'none'}],
     {duration:210, easing:'ease-out'});
+}
+
+function finishAccountEdit() {
+  saveAccounts(); closeDialog(); renderAccounts(true); showAccounts(true);
+}
+
+function addPreviewAccount(name, type) {
+  const existing = accountState.profiles.find(profile => profile.name.toLowerCase() === name.toLowerCase() && profile.type === type);
+  if (existing) { accountState.active = existing.id; return; }
+  const profile = {id:crypto.randomUUID(), name, type, face:type === 'offline' ? 'copper' : 'steve'};
+  accountState.profiles.push(profile);
+  accountState.active = profile.id;
+}
+
+function openMicrosoftAccountPreview() {
+  showAccounts(false);
+  dialog(`<h3>Вход через Microsoft</h3><p>В клиенте вход подтверждается в браузере с помощью одноразового кода. Здесь показан демонстрационный сценарий.</p>
+    <code class="account-device-code">GLEAM-DEMO</code>
+    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn account-dialog-submit" id="dOk">Завершить демовход</button></div>`, box => {
+      box.querySelector('#dCancel').onclick = closeDialog;
+      const finish = box.querySelector('#dOk');
+      finish.onclick = () => { addPreviewAccount('Alex_Microsoft', 'microsoft'); finishAccountEdit(); };
+      finish.focus();
+    }, accountTrigger);
 }
 
 function renderAccounts(animate = false) {
@@ -983,8 +979,8 @@ function showAccounts(open, restoreFocus = false) {
 
 function openAccountEditor(type, account) {
   showAccounts(false);
-  const title = account ? 'Управление профилем' : type === 'microsoft' ? 'Добавить Microsoft' : 'Добавить офлайн-профиль';
-  const note = account ? accountTypes[type] : type === 'microsoft' ? 'Демонстрационный профиль Microsoft для превью.' : 'Профиль для запуска с локальным ником.';
+  const title = account ? 'Управление профилем' : 'Добавить офлайн-профиль';
+  const note = account ? accountTypes[type] : 'Профиль для запуска с локальным ником.';
   const remove = account && accountState.profiles.length > 1 ? '<button class="btn red" id="accountRemove">Удалить</button>' : '<span></span>';
   dialog(`<h3>${title}</h3><p>${note}</p>
     <label class="field"><span>Ник Minecraft</span><input id="accountInput" maxlength="16" autocomplete="off" spellcheck="false" value="${account ? esc(account.name) : ''}"></label>
@@ -1006,12 +1002,8 @@ function openAccountEditor(type, account) {
           input.focus(); return;
         }
         if (account) account.name = name;
-        else {
-          const profile = {id:crypto.randomUUID(), name, type, face:type === 'offline' ? 'copper' : 'steve'};
-          accountState.profiles.push(profile);
-          accountState.active = profile.id;
-        }
-        saveAccounts(); closeDialog(); renderAccounts(true); showAccounts(true);
+        else addPreviewAccount(name, type);
+        finishAccountEdit();
       };
     }, accountTrigger);
 }
@@ -1024,7 +1016,7 @@ function confirmAccountRemoval(account) {
       box.querySelector('#dOk').onclick = () => {
         accountState.profiles = accountState.profiles.filter(profile => profile !== account);
         if (accountState.active === account.id) accountState.active = accountState.profiles[0].id;
-        saveAccounts(); closeDialog(); renderAccounts(true); showAccounts(true);
+        finishAccountEdit();
       };
     }, accountTrigger);
 }
@@ -1032,7 +1024,11 @@ function confirmAccountRemoval(account) {
 accountTrigger.addEventListener('click', () => showAccounts(!accountOpen));
 accountPanel.addEventListener('click', e => {
   const add = e.target.closest('[data-account-type]');
-  if (add) { openAccountEditor(add.dataset.accountType); return; }
+  if (add) {
+    if (add.dataset.accountType === 'microsoft') openMicrosoftAccountPreview();
+    else openAccountEditor('offline');
+    return;
+  }
   const row = e.target.closest('.account-row');
   if (!row) return;
   const account = accountState.profiles.find(profile => profile.id === row.dataset.accountId);

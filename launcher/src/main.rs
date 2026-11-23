@@ -135,6 +135,12 @@ fn open_browser(url: &str) -> Result<(), String> {
 }
 
 fn main() {
+    if std::env::args_os().nth(1).is_some_and(|arg| arg == "--minecraft-account-worker") {
+        if minecraft::account_worker().is_err() {
+            std::process::exit(1);
+        }
+        return;
+    }
     let mut context = tauri::generate_context!();
     #[cfg(windows)]
     configure_storage(&mut context);

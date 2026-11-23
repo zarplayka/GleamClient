@@ -54,7 +54,6 @@ html[data-light]{--accent:#4257b2;--accent-ink:#fff;--surface:#f6f7fb;--hover:#e
 .account-option[disabled]{opacity:.48;cursor:default}
 .account-option[disabled]:hover{background:transparent}
 .account-separator{height:1px;margin:4px;background:var(--line)}
-.account-hint{margin:6px 8px;color:var(--muted);font-size:11px;line-height:15px}
 .version{position:absolute;left:24px;bottom:24px;padding:10px 0;color:#d4d6e0;font-size:12px}
 .loading{position:absolute;left:0;top:0;width:288px;color:#b6bac7;font-size:12px}
 .loading-label{display:flex;justify-content:space-between;margin-bottom:11px}
@@ -109,7 +108,6 @@ html[data-light]{--accent:#4257b2;--accent-ink:#fff;--surface:#f6f7fb;--hover:#e
       <button class="account-option" type="button" data-action="add-offline">
         <svg class="icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1m3-12v6m-3-3h6"/></svg><span id="addOffline"></span>
       </button>
-      <p class="account-hint" id="iasMissing" hidden></p>
       <div class="account-separator"></div>
       <button class="account-option" type="button" data-action="account">
         <img id="avatar" alt="" hidden><svg id="account-icon" class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 19v-1a4 4 0 0 1 4-4h5a4 4 0 0 1 4 4v1"/></svg><span id="gleamProfile"></span>
@@ -127,7 +125,7 @@ html[data-light]{--accent:#4257b2;--accent-ink:#fff;--surface:#f6f7fb;--hover:#e
 <script>
 const $ = id => document.getElementById(id);
 const scene = $('scene'), menu = $('menu'), brand = $('brand'), cover = $('cover'), panorama = $('panorama');
-const labels = ['single','multi','modules','settings','account','accountType','version','minecraftAccounts','addMicrosoft','addOffline','gleamProfile','iasMissing'];
+const labels = ['single','multi','modules','settings','account','accountType','version','minecraftAccounts','addMicrosoft','addOffline','gleamProfile'];
 const rows = Array.from(menu.querySelectorAll('button'));
 const accountButton = $('account-button'), accountList = $('account-list'), toolbar = $('toolbar');
 const accountOptions = Array.from(accountList.querySelectorAll('button'));
@@ -189,8 +187,6 @@ window.paradox = {update(state) {
   $('multi-button').disabled = !!state.multiReason;
   $('multi-button').title = state.multiReason;
   $('account-initial').textContent = (state.account || '?').slice(0,1).toUpperCase();
-  $('iasMissing').hidden = !!state.iasAvailable;
-  accountOptions.slice(0,3).forEach(button => { button.disabled = !state.iasAvailable; });
   [state.themeAction,state.clientSettings,state.quit].forEach((label,i) => {
     tools[i].title = label;
     tools[i].setAttribute('aria-label',label);

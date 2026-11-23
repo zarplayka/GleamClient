@@ -10,6 +10,7 @@
     "OrionIasTitleTextMixin",
     "OrionStartupShadersMixin",
     "OrionTitleScreenMixin",
+    "OrionMinecraftSessionMixin",
     "FontMixin",
     "GuiGraphicsExtractorMixin",
     "GuiGraphicsExtractorAccessor",

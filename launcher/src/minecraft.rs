@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     fs,
-    io::Read,
+    io::{BufRead, Read, Write},
     sync::{Arc, Mutex},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -133,6 +133,16 @@ fn accounts_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf> {
     Ok(app.path().app_data_dir().map_err(|_| "storage")?.join("minecraft-accounts.dat"))
 }
 
+
+fn lock_accounts(path: &std::path::Path) -> Result<fs::File> {
+    let directory = path.parent().ok_or("storage")?;
+    fs::create_dir_all(directory).map_err(|_| "storage")?;
+    let lock = fs::File::options().read(true).write(true).create(true).truncate(false)
+        .open(directory.join("minecraft-accounts.lock")).map_err(|_| "storage")?;
+    lock.lock().map_err(|_| "storage")?;
+    Ok(lock)
+}
+
 fn load_accounts(path: &std::path::Path) -> Result<Accounts> {
     match fs::read(path) {
         Ok(bytes) if bytes.len() <= 524288 => {
@@ -156,9 +166,13 @@ pub(crate) struct GameSession {
 
 impl Minecraft {
     pub(crate) fn game_session(&self, app: &tauri::AppHandle, id: &str) -> Result<GameSession> {
+        self.game_session_at(&accounts_path(app)?, id)
+    }
+
+    fn game_session_at(&self, path: &std::path::Path, id: &str) -> Result<GameSession> {
         let _storage = self.storage.lock().map_err(|_| "storage")?;
-        let path = accounts_path(app)?;
-        let mut accounts = load_accounts(&path)?;
+        let _files = lock_accounts(path)?;
+        let mut accounts = load_accounts(path)?;
         let index = accounts.accounts.iter().position(|account| account.profile.id == id)
             .ok_or("mc_account_required")?;
         if !accounts.accounts[index].profile.offline
@@ -186,13 +200,13 @@ impl Minecraft {
             }
             // Persist a rotated refresh token even if the later Xbox exchange fails.
             accounts.accounts[index].refresh_token = required(&data, "refresh_token")?.to_owned();
-            save_accounts(&path, &accounts)?;
+            save_accounts(path, &accounts)?;
             let updated = finish(client, data, |_| Ok(()))?;
             if updated.profile.id != id {
                 return Err("mc_reauth".into());
             }
             accounts.accounts[index] = updated;
-            save_accounts(&path, &accounts)?;
+            save_accounts(path, &accounts)?;
         }
         Ok(accounts.accounts[index].game_session())
     }
@@ -487,165 +501,219 @@ pub async fn minecraft_account(
     let state = minecraft.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let path = accounts_path(&app)?;
-        let load = || load_accounts(&path);
-        let save = |accounts: &Accounts| save_accounts(&path, accounts);
-        match action.as_str() {
-            "list" => {
-                let _storage = state.storage.lock().map_err(|_| "storage")?;
-                return Ok(load()?.public());
-            }
-            "cancel" => {
-                let mut login = state.login.lock().map_err(|_| "mc_service")?;
-                login.generation += 1;
-                login.device = None;
-                return Ok(Value::Null);
-            }
-            "open" => {
-                let url = state.login.lock().map_err(|_| "mc_service")?
-                    .device.as_ref().ok_or("mc_expired")?.url.clone();
-                super::open_browser(&url)?;
-                return Ok(Value::Null);
-            }
-            "select" | "remove" => {
-                let _storage = state.storage.lock().map_err(|_| "storage")?;
-                let mut accounts = load()?;
-                let id = id
-                    .filter(|id| accounts.accounts.iter().any(|a| a.profile.id == *id))
-                    .ok_or("mc_service")?;
-                if action == "select" {
-                    accounts.selected = Some(id);
-                } else {
-                    accounts.accounts.retain(|account| account.profile.id != id);
-                    if accounts.selected.as_ref() == Some(&id) {
-                        accounts.selected = accounts.accounts.first().map(|account| account.profile.id.clone());
-                    }
-                }
-                save(&accounts)?;
-                return Ok(accounts.public());
-            }
-            "offline" => {
-                let account = Account::offline(name.as_deref().ok_or("mc_offline_name")?)?;
-                let _storage = state.storage.lock().map_err(|_| "storage")?;
-                let mut accounts = load()?;
-                accounts.add_selected(account);
-                save(&accounts)?;
-                return Ok(accounts.public());
-            }
-            "start" | "poll" => {}
-            _ => return Err("mc_service".into()),
-        }
-        let client = state.client.as_ref().as_ref().map_err(Clone::clone)?;
-        if action == "start" {
-            let generation = {
-                let mut login = state.login.lock().map_err(|_| "mc_service")?;
-                login.generation += 1;
-                login.device = None;
-                login.generation
-            };
-            let device = begin(client)?;
-            let mut login = state.login.lock().map_err(|_| "mc_service")?;
-            if generation != login.generation {
-                return Err("mc_cancelled".into());
-            }
-            let data = json!({"code":device.code,"interval":device.interval.as_secs(),"generation":generation});
-            login.device = Some(device);
-            return Ok(data);
-        }
-        let Ok(_poll) = state.poll.try_lock() else {
-            return Ok(json!({"pending":true,"interval":2}));
-        };
-        let (generation, device) = {
-            let mut login = state.login.lock().map_err(|_| "mc_service")?;
-            let generation = login.generation;
-            let device = login.device.as_mut().ok_or("mc_expired")?;
-            if Instant::now() >= device.deadline {
-                login.device = None;
-                return Err("mc_expired".into());
-            }
-            if Instant::now() < device.next_poll {
-                return Ok(json!({"pending":true,"interval":device.interval.as_secs()}));
-            }
-            device.next_poll = Instant::now() + device.interval;
-            (generation, device.clone())
-        };
-        let stage = |name: &str| -> Result<()> {
-            if state.login.lock().map_err(|_| "mc_service")?.generation != generation {
-                return Err("mc_cancelled".into());
-            }
+        account_request(&state, &path, action, id, name, |generation, name| {
             let _ = app.emit("minecraft-login-stage", json!({"generation":generation,"stage":name}));
-            Ok(())
-        };
-        let reply = send(
-            client
-                .post(TOKEN_URL)
-                .header(reqwest::header::COOKIE, &device.cookies)
-                .form(&[
-                    ("client_id", TITLE),
-                    ("device_code", device.secret.as_str()),
-                    ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-                ]), "microsoft_token",
-        );
-        let response = reply.and_then(|reply| {
-            let success = reply.status().is_success();
-            if matches!(reply.status().as_u16(), 502 | 503 | 504) {
-                return Err("mc_network:microsoft_token".into());
-            }
-            Ok((success, body(reply, "microsoft_token")?))
-        });
-        let (success, data) = match response {
-            Ok(response) => response,
-            Err(error) if (error.starts_with("mc_network:") || error.starts_with("mc_timeout:")) && Instant::now() < device.deadline => {
-                let mut login = state.login.lock().map_err(|_| "mc_service")?;
-                if login.generation != generation { return Err("mc_cancelled".into()); }
-                let active = login.device.as_mut().ok_or("mc_expired")?;
-                active.failed_polls += 1;
-                if active.failed_polls >= 3 { return Err(error); }
-                let wait = active.interval.max(Duration::from_secs(5));
-                active.next_poll = Instant::now() + wait;
-                return Ok(json!({"pending":true,"interval":wait.as_secs(),"retrying":true}));
-            }
-            Err(error) => return Err(error),
-        };
-        let mut login = state.login.lock().map_err(|_| "mc_service")?;
-        if login.generation != generation { return Err("mc_cancelled".into()); }
-        let active = login.device.as_mut().ok_or("mc_expired")?;
-        active.failed_polls = 0;
-        if !success {
-            match data["error"].as_str() {
-                Some("authorization_pending") => {
-                    return Ok(json!({"pending":true,"interval":device.interval.as_secs()}))
-                }
-                Some("slow_down") => {
-                    active.interval =
-                        (active.interval + Duration::from_secs(5)).min(Duration::from_secs(60));
-                    active.next_poll = Instant::now() + active.interval;
-                    return Ok(json!({"pending":true,"interval":active.interval.as_secs()}));
-                }
-                Some("expired_token") => {
-                    login.device = None;
-                    return Err("mc_expired".into());
-                }
-                _ => {
-                    login.device = None;
-                    return Err("mc_denied".into());
-                }
-            }
-        }
-        login.device = None;
-        drop(login);
-        let account = finish(client, data, stage)?;
-        let login = state.login.lock().map_err(|_| "mc_service")?;
-        if generation != login.generation {
-            return Err("mc_cancelled".into());
-        }
-        let _storage = state.storage.lock().map_err(|_| "storage")?;
-        let mut accounts = load()?;
-        accounts.add_selected(account);
-        save(&accounts)?;
-        Ok(accounts.public())
+        })
     })
     .await
     .map_err(|_| "mc_service".to_owned())?
+}
+
+fn account_request(
+    state: &Minecraft, path: &std::path::Path, action: String, id: Option<String>,
+    name: Option<String>, emit: impl Fn(u64, &str),
+) -> Result<Value> {
+    let load = || load_accounts(path);
+    let save = |accounts: &Accounts| save_accounts(path, accounts);
+    match action.as_str() {
+        "list" => {
+            let _storage = state.storage.lock().map_err(|_| "storage")?;
+            let _files = lock_accounts(path)?;
+            return Ok(load()?.public());
+        }
+        "cancel" => {
+            let mut login = state.login.lock().map_err(|_| "mc_service")?;
+            login.generation += 1;
+            login.device = None;
+            return Ok(Value::Null);
+        }
+        "open" => {
+            let url = state.login.lock().map_err(|_| "mc_service")?
+                .device.as_ref().ok_or("mc_expired")?.url.clone();
+            super::open_browser(&url)?;
+            return Ok(Value::Null);
+        }
+        "select" | "remove" => {
+            let _storage = state.storage.lock().map_err(|_| "storage")?;
+            let _files = lock_accounts(path)?;
+            let mut accounts = load()?;
+            let id = id
+                .filter(|id| accounts.accounts.iter().any(|a| a.profile.id == *id))
+                .ok_or("mc_service")?;
+            if action == "select" {
+                accounts.selected = Some(id);
+            } else {
+                accounts.accounts.retain(|account| account.profile.id != id);
+                if accounts.selected.as_ref() == Some(&id) {
+                    accounts.selected = accounts.accounts.first().map(|account| account.profile.id.clone());
+                }
+            }
+            save(&accounts)?;
+            return Ok(accounts.public());
+        }
+        "offline" => {
+            let account = Account::offline(name.as_deref().ok_or("mc_offline_name")?)?;
+            let _storage = state.storage.lock().map_err(|_| "storage")?;
+            let _files = lock_accounts(path)?;
+            let mut accounts = load()?;
+            accounts.add_selected(account);
+            save(&accounts)?;
+            return Ok(accounts.public());
+        }
+        "start" | "poll" => {}
+        _ => return Err("mc_service".into()),
+    }
+    let client = state.client.as_ref().as_ref().map_err(Clone::clone)?;
+    if action == "start" {
+        let generation = {
+            let mut login = state.login.lock().map_err(|_| "mc_service")?;
+            login.generation += 1;
+            login.device = None;
+            login.generation
+        };
+        let device = begin(client)?;
+        let mut login = state.login.lock().map_err(|_| "mc_service")?;
+        if generation != login.generation {
+            return Err("mc_cancelled".into());
+        }
+        let data = json!({"code":device.code,"interval":device.interval.as_secs(),"generation":generation});
+        login.device = Some(device);
+        return Ok(data);
+    }
+    let Ok(_poll) = state.poll.try_lock() else {
+        return Ok(json!({"pending":true,"interval":2}));
+    };
+    let (generation, device) = {
+        let mut login = state.login.lock().map_err(|_| "mc_service")?;
+        let generation = login.generation;
+        let device = login.device.as_mut().ok_or("mc_expired")?;
+        if Instant::now() >= device.deadline {
+            login.device = None;
+            return Err("mc_expired".into());
+        }
+        if Instant::now() < device.next_poll {
+            return Ok(json!({"pending":true,"interval":device.interval.as_secs()}));
+        }
+        device.next_poll = Instant::now() + device.interval;
+        (generation, device.clone())
+    };
+    let stage = |name: &str| -> Result<()> {
+        if state.login.lock().map_err(|_| "mc_service")?.generation != generation {
+            return Err("mc_cancelled".into());
+        }
+        emit(generation, name);
+        Ok(())
+    };
+    let reply = send(
+        client
+            .post(TOKEN_URL)
+            .header(reqwest::header::COOKIE, &device.cookies)
+            .form(&[
+                ("client_id", TITLE),
+                ("device_code", device.secret.as_str()),
+                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
+            ]), "microsoft_token",
+    );
+    let response = reply.and_then(|reply| {
+        let success = reply.status().is_success();
+        if matches!(reply.status().as_u16(), 502 | 503 | 504) {
+            return Err("mc_network:microsoft_token".into());
+        }
+        Ok((success, body(reply, "microsoft_token")?))
+    });
+    let (success, data) = match response {
+        Ok(response) => response,
+        Err(error) if (error.starts_with("mc_network:") || error.starts_with("mc_timeout:")) && Instant::now() < device.deadline => {
+            let mut login = state.login.lock().map_err(|_| "mc_service")?;
+            if login.generation != generation { return Err("mc_cancelled".into()); }
+            let active = login.device.as_mut().ok_or("mc_expired")?;
+            active.failed_polls += 1;
+            if active.failed_polls >= 3 { return Err(error); }
+            let wait = active.interval.max(Duration::from_secs(5));
+            active.next_poll = Instant::now() + wait;
+            return Ok(json!({"pending":true,"interval":wait.as_secs(),"retrying":true}));
+        }
+        Err(error) => return Err(error),
+    };
+    let mut login = state.login.lock().map_err(|_| "mc_service")?;
+    if login.generation != generation { return Err("mc_cancelled".into()); }
+    let active = login.device.as_mut().ok_or("mc_expired")?;
+    active.failed_polls = 0;
+    if !success {
+        match data["error"].as_str() {
+            Some("authorization_pending") => {
+                return Ok(json!({"pending":true,"interval":device.interval.as_secs()}))
+            }
+            Some("slow_down") => {
+                active.interval =
+                    (active.interval + Duration::from_secs(5)).min(Duration::from_secs(60));
+                active.next_poll = Instant::now() + active.interval;
+                return Ok(json!({"pending":true,"interval":active.interval.as_secs()}));
+            }
+            Some("expired_token") => {
+                login.device = None;
+                return Err("mc_expired".into());
+            }
+            _ => {
+                login.device = None;
+                return Err("mc_denied".into());
+            }
+        }
+    }
+    login.device = None;
+    drop(login);
+    let account = finish(client, data, stage)?;
+    let login = state.login.lock().map_err(|_| "mc_service")?;
+    if generation != login.generation {
+        return Err("mc_cancelled".into());
+    }
+    let _storage = state.storage.lock().map_err(|_| "storage")?;
+    let _files = lock_accounts(path)?;
+    let mut accounts = load()?;
+    accounts.add_selected(account);
+    save(&accounts)?;
+    Ok(accounts.public())
+}
+
+#[derive(Deserialize)]
+struct WorkerRequest {
+    action: String,
+    id: Option<String>,
+    name: Option<String>,
+}
+
+pub(crate) fn account_worker() -> Result<()> {
+    let path = std::env::var_os("GLEAM_MC_ACCOUNT_DATA")
+        .map(std::path::PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .ok_or("storage")?
+        .join("minecraft-accounts.dat");
+    let state = Minecraft::default();
+    let stdin = std::io::stdin();
+    let mut stdout = std::io::stdout().lock();
+    for line in stdin.lock().lines() {
+        let line = line.map_err(|_| "mc_service")?;
+        let reply = if line.len() > 4096 {
+            Err("mc_service".into())
+        } else if let Ok(request) = serde_json::from_str::<WorkerRequest>(&line) {
+            if request.action == "session" {
+                request.id.as_deref().ok_or_else(|| "mc_account_required".into())
+                    .and_then(|id| state.game_session_at(&path, id))
+                    .map(|session| json!({"name":session.name,"uuid":session.uuid,"token":session.token}))
+            } else {
+                account_request(&state, &path, request.action, request.id, request.name, |_, _| {})
+            }
+        } else {
+            Err("mc_service".into())
+        };
+        let reply = match reply {
+            Ok(value) => json!({"ok":value}),
+            Err(error) => json!({"error":error}),
+        };
+        serde_json::to_writer(&mut stdout, &reply).map_err(|_| "mc_service")?;
+        stdout.write_all(b"\n").and_then(|_| stdout.flush()).map_err(|_| "mc_service")?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -675,5 +743,22 @@ mod tests {
         })).unwrap();
         assert!(!account.profile.offline);
         assert_eq!(account.game_session().token, "test-token");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn client_and_launcher_read_the_same_protected_account_store() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("minecraft-accounts.dat");
+        let client = Minecraft::default();
+        let launcher = Minecraft::default();
+        let profile = account_request(&client, &path, "offline".into(), None,
+            Some("Demo_Profile".into()), |_, _| {}).unwrap();
+        let id = profile["selected"].as_str().unwrap();
+        assert_eq!(launcher.game_session_at(&path, id).unwrap().token, "0");
+        let listed = account_request(&launcher, &path, "list".into(), None, None, |_, _| {}).unwrap();
+        assert_eq!(listed, profile);
+        assert!(listed["accounts"][0].get("access_token").is_none());
+        assert!(listed["accounts"][0].get("refresh_token").is_none());
     }
 }
