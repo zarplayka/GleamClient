@@ -43,10 +43,11 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07090d}
 button{font:inherit;color:inherit}
 
 /* Сцена рисуется в дизайн-пикселях и масштабируется целиком, как OrionTitleMenu. */
-#stage{position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden;color:var(--ink);font:15px Paradox,sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
+#stage{position:absolute;left:0;top:0;display:grid;grid-template-rows:auto minmax(16px,1fr) auto;padding:278px 48px 56px 64px;transform-origin:0 0;overflow:hidden;color:var(--ink);font:15px Paradox,sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
 .bg,.bg img,.shade{position:absolute;inset:0;width:100%;height:100%}
-.bg img{object-fit:cover;opacity:0;transform:scale(1.04);transition:opacity .5s ease,transform 6s ease-out}
-.bg img.on{opacity:1;transform:scale(1)}
+.bg{pointer-events:none}
+.bg img{object-fit:cover;opacity:0;transition:opacity .4s ease}
+.bg img.on{opacity:1}
 .shade{background:var(--shade-top),var(--shade-bottom),var(--shade-side)}
 
 /* Верхняя панель */
@@ -95,9 +96,14 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .focus-label span{margin-top:4px;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* Карточка выбранного */
-.hero{position:absolute;left:64px;top:278px;width:620px}
-.hero.in{animation:heroIn .34s cubic-bezier(.2,.8,.2,1)}
-@keyframes heroIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.hero{position:relative;grid-row:1;width:620px}
+#stage.has-notice{padding-top:252px}
+.has-notice .hero h1{margin-top:10px;line-height:52px}
+.has-notice .hero .desc{margin-top:9px;min-height:22px}
+.has-notice .hero .notice{margin-top:9px;padding-block:8px}
+.has-notice .hero .actions{margin-top:14px}
+.has-notice .hero :is(.play,.round){height:48px}
+.has-notice .hero .round{width:48px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;min-height:24px}
 .chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--chip);border:1px solid var(--chip-line);font-size:12px;font-weight:600;color:var(--ink)}
 .chip.red{background:#e5484d2e;border-color:#e5484d66;color:#ff9b9e}
@@ -125,7 +131,7 @@ h1{margin:14px 0 0;font-size:52px;line-height:58px;font-weight:700;letter-spacin
 .kfocus{outline:3px solid var(--accent);outline-offset:3px}
 
 /* Полка */
-.shelf{position:absolute;left:64px;right:48px;bottom:56px;height:112px}
+.shelf{position:relative;grid-row:3;min-height:112px}
 .shelf h2{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.2px;display:flex;gap:18px}
 .shelf h2 span b{color:var(--ink);font-weight:600}
 .cards{display:flex;gap:12px}
@@ -189,6 +195,7 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px
 .ping.p1 i:nth-child(1){background:var(--danger)}
 
 .short .shelf{display:none}
+@media(prefers-reduced-motion:reduce){.bg img,.tile,.focus-label{transition:none}}
 
 /* Панель превью — не часть игрового интерфейса */
 .dev{position:fixed;right:14px;bottom:14px;z-index:20;font:12px system-ui,sans-serif;color:#e8eaf0}
@@ -321,11 +328,12 @@ const FRIENDS = [{name:'Nyx — «Остров»', sub:'Миры друзей ·
 const LONG = 'Очень длинное название мира, которое не помещается в одну строку интерфейса';
 const MOTD = {'0':'#000','1':'#00a','2':'#0a0','3':'#0aa','4':'#a00','5':'#a0a','6':'#fa0','7':'#aaa','8':'#555','9':'#55f',a:'#5f5',b:'#5ff',c:'#f55',d:'#f5f',e:'#ff5',f:'#fff'};
 
-const state = {tab:'single', focus:{single:1, multi:1}, zone:'tiles', action:0, card:0, query:'', empty:false, long:false, bg:0, menu:null, dialog:null};
+const state = {tab:'single', focus:{single:1, multi:1}, zone:'tiles', action:0, card:0, query:'', empty:false, long:false, menu:null, dialog:null};
 for (const s of SERVERS) s.iconUrl = pixelIcon(...s.icon);
 
 // ——— масштаб сцены ———
 const stage = $('stage');
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 function layoutStage() {
   const w = innerWidth, h = innerHeight;
   const scale = Math.min(2, Math.max(.6, Math.min(w / 1280, h / 720)));
@@ -349,9 +357,14 @@ function current() { const e = entries(); return e[Math.min(state.focus[state.ta
 // ——— плитки ———
 const track = $('track'), label = $('label');
 const BASE = 96, BIG = 125, GAP = 18, STEP = BASE + GAP, LEFT = 64, LABEL = 280;
-function buildTiles() {
-  track.innerHTML = '';
-  entries().forEach((it, i) => {
+const tilesByTab = {};
+function buildTiles(reuse = false) {
+  const cached = tilesByTab[state.tab];
+  if (reuse && cached?.query === state.query && cached.empty === state.empty) {
+    track.replaceChildren(...cached.tiles);
+    return;
+  }
+  const tiles = entries().map((it, i) => {
     const t = document.createElement('div'); t.className = 'tile'; t.dataset.i = i;
     if (it.create) {
       t.innerHTML = '<div class="plus"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>';
@@ -360,13 +373,20 @@ function buildTiles() {
     } else {
       t.innerHTML = `<img class="pixel" src="${it.iconUrl}" alt=""><span class="dot${it.offline || it.incompatible ? ' off' : ''}"></span>`;
     }
-    t.addEventListener('click', () => {
-      if (state.focus[state.tab] === i && state.zone === 'tiles') activate(); else { state.zone = 'tiles'; setFocus(i); }
-    });
-    t.addEventListener('dblclick', () => activate());
-    track.append(t);
+    return t;
   });
+  tilesByTab[state.tab] = {query:state.query, empty:state.empty, tiles};
+  track.replaceChildren(...tiles);
 }
+track.addEventListener('click', e => {
+  const tile = e.target.closest('.tile');
+  if (!tile) return;
+  const i = +tile.dataset.i;
+  if (state.focus[state.tab] === i && state.zone === 'tiles') { activate(); return; }
+  state.zone = 'tiles';
+  if (!setFocus(i)) syncZone();
+});
+track.addEventListener('dblclick', e => { if (e.target.closest('.tile')) activate(); });
 function placeTiles() {
   const f = state.focus[state.tab], anchor = Math.max(0, f - 1);
   [...track.children].forEach((t, i) => {
@@ -399,14 +419,18 @@ function ping(ms) {
   return `<span class="ping p${lvl}"><i></i><i></i><i></i><i></i></span>`;
 }
 const sep = '<span class="sep"></span>';
+let heroAnimation;
 function renderHero() {
   const it = current(), single = state.tab === 'single';
-  $('hero').hidden = !it || state.empty; $('empty').hidden = !state.empty;
+  const hero = $('hero');
+  hero.hidden = !it || state.empty; $('empty').hidden = !state.empty;
+  heroAnimation?.cancel();
   if (state.empty) {
     $('emptyTitle').textContent = single ? 'Здесь появятся ваши миры' : 'Добавьте первый сервер';
     $('emptyDesc').textContent = single ? 'Создайте мир — он откроется сразу после генерации.' : 'Введите адрес сервера или подключитесь напрямую без сохранения.';
     $('emptyAction').querySelector('span').textContent = single ? 'Создать мир' : 'Добавить сервер';
-    setBackground(IMG); return;
+    stage.classList.remove('has-notice');
+    setBackground(IMG); renderShelf(); return;
   }
   if (!it) return;
   const chips = [], meta = [];
@@ -445,16 +469,46 @@ function renderHero() {
   $('meta').innerHTML = meta.join(sep);
   $('desc').innerHTML = desc && !desc.startsWith('<') ? esc(desc) : desc;
   $('notice').hidden = !notice; $('notice').querySelector('span').textContent = notice;
+  stage.classList.toggle('has-notice', !!notice);
   $('play').querySelector('span').textContent = playText; $('play').disabled = disabled;
   $('edit').hidden = !!it.create; $('more').hidden = !!it.create;
-  const hero = $('hero'); hero.classList.remove('in'); void hero.offsetWidth; hero.classList.add('in');
+  if (!reducedMotion.matches) {
+    heroAnimation = hero.animate([{opacity:.55, transform:'translateY(8px)'}, {opacity:1, transform:'none'}],
+      {duration:260, easing:'cubic-bezier(.2,.8,.2,1)'});
+  }
   renderShelf();
 }
-function setBackground(src) {
-  const a = $('bgA'), b = $('bgB'), on = state.bg ? b : a, off = state.bg ? a : b;
-  if (on.getAttribute('src') === src && on.classList.contains('on')) return;
-  off.src = src; off.onload = () => { off.classList.add('on'); on.classList.remove('on'); };
-  state.bg ^= 1;
+const backgroundLayers = [$('bgA'), $('bgB')], backgroundImages = new Map();
+let activeBackground = 0, backgroundRequest = 0, requestedBackground, backgroundTimer;
+async function setBackground(src) {
+  if (src === requestedBackground) return;
+  requestedBackground = src;
+  const request = ++backgroundRequest;
+  clearTimeout(backgroundTimer);
+  const previous = backgroundLayers[activeBackground];
+  if (previous.getAttribute('src') === src) return;
+  if (!backgroundImages.has(src)) {
+    const image = new Image();
+    image.src = src;
+    backgroundImages.set(src, image.decode());
+  }
+  try {
+    await backgroundImages.get(src);
+  } catch {
+    backgroundImages.delete(src);
+    if (request === backgroundRequest) requestedBackground = undefined;
+    return;
+  }
+  if (request !== backgroundRequest) return;
+  function show() {
+    activeBackground = 1 - activeBackground;
+    const next = backgroundLayers[activeBackground];
+    next.src = src;
+    previous.classList.remove('on');
+    next.classList.add('on');
+  }
+  if (previous.classList.contains('on') && !reducedMotion.matches) backgroundTimer = setTimeout(show, 100);
+  else show();
 }
 
 // ——— полка ———
@@ -469,19 +523,33 @@ function shelfCards() {
     {name:'Открыть папку', sub:'saves/' + it.name.replace(/\s+/g, '_').slice(0, 20), kind:'folder'},
   ];
 }
+const shelf = $('shelf'), shelfList = $('cards');
+let shelfMode;
 function renderShelf() {
   const cards = shelfCards();
-  $('shelf').hidden = !cards.length;
-  $('shelfTitle').innerHTML = state.tab === 'multi'
-    ? '<span><b>В локальной сети</b> · 1</span><span><b>Миры друзей</b> · 2</span>' : '<span><b>О мире</b></span>';
-  $('cards').innerHTML = cards.map((c, i) => c.info
-    ? `<div class="card info" data-i="${i}"><div class="txt"><p class="stat">${c.stat}</p><span>${c.sub}</span></div></div>`
-    : `<button class="card" data-i="${i}">${c.shot !== undefined ? `<img class="thumb" src="${SHOTS[c.shot]}" alt="">`
-      : `<span class="thumb" style="display:flex;align-items:center;justify-content:center"><svg class="i" viewBox="0 0 24 24">${c.kind === 'backup' ? '<path d="M12 4v11m-4-4 4 4 4-4M5 19h14"/>' : '<path d="M4 7h6l2 2h8v9H4z"/>'}</svg></span>`}
-      <span class="txt"><strong>${esc(c.name)}</strong><span>${esc(c.sub)}</span></span></button>`).join('');
-  [...$('cards').querySelectorAll('button.card')].forEach(b => b.addEventListener('click', () => { state.zone = 'shelf'; state.card = +b.dataset.i; shelfActivate(); }));
+  const mode = cards.length ? state.tab : '';
+  shelf.hidden = !mode;
+  if (shelfMode !== mode) {
+    shelfMode = mode;
+    $('shelfTitle').innerHTML = mode === 'multi'
+      ? '<span><b>В локальной сети</b> · 1</span><span><b>Миры друзей</b> · 2</span>' : '<span><b>О мире</b></span>';
+    shelfList.innerHTML = cards.map((c, i) => c.info
+      ? `<div class="card info" data-i="${i}"><div class="txt"><p class="stat">${c.stat}</p><span>${c.sub}</span></div></div>`
+      : `<button class="card" data-i="${i}">${c.shot !== undefined ? `<img class="thumb" src="${SHOTS[c.shot]}" alt="">`
+        : `<span class="thumb" style="display:flex;align-items:center;justify-content:center"><svg class="i" viewBox="0 0 24 24">${c.kind === 'backup' ? '<path d="M12 4v11m-4-4 4 4 4-4M5 19h14"/>' : '<path d="M4 7h6l2 2h8v9H4z"/>'}</svg></span>`}
+        <span class="txt"><strong>${esc(c.name)}</strong><span>${esc(c.sub)}</span></span></button>`).join('');
+  } else if (mode === 'single') {
+    shelfList.children[0].querySelector('.stat').textContent = cards[0].stat;
+    shelfList.children[1].querySelector('.stat').textContent = cards[1].stat;
+    shelfList.children[3].querySelector('.txt > span').textContent = cards[3].sub;
+  }
   syncZone();
 }
+shelfList.addEventListener('click', e => {
+  const card = e.target.closest('button.card');
+  if (!card) return;
+  state.zone = 'shelf'; state.card = +card.dataset.i; shelfActivate(); syncZone();
+});
 function shelfActivate() {
   const c = shelfCards()[state.card]; if (!c || c.info) return;
   if (c.kind === 'lan' || c.kind === 'friend') toast(`Подключение к «${c.name}»…`, true);
@@ -491,9 +559,11 @@ function shelfActivate() {
 
 // ——— фокус и зоны ———
 function setFocus(i) {
-  const n = entries().length; if (!n) return;
-  state.focus[state.tab] = Math.max(0, Math.min(n - 1, i));
-  placeTiles(); renderHero(); hints();
+  const next = Math.max(0, Math.min(entries().length - 1, i));
+  if (next === state.focus[state.tab]) return false;
+  state.focus[state.tab] = next;
+  placeTiles(); renderHero();
+  return true;
 }
 function actionButtons() { return [$('play'), $('edit'), $('more')].filter(b => !b.hidden && !b.disabled); }
 function focusableCards() { return [...$('cards').children].filter(c => !c.classList.contains('info')); }
@@ -555,10 +625,13 @@ function menuItems() {
     null, ['trash','Удалить сервер', confirmDelete, true]];
 }
 function openMenu() {
-  const pop = $('pop'), r = $('more'), list = menuItems();
+  const pop = $('pop'), r = $('more'), hero = $('hero'), list = menuItems();
   pop.innerHTML = list.map((m, i) => m ? `<button class="mi${m[3] ? ' danger' : ''}" data-i="${i}"><svg class="i" viewBox="0 0 24 24">${ICON[m[0]]}</svg>${m[1]}</button>` : '<div class="mi-sep"></div>').join('');
-  pop.style.left = r.offsetLeft + $('hero').offsetLeft + 'px';
-  pop.style.top = $('hero').offsetTop + $('actions').offsetTop + 60 + 'px';
+  const anchor = hero.offsetTop + $('actions').offsetTop;
+  const below = anchor + r.offsetHeight + 8;
+  const top = below + pop.offsetHeight < stage.clientHeight - 12 ? below : Math.max(12, anchor - pop.offsetHeight - 8);
+  pop.style.left = Math.max(12, Math.min(hero.offsetLeft + r.offsetLeft, stage.clientWidth - pop.offsetWidth - 12)) + 'px';
+  pop.style.top = top + 'px';
   pop.classList.add('open');
   state.menu = {sel: 0, list};
   [...pop.querySelectorAll('.mi')].forEach(b => b.addEventListener('click', () => { closeMenu(); list[+b.dataset.i][2](); }));
@@ -651,7 +724,7 @@ function setTab(tab) {
   if (tab === state.tab) return;
   state.tab = tab; state.zone = 'tiles'; closeMenu();
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === tab));
-  buildTiles(); placeTiles(); renderHero(); syncZone();
+  buildTiles(true); placeTiles(); renderHero();
 }
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
 const search = $('search'), query = $('query');
@@ -663,12 +736,16 @@ function refresh() { buildTiles(); placeTiles(); renderHero(); }
 $('back').addEventListener('click', () => toast('Возврат в главное меню'));
 
 // ——— подсказки ———
+let renderedHints;
 function hints() {
   const list = state.dialog ? [['Enter','Подтвердить'],['Esc','Отмена']]
     : state.menu ? [['↑↓','Выбрать'],['Enter','Выполнить'],['Esc','Закрыть']]
     : [['← →','Выбрать'],['↑ ↓','Перейти'],['Enter', state.tab === 'single' ? 'Играть' : 'Подключиться'],['Q E','Раздел'],['/','Поиск'],
        ...(current() && !current().create ? [['Del','Удалить']] : []), ...(state.tab === 'multi' ? [['F5','Обновить']] : []), ['Esc','Назад']];
-  $('hints').innerHTML = list.map(([k, t]) => `<span><kbd>${k}</kbd>${t}</span>`).join('');
+  const markup = list.map(([k, t]) => `<span><kbd>${k}</kbd>${t}</span>`).join('');
+  if (markup === renderedHints) return;
+  renderedHints = markup;
+  $('hints').innerHTML = markup;
 }
 
 // ——— клавиатура и колесо ———
@@ -708,7 +785,11 @@ addEventListener('keydown', e => {
 let wheel = 0;
 $('rail').addEventListener('wheel', e => {
   e.preventDefault(); wheel += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-  if (Math.abs(wheel) >= 60) { state.zone = 'tiles'; setFocus(state.focus[state.tab] + Math.sign(wheel)); wheel = 0; syncZone(); }
+  if (Math.abs(wheel) >= 60) {
+    state.zone = 'tiles';
+    if (!setFocus(state.focus[state.tab] + Math.sign(wheel))) syncZone();
+    wheel = 0;
+  }
 }, {passive:false});
 document.addEventListener('click', e => { if (state.menu && !$('pop').contains(e.target) && !$('more').contains(e.target)) closeMenu(); });
 
@@ -729,10 +810,10 @@ function applyAccent() {
 }
 $('swatches').innerHTML = ACCENTS.map((a, i) => `<button style="background:${a[0]}" data-i="${i}" class="${i ? '' : 'on'}"></button>`).join('');
 $('swatches').querySelectorAll('button').forEach(b => b.onclick = () => { accentIndex = +b.dataset.i; $('swatches').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); applyAccent(); });
-$('optEmpty').onchange = e => { state.empty = e.target.checked; state.focus[state.tab] = 0; refresh(); syncZone(); };
+$('optEmpty').onchange = e => { state.empty = e.target.checked; state.focus[state.tab] = 0; refresh(); };
 $('optLong').onchange = e => { state.long = e.target.checked; refresh(); };
 
-buildTiles(); layoutStage(); renderHero(); hints();
+buildTiles(); layoutStage(); renderHero();
 addEventListener('resize', layoutStage);
 </script>
 </body>
