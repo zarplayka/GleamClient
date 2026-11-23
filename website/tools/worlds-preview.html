@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gleam Worlds</title>
+<!-- Прототип консольного меню одиночной и сетевой игры. Только для согласования дизайна:
+     игровая версия будет собрана в resources/html и получит данные из Java через мост Lumen. -->
+<style>
+@font-face{font-family:Paradox;src:url("../../src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-Regular.ttf")}
+@font-face{font-family:Paradox;src:url("../../src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-Medium.ttf");font-weight:500}
+@font-face{font-family:Paradox;src:url("../../src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-SemiBold.ttf");font-weight:600}
+@font-face{font-family:Paradox;src:url("../../src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-Bold.ttf");font-weight:700}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07090d}
+:root{
+  --accent:#a9b4ff;--accent-ink:#181c33;
+  --ink:#f4f5f9;--muted:#b3b8c7;--subtle:#8c92a3;
+  --panel:#141820d9;--panel-line:#ffffff1c;--chip:#ffffff14;--chip-line:#ffffff1f;
+  --hover:#ffffff1a;--danger:#ff6b6b;--warn:#ffc966;--good:#6fe0a0;
+  --shade-side:linear-gradient(90deg,#07090ded 0%,#07090db8 38%,#07090d40 68%,#07090d00 86%);
+  --shade-bottom:linear-gradient(0deg,#07090df2 0%,#07090d99 26%,#07090d00 52%);
+  --shade-top:linear-gradient(180deg,#07090dcc 0%,#07090d00 22%);
+  --tile-bg:#1b2029;--glow:#0009;
+}
+:root[data-theme="light"]{
+  --accent:#4257b2;--accent-ink:#fff;
+  --ink:#1d2436;--muted:#4b5670;--subtle:#6a7590;
+  --panel:#f6f8fce6;--panel-line:#1d243626;--chip:#1d243612;--chip-line:#1d24361f;
+  --hover:#1d243614;--danger:#d64545;--warn:#b7791f;--good:#1f9d63;
+  --shade-side:linear-gradient(90deg,#f3f5faf2 0%,#f3f5fac9 38%,#f3f5fa4d 68%,#f3f5fa00 86%);
+  --shade-bottom:linear-gradient(0deg,#f3f5faf5 0%,#f3f5faa8 26%,#f3f5fa00 52%);
+  --shade-top:linear-gradient(180deg,#f3f5fad9 0%,#f3f5fa00 22%);
+  --tile-bg:#dfe4ef;--glow:#1d243633;
+}
+:root[data-theme="glass"]{
+  --panel:#10161e66;--panel-line:#edf7ff38;--chip:#ffffff1c;--chip-line:#ffffff2e;
+  --shade-side:linear-gradient(90deg,#07090dad 0%,#07090d70 40%,#07090d00 78%);
+  --shade-bottom:linear-gradient(0deg,#07090dc4 0%,#07090d66 26%,#07090d00 50%);
+}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit}
+
+/* Сцена рисуется в дизайн-пикселях и масштабируется целиком, как OrionTitleMenu. */
+#stage{position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden;color:var(--ink);font:15px Paradox,sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
+.bg,.bg img,.shade{position:absolute;inset:0;width:100%;height:100%}
+.bg img{object-fit:cover;opacity:0;transform:scale(1.04);transition:opacity .5s ease,transform 6s ease-out}
+.bg img.on{opacity:1;transform:scale(1)}
+.shade{background:var(--shade-top),var(--shade-bottom),var(--shade-side)}
+
+/* Верхняя панель */
+.top{position:absolute;left:64px;right:48px;top:26px;height:40px;display:flex;align-items:center;gap:28px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.3px}
+.brand img{width:26px;height:26px}
+.tabs{display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;background:var(--chip);border:1px solid var(--chip-line)}
+.tab{position:relative;height:32px;padding:0 16px;border:0;border-radius:999px;background:transparent;color:var(--muted);font-weight:600;font-size:14px;cursor:pointer;transition:color .2s,background-color .2s}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--accent-ink)}
+:root[data-theme="dark"] .tab[aria-selected="true"],:root[data-theme="glass"] .tab[aria-selected="true"]{color:#11141b}
+:root[data-theme="light"] .tab[aria-selected="true"]{color:#fff}
+.tabs kbd{margin:0 4px}
+.status{margin-left:auto;display:flex;align-items:center;gap:10px}
+.search{display:flex;align-items:center;gap:8px;height:34px;width:34px;padding:0 9px;border-radius:999px;background:var(--chip);border:1px solid var(--chip-line);overflow:hidden;transition:width .28s cubic-bezier(.2,.8,.2,1)}
+.search.open{width:230px}
+.search svg{flex:none;cursor:pointer}
+.search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:13px}
+.search input::placeholder{color:var(--subtle)}
+.clock{font-weight:600;font-size:15px;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
+.account{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 4px;border-radius:999px;background:var(--chip);border:1px solid var(--chip-line);font-size:13px;font-weight:600;max-width:170px}
+.account span:last-child{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.avatar{flex:none;width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#6b8cff,#a47bff);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;image-rendering:pixelated}
+.icon-btn{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;border:1px solid var(--chip-line);background:var(--chip);cursor:pointer;transition:background-color .18s}
+.icon-btn:hover{background:var(--hover)}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* Лента плиток */
+.rail{position:absolute;left:0;right:0;top:96px;height:150px}
+.tile{position:absolute;left:0;top:27px;width:96px;height:96px;border-radius:16px;background:var(--tile-bg);overflow:hidden;cursor:pointer;transform-origin:0 50%;
+  transition:transform .42s cubic-bezier(.2,.8,.2,1),opacity .3s,box-shadow .25s;box-shadow:0 6px 16px var(--glow)}
+.tile img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.tile img.pixel{image-rendering:pixelated;padding:14px;object-fit:contain}
+.tile .plus{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--chip);border:1.5px dashed var(--chip-line);border-radius:16px}
+.tile .plus svg{width:34px;height:34px;stroke-width:1.6}
+.tile .badge{position:absolute;right:6px;bottom:6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;background:#000a;color:#fff}
+.tile .badge.red{background:#e5484d}
+.tile .badge.warn{background:#d1912a}
+.tile .dot{position:absolute;right:7px;top:7px;width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 2px #0008}
+.tile .dot.off{background:#7a7f8c}
+.tile.focus{box-shadow:0 0 0 3px var(--accent),0 14px 30px var(--glow)}
+.zone-off .tile.focus{box-shadow:0 0 0 2px color-mix(in srgb,var(--ink) 45%,transparent),0 14px 30px var(--glow)}
+.tile.gone{opacity:0;pointer-events:none}
+.focus-label{position:absolute;left:0;top:27px;height:125px;display:flex;flex-direction:column;justify-content:center;width:250px;transition:transform .42s cubic-bezier(.2,.8,.2,1),opacity .25s;pointer-events:none}
+.focus-label strong{font-size:21px;font-weight:700;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.focus-label span{margin-top:4px;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Карточка выбранного */
+.hero{position:absolute;left:64px;top:278px;width:620px}
+.hero.in{animation:heroIn .34s cubic-bezier(.2,.8,.2,1)}
+@keyframes heroIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;min-height:24px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--chip);border:1px solid var(--chip-line);font-size:12px;font-weight:600;color:var(--ink)}
+.chip.red{background:#e5484d2e;border-color:#e5484d66;color:#ff9b9e}
+.chip.warn{background:#d1912a2e;border-color:#d1912a66;color:var(--warn)}
+.chip.good{color:var(--good)}
+:root[data-theme="light"] .chip.red{color:#c0262c}
+h1{margin:14px 0 0;font-size:52px;line-height:58px;font-weight:700;letter-spacing:-1.6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{display:flex;align-items:center;gap:14px;margin-top:8px;color:var(--muted);font-size:14px;font-weight:500;white-space:nowrap}
+.meta b{color:var(--ink);font-weight:600}
+.meta .sep{width:4px;height:4px;border-radius:50%;background:var(--subtle)}
+.desc{margin:14px 0 0;max-width:560px;color:var(--muted);font-size:15px;line-height:22px;min-height:44px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.motd{font-family:Paradox,sans-serif}
+.notice{display:flex;gap:10px;align-items:flex-start;margin-top:14px;padding:10px 12px;border-radius:12px;background:#d1912a24;border:1px solid #d1912a55;color:var(--ink);font-size:13px;line-height:18px;max-width:520px}
+.notice svg{flex:none;color:var(--warn);margin-top:1px}
+.actions{display:flex;align-items:center;gap:10px;margin-top:22px}
+.play{display:flex;align-items:center;gap:10px;height:52px;padding:0 30px 0 24px;border:0;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:17px;font-weight:700;cursor:pointer;transition:transform .18s,box-shadow .2s,filter .2s;box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 35%,transparent)}
+.play svg{width:20px;height:20px;fill:currentColor;stroke:none}
+.play:hover{filter:brightness(1.06)}
+.play:active{transform:scale(.97)}
+.play[disabled]{background:var(--chip);color:var(--subtle);box-shadow:none;cursor:default;filter:none}
+.round{display:flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:50%;border:1px solid var(--chip-line);background:var(--panel);cursor:pointer;transition:background-color .18s,transform .18s}
+.round:hover{background:var(--hover)}
+.round:active{transform:scale(.95)}
+.round svg{width:20px;height:20px}
+.kfocus{outline:3px solid var(--accent);outline-offset:3px}
+
+/* Полка */
+.shelf{position:absolute;left:64px;right:48px;bottom:56px;height:112px}
+.shelf h2{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.2px;display:flex;gap:18px}
+.shelf h2 span b{color:var(--ink);font-weight:600}
+.cards{display:flex;gap:12px}
+.card{display:flex;align-items:center;gap:12px;width:250px;height:76px;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid var(--panel-line);cursor:pointer;transition:transform .2s,background-color .2s,border-color .2s;text-align:left}
+.card:hover{background:color-mix(in srgb,var(--panel) 80%,var(--ink) 8%)}
+.card .thumb{flex:none;width:48px;height:48px;border-radius:10px;object-fit:cover;background:var(--tile-bg);image-rendering:pixelated}
+.card .txt{min-width:0}
+.card strong{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card span{display:block;margin-top:3px;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .stat{font-size:20px;font-weight:700;color:var(--ink);margin:0}
+.card.info{cursor:default}
+.card.focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+:root[data-theme="glass"] .card,:root[data-theme="glass"] .round,:root[data-theme="glass"] .menu-pop,:root[data-theme="glass"] .dialog-box{backdrop-filter:blur(18px) saturate(1.4)}
+
+/* Подсказки клавиш */
+.hints{position:absolute;left:64px;right:48px;bottom:22px;display:flex;gap:22px;color:var(--muted);font-size:12px;font-weight:500}
+.hints span{display:flex;align-items:center;gap:7px}
+kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:6px;border:1px solid var(--chip-line);border-bottom-width:2px;background:var(--chip);color:var(--ink);font:600 11px Paradox,sans-serif}
+
+/* Всплывающее меню, диалог и уведомление */
+.menu-pop{position:absolute;z-index:5;width:230px;padding:6px;border-radius:14px;background:var(--panel);border:1px solid var(--panel-line);box-shadow:0 18px 40px var(--glow);opacity:0;transform:translateY(-6px) scale(.98);transform-origin:0 0;pointer-events:none;transition:opacity .16s,transform .2s cubic-bezier(.2,.8,.2,1)}
+.menu-pop.open{opacity:1;transform:none;pointer-events:auto}
+:root[data-theme="dark"] .menu-pop{background:#191d26f7}
+.mi{display:flex;align-items:center;gap:10px;width:100%;height:38px;padding:0 10px;border:0;border-radius:9px;background:transparent;cursor:pointer;font-size:14px;font-weight:500;text-align:left}
+.mi:hover,.mi.sel{background:var(--hover)}
+.mi.danger{color:var(--danger)}
+.mi svg{width:17px;height:17px;flex:none}
+.mi-sep{height:1px;margin:5px 6px;background:var(--panel-line)}
+.dialog{position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;background:#05070acc;opacity:0;pointer-events:none;transition:opacity .2s}
+:root[data-theme="light"] .dialog{background:#1d243659}
+.dialog.open{opacity:1;pointer-events:auto}
+.dialog-box{width:440px;padding:26px;border-radius:22px;background:var(--panel);border:1px solid var(--panel-line);box-shadow:0 30px 60px var(--glow);transform:scale(.96);transition:transform .24s cubic-bezier(.2,.8,.2,1)}
+:root[data-theme="dark"] .dialog-box{background:#171b23}
+.dialog.open .dialog-box{transform:none}
+.dialog-box h3{margin:0;font-size:22px;font-weight:700;letter-spacing:-.4px}
+.dialog-box p{margin:10px 0 0;color:var(--muted);font-size:14px;line-height:20px}
+.dialog-box .row{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+.btn{height:42px;padding:0 20px;border-radius:999px;border:1px solid var(--chip-line);background:var(--chip);font-weight:600;font-size:14px;cursor:pointer}
+.btn:hover{background:var(--hover)}
+.btn.red{background:var(--danger);border-color:var(--danger);color:#fff}
+.field{display:block;margin-top:14px}
+.field span{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.field input{width:100%;height:42px;padding:0 14px;border-radius:12px;border:1px solid var(--chip-line);background:var(--chip);color:var(--ink);font:inherit;outline:0}
+.field input:focus{border-color:var(--accent)}
+.toast{position:absolute;z-index:9;left:50%;bottom:64px;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;background:var(--panel);border:1px solid var(--panel-line);font-size:14px;font-weight:600;box-shadow:0 14px 30px var(--glow);transform:translate(-50%,16px);opacity:0;pointer-events:none;transition:opacity .2s,transform .3s cubic-bezier(.2,.8,.2,1)}
+:root[data-theme="dark"] .toast{background:#191d26}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.spinner{width:16px;height:16px;border-radius:50%;border:2px solid var(--chip-line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Пустой список */
+.empty{position:absolute;left:64px;top:300px;width:520px}
+.empty h1{font-size:40px;line-height:46px}
+
+/* Пинг */
+.ping{display:inline-flex;align-items:flex-end;gap:2px;height:12px}
+.ping i{display:block;width:3px;border-radius:1px;background:var(--chip-line)}
+.ping i:nth-child(1){height:4px}.ping i:nth-child(2){height:6px}.ping i:nth-child(3){height:9px}.ping i:nth-child(4){height:12px}
+.ping.p4 i,.ping.p3 i:nth-child(-n+3),.ping.p2 i:nth-child(-n+2),.ping.p1 i:nth-child(1){background:var(--good)}
+.ping.p2 i:nth-child(-n+2){background:var(--warn)}
+.ping.p1 i:nth-child(1){background:var(--danger)}
+
+.short .shelf{display:none}
+
+/* Панель превью — не часть игрового интерфейса */
+.dev{position:fixed;right:14px;bottom:14px;z-index:20;font:12px system-ui,sans-serif;color:#e8eaf0}
+.dev>button{height:32px;padding:0 12px;border-radius:999px;border:1px solid #ffffff30;background:#101318ee;color:inherit;font-weight:600;cursor:pointer}
+.dev-panel{position:absolute;right:0;bottom:40px;width:290px;padding:12px;border-radius:14px;background:#101318f5;border:1px solid #ffffff26;box-shadow:0 18px 40px #0009}
+.dev-panel h4{margin:0 0 8px;font-size:11px;font-weight:600;color:#9aa1b2;text-transform:uppercase;letter-spacing:.6px}
+.dev-panel section+section{margin-top:12px}
+.seg{display:flex;gap:3px;padding:3px;border-radius:9px;background:#ffffff10}
+.seg button{flex:1;height:26px;border:0;border-radius:7px;background:transparent;color:#c9cdd8;font:inherit;font-weight:600;cursor:pointer}
+.seg button.on{background:#e8eaf0;color:#101318}
+.swatches{display:flex;gap:6px}
+.swatches button{width:24px;height:24px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.swatches button.on{border-color:#fff}
+.dev label{display:flex;align-items:center;gap:8px;margin-top:6px;color:#c9cdd8;cursor:pointer}
+.dev small{display:block;margin-top:6px;color:#8a90a0;line-height:15px}
+
+/* Имитация ванильного экрана для режима «Ванильное» */
+.vanilla{position:fixed;inset:0;z-index:15;display:flex;flex-direction:column;align-items:center;background:#2b1d12 repeating-linear-gradient(45deg,#3a2817 0 8px,#33230f 8px 16px);font:16px monospace;color:#fff;text-shadow:2px 2px #3f3f3f}
+.vanilla .head{margin:22px 0 10px}
+.vanilla .list{width:min(560px,92vw);flex:1;overflow:auto;background:#000a;border-top:2px solid #000;border-bottom:2px solid #000;padding:6px 0}
+.vanilla .row{display:flex;gap:10px;padding:6px 10px;margin:2px 8px;border:2px solid transparent}
+.vanilla .row.sel{border-color:#fff;background:#0008}
+.vanilla .row i{width:48px;height:48px;background:#556;flex:none}
+.vanilla .row small{display:block;color:#a8a8a8;text-shadow:none}
+.vanilla .btns{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:min(620px,94vw);margin:10px 0 18px}
+.vanilla .btns span{width:200px;height:24px;line-height:22px;text-align:center;background:#6f6f6f;border:2px solid #222;font-size:13px}
+</style>
+</head>
+<body>
+<div id="stage" class="zone-tiles">
+  <div class="bg"><img id="bgA" alt=""><img id="bgB" alt=""><div class="shade"></div></div>
+
+  <header class="top">
+    <div class="brand"><img src="../../src/main/resources/assets/orion-client/textures/cosmetics/orion_badge.png" alt="">GleamClient</div>
+    <nav class="tabs" role="tablist">
+      <kbd>Q</kbd>
+      <button class="tab" role="tab" data-tab="single" aria-selected="true">Одиночная игра</button>
+      <button class="tab" role="tab" data-tab="multi" aria-selected="false">Сетевая игра</button>
+      <kbd>E</kbd>
+    </nav>
+    <div class="status">
+      <label class="search" id="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="query" placeholder="Поиск по названию" tabindex="-1"></label>
+      <div class="account"><span class="avatar">S</span><span>Steve_Builder</span></div>
+      <span class="clock" id="clock">00:00</span>
+      <button class="icon-btn" id="back" title="Назад (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+  </header>
+
+  <section class="rail" id="rail"><div id="track"></div><div class="focus-label" id="label"><strong></strong><span></span></div></section>
+
+  <section class="hero" id="hero">
+    <div class="chips" id="chips"></div>
+    <h1 id="title"></h1>
+    <div class="meta" id="meta"></div>
+    <p class="desc" id="desc"></p>
+    <div class="notice" id="notice" hidden><svg class="i" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4.5m0 3v.01"/></svg><span></span></div>
+    <div class="actions" id="actions">
+      <button class="play" id="play"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg><span>Играть</span></button>
+      <button class="round" id="edit" title="Изменить"><svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg></button>
+      <button class="round" id="more" title="Ещё"><svg class="i" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/></svg></button>
+    </div>
+  </section>
+
+  <section class="empty" id="empty" hidden>
+    <div class="chips"><span class="chip">Пока пусто</span></div>
+    <h1 id="emptyTitle"></h1>
+    <p class="desc" id="emptyDesc"></p>
+    <div class="actions"><button class="play" id="emptyAction"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg><span></span></button></div>
+  </section>
+
+  <section class="shelf" id="shelf"><h2 id="shelfTitle"></h2><div class="cards" id="cards"></div></section>
+
+  <footer class="hints" id="hints"></footer>
+
+  <div class="menu-pop" id="pop" role="menu"></div>
+  <div class="dialog" id="dialog"><div class="dialog-box" id="dialogBox"></div></div>
+  <div class="toast" id="toast"><span class="spinner" id="toastSpin"></span><span id="toastText"></span></div>
+</div>
+
+<div class="vanilla" id="vanilla" hidden>
+  <div class="head" id="vanillaHead">Выбор мира</div>
+  <div class="list" id="vanillaList"></div>
+  <div class="btns" id="vanillaBtns"></div>
+</div>
+
+<div class="dev" id="dev">
+  <div class="dev-panel" id="devPanel" hidden>
+    <section><h4>Настройки GleamClient → Интерфейс</h4>
+      <div style="margin-bottom:6px;color:#c9cdd8">Меню одиночной и сетевой игры</div>
+      <div class="seg" id="segStyle"><button data-v="gleam" class="on">GleamClient</button><button data-v="vanilla">Ванильное</button></div>
+      <small>Так переключатель будет выглядеть в клиенте. «Ванильное» открывает стандартные экраны Minecraft.</small>
+    </section>
+    <section><h4>Тема</h4><div class="seg" id="segTheme"><button data-v="dark" class="on">Тёмная</button><button data-v="light">Светлая</button><button data-v="glass">Стекло</button></div></section>
+    <section><h4>Акцент</h4><div class="swatches" id="swatches"></div></section>
+    <section><h4>Проверка вёрстки</h4>
+      <label><input type="checkbox" id="optEmpty"> Пустой список</label>
+      <label><input type="checkbox" id="optLong"> Длинные названия</label>
+    </section>
+  </div>
+  <button id="devToggle">Превью ▾</button>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const IMG = '../../src/main/resources/assets/orion-client/textures/gui/gleam_title_panorama.png';
+const SHOTS = ['launcher-background-26-3.webp','launcher-background-26-2.webp','launcher-background-26-1-2.webp',
+  'launcher-background-1-21-11.webp','launcher-background-1-21-4.webp','launcher-background-1-16-5.webp',
+  '../assets/gameplay-baseline.webp','../assets/gameplay-orion.webp'];
+
+// Пиксельные иконки серверов: симметричный узор 8×8 из сида (как у favicon сервера 64×64).
+function pixelIcon(seed, palette) {
+  const c = document.createElement('canvas'); c.width = c.height = 8;
+  const g = c.getContext('2d'); let s = seed * 9301 + 49297;
+  const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+  g.fillStyle = palette[0]; g.fillRect(0, 0, 8, 8);
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 4; x++) {
+    const r = rnd(); if (r < .38) continue;
+    g.fillStyle = palette[1 + Math.floor(r * 10) % (palette.length - 1)];
+    g.fillRect(x, y, 1, 1); g.fillRect(7 - x, y, 1, 1);
+  }
+  return c.toDataURL();
+}
+
+const WORLDS = [
+  {name:'Лесной хутор', mode:'Выживание', diff:'Нормальная', version:'26.3', played:'Сегодня, 14:12', size:'412 МБ', time:'38 ч', shot:0,
+   desc:'Дом у реки, ферма на 4 культуры и шахта до глубинного сланца. Последнее сохранение — у портала в Незер.', cheats:false},
+  {name:'Город на побережье', mode:'Творческий', diff:'Мирная', version:'26.3', played:'Вчера, 22:40', size:'1,8 ГБ', time:'112 ч', shot:6,
+   desc:'Мегапроект: порт, метро и небоскрёбы. Команды включены.', cheats:true},
+  {name:'Хардкор #3', mode:'Хардкор', diff:'Сложная', version:'26.3', played:'3 дня назад', size:'96 МБ', time:'9 ч', shot:1, hardcore:true,
+   desc:'Одна жизнь. Предыдущие две попытки закончились в Незере.'},
+  {name:'Паркур от друзей', mode:'Приключение', diff:'Нормальная', version:'26.2', played:'12 нояб.', size:'38 МБ', time:'2 ч', shot:2,
+   desc:'Карта из 40 уровней с чекпоинтами.'},
+  {name:'Старый мир', mode:'Выживание', diff:'Нормальная', version:'1.20.1', played:'2 года назад', size:'2,4 ГБ', time:'410 ч', shot:5, upgrade:true,
+   desc:'Самый первый мир. Тут ещё стоит деревянный дом из первой ночи.'},
+  {name:'Скайблок', mode:'Выживание', diff:'Лёгкая', version:'26.3', played:'1 нояб.', size:'12 МБ', time:'5 ч', shot:3,
+   desc:'Один остров, одно дерево и сундук с лавой.'},
+  {name:'Тестовый мир', mode:'Творческий', diff:'Мирная', version:'26.3', played:'28 окт.', size:'64 МБ', time:'1 ч', shot:4, cheats:true,
+   desc:'Редстоун-схемы и проверка модулей GleamClient.'},
+];
+const SERVERS = [
+  {name:'Gleam SMP', address:'smp.gleam.example', motd:'§aВыживание без вайпов §7| §eСезон 4 открыт!', online:186, max:500, ping:38, version:'1.21.11–26.3', shot:0, icon:[3,['#1f2b46','#a9b4ff','#6b8cff','#ffffff']]},
+  {name:'Мини-игры', address:'play.minigames.example', motd:'§bBedWars §f• §dSkyWars §f• §6Duels', online:2481, max:5000, ping:61, version:'1.8–26.3', shot:6, icon:[7,['#2a1640','#ff7ad9','#ffd36b','#8a5cff']]},
+  {name:'Анархия', address:'anarchy.example', motd:'§cНет правил. §7Нет вайпов.', online:93, max:200, ping:142, version:'26.3', shot:1, icon:[11,['#1a0f0f','#ff5c5c','#7a2a2a','#f2f2f2']]},
+  {name:'Сервер класса', address:'192.168.0.40:25565', motd:'§7Только для своих', online:4, max:20, ping:9, version:'26.3', shot:2, icon:[5,['#0f2a22','#6fe0a0','#2f8a5f','#d8ffe9']]},
+  {name:'Старый сервер', address:'legacy.example', motd:'§7Сервер на 1.20.4', online:12, max:100, ping:77, version:'1.20.4', shot:5, incompatible:true, icon:[2,['#2b2416','#d1a35a','#7a5c2a','#f5e3bf']]},
+  {name:'localhost', address:'localhost', motd:'', online:0, max:0, ping:-1, version:'', shot:4, offline:true, icon:[9,['#1b1e26','#5d6475','#8a90a0','#3a3f4c']]},
+];
+const LAN = [{name:'Мир игрока Alex', sub:'LAN · 192.168.0.12:51734', shot:3}];
+const FRIENDS = [{name:'Nyx — «Остров»', sub:'Миры друзей · 2 игрока', shot:2},{name:'Kira — «Шахты»', sub:'Миры друзей · приглашение', shot:7}];
+
+const LONG = 'Очень длинное название мира, которое не помещается в одну строку интерфейса';
+const MOTD = {'0':'#000','1':'#00a','2':'#0a0','3':'#0aa','4':'#a00','5':'#a0a','6':'#fa0','7':'#aaa','8':'#555','9':'#55f',a:'#5f5',b:'#5ff',c:'#f55',d:'#f5f',e:'#ff5',f:'#fff'};
+
+const state = {tab:'single', focus:{single:1, multi:1}, zone:'tiles', action:0, card:0, query:'', empty:false, long:false, bg:0, menu:null, dialog:null};
+for (const s of SERVERS) s.iconUrl = pixelIcon(...s.icon);
+
+// ——— масштаб сцены ———
+const stage = $('stage');
+function layoutStage() {
+  const w = innerWidth, h = innerHeight;
+  const scale = Math.min(2, Math.max(.6, Math.min(w / 1280, h / 720)));
+  stage.style.width = w / scale + 'px'; stage.style.height = h / scale + 'px';
+  stage.style.transform = `scale(${scale})`;
+  stage.classList.toggle('short', h / scale < 690);
+  placeTiles();
+}
+
+// ——— данные текущего раздела ———
+function items() {
+  if (state.empty) return [];
+  const list = state.tab === 'single' ? WORLDS : SERVERS;
+  const q = state.query.trim().toLowerCase();
+  return list.map((it, i) => state.long && i === 1 ? {...it, name: LONG} : it)
+    .filter(it => !q || it.name.toLowerCase().includes(q) || (it.address || '').includes(q));
+}
+function entries() { return [{create:true}, ...items()]; }
+function current() { const e = entries(); return e[Math.min(state.focus[state.tab], e.length - 1)]; }
+
+// ——— плитки ———
+const track = $('track'), label = $('label');
+const BASE = 96, BIG = 125, GAP = 18, STEP = BASE + GAP, LEFT = 64, LABEL = 280;
+function buildTiles() {
+  track.innerHTML = '';
+  entries().forEach((it, i) => {
+    const t = document.createElement('div'); t.className = 'tile'; t.dataset.i = i;
+    if (it.create) {
+      t.innerHTML = '<div class="plus"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>';
+    } else if (state.tab === 'single') {
+      t.innerHTML = `<img src="${SHOTS[it.shot]}" alt="">` + (it.hardcore ? '<span class="badge red">♥</span>' : it.upgrade ? '<span class="badge warn">!</span>' : '');
+    } else {
+      t.innerHTML = `<img class="pixel" src="${it.iconUrl}" alt=""><span class="dot${it.offline || it.incompatible ? ' off' : ''}"></span>`;
+    }
+    t.addEventListener('click', () => {
+      if (state.focus[state.tab] === i && state.zone === 'tiles') activate(); else { state.zone = 'tiles'; setFocus(i); }
+    });
+    t.addEventListener('dblclick', () => activate());
+    track.append(t);
+  });
+}
+function placeTiles() {
+  const f = state.focus[state.tab], anchor = Math.max(0, f - 1);
+  [...track.children].forEach((t, i) => {
+    const x = LEFT + (i - anchor) * STEP + (i > f ? (BIG - BASE) + LABEL : 0);
+    const s = i === f ? BIG / BASE : 1;
+    t.style.transform = `translate(${x}px, ${i === f ? -(BIG - BASE) / 2 : 0}px) scale(${s})`;
+    t.classList.toggle('focus', i === f);
+    t.classList.toggle('gone', x < -BASE);
+  });
+  const it = current();
+  label.style.transform = `translate(${LEFT + (f - anchor) * STEP + BIG + 22}px, -14px)`;
+  label.querySelector('strong').textContent = it ? (it.create ? (state.tab === 'single' ? 'Создать мир' : 'Добавить сервер') : it.name) : '';
+  label.querySelector('span').textContent = !it ? '' : it.create
+    ? (state.tab === 'single' ? 'Новый мир с нуля' : 'По адресу или из списка')
+    : state.tab === 'single' ? `${it.mode} · ${it.played}` : (it.offline ? 'Нет соединения' : `${fmt(it.online)} игроков`);
+}
+
+// ——— карточка выбранного ———
+const fmt = n => n.toLocaleString('ru-RU');
+function motd(text) {
+  const [head, ...parts] = text.split('§');
+  return esc(head) + parts.map(part => {
+    const rest = esc(part.slice(1)), color = MOTD[part[0]];
+    return color ? `<span style="color:${color}">${rest}</span>` : rest;
+  }).join('');
+}
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function ping(ms) {
+  const lvl = ms < 0 ? 0 : ms < 60 ? 4 : ms < 120 ? 3 : ms < 250 ? 2 : 1;
+  return `<span class="ping p${lvl}"><i></i><i></i><i></i><i></i></span>`;
+}
+const sep = '<span class="sep"></span>';
+function renderHero() {
+  const it = current(), single = state.tab === 'single';
+  $('hero').hidden = !it || state.empty; $('empty').hidden = !state.empty;
+  if (state.empty) {
+    $('emptyTitle').textContent = single ? 'Здесь появятся ваши миры' : 'Добавьте первый сервер';
+    $('emptyDesc').textContent = single ? 'Создайте мир — он откроется сразу после генерации.' : 'Введите адрес сервера или подключитесь напрямую без сохранения.';
+    $('emptyAction').querySelector('span').textContent = single ? 'Создать мир' : 'Добавить сервер';
+    setBackground(IMG); return;
+  }
+  if (!it) return;
+  const chips = [], meta = [];
+  let desc = '', notice = '', playText = single ? 'Играть' : 'Подключиться', disabled = false;
+  if (it.create) {
+    chips.push('<span class="chip">' + (single ? 'Новый мир' : 'Новый сервер') + '</span>');
+    $('title').textContent = single ? 'Создать мир' : 'Добавить сервер';
+    meta.push(single ? 'Выживание, творческий или хардкор' : 'Сохраняется в списке серверов');
+    desc = single ? 'Выберите режим, сид и правила мира. Можно сразу включить команды и импортировать набор данных.'
+      : 'Введите название и адрес. Для разового входа используйте «Прямое подключение».';
+    playText = single ? 'Создать' : 'Добавить';
+    setBackground(IMG);
+  } else if (single) {
+    if (it.hardcore) chips.push('<span class="chip red">♥ Хардкор</span>'); else chips.push(`<span class="chip">${it.mode}</span>`);
+    if (it.cheats) chips.push('<span class="chip">Команды</span>');
+    if (it.upgrade) chips.push('<span class="chip warn">Мир из ' + it.version + '</span>');
+    $('title').textContent = it.name;
+    meta.push(`<b>${it.played}</b>`, `Сложность: ${it.diff}`, `Версия ${it.version}`);
+    desc = it.desc;
+    if (it.upgrade) { notice = 'Мир создан в Minecraft 1.20.1. Перед открытием в 26.3 будет сделана резервная копия.'; playText = 'Копия и запуск'; }
+    setBackground(SHOTS[it.shot]);
+  } else {
+    if (it.offline) chips.push('<span class="chip red">Нет соединения</span>');
+    else if (it.incompatible) chips.push('<span class="chip warn">Версия ' + it.version + '</span>');
+    else chips.push(`<span class="chip good">● В сети</span>`);
+    chips.push(`<span class="chip">${esc(it.address)}</span>`);
+    $('title').textContent = it.name;
+    if (it.offline) meta.push('Сервер не ответил на запрос');
+    else meta.push(`<b>${fmt(it.online)}</b> / ${fmt(it.max)} игроков`, `${ping(it.ping)} ${it.ping} мс`, `Версия ${it.version}`);
+    desc = it.motd ? `<span class="motd">${motd(it.motd)}</span>` : '';
+    if (it.incompatible) { notice = 'Сервер работает на 1.20.4. Подключение из 26.3 невозможно без прокси с поддержкой версий.'; disabled = true; }
+    if (it.offline) playText = 'Повторить';
+    setBackground(SHOTS[it.shot]);
+  }
+  $('chips').innerHTML = chips.join('');
+  $('meta').innerHTML = meta.join(sep);
+  $('desc').innerHTML = desc && !desc.startsWith('<') ? esc(desc) : desc;
+  $('notice').hidden = !notice; $('notice').querySelector('span').textContent = notice;
+  $('play').querySelector('span').textContent = playText; $('play').disabled = disabled;
+  $('edit').hidden = !!it.create; $('more').hidden = !!it.create;
+  const hero = $('hero'); hero.classList.remove('in'); void hero.offsetWidth; hero.classList.add('in');
+  renderShelf();
+}
+function setBackground(src) {
+  const a = $('bgA'), b = $('bgB'), on = state.bg ? b : a, off = state.bg ? a : b;
+  if (on.getAttribute('src') === src && on.classList.contains('on')) return;
+  off.src = src; off.onload = () => { off.classList.add('on'); on.classList.remove('on'); };
+  state.bg ^= 1;
+}
+
+// ——— полка ———
+function shelfCards() {
+  const it = current();
+  if (state.tab === 'multi') return [...LAN.map(l => ({...l, kind:'lan'})), ...FRIENDS.map(f => ({...f, kind:'friend'}))];
+  if (!it || it.create) return [];
+  return [
+    {stat:it.time, sub:'Время в мире', info:true},
+    {stat:it.size, sub:'Размер на диске', info:true},
+    {name:'Резервная копия', sub:'Сохранить ZIP рядом с миром', kind:'backup'},
+    {name:'Открыть папку', sub:'saves/' + it.name.replace(/\s+/g, '_').slice(0, 20), kind:'folder'},
+  ];
+}
+function renderShelf() {
+  const cards = shelfCards();
+  $('shelf').hidden = !cards.length;
+  $('shelfTitle').innerHTML = state.tab === 'multi'
+    ? '<span><b>В локальной сети</b> · 1</span><span><b>Миры друзей</b> · 2</span>' : '<span><b>О мире</b></span>';
+  $('cards').innerHTML = cards.map((c, i) => c.info
+    ? `<div class="card info" data-i="${i}"><div class="txt"><p class="stat">${c.stat}</p><span>${c.sub}</span></div></div>`
+    : `<button class="card" data-i="${i}">${c.shot !== undefined ? `<img class="thumb" src="${SHOTS[c.shot]}" alt="">`
+      : `<span class="thumb" style="display:flex;align-items:center;justify-content:center"><svg class="i" viewBox="0 0 24 24">${c.kind === 'backup' ? '<path d="M12 4v11m-4-4 4 4 4-4M5 19h14"/>' : '<path d="M4 7h6l2 2h8v9H4z"/>'}</svg></span>`}
+      <span class="txt"><strong>${esc(c.name)}</strong><span>${esc(c.sub)}</span></span></button>`).join('');
+  [...$('cards').querySelectorAll('button.card')].forEach(b => b.addEventListener('click', () => { state.zone = 'shelf'; state.card = +b.dataset.i; shelfActivate(); }));
+  syncZone();
+}
+function shelfActivate() {
+  const c = shelfCards()[state.card]; if (!c || c.info) return;
+  if (c.kind === 'lan' || c.kind === 'friend') toast(`Подключение к «${c.name}»…`, true);
+  else if (c.kind === 'backup') toast('Резервная копия сохранена');
+  else toast('Папка мира открыта в проводнике');
+}
+
+// ——— фокус и зоны ———
+function setFocus(i) {
+  const n = entries().length; if (!n) return;
+  state.focus[state.tab] = Math.max(0, Math.min(n - 1, i));
+  placeTiles(); renderHero(); hints();
+}
+function actionButtons() { return [$('play'), $('edit'), $('more')].filter(b => !b.hidden && !b.disabled); }
+function focusableCards() { return [...$('cards').children].filter(c => !c.classList.contains('info')); }
+function syncZone() {
+  stage.classList.toggle('zone-off', state.zone !== 'tiles');
+  document.querySelectorAll('.kfocus').forEach(e => e.classList.remove('kfocus'));
+  document.querySelectorAll('.card.focus').forEach(e => e.classList.remove('focus'));
+  if (state.zone === 'actions') { const b = actionButtons(); state.action = Math.min(state.action, b.length - 1); b[state.action]?.classList.add('kfocus'); }
+  if (state.zone === 'shelf') { const c = $('cards').children[state.card]; c?.classList.add('focus'); }
+  hints();
+}
+function moveZone(dir) {
+  const zones = ['tiles', 'actions', ...(!$('shelf').hidden && focusableCards().length && !stage.classList.contains('short') ? ['shelf'] : [])];
+  const i = zones.indexOf(state.zone), next = zones[Math.max(0, Math.min(zones.length - 1, i + dir))];
+  if (next === state.zone) return;
+  state.zone = next;
+  if (next === 'shelf') state.card = +focusableCards()[0].dataset.i;
+  if (next === 'actions') state.action = 0;
+  syncZone();
+}
+function moveWithin(dir) {
+  if (state.zone === 'tiles') setFocus(state.focus[state.tab] + dir);
+  else if (state.zone === 'actions') { const n = actionButtons().length; state.action = Math.max(0, Math.min(n - 1, state.action + dir)); syncZone(); }
+  else { const idx = focusableCards().map(c => +c.dataset.i), p = idx.indexOf(state.card); state.card = idx[Math.max(0, Math.min(idx.length - 1, p + dir))]; syncZone(); }
+}
+function activate() {
+  if (state.zone === 'shelf') return shelfActivate();
+  if (state.zone === 'actions') { const b = actionButtons()[state.action]; return b?.click(); }
+  $('play').click();
+}
+
+// ——— действия ———
+$('play').addEventListener('click', () => {
+  const it = current(), single = state.tab === 'single';
+  if (state.empty || !it) return;
+  if (it.create) return single ? openCreate() : openServerForm();
+  if (single) toast(it.upgrade ? 'Создаём резервную копию и открываем мир…' : `Загрузка мира «${it.name}»…`, true);
+  else if (it.offline) toast('Повторный запрос статуса…', true);
+  else toast(`Подключение к ${it.address}…`, true);
+});
+$('emptyAction').addEventListener('click', () => state.tab === 'single' ? openCreate() : openServerForm());
+$('edit').addEventListener('click', () => state.tab === 'single' ? openRename() : openServerForm(current()));
+$('more').addEventListener('click', () => openMenu());
+
+const ICON = {
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>', copy:'<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V5h10"/>',
+  backup:'<path d="M12 4v11m-4-4 4 4 4-4M5 19h14"/>', folder:'<path d="M4 7h6l2 2h8v9H4z"/>', refresh:'<path d="M19 11a7 7 0 1 0-2 5.5M19 5v6h-6"/>',
+  left:'<path d="m14 6-6 6 6 6"/>', right:'<path d="m10 6 6 6-6 6"/>', trash:'<path d="M5 7h14M10 7V5h4v2m-7 0 1 12h8l1-12"/>', link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  recreate:'<path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4"/>'
+};
+function menuItems() {
+  return state.tab === 'single' ? [
+    ['edit','Переименовать', openRename], ['backup','Резервная копия', () => toast('Резервная копия сохранена')],
+    ['folder','Открыть папку', () => toast('Папка мира открыта в проводнике')], ['recreate','Пересоздать с теми же настройками', () => toast('Открыт экран создания мира с настройками')],
+    null, ['trash','Удалить мир', confirmDelete, true]]
+  : [
+    ['edit','Изменить', () => openServerForm(current())], ['refresh','Обновить статус', () => toast('Статус обновлён')],
+    ['link','Прямое подключение', openDirect], ['left','Переместить левее', () => moveServer(-1)], ['right','Переместить правее', () => moveServer(1)],
+    null, ['trash','Удалить сервер', confirmDelete, true]];
+}
+function openMenu() {
+  const pop = $('pop'), r = $('more'), list = menuItems();
+  pop.innerHTML = list.map((m, i) => m ? `<button class="mi${m[3] ? ' danger' : ''}" data-i="${i}"><svg class="i" viewBox="0 0 24 24">${ICON[m[0]]}</svg>${m[1]}</button>` : '<div class="mi-sep"></div>').join('');
+  pop.style.left = r.offsetLeft + $('hero').offsetLeft + 'px';
+  pop.style.top = $('hero').offsetTop + $('actions').offsetTop + 60 + 'px';
+  pop.classList.add('open');
+  state.menu = {sel: 0, list};
+  [...pop.querySelectorAll('.mi')].forEach(b => b.addEventListener('click', () => { closeMenu(); list[+b.dataset.i][2](); }));
+  menuSel(0);
+}
+function menuSel(d) {
+  const btns = [...$('pop').querySelectorAll('.mi')];
+  state.menu.sel = (state.menu.sel + d + btns.length) % btns.length;
+  btns.forEach((b, i) => b.classList.toggle('sel', i === state.menu.sel));
+}
+function closeMenu() { $('pop').classList.remove('open'); state.menu = null; }
+function moveServer(dir) {
+  const i = state.focus.multi - 1, j = i + dir;
+  if (j < 0 || j >= SERVERS.length) return;
+  [SERVERS[i], SERVERS[j]] = [SERVERS[j], SERVERS[i]];
+  state.focus.multi = j + 1; buildTiles(); placeTiles(); renderHero();
+}
+
+function dialog(html, onOpen) {
+  $('dialogBox').innerHTML = html; $('dialog').classList.add('open'); state.dialog = true;
+  onOpen?.($('dialogBox'));
+}
+function closeDialog() { $('dialog').classList.remove('open'); state.dialog = null; }
+$('dialog').addEventListener('click', e => { if (e.target === $('dialog')) closeDialog(); });
+function confirmDelete() {
+  const it = current(), single = state.tab === 'single';
+  dialog(`<h3>${single ? 'Удалить мир' : 'Удалить сервер'} «${esc(it.name)}»?</h3>
+    <p>${single ? 'Мир будет удалён с диска без возможности восстановления. Сначала можно сделать резервную копию.' : 'Сервер исчезнет из списка. Его можно добавить заново по адресу.'}</p>
+    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn red" id="dOk">Удалить</button></div>`, box => {
+    box.querySelector('#dCancel').onclick = closeDialog;
+    box.querySelector('#dOk').onclick = () => {
+      const list = single ? WORLDS : SERVERS, idx = list.indexOf(it);
+      if (idx >= 0) list.splice(idx, 1);
+      closeDialog(); buildTiles(); setFocus(state.focus[state.tab]); toast(single ? 'Мир удалён' : 'Сервер удалён');
+    };
+    box.querySelector('#dCancel').focus();
+  });
+}
+function openRename() {
+  const it = current();
+  dialog(`<h3>Переименовать мир</h3><label class="field"><span>Название</span><input id="dName" value="${esc(it.name)}" maxlength="64"></label>
+    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">Сохранить</button></div>`, box => {
+    const input = box.querySelector('#dName'); input.focus(); input.select();
+    box.querySelector('#dCancel').onclick = closeDialog;
+    box.querySelector('#dOk').onclick = () => { it.name = input.value.trim() || it.name; closeDialog(); placeTiles(); renderHero(); };
+  });
+}
+function openServerForm(server) {
+  dialog(`<h3>${server ? 'Изменить сервер' : 'Добавить сервер'}</h3>
+    <label class="field"><span>Название</span><input id="dName" value="${server ? esc(server.name) : 'Сервер Minecraft'}"></label>
+    <label class="field"><span>Адрес</span><input id="dAddr" value="${server ? esc(server.address) : ''}" placeholder="play.example.com"></label>
+    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">${server ? 'Сохранить' : 'Добавить'}</button></div>`, box => {
+    box.querySelector(server ? '#dName' : '#dAddr').focus();
+    box.querySelector('#dCancel').onclick = closeDialog;
+    box.querySelector('#dOk').onclick = () => {
+      const name = box.querySelector('#dName').value.trim(), address = box.querySelector('#dAddr').value.trim();
+      if (!address) return box.querySelector('#dAddr').focus();
+      if (server) Object.assign(server, {name: name || address, address});
+      else { SERVERS.push({name: name || address, address, motd:'§7Запрос статуса…', online:0, max:0, ping:-1, version:'', shot:7, offline:true, icon:[SERVERS.length + 13, ['#1b2230','#a9b4ff','#5d6475','#e8eaf0']]}); SERVERS.at(-1).iconUrl = pixelIcon(...SERVERS.at(-1).icon); state.focus.multi = SERVERS.length; }
+      closeDialog(); buildTiles(); placeTiles(); renderHero();
+    };
+  });
+}
+function openDirect() {
+  dialog(`<h3>Прямое подключение</h3><p>Сервер не будет сохранён в списке.</p><label class="field"><span>Адрес</span><input id="dAddr" placeholder="play.example.com"></label>
+    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">Подключиться</button></div>`, box => {
+    const input = box.querySelector('#dAddr'); input.focus();
+    box.querySelector('#dCancel').onclick = closeDialog;
+    box.querySelector('#dOk').onclick = () => { if (!input.value.trim()) return input.focus(); closeDialog(); toast(`Подключение к ${input.value.trim()}…`, true); };
+  });
+}
+function openCreate() {
+  dialog(`<h3>Создать мир</h3><label class="field"><span>Название мира</span><input id="dName" value="Новый мир"></label>
+    <p style="margin-top:14px">Режим, сложность, сид и правила — на следующем шаге. В первой версии он откроет стандартный экран создания мира Minecraft.</p>
+    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">Далее</button></div>`, box => {
+    const input = box.querySelector('#dName'); input.focus(); input.select();
+    box.querySelector('#dCancel').onclick = closeDialog;
+    box.querySelector('#dOk').onclick = () => { closeDialog(); toast(`Генерация мира «${input.value.trim() || 'Новый мир'}»…`, true); };
+  });
+}
+let toastTimer;
+function toast(text, busy) {
+  $('toastText').textContent = text; $('toastSpin').hidden = !busy;
+  $('toast').classList.add('show'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('toast').classList.remove('show'), busy ? 2600 : 1800);
+}
+
+// ——— разделы и поиск ———
+function setTab(tab) {
+  if (tab === state.tab) return;
+  state.tab = tab; state.zone = 'tiles'; closeMenu();
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === tab));
+  buildTiles(); placeTiles(); renderHero(); syncZone(); renderVanilla();
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+const search = $('search'), query = $('query');
+search.querySelector('svg').addEventListener('click', () => openSearch());
+function openSearch() { search.classList.add('open'); query.tabIndex = 0; query.focus(); }
+function closeSearch() { search.classList.remove('open'); query.blur(); query.tabIndex = -1; if (state.query) { query.value = state.query = ''; refresh(); } }
+query.addEventListener('input', () => { state.query = query.value; state.focus[state.tab] = entries().length > 1 ? 1 : 0; refresh(); });
+function refresh() { buildTiles(); placeTiles(); renderHero(); }
+$('back').addEventListener('click', () => toast('Возврат в главное меню'));
+
+// ——— подсказки ———
+function hints() {
+  const list = state.dialog ? [['Enter','Подтвердить'],['Esc','Отмена']]
+    : state.menu ? [['↑↓','Выбрать'],['Enter','Выполнить'],['Esc','Закрыть']]
+    : [['← →','Выбрать'],['↑ ↓','Перейти'],['Enter', state.tab === 'single' ? 'Играть' : 'Подключиться'],['Q E','Раздел'],['/','Поиск'],
+       ...(current() && !current().create ? [['Del','Удалить']] : []), ...(state.tab === 'multi' ? [['F5','Обновить']] : []), ['Esc','Назад']];
+  $('hints').innerHTML = list.map(([k, t]) => `<span><kbd>${k}</kbd>${t}</span>`).join('');
+}
+
+// ——— клавиатура и колесо ———
+addEventListener('keydown', e => {
+  if (!$('vanilla').hidden) return;
+  if (state.dialog) {
+    if (e.key === 'Escape') closeDialog();
+    if (e.key === 'Enter') $('dialogBox').querySelector('#dOk')?.click();
+    return;
+  }
+  if (document.activeElement === query) {
+    if (e.key === 'Escape') { e.preventDefault(); closeSearch(); }
+    if (e.key === 'Enter' || e.key === 'ArrowDown') { query.blur(); }
+    return;
+  }
+  if (state.menu) {
+    if (e.key === 'ArrowDown') menuSel(1); else if (e.key === 'ArrowUp') menuSel(-1);
+    else if (e.key === 'Enter') $('pop').querySelectorAll('.mi')[state.menu.sel].click();
+    else if (e.key === 'Escape') closeMenu();
+    e.preventDefault(); hints(); return;
+  }
+  const k = e.key;
+  if (k === 'ArrowRight') moveWithin(1);
+  else if (k === 'ArrowLeft') moveWithin(-1);
+  else if (k === 'ArrowDown') moveZone(1);
+  else if (k === 'ArrowUp') moveZone(-1);
+  else if (k === 'Enter' || k === ' ') activate();
+  else if (k === 'q' || k === 'Q' || k === 'й' || k === 'Й') setTab('single');
+  else if (k === 'e' || k === 'E' || k === 'у' || k === 'У') setTab('multi');
+  else if (k === 'Tab') setTab(state.tab === 'single' ? 'multi' : 'single');
+  else if (k === '/') openSearch();
+  else if (k === 'Delete' && current() && !current().create) confirmDelete();
+  else if (k === 'F5' && state.tab === 'multi') toast('Статус серверов обновлён');
+  else if (k === 'Escape') { if (state.zone !== 'tiles') { state.zone = 'tiles'; syncZone(); } else toast('Возврат в главное меню'); }
+  else return;
+  e.preventDefault();
+});
+let wheel = 0;
+$('rail').addEventListener('wheel', e => {
+  e.preventDefault(); wheel += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if (Math.abs(wheel) >= 60) { state.zone = 'tiles'; setFocus(state.focus[state.tab] + Math.sign(wheel)); wheel = 0; syncZone(); }
+}, {passive:false});
+document.addEventListener('click', e => { if (state.menu && !$('pop').contains(e.target) && !$('more').contains(e.target)) closeMenu(); });
+
+// ——— часы ———
+function tick() { const d = new Date(); $('clock').textContent = d.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'}); }
+tick(); setInterval(tick, 15000);
+
+// ——— панель превью ———
+$('devToggle').onclick = () => $('devPanel').hidden = !$('devPanel').hidden;
+function seg(id, fn) { $(id).querySelectorAll('button').forEach(b => b.onclick = () => { $(id).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); fn(b.dataset.v); }); }
+seg('segTheme', v => { document.documentElement.dataset.theme = v; applyAccent(); });
+seg('segStyle', v => { $('vanilla').hidden = v !== 'vanilla'; renderVanilla(); });
+const ACCENTS = [['#a9b4ff','#4257b2'],['#7ee0c0','#16865f'],['#ffb37a','#b4561a'],['#ff8fb4','#b42a5c'],['#e8eaf0','#2b3346']];
+let accentIndex = 0;
+function applyAccent() {
+  const [dark, light] = ACCENTS[accentIndex], isLight = document.documentElement.dataset.theme === 'light';
+  document.documentElement.style.setProperty('--accent', isLight ? light : dark);
+  document.documentElement.style.setProperty('--accent-ink', isLight ? '#fff' : '#161a24');
+}
+$('swatches').innerHTML = ACCENTS.map((a, i) => `<button style="background:${a[0]}" data-i="${i}" class="${i ? '' : 'on'}"></button>`).join('');
+$('swatches').querySelectorAll('button').forEach(b => b.onclick = () => { accentIndex = +b.dataset.i; $('swatches').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); applyAccent(); });
+$('optEmpty').onchange = e => { state.empty = e.target.checked; state.focus[state.tab] = 0; refresh(); syncZone(); };
+$('optLong').onchange = e => { state.long = e.target.checked; refresh(); };
+function renderVanilla() {
+  const single = state.tab === 'single';
+  $('vanillaHead').textContent = single ? 'Выбор мира' : 'Сетевая игра';
+  $('vanillaList').innerHTML = (single ? WORLDS : SERVERS).map((it, i) =>
+    `<div class="row${i ? '' : ' sel'}"><i style="background:url('${single ? SHOTS[it.shot] : it.iconUrl}') center/cover;image-rendering:pixelated"></i><div>${esc(it.name)}<small>${single ? `${it.mode}, ${it.played}` : esc(it.address)}</small></div></div>`).join('');
+  $('vanillaBtns').innerHTML = (single ? ['Играть','Создать мир','Изменить','Удалить','Пересоздать','Отмена'] : ['Подключиться','Прямое подключение','Добавить','Изменить','Удалить','Обновить','Назад'])
+    .map(t => `<span>${t}</span>`).join('');
+}
+
+buildTiles(); layoutStage(); renderHero(); renderVanilla(); hints();
+addEventListener('resize', layoutStage);
+</script>
+</body>
+</html>
