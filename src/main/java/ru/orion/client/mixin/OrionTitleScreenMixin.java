@@ -104,7 +104,6 @@ abstract class OrionTitleScreenMixin extends Screen {
         Component message = Component.translatable(label);
         for (var listener : children()) {
             if (listener instanceof Button button && button.active && message.equals(button.getMessage())) {
-                button.playDownSound(minecraft.getSoundManager());
                 button.onPress(new KeyEvent(InputConstants.KEY_RETURN, 0, 0));
                 return;
             }

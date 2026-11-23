@@ -1,14 +1,20 @@
 //~ legacy_gui
 package ru.orion.client.gui;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.User;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.network.chat.Component;
 import ru.orion.client.GleamMinecraft;
@@ -24,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -34,12 +41,16 @@ import java.util.function.Consumer;
 
 public final class OrionMinecraftAccountsScreen extends Screen {
     private static final int ROW_HEIGHT = 25;
+    private final OrionLumenView view = new OrionLumenView("minecraft-accounts.html", "minecraft_accounts",
+            "/assets/orion-client/fonts/paradox/ParadoxSans-Regular.ttf");
     private final Screen parent;
     private final List<Profile> profiles = new ArrayList<>();
     private final Path executable = helperExecutable();
     private Worker worker;
     private Page page;
     private boolean started, busy, disposed;
+    private boolean html, htmlDirty = true;
+    private float htmlScale = 1F;
     private String name = "", code = "", status = "";
     private int firstProfile;
     private long pollAt = Long.MAX_VALUE;
@@ -60,11 +71,13 @@ public final class OrionMinecraftAccountsScreen extends Screen {
     @Override
     protected void init() {
         if (disposed) return;
-        drawControls();
+        if (!started) html = view.ready();
+        rebuild();
         if (started) return;
         started = true;
         if (executable == null) {
             status = "Запустите Minecraft из обновлённого Gleam Launcher";
+            htmlDirty = true;
             return;
         }
         worker = new Worker(executable);
@@ -91,9 +104,9 @@ public final class OrionMinecraftAccountsScreen extends Screen {
                 button(left + 28, bottom - 55, 23, Component.literal("↓"), () -> scrollProfiles(1), firstProfile + visible < profiles.size());
             }
             int width = (usable - 12) / 3;
-            button(left, bottom - 29, width, text("Microsoft"), () -> { page = Page.MICROSOFT; startMicrosoft(); }, ready());
+            button(left, bottom - 29, width, text("Microsoft"), this::showMicrosoft, ready());
             button(left + width + 6, bottom - 29, width, text("Офлайн-профиль"),
-                    () -> { page = Page.OFFLINE; status = ""; rebuild(); }, ready());
+                    this::showOffline, ready());
             button(left + (width + 6) * 2, bottom - 29, width, text("Назад"), this::onClose, true);
         } else if (page == Page.OFFLINE) {
             EditBox input = new EditBox(font, left, top + 68, usable, 22, text("Ник Minecraft"));
@@ -112,7 +125,7 @@ public final class OrionMinecraftAccountsScreen extends Screen {
             } else {
                 button(left, top + 80, half, text("Открыть браузер"), () -> request("open", null, null, ignored -> {}), ready());
                 button(left + half + 6, top + 80, half, text("Скопировать код"),
-                        () -> { minecraft.keyboardHandler.setClipboard(code); status = "Код скопирован"; }, true);
+                        this::copyCode, true);
             }
             button(left, bottom - 29, usable, text("Назад"), this::onClose, true);
         }
@@ -139,6 +152,20 @@ public final class OrionMinecraftAccountsScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         OrionTitleMenu.drawBackdrop(graphics, width, height);
+        if (html) {
+            var window = minecraft.getWindow();
+            float ratio = Math.clamp(Math.min(window.getWidth() / 1440F, window.getHeight() / 900F), .6F, 2F);
+            htmlScale = ratio / window.getGuiScale();
+            view.resize((int) Math.ceil(width / htmlScale), (int) Math.ceil(height / htmlScale), ratio);
+            if (htmlDirty) {
+                view.update(htmlState());
+                htmlDirty = false;
+            }
+            view.move(mouseX / htmlScale, mouseY / htmlScale);
+            view.frame();
+            view.draw(graphics, 0, 0, width, height, htmlScale, htmlScale);
+            return;
+        }
         var config = OrionClient.getConfigOrNull();
         int theme = config == null ? 3 : config.getClickGuiTheme();
         boolean light = theme == 4;
@@ -186,8 +213,179 @@ public final class OrionMinecraftAccountsScreen extends Screen {
         *///?}
     }
 
+    private JsonObject htmlState() {
+        JsonObject state = new JsonObject();
+        var config = OrionClient.getConfigOrNull();
+        int theme = config == null ? 3 : config.getClickGuiTheme();
+        state.addProperty("theme", switch (theme) { case 4 -> "light"; case 5 -> "glass"; default -> "dark"; });
+        String accent = config == null ? "" : config.getClickGuiAccent();
+        if (accent != null && accent.matches("#[0-9a-fA-F]{6}")) {
+            int color = Integer.parseInt(accent.substring(1), 16);
+            double luminance = luminance(color >> 16 & 255) * .2126 + luminance(color >> 8 & 255) * .7152 + luminance(color & 255) * .0722;
+            state.addProperty("accent", accent);
+            state.addProperty("accentInk", luminance > .179 ? "#101219" : "#ffffff");
+        } else {
+            state.addProperty("accent", "");
+            state.addProperty("accentInk", "");
+        }
+        state.addProperty("page", page.name().toLowerCase(Locale.ROOT));
+        state.addProperty("heading", translated(switch (page) {
+            case LIST -> "Аккаунты Minecraft";
+            case OFFLINE -> "Добавить офлайн-профиль";
+            case MICROSOFT -> "Вход через Microsoft";
+        }));
+        User user = minecraft.getUser();
+        state.addProperty("caption", page == Page.LIST ? translated("Активный профиль") + " · " + user.getName() : "");
+        state.addProperty("active", user.getProfileId().toString().replace("-", ""));
+        state.addProperty("name", name);
+        state.addProperty("code", code);
+        state.addProperty("status", status.isBlank() ? "" : translated(status));
+        state.addProperty("busy", busy);
+        state.addProperty("ready", ready());
+        state.addProperty("offlineType", translated("Офлайн-профиль"));
+        JsonArray list = new JsonArray();
+        for (Profile profile : profiles) {
+            var entry = new JsonObject();
+            entry.addProperty("id", profile.id());
+            entry.addProperty("name", profile.name());
+            entry.addProperty("offline", profile.offline());
+            list.add(entry);
+        }
+        state.add("profiles", list);
+        JsonObject labels = new JsonObject();
+        labels.addProperty("nickname-label", translated("Ник Minecraft"));
+        labels.addProperty("offline", translated("Добавить офлайн-профиль"));
+        labels.addProperty("save", translated("Сохранить"));
+        labels.addProperty("instructions", translated("Подтвердите вход Microsoft в браузере"));
+        labels.addProperty("open", translated("Открыть браузер"));
+        labels.addProperty("copy", translated("Скопировать код"));
+        labels.addProperty("retry", translated("Запросить код"));
+        labels.addProperty("back", translated("Назад"));
+        state.add("labels", labels);
+        return state;
+    }
+
+    private static double luminance(int channel) {
+        double value = channel / 255.0;
+        return value <= .04045 ? value / 12.92 : Math.pow((value + .055) / 1.055, 2.4);
+    }
+
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (!html) return super.mouseClicked(event, doubleClick);
+        if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
+            view.move((float) event.x() / htmlScale, (float) event.y() / htmlScale);
+            view.press((float) event.x() / htmlScale, (float) event.y() / htmlScale);
+        }
+        return true;
+    }
+
+    @Override
+    public boolean mouseReleased(MouseButtonEvent event) {
+        if (!html) return super.mouseReleased(event);
+        if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
+            view.release((float) event.x() / htmlScale, (float) event.y() / htmlScale);
+            receiveHtml();
+        }
+        return true;
+    }
+
+    @Override
+    public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
+        if (!html) return super.mouseScrolled(x, y, horizontal, vertical);
+        return view.wheel((float) x / htmlScale, (float) y / htmlScale, (float) horizontal, (float) vertical);
+    }
+
+    @Override
+    public boolean keyPressed(KeyEvent event) {
+        if (!html || event.key() == InputConstants.KEY_ESCAPE) return super.keyPressed(event);
+        if (page == Page.OFFLINE && event.hasControlDownWithQuirk() && !event.hasAltDown()) {
+            String shortcut = switch (event.key()) {
+                case InputConstants.KEY_A -> "select";
+                case InputConstants.KEY_V -> "paste";
+                default -> "";
+            };
+            if (!shortcut.isEmpty()) {
+                JsonObject payload = new JsonObject();
+                payload.addProperty("command", shortcut);
+                if (shortcut.equals("paste")) {
+                    String clipboard = minecraft.keyboardHandler.getClipboard();
+                    payload.addProperty("text", clipboard.substring(0, Math.min(clipboard.length(), 16)));
+                }
+                view.editShortcut(payload);
+                return true;
+            }
+        }
+        String key = switch (event.key()) {
+            case InputConstants.KEY_TAB -> "Tab";
+            case InputConstants.KEY_UP -> "ArrowUp";
+            case InputConstants.KEY_DOWN -> "ArrowDown";
+            case InputConstants.KEY_LEFT -> "ArrowLeft";
+            case InputConstants.KEY_RIGHT -> "ArrowRight";
+            case InputConstants.KEY_HOME -> "Home";
+            case InputConstants.KEY_END -> "End";
+            case InputConstants.KEY_BACKSPACE -> "Backspace";
+            case InputConstants.KEY_DELETE -> "Delete";
+            case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER -> "Enter";
+            case InputConstants.KEY_SPACE -> " ";
+            default -> "";
+        };
+        if (!key.isEmpty()) {
+            int modifiers = (event.hasShiftDown() ? 1 : 0) | (event.hasControlDownWithQuirk() ? 2 : 0);
+            view.key(key, key, modifiers, true);
+            view.key(key, key, modifiers, false);
+            receiveHtml();
+        }
+        return true;
+    }
+
+    @Override
+    public boolean charTyped(CharacterEvent event) {
+        if (!html) return super.charTyped(event);
+        if (page == Page.OFFLINE && event.isAllowedChatCharacter()) view.text(event.codepointAsString());
+        return true;
+    }
+
+    private void receiveHtml() {
+        byte[] bytes = view.messages();
+        if (bytes == null || bytes.length == 0 || bytes.length > 8192) return;
+        for (String line : new String(bytes, StandardCharsets.UTF_8).lines().toList()) {
+            try {
+                JsonElement item = JsonParser.parseString(line);
+                if (item.isJsonArray() && !item.getAsJsonArray().isEmpty()) item = item.getAsJsonArray().get(0);
+                if (item.isJsonPrimitive() && item.getAsJsonPrimitive().isString()) item = JsonParser.parseString(item.getAsString());
+                if (item.isJsonObject() && handleHtmlAction(item.getAsJsonObject())) return;
+            } catch (RuntimeException invalid) {
+                // Messages outside the account page contract are ignored.
+            }
+        }
+    }
+
+    private boolean handleHtmlAction(JsonObject message) {
+        if (disposed || !message.has("action") || !message.has("value")) return false;
+        String action = message.get("action").getAsString();
+        String value = message.get("value").getAsString();
+        Runnable command = switch (action) {
+            case "back" -> this::onClose;
+            case "offline" -> page == Page.LIST && ready() ? this::showOffline : null;
+            case "microsoft" -> page == Page.LIST && ready() ? this::showMicrosoft : null;
+            case "retry" -> page == Page.MICROSOFT && code.isEmpty() && ready() ? this::startMicrosoft : null;
+            case "open" -> page == Page.MICROSOFT && !code.isEmpty() && ready() ? () -> request("open", null, null, ignored -> {}) : null;
+            case "copy" -> page == Page.MICROSOFT && !code.isEmpty() ? this::copyCode : null;
+            case "save" -> page == Page.OFFLINE && ready() && value.length() <= 16 ? () -> { name = value; addOffline(); } : null;
+            case "select" -> page == Page.LIST && ready() && profiles.stream().anyMatch(p -> p.id().equals(value)) ? () -> selectProfile(value) : null;
+            default -> null;
+        };
+        if (command == null) return false;
+        OrionClickGuiScreen.playInterfaceSound(minecraft, "click");
+        command.run();
+        return true;
+    }
+
     @Override
     public void tick() {
+        if (html) receiveHtml();
+        if (disposed) return;
         if (page == Page.MICROSOFT && ready() && System.nanoTime() >= pollAt) {
             pollAt = Long.MAX_VALUE;
             request("poll", null, null, reply -> {
@@ -197,9 +395,21 @@ public final class OrionMinecraftAccountsScreen extends Screen {
         }
     }
 
-    private void rebuild() { clearWidgets(); drawControls(); }
+    private void rebuild() {
+        htmlDirty = true;
+        if (!html) { clearWidgets(); drawControls(); }
+    }
     private void scrollProfiles(int direction) { firstProfile += direction; rebuild(); }
     private void loadProfiles() { request("list", null, null, this::replaceProfiles); }
+
+    private void showMicrosoft() { page = Page.MICROSOFT; startMicrosoft(); }
+    private void showOffline() { page = Page.OFFLINE; status = ""; rebuild(); }
+
+    private void copyCode() {
+        minecraft.keyboardHandler.setClipboard(code);
+        status = "Код скопирован";
+        htmlDirty = true;
+    }
 
     private void startMicrosoft() {
         code = "";
@@ -214,7 +424,11 @@ public final class OrionMinecraftAccountsScreen extends Screen {
     private void schedulePoll(int seconds) { pollAt = System.nanoTime() + TimeUnit.SECONDS.toNanos(Math.clamp(seconds, 1, 60)); }
 
     private void addOffline() {
-        if (!name.trim().matches("[a-zA-Z0-9_]{3,16}")) { status = "Ник должен содержать 3–16 латинских букв, цифр или _"; return; }
+        if (!name.trim().matches("[a-zA-Z0-9_]{3,16}")) {
+            status = "Ник должен содержать 3–16 латинских букв, цифр или _";
+            htmlDirty = true;
+            return;
+        }
         request("offline", null, name.trim(), this::useNewProfile);
     }
 
@@ -294,10 +508,12 @@ public final class OrionMinecraftAccountsScreen extends Screen {
     public void removed() {
         disposed = true;
         if (worker != null) worker.close();
+        view.dispose();
         super.removed();
     }
 
-    private static Component text(String value) { return Component.literal(OrionGuiLanguage.translate(value)); }
+    private static String translated(String value) { return OrionGuiLanguage.translate(value); }
+    private static Component text(String value) { return Component.literal(translated(value)); }
 
     private static Path helperExecutable() {
         String value = System.getenv("GLEAM_MC_ACCOUNT_HELPER");
