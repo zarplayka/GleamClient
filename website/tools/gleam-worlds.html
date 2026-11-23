@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>Мои миры · GleamClient</title>
+  <title>Миры и серверы · GleamClient</title>
+  <link rel="stylesheet" href="gleam-servers.css">
   <style>
     @font-face {
       font-family: Onest;
@@ -183,7 +184,6 @@
 
     .brand img { width: 34px; height: 27px; object-fit: contain; }
     .brand-suffix { color: #c2cad7; font-weight: 400; }
-    .edition { color: #e1e4ed; font-size: 13px; letter-spacing: .015em; }
     .top-actions { justify-self: end; }
 
     .preview-tag {
@@ -638,7 +638,7 @@
       .top { display: flex; justify-content: space-between; padding-inline: var(--edge); }
       .brand { font-size: 19px; gap: 8px; }
       .brand img { width: 29px; height: 22px; }
-      .edition, .footer { display: none; }
+      .footer { display: none; }
       .top .icon-button { --control: 35px; }
 
       .rail {
@@ -708,6 +708,12 @@
     <symbol id="right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
     <symbol id="play" viewBox="0 0 24 24"><path d="M7 4.8v14.4a.9.9 0 0 0 1.38.76l11.4-7.2a.9.9 0 0 0 0-1.52l-11.4-7.2A.9.9 0 0 0 7 4.8Z"/></symbol>
     <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="servers" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01M11 7.5h6m-6 9h6"/></symbol>
+    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="link" viewBox="0 0 24 24"><path d="m10 13 4-4m-6 6-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0m2 10a3.5 3.5 0 0 0 5 0l4-4a3.5 3.5 0 0 0-5-5l-1 1" transform="translate(0 -1) scale(.97)"/></symbol>
+    <symbol id="pen" viewBox="0 0 24 24"><path d="m4 20 4.5-1 11-11a2.5 2.5 0 0 0-3.5-3.5l-11 11Zm10-13 3.5 3.5"/></symbol>
+    <symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1m1-14a3 3 0 0 1 0 6m1 2a5 5 0 0 1 4 5v1"/></symbol>
+    <symbol id="signal" viewBox="0 0 24 24"><path d="M5 19v-3m5 3v-6m5 6V9m5 10V5"/></symbol>
   </svg>
   <div class="wallpaper" aria-hidden="true">
     <div class="panorama"><img alt=""><img alt=""></div>
@@ -718,7 +724,10 @@
   <div class="dashboard">
     <header class="top">
       <div class="brand"><img src="../assets/gleam-eye.png" alt=""><span>Gleam<span class="brand-suffix">Client</span></span></div>
-      <span class="edition">Minecraft: Java Edition</span>
+      <nav class="mode-switch" aria-label="Режим игры">
+        <button type="button" data-mode="solo" aria-controls="solo" aria-pressed="true">Одиночная игра</button>
+        <button type="button" data-mode="network" aria-controls="network" aria-pressed="false">Сетевая игра</button>
+      </nav>
       <div class="top-actions">
         <span class="preview-tag">Демо</span>
         <button class="icon-button glass" id="fullscreen" aria-label="Полноэкранный режим" aria-pressed="false" title="Полноэкранный режим"><svg aria-hidden="true"><use href="#expand"/></svg></button>
@@ -728,9 +737,11 @@
       <button class="rail-button" data-filter="all" aria-pressed="true"><svg aria-hidden="true"><use href="#cube"/></svg><span>Миры</span></button>
       <button class="rail-button" data-filter="recent" aria-pressed="false"><svg aria-hidden="true"><use href="#clock"/></svg><span>Недавние</span></button>
       <button class="rail-button" data-filter="favorites" aria-pressed="false"><svg aria-hidden="true"><use href="#star"/></svg><span>Избранное</span></button>
+      <button class="rail-button" data-server-filter="all" aria-pressed="true" hidden><svg aria-hidden="true"><use href="#servers"/></svg><span>Серверы</span></button>
+      <button class="rail-button" data-server-filter="favorites" aria-pressed="false" hidden><svg aria-hidden="true"><use href="#star"/></svg><span>Избранное</span></button>
       <button class="rail-button" id="controls"><svg aria-hidden="true"><use href="#help"/></svg><span>Клавиши</span></button>
     </nav>
-    <main>
+    <main id="solo">
       <section class="library" aria-labelledby="section-name">
         <div class="library-head">
           <h2 id="section-name">Мои миры</h2>
@@ -767,24 +778,80 @@
         </aside>
       </section>
     </main>
+    <main class="server-browser" id="network" aria-label="Сетевая игра" hidden>
+      <section class="server-directory glass" aria-labelledby="server-list-title">
+        <header class="server-directory-head">
+          <div class="server-directory-title"><h2 id="server-list-title">Серверы</h2><span id="server-count"></span></div>
+          <div class="server-tools">
+            <button class="server-tool" id="direct-server"><svg aria-hidden="true"><use href="#link"/></svg>По IP</button>
+            <button class="server-tool" id="add-server"><svg aria-hidden="true"><use href="#plus"/></svg>Добавить</button>
+          </div>
+        </header>
+        <div class="server-list" id="server-list" role="group" aria-label="Список серверов"></div>
+        <div class="server-empty" id="server-empty" hidden>
+          <p>Отметьте сервер звёздочкой, и он появится здесь.</p>
+          <button class="text-button" id="browse-servers">Все серверы <svg aria-hidden="true"><use href="#right"/></svg></button>
+        </div>
+      </section>
+      <section class="server-feature" id="server-feature" aria-labelledby="server-name">
+        <div class="server-identity" id="server-identity" aria-live="polite">
+          <div class="server-meta">
+            <span class="server-status" id="server-status"></span>
+            <span class="server-edition">Java Edition</span>
+          </div>
+          <h2 id="server-name"></h2>
+          <p class="server-description" id="server-description"></p>
+          <span class="server-address" id="server-address"></span>
+        </div>
+        <dl class="server-metrics glass">
+          <div><dt><svg aria-hidden="true"><use href="#users"/></svg>Игроки</dt><dd id="server-players"></dd></div>
+          <div><dt><svg aria-hidden="true"><use href="#signal"/></svg>Пинг</dt><dd id="server-ping"></dd></div>
+          <div><dt><svg aria-hidden="true"><use href="#cube"/></svg>Версия</dt><dd id="server-version"></dd></div>
+        </dl>
+        <div class="actions server-actions">
+          <button class="play" id="join-server"><svg aria-hidden="true"><use href="#play"/></svg><span>Подключиться</span></button>
+          <button class="icon-button glass favorite" id="favorite-server" aria-pressed="false" aria-label="Избранный сервер" title="Избранный сервер"><svg aria-hidden="true"><use href="#star"/></svg></button>
+          <button class="icon-button glass" id="edit-server" aria-label="Редактировать сервер" title="Редактировать сервер"><svg aria-hidden="true"><use href="#pen"/></svg></button>
+        </div>
+      </section>
+    </main>
     <footer class="footer" aria-hidden="true">
-      <span>Одиночная игра</span>
-      <div class="hints" id="keyboard-hints"><span class="hint"><kbd>←</kbd><kbd>→</kbd> Выбор</span><span class="hint"><kbd>Enter</kbd> Играть</span><span class="hint"><kbd>Esc</kbd> Назад</span></div>
-      <div class="hints" id="gamepad-hints" hidden><span class="hint"><kbd>◀</kbd><kbd>▶</kbd> Выбор</span><span class="hint"><kbd>✕ / A</kbd> Играть</span><span class="hint"><kbd>○ / B</kbd> Назад</span></div>
+      <span id="mode-caption">Одиночная игра</span>
+      <div class="hints" id="keyboard-hints"><span class="hint"><kbd id="key-previous">←</kbd><kbd id="key-next">→</kbd> Выбор</span><span class="hint"><kbd>Enter</kbd> <span id="key-action">Играть</span></span><span class="hint"><kbd>Esc</kbd> Назад</span></div>
+      <div class="hints" id="gamepad-hints" hidden><span class="hint"><kbd id="pad-previous">◀</kbd><kbd id="pad-next">▶</kbd> Выбор</span><span class="hint"><kbd>✕ / A</kbd> <span id="pad-action">Играть</span></span><span class="hint"><kbd>○ / B</kbd> Назад</span></div>
     </footer>
   </div>
   <dialog class="glass" id="info-panel" aria-labelledby="panel-title">
     <form method="dialog"><button class="icon-button close" aria-label="Закрыть" autofocus><svg aria-hidden="true"><use href="#close"/></svg></button></form>
     <h2 id="panel-title"></h2><p id="panel-text"></p><dl class="stats" id="panel-stats"></dl>
   </dialog>
+  <dialog class="glass server-dialog" id="server-editor" aria-labelledby="server-editor-title">
+    <form method="dialog"><button class="icon-button close" aria-label="Закрыть"><svg aria-hidden="true"><use href="#close"/></svg></button></form>
+    <h2 id="server-editor-title"></h2>
+    <form id="server-form" novalidate>
+      <label id="name-field">Название <input id="input-server-name" type="text" maxlength="45" autocomplete="off" required></label>
+      <label>Адрес или IP <input id="input-server-address" type="text" maxlength="259" placeholder="play.example:25565" autocomplete="off" spellcheck="false" required></label>
+      <label id="description-field">Описание <textarea id="input-server-description" rows="3" maxlength="220" spellcheck="false"></textarea></label>
+      <p class="form-error" id="server-form-error" role="alert" hidden></p>
+      <button class="play" id="submit-server" type="submit">Сохранить</button>
+    </form>
+  </dialog>
+  <template id="server-card">
+    <button type="button" class="server-card">
+      <span class="server-card-art"><img alt=""><svg aria-hidden="true"><use href="#servers"/></svg></span>
+      <span class="server-card-copy"><strong></strong><small></small></span>
+      <span class="server-card-side"><span class="server-card-favorite" hidden><svg aria-hidden="true"><use href="#star"/></svg></span><span class="server-card-status"></span></span>
+    </button>
+  </template>
   <dialog class="launch" id="launch" aria-labelledby="launch-title">
     <img alt="">
     <div class="launch-content">
       <img class="launch-mark" src="../assets/gleam-eye.png" alt="">
-      <h2 id="launch-title"></h2><p id="launch-status" aria-live="polite"></p><progress id="progress" max="100" value="0" aria-label="Ход демонстрационного запуска"></progress>
+      <h2 id="launch-title"></h2><p id="launch-address" class="server-address" hidden></p><p id="launch-status" aria-live="polite"></p><progress id="progress" max="100" value="0" aria-label="Ход демонстрации"></progress>
       <form method="dialog"><button class="play" id="launch-back" autofocus>Отмена</button></form>
     </div>
   </dialog>
+  <script src="gleam-servers.js"></script>
   <script>
     'use strict';
 
@@ -803,6 +870,9 @@
     const launch = byId('launch');
     const favorite = byId('favorite');
     const filterButtons = [...document.querySelectorAll('[data-filter]')];
+    const modeButtons = [...document.querySelectorAll('[data-mode]')];
+    const serverFilterButtons = [...document.querySelectorAll('[data-server-filter]')];
+    const serverEditor = byId('server-editor');
     const layers = [...document.querySelectorAll('.wallpaper img')];
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
     const sections = { all: 'Мои миры', recent: 'Недавние', favorites: 'Избранное' };
@@ -818,6 +888,8 @@
     let activeLayer = 1;
     let wallpaperRequest = 0;
     let launchFrame = 0;
+    let mode = 'solo';
+    const network = createServerBrowser({ byId, showScene, launchScene, reducedMotion });
 
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey));
@@ -855,6 +927,11 @@
       previous.classList.remove('active');
     }
 
+    function showScene(scene) {
+      document.documentElement.style.setProperty('--accent', scene.accent);
+      changeWallpaper(scene);
+    }
+
     function paintSelection(animate) {
       const index = visible.indexOf(selected);
       byId('previous').disabled = index <= 0;
@@ -870,8 +947,7 @@
       byId('description').textContent = selected.description;
       byId('stats').innerHTML = statsMarkup(selected);
       favorite.setAttribute('aria-pressed', favorites.has(selected.id));
-      document.documentElement.style.setProperty('--accent', selected.accent);
-      changeWallpaper(selected);
+      showScene(selected);
 
       if (animate && !reducedMotion.matches) {
         const identity = byId('world-identity');
@@ -952,16 +1028,28 @@
     }
 
     function playWorld() {
-      if (!selected || launch.open || panel.open) return;
-      cancelAnimationFrame(launchFrame);
+      if (!selected) return;
       const world = selected;
-      launch.querySelector('img').src = imageFor(world).src;
-      launch.style.setProperty('--position', world.position);
-      byId('launch-title').textContent = world.name;
+      launchScene(world, {
+        title: world.name,
+        message: 'Подготовка мира…',
+        result: 'Демонстрационный запуск завершён',
+        onFinish: () => { recents = [world.id, ...recents.filter(id => id !== world.id)]; }
+      });
+    }
+
+    function launchScene(scene, { title, address, message, result, onFinish }) {
+      if (launch.open || panel.open || serverEditor.open) return;
+      cancelAnimationFrame(launchFrame);
+      launch.querySelector('img').src = imageFor(scene).src;
+      launch.style.setProperty('--position', scene.position);
+      byId('launch-title').textContent = title;
+      byId('launch-address').hidden = !address;
+      byId('launch-address').textContent = address || '';
       const status = byId('launch-status');
       const progress = byId('progress');
       const back = byId('launch-back');
-      status.textContent = 'Подготовка мира…';
+      status.textContent = message;
       progress.value = 0;
       back.textContent = 'Отмена';
       launch.showModal();
@@ -975,14 +1063,40 @@
           launchFrame = requestAnimationFrame(update);
           return;
         }
-        recents = [world.id, ...recents.filter(id => id !== world.id)];
-        status.textContent = 'Демонстрационный запуск завершён';
+        if (onFinish) onFinish();
+        status.textContent = result;
         back.textContent = 'В библиотеку';
       }
 
       launchFrame = requestAnimationFrame(update);
     }
 
+    function setMode(next, focus = false) {
+      if (next === mode) return;
+      mode = next;
+      const multiplayer = mode === 'network';
+      document.body.dataset.mode = mode;
+      byId('solo').hidden = multiplayer;
+      byId('network').hidden = !multiplayer;
+      document.querySelector('.rail').setAttribute('aria-label', multiplayer ? 'Сетевые серверы' : 'Библиотека миров');
+      for (const button of filterButtons) button.hidden = multiplayer;
+      for (const button of serverFilterButtons) button.hidden = !multiplayer;
+      for (const button of modeButtons) {
+        button.setAttribute('aria-pressed', button.dataset.mode === mode);
+        if (focus && button.dataset.mode === mode) button.focus();
+      }
+      byId('mode-caption').textContent = multiplayer ? 'Сетевая игра' : 'Одиночная игра';
+      byId('key-previous').textContent = multiplayer ? '↑' : '←';
+      byId('key-next').textContent = multiplayer ? '↓' : '→';
+      byId('pad-previous').textContent = multiplayer ? '▲' : '◀';
+      byId('pad-next').textContent = multiplayer ? '▼' : '▶';
+      byId('key-action').textContent = byId('pad-action').textContent = multiplayer ? 'Подключиться' : 'Играть';
+      if (multiplayer) network.render();
+      else if (selected) paintSelection(false);
+      else showScene(lastInLibrary);
+    }
+
+    for (const button of modeButtons) button.addEventListener('click', () => setMode(button.dataset.mode));
     for (const button of filterButtons) button.addEventListener('click', () => setFilter(button.dataset.filter));
     byId('browse-worlds').addEventListener('click', () => {
       setFilter('all');
@@ -999,7 +1113,9 @@
     byId('next').addEventListener('click', () => step(1));
     byId('play-world').addEventListener('click', playWorld);
     byId('details').addEventListener('click', () => openPanel(selected.name, selected.description, selected));
-    byId('controls').addEventListener('click', () => openPanel('Управление', '← и → выбирают мир. Enter запускает демонстрацию, Esc возвращает в коллекцию. На геймпаде используйте крестовину, основную кнопку для запуска и вторую для возврата. Верхние кнопки переключают разделы.'));
+    byId('controls').addEventListener('click', () => openPanel('Управление', mode === 'network'
+      ? '↑ и ↓ выбирают сервер. Enter показывает подключение, Esc возвращает назад. На геймпаде используйте крестовину и основную кнопку. Бамперы переключают список и избранное, курки переключают режим игры.'
+      : '← и → выбирают мир. Enter запускает демонстрацию, Esc возвращает в коллекцию. На геймпаде используйте крестовину и основную кнопку. Бамперы переключают разделы, правый курок открывает сетевую игру.'));
     favorite.addEventListener('click', () => {
       if (!favorites.delete(selected.id)) favorites.add(selected.id);
       try { localStorage.setItem(storageKey, JSON.stringify([...favorites])); } catch { /* Storage is optional. */ }
@@ -1013,7 +1129,7 @@
     launch.addEventListener('close', () => {
       if (launch.open) return;
       cancelAnimationFrame(launchFrame);
-      if (filter === 'recent') renderShelf();
+      if (mode === 'solo' && filter === 'recent') renderShelf();
     });
 
     const fullscreen = byId('fullscreen');
@@ -1031,6 +1147,9 @@
     function back() {
       if (launch.open) launch.close();
       else if (panel.open) panel.close();
+      else if (mode === 'network') {
+        if (!network.back()) setMode('solo', true);
+      }
       else if (filter !== 'all') {
         setFilter('all');
         filterButtons[0].focus();
@@ -1038,22 +1157,27 @@
     }
 
     document.addEventListener('keydown', event => {
-      if (event.altKey || event.ctrlKey || event.metaKey || launch.open || panel.open) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || launch.open || panel.open || serverEditor.open) return;
       showGamepadHints(false);
       const { key, target } = event;
       const onRail = target.closest?.('.rail');
-      if (onRail && ['ArrowUp', 'ArrowDown'].includes(key)) {
-        const buttons = [...onRail.querySelectorAll('button')];
+      if (target.closest?.('.mode-switch') && ['ArrowLeft', 'ArrowRight'].includes(key)) {
+        setMode(key === 'ArrowLeft' ? 'solo' : 'network', true);
+      } else if (key === 'Escape' && !document.fullscreenElement) {
+        back();
+      } else if (onRail && ['ArrowUp', 'ArrowDown'].includes(key)) {
+        const buttons = [...onRail.querySelectorAll('button:not([hidden])')];
         const next = buttons.indexOf(target) + (key === 'ArrowUp' ? -1 : 1);
         buttons[next]?.focus();
+      } else if (mode === 'network') {
+        network.onKey(event);
+        return;
       } else if (['ArrowLeft', 'ArrowRight'].includes(key)) {
         step(key === 'ArrowLeft' ? -1 : 1, true);
       } else if (['Home', 'End'].includes(key) && target.closest?.('.shelf')) {
         select(key === 'Home' ? 0 : visible.length - 1, true);
       } else if (key === 'Enter' && (target === document.body || target.closest?.('.shelf'))) {
         playWorld();
-      } else if (key === 'Escape' && !document.fullscreenElement) {
-        back();
       } else {
         return;
       }
@@ -1077,13 +1201,23 @@
         const activated = key => held.has(key) && !pressed.has(key);
         if (held.size) showGamepadHints(true);
         if (activated(1)) back();
-        if (!launch.open && !panel.open) {
-          if (activated(14)) step(-1, true);
-          if (activated(15)) step(1, true);
-          const index = filterButtons.findIndex(button => button.dataset.filter === filter);
-          if (activated(4) && index > 0) setFilter(filterButtons[index - 1].dataset.filter);
-          if (activated(5) && index < filterButtons.length - 1) setFilter(filterButtons[index + 1].dataset.filter);
-          if (activated(0)) playWorld();
+        if (!launch.open && !panel.open && !serverEditor.open) {
+          if (activated(6)) setMode('solo');
+          if (activated(7)) setMode('network');
+          if (mode === 'network') {
+            if (activated(12)) network.step(-1);
+            if (activated(13)) network.step(1);
+            if (activated(4)) network.setFilter('all');
+            if (activated(5)) network.setFilter('favorites');
+            if (activated(0)) network.connect();
+          } else {
+            if (activated(14)) step(-1, true);
+            if (activated(15)) step(1, true);
+            const index = filterButtons.findIndex(button => button.dataset.filter === filter);
+            if (activated(4) && index > 0) setFilter(filterButtons[index - 1].dataset.filter);
+            if (activated(5) && index < filterButtons.length - 1) setFilter(filterButtons[index + 1].dataset.filter);
+            if (activated(0)) playWorld();
+          }
         }
         pressed = held;
         requestAnimationFrame(poll);
