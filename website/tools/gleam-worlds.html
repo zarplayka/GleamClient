@@ -1,0 +1,1252 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Мои миры · GleamClient</title>
+  <style>
+    @font-face {
+      font-family: Onest;
+      src: url('../assets/onest-regular.ttf') format('truetype');
+      font-weight: 400;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: Onest;
+      src: url('../assets/onest-bold.ttf') format('truetype');
+      font-weight: 700;
+      font-display: swap;
+    }
+
+    :root {
+      --ink: #f8faff;
+      --muted: #becadc;
+      --accent: #a5d0ff;
+      --ease: cubic-bezier(.2,.8,.2,1);
+      --gutter: clamp(20px,4.15vw,76px);
+      --rail: 65px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #080e18;
+      color: var(--ink);
+      font: 15px/1.45 Onest,system-ui,sans-serif;
+    }
+
+    button {
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      border: 0;
+      background: none;
+    }
+
+    button:disabled {
+      opacity: .34;
+      cursor: default;
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 4px;
+    }
+
+    [hidden] {
+      display: none!important;
+    }
+
+    svg {
+      width: 22px;
+      height: 22px;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.65;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .symbols {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+    }
+
+    .wallpaper {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .panorama {
+      position: absolute;
+      inset: -2%;
+      animation: camera-drift 24s var(--ease) infinite alternate;
+    }
+
+    @keyframes camera-drift {
+      from {
+        transform: translate3d(0,-.4%,0);
+      }
+      to {
+        transform: translate3d(-.7%,.7%,0) scale(1.025);
+      }
+    }
+
+    .wallpaper img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: var(--position,center);
+      opacity: 0;
+      transform: scale(1.065);
+      transition: opacity .7s var(--ease),transform 2s var(--ease);
+    }
+
+    .wallpaper img.active {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .scrim {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg,rgba(7,12,23,.91),rgba(7,12,23,.7) 32%,rgba(7,12,23,.19) 70%,rgba(7,12,23,.1)),linear-gradient(0deg,#080e18 2%,rgba(8,14,24,.97) 13%,rgba(8,14,24,.68) 31%,transparent 65%),linear-gradient(180deg,rgba(7,12,23,.8),transparent 22%);
+    }
+
+    .atmosphere {
+      position: absolute;
+      inset: 0;
+      opacity: .23;
+      background: radial-gradient(ellipse at 78% 87%,var(--accent),transparent 58%);
+      mix-blend-mode: screen;
+    }
+
+    .glass {
+      background: linear-gradient(150deg,rgba(37,53,75,.65),rgba(14,22,36,.56));
+      border: 1px solid rgba(228,240,255,.18);
+      box-shadow: inset 0 1px rgba(255,255,255,.08),0 12px 35px rgba(4,9,20,.26);
+      backdrop-filter: blur(19px) saturate(135%);
+    }
+
+    .dashboard {
+      position: relative;
+      max-width: 2100px;
+      min-height: 100vh;
+      min-height: 100svh;
+      margin: auto;
+      display: grid;
+      grid-template-columns: var(--rail) minmax(0,1fr);
+      grid-template-rows: auto 1fr auto;
+      column-gap: clamp(22px,3.5vw,58px);
+      padding: 0 var(--gutter);
+    }
+
+    .top {
+      grid-column: 1/-1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      height: 82px;
+      border-bottom: 1px solid rgba(228,240,255,.17);
+    }
+
+    .brand,.top-actions,.breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+    }
+
+    .brand {
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -.045em;
+      white-space: nowrap;
+    }
+
+    .brand img {
+      width: 35px;
+      height: 28px;
+      object-fit: contain;
+    }
+
+    .brand .divider {
+      display: inline-block;
+      width: 1px;
+      height: 22px;
+      margin: 0 5px;
+      background: #e4f0ff33;
+    }
+
+    .brand small {
+      font-weight: 400;
+      letter-spacing: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .top-actions {
+      gap: 12px;
+    }
+
+    .top-button,.icon-button {
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      transition: background .2s,transform .2s var(--ease);
+    }
+
+    .top-button:hover,.icon-button:hover:not(:disabled) {
+      background: rgba(226,239,255,.18);
+      transform: translateY(-2px);
+    }
+
+    .preview-tag {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #d8e1ed;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .preview-tag::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+
+    .rail {
+      grid-column: 1;
+      grid-row: 2;
+      align-self: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 5px;
+      border-radius: 25px;
+    }
+
+    .rail-button {
+      position: relative;
+      display: grid;
+      place-items: center;
+      gap: 3px;
+      width: 100%;
+      min-height: 55px;
+      border: 1px solid transparent;
+      border-radius: 17px;
+      color: #c8d4e5;
+      transition: background .25s,color .25s,transform .25s var(--ease);
+    }
+
+    .rail-button span {
+      font-size: 9px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .rail-button:hover {
+      background: #f0f6ff16;
+      color: var(--ink);
+      transform: translateY(-2px);
+    }
+
+    .rail-button[aria-pressed=true] {
+      color: #fff;
+      background: #d8eaff2b;
+      border-color: #e1edff4d;
+      box-shadow: inset 0 1px #ffffff22;
+    }
+
+    .rail-button[aria-pressed=true]::before {
+      content: '';
+      position: absolute;
+      left: -7px;
+      inset-block: 12px;
+      width: 2px;
+      border-radius: 10px;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+
+    .rail-rule {
+      width: 26px;
+      height: 1px;
+      background: #c8d7ee29;
+      margin: 0;
+    }
+
+    main {
+      grid-column: 2;
+      grid-row: 2;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .hero {
+      min-height: clamp(375px,55vh,560px);
+      display: flex;
+      flex-direction: column;
+      padding: 29px 0 24px;
+    }
+
+    .breadcrumb {
+      color: #dce6f2;
+      font-size: 13px;
+      gap: 8px;
+    }
+
+    .breadcrumb svg {
+      width: 13px;
+      height: 13px;
+      opacity: .65;
+    }
+
+    .breadcrumb strong {
+      font-weight: 400;
+      color: #fff;
+    }
+
+    .feature {
+      flex: 1;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 28px;
+      padding-top: 42px;
+    }
+
+    .world-copy {
+      max-width: 630px;
+      min-width: 0;
+    }
+
+    .world-type {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .world-type svg {
+      width: 19px;
+      height: 19px;
+    }
+
+    h1 {
+      margin: 9px 0 12px;
+      font-size: clamp(40px,6vw,100px);
+      line-height: 1.01;
+      letter-spacing: -.067em;
+      text-wrap: balance;
+    }
+
+    .description {
+      font-size: clamp(14px,1.12vw,18px);
+      color: #d1dcea;
+      max-width: 39ch;
+      margin: 0;
+      text-wrap: pretty;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 27px;
+    }
+
+    .play {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      min-width: 205px;
+      min-height: 55px;
+      padding: 0 27px;
+      border-radius: 100px;
+      color: #091321;
+      background: #f3f8ff;
+      font-size: 17px;
+      font-weight: 700;
+      box-shadow: 0 4px 25px #070c1966;
+      transition: transform .25s var(--ease),background .25s;
+    }
+
+    .play svg {
+      width: 17px;
+      height: 17px;
+      fill: currentColor;
+      stroke-width: 1;
+    }
+
+    .play:hover {
+      background: var(--accent);
+      transform: translateY(-3px);
+    }
+
+    .play:active,.icon-button:active,.rail-button:active {
+      transform: scale(.96);
+    }
+
+    .actions .icon-button {
+      width: 55px;
+      height: 55px;
+    }
+
+    .favorite[aria-pressed=true] {
+      color: var(--accent);
+    }
+
+    .favorite[aria-pressed=true] svg {
+      fill: currentColor;
+    }
+
+    .stats {
+      width: 250px;
+      margin: 0;
+      padding: 8px 17px;
+      border-radius: 19px;
+      flex: none;
+    }
+
+    .stats div {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+    }
+
+    .stats div+div {
+      border-top: 1px solid #e4f0ff24;
+    }
+
+    .stats dt {
+      color: #c6d2e2;
+      font-size: 12px;
+    }
+
+    .stats dd {
+      margin: 0;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .library {
+      min-width: 0;
+      padding-bottom: 16px;
+    }
+
+    .library-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 9px;
+    }
+
+    .library-head h2 {
+      margin: 0;
+      font-size: 23px;
+      letter-spacing: -.038em;
+      line-height: 1;
+    }
+
+    .library-heading,.arrows {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .count {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .arrows .icon-button {
+      width: 35px;
+      height: 35px;
+    }
+
+    .arrows svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    .shelf {
+      display: flex;
+      gap: 15px;
+      overflow: auto hidden;
+      padding: 7px 6px 12px;
+      margin: 0 -6px;
+      scrollbar-width: none;
+      scroll-snap-type: x proximity;
+      overscroll-behavior-inline: contain;
+      min-height: 155px;
+    }
+
+    .shelf::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tile {
+      position: relative;
+      isolation: isolate;
+      flex: 0 0 clamp(176px,17vw,300px);
+      aspect-ratio: 1.88;
+      border: 1px solid #d4e7ff25;
+      overflow: hidden;
+      border-radius: 15px;
+      text-align: left;
+      padding: 13px 14px;
+      display: flex;
+      align-items: end;
+      scroll-snap-align: start;
+      background: #101a2a;
+      transition: border-color .25s,box-shadow .25s,transform .28s var(--ease);
+    }
+
+    .tile img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: var(--position,center);
+      z-index: -2;
+      filter: saturate(.86) brightness(.82);
+      transition: transform .45s var(--ease),filter .35s;
+    }
+
+    .tile::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(0deg,#080f1a 1%,rgba(8,15,26,.74) 23%,transparent 70%);
+    }
+
+    .tile:hover {
+      transform: translateY(-3px);
+      border-color: #e0edffb0;
+    }
+
+    .tile[aria-current=true] {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent),0 5px 15px #040812aa;
+      transform: translateY(-2px);
+    }
+
+    .tile:hover img,.tile[aria-current=true] img {
+      transform: scale(1.045);
+      filter: none;
+    }
+
+    .tile-name {
+      font-size: clamp(13px,1.11vw,17px);
+      font-weight: 700;
+      line-height: 1.16;
+    }
+
+    .tile-mode {
+      display: block;
+      margin-top: 4px;
+      color: #c3d1e4;
+      font-size: 11px;
+      font-weight: 400;
+    }
+
+    .tile-star {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      background: #081224b0;
+      border-radius: 50%;
+      color: #f6faff;
+    }
+
+    .tile-star svg {
+      width: 13px;
+      height: 13px;
+      fill: currentColor;
+    }
+
+    .empty {
+      color: var(--muted);
+      margin: 14px 0 0;
+    }
+
+    .footer {
+      grid-column: 1/-1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      min-height: 57px;
+      border-top: 1px solid #d9e8ff2a;
+      color: #c6d2e2;
+      font-size: 12px;
+    }
+
+    .hints,.hint {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hints {
+      gap: 21px;
+      flex-wrap: wrap;
+    }
+
+    kbd {
+      display: inline-grid;
+      place-items: center;
+      min-width: 22px;
+      height: 21px;
+      padding: 0 5px;
+      color: #f3f7ff;
+      background: #deebff10;
+      border: 1px solid #deebff38;
+      border-radius: 5px;
+      font: inherit;
+      font-size: 11px;
+    }
+
+    dialog {
+      color: var(--ink);
+      border-radius: 23px;
+      width: min(465px,calc(100% - 34px));
+      padding: 30px;
+      margin: auto;
+      overflow: auto;
+    }
+
+    dialog::backdrop {
+      background: #050b17b8;
+      backdrop-filter: blur(8px);
+    }
+
+    dialog[open] {
+      animation: arrival .35s var(--ease) both;
+    }
+
+    dialog h2 {
+      font-size: 29px;
+      margin: 0 42px 10px 0;
+      letter-spacing: -.045em;
+    }
+
+    dialog p {
+      color: var(--muted);
+      margin: 0 0 19px;
+    }
+
+    dialog .close {
+      position: absolute;
+      top: 19px;
+      right: 19px;
+    }
+
+    dialog .stats {
+      width: 100%;
+    }
+
+    dialog .play {
+      min-width: 0;
+      margin-top: 20px;
+      font-size: 14px;
+      min-height: 44px;
+    }
+
+    .launch {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      max-height: none;
+      padding: 25px;
+      border: 0;
+      border-radius: 0;
+      background: #080e18;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .launch[open] {
+      display: grid;
+      place-items: center;
+    }
+
+    .launch img,.launch::before {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: var(--position,center);
+      pointer-events: none;
+    }
+
+    .launch::before {
+      content: '';
+      z-index: 1;
+      background: linear-gradient(0deg,#080e18,rgba(7,13,24,.54) 76%,rgba(7,13,24,.46));
+    }
+
+    .launch-content {
+      position: relative;
+      z-index: 2;
+      width: min(540px,100%);
+      display: grid;
+      justify-items: center;
+      gap: 13px;
+    }
+
+    .launch-content h2 {
+      margin: 0;
+      font-size: clamp(33px,6vw,75px);
+      line-height: 1.03;
+    }
+
+    .launch-content p {
+      margin: 0;
+    }
+
+    progress {
+      width: min(335px,90%);
+      height: 5px;
+      accent-color: var(--accent);
+      margin: 10px 0;
+    }
+
+    @keyframes arrival {
+      from {
+        opacity: 0;
+        transform: translateY(9px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media(max-width:1000px) {
+      .stats {
+        width: 193px;
+      }
+      .feature {
+        gap: 17px;
+      }
+      .top {
+        height: 71px;
+      }
+      .hero {
+        min-height: clamp(340px,53vh,480px);
+      }
+      .tile {
+        flex-basis: clamp(162px,22vw,230px);
+      }
+    }
+
+    @media(max-height:770px) and (min-width:701px) {
+      .hero {
+        min-height: 385px;
+      }
+      .top {
+        height: 65px;
+      }
+      .feature {
+        padding-top: 29px;
+      }
+      .actions {
+        margin-top: 21px;
+      }
+      .footer {
+        min-height: 47px;
+      }
+      .library {
+        padding-bottom: 9px;
+      }
+    }
+
+    @media(max-width:700px) {
+      .dashboard {
+        display: flex;
+        flex-direction: column;
+        min-height: 100svh;
+      }
+      .top {
+        height: 64px;
+      }
+      .brand {
+        font-size: 17px;
+        gap: 8px;
+      }
+      .brand small,.brand .divider {
+        display: none;
+      }
+      .brand img {
+        width: 28px;
+      }
+      .rail {
+        order: 2;
+        align-self: stretch;
+        flex-direction: row;
+        justify-content: center;
+        gap: 5px;
+        margin: 2px 0 15px;
+        padding: 5px;
+      }
+      .rail-button {
+        max-width: 92px;
+        min-height: 48px;
+        border-radius: 15px;
+      }
+      .rail-button[aria-pressed=true]::before {
+        left: 30%;
+        right: 30%;
+        top: auto;
+        bottom: -6px;
+        height: 2px;
+        width: auto;
+      }
+      .rail-rule {
+        width: 1px;
+        height: 24px;
+      }
+      .footer {
+        order: 3;
+        min-height: 45px;
+      }
+      .hints {
+        display: none;
+      }
+      .hero {
+        padding: 22px 0 21px;
+        min-height: clamp(340px,53svh,500px);
+      }
+      .feature {
+        padding-top: 55px;
+        align-items: end;
+      }
+      .feature .stats {
+        display: none;
+      }
+      .scrim {
+        background: linear-gradient(0deg,#080e18 19%,rgba(8,14,24,.87) 37%,rgba(8,14,24,.47) 64%,rgba(8,14,24,.22) 80%,rgba(8,14,24,.75)),linear-gradient(90deg,#080e1870,transparent);
+      }
+      .play {
+        min-width: 152px;
+      }
+      .tile {
+        flex-basis: clamp(159px,46vw,230px);
+      }
+      .shelf {
+        min-height: 105px;
+      }
+      .library-head h2 {
+        font-size: 20px;
+      }
+    }
+
+    @media(prefers-reduced-motion:reduce) {
+      *,*::before,*::after {
+        animation: none!important;
+        transition-duration: .01ms!important;
+        scroll-behavior: auto!important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg class="symbols" aria-hidden="true">
+    <symbol id="cube" viewBox="0 0 24 24"><path d="m12 2 9 5v10l-9 5-9-5V7Zm-9 5 9 5 9-5m-9 5v10"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="star" viewBox="0 0 24 24"><path d="m12 3 2.75 5.57 6.15.9-4.45 4.33 1.05 6.13L12 17.04l-5.5 2.89 1.05-6.13L3.1 9.47l6.15-.9Z"/></symbol>
+    <symbol id="help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.4 9.4a2.7 2.7 0 1 1 4.4 2.1c-1 .7-1.8 1.15-1.8 2.5m0 2.9h.01"/></symbol>
+    <symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></symbol>
+    <symbol id="expand" viewBox="0 0 24 24"><path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5"/></symbol>
+    <symbol id="left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+    <symbol id="right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="play" viewBox="0 0 24 24"><path d="M7 4.8v14.4a.9.9 0 0 0 1.38.76l11.4-7.2a.9.9 0 0 0 0-1.52l-11.4-7.2A.9.9 0 0 0 7 4.8Z"/></symbol>
+    <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
+  <div class="wallpaper" aria-hidden="true"><div class="panorama"><img alt=""><img alt=""></div><div class="scrim"></div><div class="atmosphere"></div></div>
+  <div class="dashboard">
+    <header class="top">
+      <div class="brand"><img src="../assets/gleam-eye.png" alt="">GleamClient<span class="divider"></span><small>Minecraft: Java Edition</small></div>
+      <div class="top-actions"><span class="preview-tag">Демо</span><button class="top-button glass" id="fullscreen" aria-label="Полноэкранный режим" aria-pressed="false" title="Полноэкранный режим"><svg><use href="#expand"/></svg></button></div>
+    </header>
+    <nav class="rail glass" aria-label="Библиотека миров">
+      <button class="rail-button" data-filter="all" aria-pressed="true"><svg aria-hidden="true"><use href="#cube"/></svg><span>Миры</span></button>
+      <button class="rail-button" data-filter="recent" aria-pressed="false"><svg aria-hidden="true"><use href="#clock"/></svg><span>Недавние</span></button>
+      <button class="rail-button" data-filter="favorites" aria-pressed="false"><svg aria-hidden="true"><use href="#star"/></svg><span>Избранное</span></button>
+      <span class="rail-rule" aria-hidden="true"></span>
+      <button class="rail-button" id="controls"><svg aria-hidden="true"><use href="#help"/></svg><span>Клавиши</span></button>
+    </nav>
+    <main>
+      <section class="hero" aria-labelledby="world-name">
+        <div class="breadcrumb">Одиночная игра <svg aria-hidden="true"><use href="#right"/></svg><strong id="section-name">Мои миры</strong></div>
+        <div class="feature" id="feature">
+          <div class="world-copy" id="world-copy" aria-live="polite">
+            <div class="world-type"><svg aria-hidden="true"><use href="#cube"/></svg><span id="world-type"></span></div>
+            <h1 id="world-name"></h1>
+            <p class="description" id="description"></p>
+            <div class="actions">
+              <button class="play" id="play-world"><svg aria-hidden="true"><use href="#play"/></svg>Играть</button>
+              <button class="icon-button glass favorite" id="favorite" aria-pressed="false" aria-label="Избранное" title="Избранное"><svg aria-hidden="true"><use href="#star"/></svg></button>
+              <button class="icon-button glass" id="details" aria-label="О мире" title="О мире"><svg aria-hidden="true"><use href="#info"/></svg></button>
+            </div>
+          </div>
+          <dl class="stats glass" id="stats"></dl>
+        </div>
+      </section>
+      <section class="library" aria-labelledby="library-heading">
+        <div class="library-head">
+          <div class="library-heading"><h2 id="library-heading">Коллекция</h2><span class="count" id="count"></span></div>
+          <div class="arrows"><button class="icon-button glass" id="previous" aria-label="Предыдущий мир"><svg aria-hidden="true"><use href="#left"/></svg></button><button class="icon-button glass" id="next" aria-label="Следующий мир"><svg aria-hidden="true"><use href="#right"/></svg></button></div>
+        </div>
+        <div class="shelf" id="shelf" role="group" aria-label="Миры"></div>
+        <p class="empty" id="empty" hidden></p>
+      </section>
+    </main>
+    <footer class="footer">
+      <span>Minecraft · Одиночная игра</span>
+      <div class="hints" aria-hidden="true"><span class="hint"><kbd>←</kbd><kbd>→</kbd> Выбрать мир</span><span class="hint"><kbd>Enter</kbd> Играть</span><span class="hint"><kbd>Esc</kbd> Назад</span></div>
+    </footer>
+  </div>
+  <dialog class="glass" id="info-panel" aria-labelledby="panel-title">
+    <form method="dialog"><button class="icon-button close" aria-label="Закрыть" autofocus><svg aria-hidden="true"><use href="#close"/></svg></button></form>
+    <h2 id="panel-title"></h2><p id="panel-text"></p><dl class="stats glass" id="panel-stats"></dl>
+  </dialog>
+  <dialog class="launch" id="launch" aria-labelledby="launch-title">
+    <img alt="">
+    <div class="launch-content">
+      <h2 id="launch-title"></h2><p id="launch-status" aria-live="polite"></p><progress id="progress" max="100" value="0" aria-label="Ход демонстрационного запуска"></progress>
+      <form method="dialog"><button class="play" id="launch-back" autofocus>Отмена</button></form>
+    </div>
+  </dialog>
+  <script>
+    'use strict';
+
+    const worlds = [
+      { id: 'valley', name: 'Долина порталов', biome: 'Горная долина', mode: 'Выживание', image: '../assets/auth-portal.jpg', position: '50% 50%', accent: '#acd3ff', played: '18 ч 42 мин', date: '23 ноября', version: '26.3', description: 'Тихая долина между горами. У подножия скал остался портал, который так и не успели достроить.' },
+      { id: 'cherry', name: 'Вишнёвый край', biome: 'Вишнёвая роща', mode: 'Творчество', image: 'launcher-background-26-1-2.webp', position: '60% 48%', accent: '#ffbbdc', played: '7 ч 16 мин', date: '21 ноября', version: '26.3', description: 'Сад на склоне, мост через ущелье и целый холм для следующей постройки.' },
+      { id: 'ember', name: 'Пепельный рубеж', biome: 'Нижний мир', mode: 'Хардкор', image: 'launcher-background-1-16-5.webp', position: '59% 55%', accent: '#ffc095', played: '3 ч 58 мин', date: '20 ноября', version: '26.3', description: 'Лавовые реки и руины бастиона. Последний безопасный путь к порталу помечен фонарями.' },
+      { id: 'wild', name: 'Дикий берег', biome: 'Берег джунглей', mode: 'Выживание', image: '../assets/auth-wild.jpg', position: '65% 50%', accent: '#acf1cf', played: '12 ч 24 мин', date: '17 ноября', version: '1.21.11', description: 'Из лагеря на берегу видно устье реки. Дальше начинаются джунгли, где ещё никто не ставил факелы.' },
+      { id: 'fortress', name: 'Чёрная цитадель', biome: 'Базальтовые дельты', mode: 'Выживание', image: 'launcher-background-1-21-4.webp', position: '62% 50%', accent: '#f3c6a8', played: '5 ч 11 мин', date: '14 ноября', version: '1.21.4', description: 'Крепость из чернита, спрятанная в дыму. Самые старые галереи уходят глубоко под её стены.' },
+      { id: 'workshop', name: 'Мастерская', biome: 'Равнины', mode: 'Творчество', image: 'launcher-background-26-2.webp', position: '62% 50%', accent: '#f3daae', played: '9 ч 37 мин', date: '11 ноября', version: '26.2', description: 'Песочница для редстоуна, странных машин и построек, которые сначала хочется увидеть в масштабе.' }
+    ];
+
+    const byId = id => document.getElementById(id);
+    const shelf = byId('shelf');
+    const panel = byId('info-panel');
+    const launch = byId('launch');
+    const favorite = byId('favorite');
+    const filterButtons = [...document.querySelectorAll('[data-filter]')];
+    const layers = [...document.querySelectorAll('.wallpaper img')];
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+    const sections = { all: 'Мои миры', recent: 'Недавние', favorites: 'Избранное' };
+    const previews = new Map();
+    const storageKey = 'gleam-worlds-preview-favorites';
+    let favorites = new Set(['cherry']);
+    let recents = worlds.slice(0, 3).map(world => world.id);
+    let filter = 'all';
+    let visible = worlds;
+    let selected = worlds[0];
+    let activeLayer = 1;
+    let wallpaperRequest = 0;
+    let launchFrame = 0;
+
+    try {
+      const stored = JSON.parse(localStorage.getItem(storageKey));
+      if (Array.isArray(stored)) favorites = new Set(stored.filter(id => worlds.some(world => world.id === id)));
+    } catch { /* The preview also works without storage. */ }
+
+    function statsMarkup(world) {
+      return `<div><dt>Последняя игра</dt><dd>${world.date}</dd></div>
+              <div><dt>Время в мире</dt><dd>${world.played}</dd></div>
+              <div><dt>Версия</dt><dd>${world.version}</dd></div>`;
+    }
+
+    function imageFor(world) {
+      if (!previews.has(world.id)) {
+        const image = new Image();
+        image.src = world.image;
+        previews.set(world.id, image);
+      }
+      return previews.get(world.id);
+    }
+
+    async function changeWallpaper(world) {
+      const request = ++wallpaperRequest;
+      if (!world || layers[activeLayer].dataset.world === world.id) return;
+      const source = imageFor(world);
+      try { await source.decode(); } catch { return; }
+      if (request !== wallpaperRequest) return;
+      const previous = layers[activeLayer];
+      activeLayer = 1 - activeLayer;
+      const incoming = layers[activeLayer];
+      incoming.src = source.src;
+      incoming.dataset.world = world.id;
+      incoming.style.setProperty('--position', world.position);
+      incoming.classList.add('active');
+      previous.classList.remove('active');
+    }
+
+    function paintSelection(animate) {
+      const index = visible.indexOf(selected);
+      byId('previous').disabled = index <= 0;
+      byId('next').disabled = index < 0 || index >= visible.length - 1;
+      byId('feature').hidden = !selected;
+      byId('shelf').hidden = !selected;
+      if (!selected) return;
+
+      const copy = byId('world-copy');
+      copy.getAnimations().forEach(animation => animation.cancel());
+      if (animate && !reducedMotion.matches) {
+        copy.animate([{ opacity: .42, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      }
+      byId('world-name').textContent = selected.name;
+      byId('world-type').textContent = `${selected.mode} · ${selected.biome}`;
+      byId('description').textContent = selected.description;
+      byId('stats').innerHTML = statsMarkup(selected);
+      favorite.setAttribute('aria-pressed', favorites.has(selected.id));
+      document.documentElement.style.setProperty('--accent', selected.accent);
+      changeWallpaper(selected);
+
+      for (const [number, tile] of [...shelf.children].entries()) {
+        tile.setAttribute('aria-current', number === index);
+        tile.tabIndex = number === index ? 0 : -1;
+        tile.querySelector('.tile-star').hidden = !favorites.has(visible[number].id);
+      }
+    }
+
+    function renderShelf() {
+      const sorted = recents.map(id => worlds.find(world => world.id === id));
+      visible = filter === 'recent' ? sorted : worlds.filter(world => filter === 'all' || favorites.has(world.id));
+      if (!visible.includes(selected)) selected = visible[0] || null;
+      for (const button of filterButtons) button.setAttribute('aria-pressed', button.dataset.filter === filter);
+      byId('section-name').textContent = sections[filter];
+      byId('count').textContent = visible.length;
+      byId('empty').hidden = visible.length > 0;
+      byId('empty').textContent = 'Отметьте мир звёздочкой, и он появится здесь.';
+      shelf.replaceChildren(...visible.map(world => {
+        const tile = document.createElement('button');
+        tile.className = 'tile';
+        tile.dataset.world = world.id;
+        tile.style.setProperty('--position', world.position);
+        tile.innerHTML = `<img src="${world.image}" alt=""><span class="tile-name">${world.name}<span class="tile-mode">${world.mode}</span></span>
+                          <span class="tile-star" aria-hidden="true" hidden><svg><use href="#star"/></svg></span>`;
+        return tile;
+      }));
+      paintSelection(false);
+      scrollToSelected(false);
+    }
+
+    function scrollToSelected(smooth) {
+      const tile = shelf.querySelector('[aria-current="true"]');
+      if (!tile) return;
+      const railRect = shelf.getBoundingClientRect();
+      const tileRect = tile.getBoundingClientRect();
+      const inset = 6;
+      const left = tileRect.left - railRect.left - inset;
+      const right = tileRect.right - railRect.right + inset;
+      const offset = left < 0 ? left : Math.max(right, 0);
+      if (offset) shelf.scrollBy({ left: offset, behavior: smooth && !reducedMotion.matches ? 'smooth' : 'instant' });
+    }
+
+    function select(index, focus = false) {
+      const world = visible[index];
+      if (!world) return;
+      const animate = selected !== world;
+      selected = world;
+      paintSelection(animate);
+      if (focus) shelf.children[index]?.focus({ preventScroll: true });
+      scrollToSelected(true);
+    }
+
+    function step(delta, focus) {
+      select(visible.indexOf(selected) + delta, focus);
+    }
+
+    function setFilter(next) {
+      if (next === filter) return;
+      filter = next;
+      selected = null;
+      renderShelf();
+    }
+
+    function openPanel(title, body, world = null) {
+      byId('panel-title').textContent = title;
+      byId('panel-text').textContent = body;
+      byId('panel-stats').hidden = !world;
+      if (world) byId('panel-stats').innerHTML = statsMarkup(world);
+      panel.showModal();
+    }
+
+    function playWorld() {
+      if (!selected || launch.open || panel.open) return;
+      cancelAnimationFrame(launchFrame);
+      const world = selected;
+      launch.querySelector('img').src = imageFor(world).src;
+      launch.style.setProperty('--position', world.position);
+      byId('launch-title').textContent = world.name;
+      const status = byId('launch-status');
+      const progress = byId('progress');
+      const back = byId('launch-back');
+      status.textContent = 'Подготовка мира…';
+      progress.value = 0;
+      back.textContent = 'Отмена';
+      launch.showModal();
+      const start = performance.now();
+      const duration = reducedMotion.matches ? 300 : 1450;
+
+      function update(now) {
+        if (!launch.open) return;
+        progress.value = Math.min((now - start) / duration, 1) * 100;
+        if (progress.value < 100) {
+          launchFrame = requestAnimationFrame(update);
+          return;
+        }
+        recents = [world.id, ...recents.filter(id => id !== world.id)];
+        status.textContent = 'Демонстрационный запуск завершён';
+        back.textContent = 'В библиотеку';
+      }
+
+      launchFrame = requestAnimationFrame(update);
+    }
+
+    for (const button of filterButtons) button.addEventListener('click', () => setFilter(button.dataset.filter));
+    shelf.addEventListener('click', event => {
+      const tile = event.target.closest('.tile');
+      if (tile) select(visible.findIndex(world => world.id === tile.dataset.world));
+    });
+    shelf.addEventListener('dblclick', event => {
+      if (event.target.closest('.tile')) playWorld();
+    });
+    byId('previous').addEventListener('click', () => step(-1));
+    byId('next').addEventListener('click', () => step(1));
+    byId('play-world').addEventListener('click', playWorld);
+    byId('details').addEventListener('click', () => openPanel(selected.name, selected.description, selected));
+    byId('controls').addEventListener('click', () => openPanel('Управление', '← и → выбирают мир. Enter запускает демонстрацию, Esc возвращает в коллекцию. На геймпаде используйте крестовину, основную кнопку для запуска и вторую для возврата. Верхние кнопки переключают разделы.'));
+    favorite.addEventListener('click', () => {
+      if (!favorites.delete(selected.id)) favorites.add(selected.id);
+      try { localStorage.setItem(storageKey, JSON.stringify([...favorites])); } catch { /* Storage is optional. */ }
+      if (filter === 'favorites') {
+        renderShelf();
+        if (!selected) filterButtons[2].focus();
+      } else {
+        paintSelection(false);
+      }
+    });
+    launch.addEventListener('close', () => {
+      if (launch.open) return;
+      cancelAnimationFrame(launchFrame);
+      if (filter === 'recent') renderShelf();
+    });
+
+    const fullscreen = byId('fullscreen');
+    fullscreen.hidden = !document.fullscreenEnabled;
+    fullscreen.addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+      } catch {
+        openPanel('Полноэкранный режим', 'Браузер отклонил переход. Попробуйте переключить режим через меню браузера.');
+      }
+    });
+    document.addEventListener('fullscreenchange', () => fullscreen.setAttribute('aria-pressed', Boolean(document.fullscreenElement)));
+
+    function back() {
+      if (launch.open) launch.close();
+      else if (panel.open) panel.close();
+      else if (filter !== 'all') {
+        setFilter('all');
+        filterButtons[0].focus();
+      }
+    }
+
+    document.addEventListener('keydown', event => {
+      if (event.altKey || event.ctrlKey || event.metaKey || launch.open || panel.open) return;
+      const { key, target } = event;
+      const onRail = target.closest?.('.rail');
+      if (onRail && ['ArrowUp', 'ArrowDown'].includes(key)) {
+        const buttons = [...onRail.querySelectorAll('button')];
+        const next = buttons.indexOf(target) + (key === 'ArrowUp' ? -1 : 1);
+        buttons[next]?.focus();
+      } else if (['ArrowLeft', 'ArrowRight'].includes(key)) {
+        step(key === 'ArrowLeft' ? -1 : 1, true);
+      } else if (['Home', 'End'].includes(key) && target.closest?.('.shelf')) {
+        select(key === 'Home' ? 0 : visible.length - 1, true);
+      } else if (key === 'Enter' && (target === document.body || target.closest?.('.shelf'))) {
+        playWorld();
+      } else if (key === 'Escape' && !document.fullscreenElement) {
+        back();
+      } else {
+        return;
+      }
+      event.preventDefault();
+    });
+
+    function watchGamepad() {
+      let pressed = new Set();
+      function poll() {
+        const controller = Array.from(navigator.getGamepads()).find(pad => pad?.mapping === 'standard');
+        if (!controller) return;
+        const held = new Set(controller.buttons.flatMap((button, index) => button.pressed ? [index] : []));
+        const activated = key => held.has(key) && !pressed.has(key);
+        if (activated(1)) back();
+        if (!launch.open && !panel.open) {
+          if (activated(14)) step(-1, true);
+          if (activated(15)) step(1, true);
+          const index = filterButtons.findIndex(button => button.dataset.filter === filter);
+          if (activated(4) && index > 0) setFilter(filterButtons[index - 1].dataset.filter);
+          if (activated(5) && index < filterButtons.length - 1) setFilter(filterButtons[index + 1].dataset.filter);
+          if (activated(0)) playWorld();
+        }
+        pressed = held;
+        requestAnimationFrame(poll);
+      }
+      poll();
+    }
+
+    window.addEventListener('gamepadconnected', event => {
+      if (event.gamepad.mapping === 'standard' && Array.from(navigator.getGamepads()).filter(pad => pad?.mapping === 'standard').length === 1) watchGamepad();
+    });
+
+    renderShelf();
+  </script>
+</body>
+</html>
