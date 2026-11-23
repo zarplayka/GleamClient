@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="dark light">
   <title>Миры и серверы · GleamClient</title>
   <link rel="stylesheet" href="gleam-servers.css">
   <style>
@@ -29,16 +29,87 @@
 
     :root {
       color-scheme: dark;
-      --ink: #f8f8fc;
-      --muted: #c0c7d4;
-      --base: #0a0c15;
-      --accent: #ffc095;
+      /* Palette shared with the three ClickGUI themes. */
+      --frame: #18191c;
+      --canvas: #1d1e22;
+      --card: #25262a;
+      --field: #202125;
+      --hover: #303136;
+      --rule: #3b3c41;
+      --line: #313237;
+      --ink: #e5e5e7;
+      --muted: #b0b1b6;
+      --accent: #939fe9;
+      --accent-surface: #363b4d;
+      --bar-fill: var(--frame);
+      --rail-fill: var(--canvas);
+      --panel-fill: var(--card);
+      --panel-border: var(--rule);
+      --panel-blur: none;
+      --panel-shadow: 0 9px 24px #0a0c142e;
+      --dialog-blur: none;
+      --dialog-backdrop: #0b0d19b5;
+      --play-fill: #e5e5e7;
+      --play-hover: #fff;
+      --play-text: #16182a;
+      --scene-text: #f8f8fc;
+      --scene-muted: #e1e4ee;
+      --scene-shadow: 0 2px 16px #05070faa;
+      --scene-accent: #ffc095;
+      --scene-light: color-mix(in srgb, var(--scene-accent) 21%, transparent);
+      --online: #9ce6c1;
+      --offline: #ffaea7;
+      --maintenance: #f6cd91;
       --ease: cubic-bezier(.2,.78,.24,1);
       --edge: clamp(23px, 3.5vw, 68px);
       --rail: clamp(76px, 6.2vw, 116px);
       --control: 48px;
-      --scene-light: color-mix(in srgb, var(--accent) 21%, transparent);
       transition: --accent .72s var(--ease);
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --frame: #e7eaf1;
+      --canvas: #f3f5f9;
+      --card: #fafbfe;
+      --field: #e2e7f0;
+      --hover: #edf0f9;
+      --rule: #c4ccda;
+      --line: #d6dce7;
+      --ink: #22283a;
+      --muted: #546077;
+      --accent: #4257b2;
+      --accent-surface: #dce3fc;
+      --dialog-backdrop: #24334c86;
+      --play-fill: #4257b2;
+      --play-hover: #344795;
+      --play-text: #fff;
+      --scene-text: var(--ink);
+      --scene-muted: #39465c;
+      --scene-shadow: 0 2px 12px #f3f5f990;
+      --online: #156542;
+      --offline: #a52d3e;
+      --maintenance: #795019;
+    }
+
+    :root[data-theme="glass"] {
+      --frame: #1b252d;
+      --card: #11181e38;
+      --field: #10192156;
+      --hover: #eff7ff26;
+      --rule: #edf4fa29;
+      --line: #edf4fa20;
+      --ink: #fff;
+      --muted: #eff4f8;
+      --accent: var(--scene-accent);
+      --accent-surface: #5274996b;
+      --bar-fill: linear-gradient(180deg, #1115204d, #11152015);
+      --rail-fill: linear-gradient(180deg, #141827bf, #11152240 59%, #111522b3);
+      --panel-fill: radial-gradient(ellipse at 15% 0%, var(--scene-light), transparent 60%), linear-gradient(145deg, #2a30419c, #0f131fcc);
+      --panel-blur: blur(20px) saturate(135%);
+      --panel-shadow: inset 0 1px #f3f8ff1c, 0 14px 35px #0609143d;
+      --dialog-blur: blur(8px);
+      --play-fill: linear-gradient(180deg, #fff, #e4e8f1);
     }
 
     * { box-sizing: border-box; }
@@ -46,7 +117,8 @@
 
     body {
       margin: 0;
-      background: var(--base);
+      min-width: 760px;
+      background: var(--canvas);
       color: var(--ink);
       font: 15px/1.46 Onest, system-ui, sans-serif;
     }
@@ -60,7 +132,7 @@
     }
 
     button:disabled { opacity: .33; cursor: default; }
-    button:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+    button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 
     svg {
       width: 21px;
@@ -81,7 +153,7 @@
       isolation: isolate;
       overflow: hidden;
       pointer-events: none;
-      background: #101521;
+      background: var(--canvas);
     }
 
     .panorama {
@@ -120,10 +192,19 @@
         linear-gradient(180deg, rgba(9,12,21,.92), rgba(9,12,21,.66) 14%, rgba(9,12,21,.21) 30%, transparent 42%);
     }
 
+    html[data-theme="light"] .scrim {
+      background:
+        linear-gradient(0deg, #f3f5f9 3%, #f3f5f9f7 15%, #f3f5f9d4 34%, transparent 59%),
+        linear-gradient(90deg, #e7eaf19c, #e7eaf166 27%, transparent 61%),
+        linear-gradient(180deg, #e7eaf1fa, #f3f5f995 14%, transparent 35%);
+    }
+
     .atmosphere {
       background: radial-gradient(ellipse at 84% 59%, var(--scene-light), transparent 59%);
       mix-blend-mode: screen;
     }
+
+    html:not([data-theme="glass"]) :is(.atmosphere, .motes) { display: none; }
 
     .motes i {
       position: absolute;
@@ -144,13 +225,11 @@
       to { opacity: 0; transform: translate3d(39px, -124px, 0); }
     }
 
-    .glass {
-      border: 1px solid rgba(238,244,255,.20);
-      background:
-        radial-gradient(ellipse at 15% 0%, var(--scene-light), transparent 60%),
-        linear-gradient(145deg, rgba(42,48,65,.61), rgba(15,19,31,.80));
-      backdrop-filter: blur(20px) saturate(135%);
-      box-shadow: inset 0 1px 0 #f3f8ff1c, 0 14px 35px #0609143d;
+    .surface {
+      border: 1px solid var(--panel-border);
+      background: var(--panel-fill);
+      backdrop-filter: var(--panel-blur);
+      box-shadow: var(--panel-shadow);
     }
 
     .dashboard {
@@ -169,8 +248,8 @@
       grid-template-columns: 1fr auto 1fr;
       gap: 16px;
       padding: 0 var(--edge) 0 25px;
-      border-bottom: 1px solid #edf3ff1a;
-      background: linear-gradient(180deg, #1115204d, #11152015);
+      border-bottom: 1px solid var(--line);
+      background: var(--bar-fill);
     }
 
     .brand, .top-actions { display: flex; align-items: center; gap: 13px; }
@@ -183,14 +262,15 @@
     }
 
     .brand img { width: 34px; height: 27px; object-fit: contain; }
-    .brand-suffix { color: #c2cad7; font-weight: 400; }
+    .brand-suffix { color: var(--muted); font-weight: 400; }
+    html[data-theme="light"] :is(.brand img, .launch-mark) { filter: brightness(.3); }
     .top-actions { justify-self: end; }
 
     .preview-tag {
       display: flex;
       align-items: center;
       gap: 8px;
-      color: #d9deea;
+      color: var(--muted);
       font-size: 12px;
     }
 
@@ -200,7 +280,6 @@
       height: 5px;
       border-radius: 50%;
       background: var(--accent);
-      box-shadow: 0 0 11px var(--accent);
     }
 
     .icon-button {
@@ -213,10 +292,24 @@
       transition: background .25s, color .25s, transform .25s var(--ease);
     }
 
-    .icon-button:not(:disabled):hover { background-color: #fafcff36; transform: translateY(-2px); }
+    .icon-button:not(:disabled):hover { background: var(--hover); transform: translateY(-2px); }
     .icon-button:not(:disabled):active { transform: scale(.94); }
     .top .icon-button { --control: 39px; }
     .top .icon-button svg { width: 18px; height: 18px; }
+
+    #preview-theme {
+      min-height: 34px;
+      max-width: 106px;
+      padding: 0 9px;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      color: var(--ink);
+      background: var(--field);
+      font: inherit;
+      font-size: 12px;
+    }
+
+    #preview-theme option { color: var(--ink); background: var(--frame); }
 
     .rail {
       grid-column: 1;
@@ -226,9 +319,8 @@
       flex-direction: column;
       padding: 24px 8px 12px;
       gap: 6px;
-      border-right: 1px solid;
-      border-image: linear-gradient(#edf3ff2e, #edf3ff0c 62%, #edf3ff24) 1;
-      background: linear-gradient(180deg, #141827bf, #11152240 59%, #111522b3);
+      border-right: 1px solid var(--line);
+      background: var(--rail-fill);
     }
 
     .rail-button {
@@ -241,19 +333,18 @@
       border: 1px solid transparent;
       border-radius: 13px;
       padding: 5px 1px;
-      color: #ccd1df;
+      color: var(--muted);
       font-size: 10px;
       line-height: 1;
       transition: color .25s, background .25s, border-color .25s;
     }
 
-    .rail-button:hover { color: white; background: #f0f6ff17; }
+    .rail-button:hover { color: var(--ink); background: var(--hover); }
 
     .rail-button[aria-pressed="true"] {
-      color: #fff;
-      background: linear-gradient(118deg, var(--scene-light), #f0f5ff12);
-      border-color: #f4f8ff33;
-      box-shadow: inset 0 1px #f8faff20;
+      color: var(--ink);
+      background: var(--accent-surface);
+      border-color: var(--rule);
     }
 
     .rail-button[aria-pressed="true"]::before {
@@ -265,7 +356,6 @@
       width: 2px;
       border-radius: 8px;
       background: var(--accent);
-      box-shadow: 0 0 11px var(--accent);
     }
 
     #controls { margin-top: auto; }
@@ -296,6 +386,7 @@
 
     .library-head h2 {
       margin: 0;
+      color: var(--scene-text);
       font-size: clamp(22px, 1.88vw, 33px);
       letter-spacing: -.047em;
       line-height: 1.1;
@@ -303,11 +394,11 @@
 
     .shelf-controls { gap: 14px; }
     .arrows { gap: 3px; }
-    .arrows .icon-button { --control: 34px; background: #10152148; }
+    .arrows .icon-button { --control: 34px; background: var(--field); }
     .arrows svg { width: 17px; height: 17px; }
 
     .count {
-      color: var(--muted);
+      color: var(--scene-muted);
       font-size: 12px;
       font-variant-numeric: tabular-nums;
       letter-spacing: .055em;
@@ -334,9 +425,10 @@
       align-items: end;
       overflow: hidden;
       padding: 12px 13px;
-      border: 1px solid #edf4ff47;
+      border: 1px solid var(--rule);
       border-radius: 12px;
       background: #151a24;
+      color: #f8f8fc;
       text-align: left;
       box-shadow: 0 9px 20px #02040c52;
       transition: border-color .24s, box-shadow .3s var(--ease), transform .32s var(--ease);
@@ -367,12 +459,13 @@
     }
 
     .tile:hover { transform: translateY(-3px); border-color: #e0e4eda8; }
-    .tile:hover::after, .tile[aria-current="true"]::after { opacity: .75; }
+    html[data-theme="glass"] .tile:is(:hover, [aria-current="true"])::after { opacity: .75; }
+    html:not([data-theme="glass"]) .tile::after { display: none; }
 
     .tile[aria-current="true"] {
       transform: translateY(-3px) scale(1.09);
-      border-color: #fff;
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 84%, #fff), 0 0 20px var(--scene-light), 0 12px 22px #03050f6e;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent), 0 12px 22px #03050f6e;
     }
 
     .tile:focus-visible { outline-offset: 1px; }
@@ -398,8 +491,9 @@
       width: 25px;
       height: 25px;
       border-radius: 50%;
-      background: #10131ece;
-      backdrop-filter: blur(7px);
+      background: var(--field);
+      color: var(--accent);
+      backdrop-filter: var(--panel-blur);
     }
 
     .tile-star svg { width: 12px; height: 12px; fill: currentColor; }
@@ -440,7 +534,7 @@
       align-items: center;
       flex-wrap: wrap;
       gap: 12px;
-      color: #e2e5ee;
+      color: var(--scene-muted);
       font-size: 13px;
     }
 
@@ -448,7 +542,7 @@
       padding: 3px 9px;
       border: 1px solid color-mix(in srgb, var(--accent) 63%, transparent);
       border-radius: 5px;
-      background: #1618249e;
+      background: var(--field);
       color: var(--accent);
       font-size: 11px;
       font-weight: 700;
@@ -461,13 +555,14 @@
       line-height: 1.025;
       letter-spacing: -.062em;
       text-wrap: balance;
-      text-shadow: 0 4px 34px #0407117d;
+      color: var(--scene-text);
+      text-shadow: var(--scene-shadow);
     }
 
     .description {
       max-width: 51ch;
       margin: 0;
-      color: #e1e4ee;
+      color: var(--scene-muted);
       font-size: clamp(14px, 1.18vw, 18px);
       text-wrap: pretty;
     }
@@ -482,10 +577,10 @@
       min-width: 222px;
       min-height: 56px;
       padding: 0 25px;
-      border: 1px solid #ffffff72;
+      border: 1px solid transparent;
       border-radius: 100px;
-      color: #141622;
-      background: linear-gradient(180deg, #fff, #e4e8f1);
+      color: var(--play-text);
+      background: var(--play-fill);
       font-size: 16px;
       font-weight: 700;
       box-shadow: 0 8px 33px #06091161;
@@ -493,7 +588,7 @@
     }
 
     .play svg { width: 16px; height: 16px; fill: currentColor; stroke-width: 1; }
-    .play:hover { background: #fff; transform: translateY(-2px); box-shadow: 0 0 28px var(--scene-light); }
+    .play:hover { background: var(--play-hover); transform: translateY(-2px); }
     .play:active { transform: scale(.96); }
     .actions .icon-button { --control: 54px; }
     .favorite[aria-pressed="true"] { color: var(--accent); }
@@ -513,8 +608,8 @@
       font-size: 12px;
     }
 
-    .stats div + div { border-top: 1px solid #f3f6ff20; }
-    .stats dt { color: #d2d7e3; }
+    .stats div + div { border-top: 1px solid var(--line); }
+    .stats dt { color: var(--muted); }
     .stats dd { margin: 0; font-weight: 700; white-space: nowrap; }
 
     .footer {
@@ -525,9 +620,9 @@
       justify-content: space-between;
       gap: 12px;
       padding: 0 var(--edge);
-      border-top: 1px solid #eef4ff1b;
-      background: #1014205e;
-      color: #c8ceda;
+      border-top: 1px solid var(--line);
+      background: var(--bar-fill);
+      color: var(--muted);
       font-size: 12px;
     }
 
@@ -540,10 +635,10 @@
       min-width: 22px;
       height: 23px;
       padding: 0 6px;
-      border: 1px solid #e0e8ff38;
+      border: 1px solid var(--rule);
       border-radius: 6px;
-      background: #eef3ff10;
-      color: #f3f6ff;
+      background: var(--field);
+      color: var(--ink);
       font: inherit;
       font-size: 11px;
     }
@@ -557,10 +652,10 @@
       overflow: auto;
     }
 
-    dialog::backdrop { background: #060915a8; backdrop-filter: blur(8px); }
+    dialog::backdrop { background: var(--dialog-backdrop); backdrop-filter: var(--dialog-blur); }
     dialog[open] { animation: reveal-dialog .38s var(--ease) both; }
     dialog h2 { margin: 0 40px 9px 0; font-size: 29px; line-height: 1.13; letter-spacing: -.055em; }
-    dialog p { margin: 0 0 18px; color: #d7deed; }
+    dialog p { margin: 0 0 18px; color: var(--muted); }
     dialog .close { position: absolute; top: 15px; right: 15px; }
 
     @keyframes reveal-dialog {
@@ -579,7 +674,7 @@
       overflow: hidden;
       border: 0;
       border-radius: 0;
-      background: #090d16;
+      background: var(--canvas);
       text-align: center;
     }
 
@@ -605,6 +700,10 @@
       background: radial-gradient(ellipse at 50% 47%, #070b1763, #090d16df 85%);
     }
 
+    html[data-theme="light"] .launch::before {
+      background: radial-gradient(ellipse at 50% 47%, #f3f5f9eb 7%, #f3f5f9b3 48%, #e7eaf199 85%);
+    }
+
     .launch-content {
       position: relative;
       z-index: 2;
@@ -616,7 +715,7 @@
 
     .launch-mark { width: 47px; margin-bottom: 2px; }
     .launch-content h2 { margin: 0; font-size: clamp(36px, 7vw, 85px); }
-    .launch-content p { margin: 0; }
+    .launch-content p { margin: 0; color: var(--scene-muted); }
     .launch-content .play { min-width: 142px; min-height: 43px; margin-top: 8px; font-size: 13px; }
 
     progress {
@@ -626,65 +725,18 @@
       accent-color: var(--accent);
     }
 
-    @media (max-height: 770px) and (min-width: 761px) {
+    @media (max-height: 770px) {
       .dashboard { grid-template-rows: 63px 1fr 48px; }
       main { min-height: 0; gap: 17vh; padding-top: 12px; padding-bottom: 19px; }
       h1 { font-size: clamp(40px, 5.4vw, 85px); }
       .actions { margin-top: 17px; }
     }
 
-    @media (max-width: 760px) {
-      .dashboard { grid-template-columns: minmax(0, 1fr); grid-template-rows: 63px 1fr auto; }
-      .top { display: flex; justify-content: space-between; padding-inline: var(--edge); }
-      .brand { font-size: 19px; gap: 8px; }
-      .brand img { width: 29px; height: 22px; }
-      .footer { display: none; }
-      .top .icon-button { --control: 35px; }
-
-      .rail {
-        position: sticky;
-        z-index: 2;
-        bottom: 0;
-        grid-row: 3;
-        justify-content: space-around;
-        flex-direction: row;
-        padding: 5px var(--edge) max(5px, env(safe-area-inset-bottom));
-        gap: 4px;
-        background: #121725e3;
-        border: 0;
-        border-top: 1px solid #edf3ff29;
-      }
-
-      .rail-button { flex: 1; min-height: 49px; max-width: 100px; }
-      .rail-button svg { width: 18px; height: 18px; }
-      .rail-button[aria-pressed="true"]::before { top: auto; left: 30%; right: 30%; bottom: -1px; height: 2px; width: auto; }
-      #controls { margin-top: 0; }
-
-      main {
-        grid-column: 1;
-        min-height: 0;
-        gap: clamp(122px, 21svh, 250px);
-        padding: 12px var(--edge) 23px;
-      }
-
-      .shelf { gap: 12px; margin-right: calc(-1 * var(--edge)); padding-right: var(--edge); }
-      .tile { flex-basis: clamp(128px, 38vw, 200px); }
-      .tile-name { font-size: 12px; }
-      .shelf-controls { gap: 7px; }
-      .feature { display: block; }
-      .world-record { display: none; }
-      h1 { font-size: clamp(36px, 9vw, 64px); }
-      .description { max-width: 43ch; }
-      .actions { gap: 9px; margin-top: 18px; }
-      .play { min-width: 144px; min-height: 49px; }
-      .actions .icon-button { --control: 46px; }
-
-      .scrim {
-        background:
-          linear-gradient(0deg, #090c15 4%, rgba(9,12,21,.94) 21%, rgba(9,12,21,.47) 42%, transparent 66%),
-          linear-gradient(180deg, #090c15d9, #090c1592 19%, transparent 44%),
-          linear-gradient(90deg, #0a0d164d, transparent 72%);
-      }
+    @media (max-width: 1000px) {
+      .top { padding-inline: 16px var(--edge); }
+      .top-actions { gap: 8px; }
+      .feature { gap: 22px; }
+      .actions .play { min-width: 160px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -730,7 +782,12 @@
       </nav>
       <div class="top-actions">
         <span class="preview-tag">Демо</span>
-        <button class="icon-button glass" id="fullscreen" aria-label="Полноэкранный режим" aria-pressed="false" title="Полноэкранный режим"><svg aria-hidden="true"><use href="#expand"/></svg></button>
+        <select id="preview-theme" aria-label="Тема оформления" title="Тема оформления">
+          <option value="dark">Тёмная</option>
+          <option value="light">Светлая</option>
+          <option value="glass">Стекло</option>
+        </select>
+        <button class="icon-button surface" id="fullscreen" aria-label="Полноэкранный режим" aria-pressed="false" title="Полноэкранный режим"><svg aria-hidden="true"><use href="#expand"/></svg></button>
       </div>
     </header>
     <nav class="rail" aria-label="Библиотека миров">
@@ -754,7 +811,7 @@
           </div>
         </div>
         <div class="shelf" id="shelf" role="group" aria-label="Миры"></div>
-        <div class="empty glass" id="empty" hidden>
+        <div class="empty surface" id="empty" hidden>
           <p>Отметьте мир звёздочкой, и он появится здесь.</p>
           <button class="text-button" id="browse-worlds">Все миры <svg aria-hidden="true"><use href="#right"/></svg></button>
         </div>
@@ -768,18 +825,18 @@
           </div>
           <div class="actions">
             <button class="play" id="play-world"><svg aria-hidden="true"><use href="#play"/></svg><span>Играть</span></button>
-            <button class="icon-button glass favorite" id="favorite" aria-pressed="false" aria-label="Избранное" title="Избранное"><svg aria-hidden="true"><use href="#star"/></svg></button>
-            <button class="icon-button glass" id="details" aria-label="О мире" title="О мире"><svg aria-hidden="true"><use href="#info"/></svg></button>
+            <button class="icon-button surface favorite" id="favorite" aria-pressed="false" aria-label="Избранное" title="Избранное"><svg aria-hidden="true"><use href="#star"/></svg></button>
+            <button class="icon-button surface" id="details" aria-label="О мире" title="О мире"><svg aria-hidden="true"><use href="#info"/></svg></button>
           </div>
         </div>
-        <aside class="world-record glass" aria-labelledby="save-title">
+        <aside class="world-record surface" aria-labelledby="save-title">
           <h2 id="save-title"><svg aria-hidden="true"><use href="#clock"/></svg>Сохранение</h2>
           <dl class="stats" id="stats"></dl>
         </aside>
       </section>
     </main>
     <main class="server-browser" id="network" aria-label="Сетевая игра" hidden>
-      <section class="server-directory glass" aria-labelledby="server-list-title">
+      <section class="server-directory surface" aria-labelledby="server-list-title">
         <header class="server-directory-head">
           <div class="server-directory-title"><h2 id="server-list-title">Серверы</h2><span id="server-count"></span></div>
           <div class="server-tools">
@@ -803,15 +860,15 @@
           <p class="server-description" id="server-description"></p>
           <span class="server-address" id="server-address"></span>
         </div>
-        <dl class="server-metrics glass">
+        <dl class="server-metrics surface">
           <div><dt><svg aria-hidden="true"><use href="#users"/></svg>Игроки</dt><dd id="server-players"></dd></div>
           <div><dt><svg aria-hidden="true"><use href="#signal"/></svg>Пинг</dt><dd id="server-ping"></dd></div>
           <div><dt><svg aria-hidden="true"><use href="#cube"/></svg>Версия</dt><dd id="server-version"></dd></div>
         </dl>
         <div class="actions server-actions">
           <button class="play" id="join-server"><svg aria-hidden="true"><use href="#play"/></svg><span>Подключиться</span></button>
-          <button class="icon-button glass favorite" id="favorite-server" aria-pressed="false" aria-label="Избранный сервер" title="Избранный сервер"><svg aria-hidden="true"><use href="#star"/></svg></button>
-          <button class="icon-button glass" id="edit-server" aria-label="Редактировать сервер" title="Редактировать сервер"><svg aria-hidden="true"><use href="#pen"/></svg></button>
+          <button class="icon-button surface favorite" id="favorite-server" aria-pressed="false" aria-label="Избранный сервер" title="Избранный сервер"><svg aria-hidden="true"><use href="#star"/></svg></button>
+          <button class="icon-button surface" id="edit-server" aria-label="Редактировать сервер" title="Редактировать сервер"><svg aria-hidden="true"><use href="#pen"/></svg></button>
         </div>
       </section>
     </main>
@@ -821,11 +878,11 @@
       <div class="hints" id="gamepad-hints" hidden><span class="hint"><kbd id="pad-previous">◀</kbd><kbd id="pad-next">▶</kbd> Выбор</span><span class="hint"><kbd>✕ / A</kbd> <span id="pad-action">Играть</span></span><span class="hint"><kbd>○ / B</kbd> Назад</span></div>
     </footer>
   </div>
-  <dialog class="glass" id="info-panel" aria-labelledby="panel-title">
+  <dialog class="surface" id="info-panel" aria-labelledby="panel-title">
     <form method="dialog"><button class="icon-button close" aria-label="Закрыть" autofocus><svg aria-hidden="true"><use href="#close"/></svg></button></form>
     <h2 id="panel-title"></h2><p id="panel-text"></p><dl class="stats" id="panel-stats"></dl>
   </dialog>
-  <dialog class="glass server-dialog" id="server-editor" aria-labelledby="server-editor-title">
+  <dialog class="surface server-dialog" id="server-editor" aria-labelledby="server-editor-title">
     <form method="dialog"><button class="icon-button close" aria-label="Закрыть"><svg aria-hidden="true"><use href="#close"/></svg></button></form>
     <h2 id="server-editor-title"></h2>
     <form id="server-form" novalidate>
@@ -891,6 +948,21 @@
     let mode = 'solo';
     const network = createServerBrowser({ byId, showScene, launchScene, reducedMotion });
 
+    const themeControl = byId('preview-theme');
+    const themeKey = 'gleam-worlds-preview-theme';
+    try {
+      const theme = localStorage.getItem(themeKey);
+      if ([...themeControl.options].some(option => option.value === theme)) {
+        themeControl.value = theme;
+        document.documentElement.dataset.theme = theme;
+      }
+    } catch { /* The theme can still be changed for this session. */ }
+    themeControl.addEventListener('change', () => {
+      const theme = themeControl.value;
+      document.documentElement.dataset.theme = theme;
+      try { localStorage.setItem(themeKey, theme); } catch { /* Storage is optional. */ }
+    });
+
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey));
       if (Array.isArray(stored)) favorites = new Set(stored.filter(id => worlds.some(world => world.id === id)));
@@ -928,7 +1000,7 @@
     }
 
     function showScene(scene) {
-      document.documentElement.style.setProperty('--accent', scene.accent);
+      document.documentElement.style.setProperty('--scene-accent', scene.accent);
       changeWallpaper(scene);
     }
 
@@ -1157,7 +1229,7 @@
     }
 
     document.addEventListener('keydown', event => {
-      if (event.altKey || event.ctrlKey || event.metaKey || launch.open || panel.open || serverEditor.open) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || launch.open || panel.open || serverEditor.open || event.target === themeControl) return;
       showGamepadHints(false);
       const { key, target } = event;
       const onRail = target.closest?.('.rail');
