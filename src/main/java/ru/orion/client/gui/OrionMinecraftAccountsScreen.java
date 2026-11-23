@@ -9,6 +9,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.network.chat.Component;
 import ru.orion.client.GleamMinecraft;
 import ru.orion.client.OrionClient;
@@ -118,7 +119,12 @@ public final class OrionMinecraftAccountsScreen extends Screen {
     }
 
     private void button(int x, int y, int width, Component label, Runnable action, boolean enabled) {
-        var widget = Button.builder(label, button -> action.run()).bounds(x, y, width, 21).build();
+        var widget = new Button.Plain(x, y, width, 21, label, button -> action.run(), narration -> narration.get()) {
+            @Override
+            public void playDownSound(SoundManager sounds) {
+                OrionClickGuiScreen.playInterfaceSound(minecraft, "click");
+            }
+        };
         widget.active = enabled;
         addRenderableWidget(widget);
     }
