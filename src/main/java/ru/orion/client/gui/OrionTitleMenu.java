@@ -16,17 +16,12 @@ import com.mojang.blaze3d.shaders.ShaderType;
 *///?}
 import com.paradox.lumen.LumenNative;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.AlertScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.client.input.KeyEvent;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
@@ -44,27 +39,23 @@ public final class OrionTitleMenu {
     private static final String ROOT = "/assets/orion-client/";
     private static final String PANORAMA_PATH = "textures/gui/gleam_title_panorama.png";
     private static final Identifier PANORAMA = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, PANORAMA_PATH);
-    private static final String IAS_SCREEN = "ru.vidtu.ias.screen.AccountScreen";
     private static final long REVEAL_NANOS = 620_000_000L;
     private final OrionLumenView view = new OrionLumenView("title-menu.html", "title_menu",
             ROOT + "fonts/paradox/ParadoxSans-Regular.ttf", OrionTitleMenu::loadPage);
     private JsonObject previous;
     private Screen owner;
-    private IasAdd pendingIasAdd;
     private BufferedImage registeredAvatar;
     private String avatarAsset = "";
     private boolean artwork, startupDrawn, titleDrawn;
     private float scale = 1F;
     private long startupAt, revealAt;
 
-    private record IasAdd(Screen accounts, String choice) { }
-
     private OrionTitleMenu() { }
 
     public static void register() {
         OrionLumenView.registerPipelines();
+        OrionWorldBrowser.register();
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> INSTANCE.release());
-        if (FabricLoader.getInstance().isModLoaded("ias")) ClientTickEvents.END_CLIENT_TICK.register(INSTANCE::openIasChoice);
     }
 
     // На первом кадре ShaderManager ещё использует кэш, в котором есть только ресурсы Minecraft.
@@ -163,8 +154,6 @@ public final class OrionTitleMenu {
         state.addProperty("minecraftAccounts", OrionGuiLanguage.translate("Аккаунты Minecraft"));
         state.addProperty("addMicrosoft", OrionGuiLanguage.translate("Добавить аккаунт Microsoft"));
         state.addProperty("addOffline", OrionGuiLanguage.translate("Добавить офлайн-профиль"));
-        state.addProperty("iasMissing", OrionGuiLanguage.translate("Для аккаунтов Minecraft нужен In-Game Account Switcher"));
-        state.addProperty("iasAvailable", FabricLoader.getInstance().isModLoaded("ias"));
         state.addProperty("single", OrionGuiLanguage.translate("Одиночная игра"));
         state.addProperty("multi", OrionGuiLanguage.translate("Сетевая игра"));
         state.addProperty("multiReason", multiplayerReason);
@@ -188,46 +177,7 @@ public final class OrionTitleMenu {
     }
 
     public void openMinecraftAccounts(Screen title, String action) {
-        var client = Minecraft.getInstance();
-        if (!FabricLoader.getInstance().isModLoaded("ias")) return;
-        try {
-            Screen accounts = Class.forName(IAS_SCREEN).asSubclass(Screen.class).getConstructor(Screen.class).newInstance(title);
-            pendingIasAdd = switch (action) {
-                case "add-microsoft" -> new IasAdd(accounts, "ias.add.microsoft");
-                case "add-offline" -> new IasAdd(accounts, "ias.add.offline");
-                default -> null;
-            };
-            GleamMinecraft.setScreen(client, accounts);
-        } catch (ReflectiveOperationException | LinkageError failure) {
-            LoggerFactory.getLogger("GleamClient").warn("Не удалось открыть экран аккаунтов IAS", failure);
-            GleamMinecraft.setScreen(client, new AlertScreen(() -> GleamMinecraft.setScreen(client, title),
-                    Component.literal(OrionGuiLanguage.translate("Аккаунты Minecraft")),
-                    Component.literal(OrionGuiLanguage.translate("Не удалось открыть аккаунты Minecraft"))));
-        }
-    }
-
-    private void openIasChoice(Minecraft client) {
-        IasAdd request = pendingIasAdd;
-        if (request == null) return;
-        Screen current = GleamMinecraft.screen(client);
-        // IAS может сначала показать свой экран подтверждения, затем вернуть тот же экземпляр списка.
-        if (current instanceof AlertScreen) return;
-        pendingIasAdd = null;
-        if (current != request.accounts()) return;
-        if (pressIasButton(current, "ias.accounts.add") && GleamMinecraft.screen(client) != current)
-            pressIasButton(GleamMinecraft.screen(client), request.choice());
-    }
-
-    private static boolean pressIasButton(Screen screen, String key) {
-        if (screen == null) return false;
-        Component label = Component.translatable(key);
-        for (var listener : screen.children()) {
-            if (listener instanceof Button button && button.active && label.equals(button.getMessage())) {
-                button.onPress(new KeyEvent(InputConstants.KEY_RETURN, 0, 0));
-                return true;
-            }
-        }
-        return false;
+        GleamMinecraft.setScreen(Minecraft.getInstance(), new OrionMinecraftAccountsScreen(title, action));
     }
 
     static void drawBackdrop(GuiGraphicsExtractor graphics, int width, int height) {

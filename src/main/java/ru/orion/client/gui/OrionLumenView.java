@@ -232,6 +232,13 @@ public final class OrionLumenView {
     void editShortcut(JsonObject shortcut) {
         LumenNative.pageCall(page, engine, bytes("editShortcut"), bytes(shortcut.toString()));
     }
+
+    void insertText(String text) {
+        JsonObject edit = new JsonObject();
+        edit.addProperty("command", "type");
+        edit.addProperty("text", text);
+        editShortcut(edit);
+    }
     void pointerModifiers(boolean shift) {
         LumenNative.pageCall(page, engine, bytes("pointerModifiers"), bytes("{\"shift\":" + shift + "}"));
     }

@@ -4,33 +4,48 @@ gleamclient.xyz {
     header {
         X-Content-Type-Options nosniff
         Referrer-Policy strict-origin-when-cross-origin
-        X-Frame-Options DENY
         Strict-Transport-Security "max-age=31536000"
-        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
         -Server
+    }
+    @client_demo path /demo/*
+    header @client_demo {
+        X-Frame-Options SAMEORIGIN
+        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'"
+    }
+    @outside_demo not path /demo/*
+    header @outside_demo {
+        X-Frame-Options DENY
+        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     }
     @assets path /assets/*
     header @assets Cache-Control "public, max-age=3600"
     header /downloads/* Cache-Control "no-cache"
+
+    @internal path /ChatGPT.md /AGENTS.md
+    handle @internal {
+        respond 404
+    }
     handle_path /downloads/launcher/* {
         root * /var/www/gleam-launcher-updates
         file_server
     }
-    handle /v1/* {
+    handle_path /downloads/client/* {
+        root * /var/www/gleam-client-downloads
+        file_server
+    }
+    @cosmetics path /v1/* /healthz
+    handle @cosmetics {
         request_body {
             max_size 64KB
         }
         reverse_proxy 127.0.0.1:8765 {
-            header_up X-Real-IP {remote_host}
             transport http {
                 read_timeout 30s
             }
         }
     }
-    handle /auth.html {
-        reverse_proxy 127.0.0.1:8088
-    }
-    handle /api/* {
+    @site path /api/* /auth.html
+    handle @site {
         request_body {
             max_size 4KB
         }

@@ -1,0 +1,41 @@
+/* Lumen does not lay out the preview's three-row CSS grid. Use the same offsets
+   and keep the top and bottom rows anchored to their original positions. */
+@font-face { font-family:WorldsRegular; src:url("assets/worlds-Regular.ttf"); }
+@font-face { font-family:WorldsMedium; src:url("assets/worlds-Medium.ttf"); }
+@font-face { font-family:WorldsSemibold; src:url("assets/worlds-SemiBold.ttf"); }
+@font-face { font-family:WorldsBold; src:url("assets/worlds-Bold.ttf"); }
+#stage { display:block; padding:0; font-family:WorldsRegular,sans-serif; }
+#stage .hero { position:absolute; left:64px; top:278px; }
+#stage.has-notice .hero { top:252px; }
+#stage.has-notice .hero .play,#stage.has-notice .hero .round { height:48px; }
+.bg img { transition:none; }
+.tile { transition:transform .26s cubic-bezier(.2,.8,.2,1); box-shadow:none; }
+.focus-label { transition:transform .26s cubic-bezier(.2,.8,.2,1); }
+.tile.focus,.zone-off .tile.focus { box-shadow:none; outline:3px solid var(--accent); }
+.zone-off .tile.focus { outline-color:var(--muted); }
+@media (prefers-reduced-motion:reduce) {
+  .tile,.focus-label { transition:none; }
+}
+#stage .shelf { position:absolute; left:64px; right:48px; bottom:56px; }
+.top { z-index:4; }
+.tile img { border-radius:16px; }
+.tile .plus { border-width:1px; }
+.account-list { display:flex; flex-direction:column; }
+.account-row { display:flex; flex:none; }
+.account-choice { display:flex; flex:1; }
+.account-edit { display:flex; align-items:center; justify-content:center; flex:none; }
+.profile-copy { display:flex; flex:1; flex-direction:column; }
+#stage .account-add { display:flex; }
+#stage .account-add button { flex:1; }
+.profile-avatar img { display:block; width:100%; height:100%; border-radius:7px; image-rendering:pixelated; }
+.account .profile-avatar img { border-radius:50%; }
+.chip .live-dot { width:6px; height:6px; flex:none; border-radius:50%; background:var(--good); }
+.shelf h2 > span { display:flex; align-items:center; gap:4px; }
+.meta,.hints,.mi { font-family:WorldsMedium,sans-serif; font-weight:normal; }
+.tab,.clock,.account,.account-add button,.chip,.meta b,.shelf h2,
+.shelf h2 span b,.card strong,kbd,.btn,.toast { font-family:WorldsSemibold,sans-serif; font-weight:normal; }
+.brand,.account-panel h2,.profile-copy strong,.focus-label strong,.tile .badge,
+h1,.play,.card .stat,.dialog-box h3 { font-family:WorldsBold,sans-serif; font-weight:normal; }
+.desc { display:block; max-height:44px; font-family:WorldsRegular,sans-serif; }
+.motd-bold { font-family:WorldsBold,sans-serif; font-weight:normal; }
+.account-symbols,.dev { display:none; }

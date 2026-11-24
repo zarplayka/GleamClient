@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Аккаунты Minecraft · GleamClient</title>
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    html {
+      --accent: #a9b4ff; --on-accent: #181c33;
+      --panel: #171b23; --line: #3a4150; --field: #202633; --hover: #2b3445;
+      --text: #f4f6fb; --muted: #adb7ca; --scrim: #080c17aa;
+      color: var(--text); font: 15px sans-serif;
+    }
+    html[data-theme="light"] {
+      --accent: #4257b2; --on-accent: #fff;
+      --panel: #f5f7fb; --line: #c7d0e0; --field: #e8ecf5; --hover: #dce4f4;
+      --text: #22283a; --muted: #526079; --scrim: #111a3075;
+    }
+    html[data-theme="glass"] {
+      --panel: #111a28e8; --line: #e9f1ff38; --field: #edf4ff14; --hover: #edf4ff28;
+      --text: #fff; --muted: #d1dbeb; --scrim: #070d187d;
+    }
+    .layout {
+      width: 100%; height: 100%; padding: 18px; display: flex; align-items: center; justify-content: center;
+      background: var(--scrim);
+    }
+    .panel {
+      width: 414px; max-width: 100%; max-height: 100%; padding: 19px; overflow: auto;
+      border: 1px solid var(--line); border-radius: 17px; background: var(--panel);
+      box-shadow: 0 18px 58px #0508107d, inset 0 1px #eef4ff12;
+      animation: appear .24s ease-out;
+    }
+    @keyframes appear { from { opacity: 0; transform: translateY(7px) scale(.99); } to { opacity: 1; transform: none; } }
+    header { display: flex; align-items: center; gap: 11px; margin: 0 0 16px; }
+    .mark, .profile-icon {
+      display: flex; align-items: center; justify-content: center; flex: none;
+      width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 9px;
+      color: var(--accent); background: var(--field); font-size: 16px; font-weight: bold;
+    }
+    svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    h1 { margin: 0; font-size: 21px; font-weight: bold; line-height: 1.16; letter-spacing: -.5px; }
+    .caption { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .profiles { max-height: 213px; padding: 2px; overflow: auto; }
+    .profile {
+      display: flex; align-items: center; gap: 9px; width: 100%; min-height: 41px;
+      margin: 0 0 4px; padding: 4px 8px; text-align: left;
+    }
+    .profile:last-child { margin-bottom: 0; }
+    .profile-icon { width: 26px; height: 26px; border-radius: 6px; font-size: 13px; }
+    .profile-copy { flex: 1; min-width: 0; }
+    .profile-copy strong, .profile-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .profile-copy small { margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .profile[aria-current="true"] { border-color: var(--accent); }
+    .active { color: var(--accent); font-size: 12px; }
+    button,input { font: inherit; color: inherit; }
+    button {
+      border: 1px solid var(--line); border-radius: 8px; background: var(--field);
+      font-size: 13px; font-weight: bold; cursor: pointer;
+      transition: background-color .15s, border-color .15s, transform .15s;
+    }
+    button:not(:disabled):hover { background: var(--hover); }
+    button:not(:disabled):active { transform: scale(.98); }
+    button:focus, input:focus { outline: 1px solid var(--accent); outline-offset: 1px; }
+    button:disabled { cursor: default; opacity: .58; }
+    .actions { display: flex; gap: 7px; margin-top: 12px; }
+    .actions button, .back { min-height: 35px; padding: 5px 10px; }
+    .actions button { flex: 1; }
+    .primary, .primary:not(:disabled):hover { color: var(--on-accent); border-color: var(--accent); background: var(--accent); }
+    .primary:not(:disabled):hover { opacity: .88; }
+    .back { margin-left: auto; min-width: 94px; }
+    .field { display: block; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
+    input {
+      display: block; width: 100%; height: 38px; margin-top: 5px; padding: 0 10px; color: var(--text);
+      border: 1px solid var(--line); border-radius: 8px; background: var(--field);
+    }
+    #instructions { margin: 0 0 9px; font-size: 13px; color: var(--muted); }
+    #code {
+      min-height: 42px; display: flex; align-items: center; justify-content: center; padding: 5px 10px;
+      border: 1px solid var(--line); border-radius: 8px; background: var(--field); color: var(--accent);
+      font: bold 19px monospace; letter-spacing: .14em;
+    }
+    footer { display: flex; align-items: center; gap: 10px; margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--line); }
+    #status { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+    @media (prefers-reduced-motion: reduce) { .panel { animation: none; } button { transition: none; } }
+  </style>
+</head>
+<body>
+  <main class="layout">
+    <section class="panel" aria-labelledby="heading">
+      <header>
+        <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 19v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1"/></svg></span>
+        <div><h1 id="heading"></h1><p class="caption" id="caption" hidden></p></div>
+      </header>
+      <section id="profiles-page" hidden>
+        <div id="profiles" class="profiles" role="group"></div>
+        <div class="actions"><button type="button" class="primary" id="microsoft" data-action="microsoft">Microsoft</button><button type="button" id="offline" data-action="offline"></button></div>
+      </section>
+      <section id="offline-page" hidden>
+        <label for="nickname" class="field"><span id="nickname-label"></span><input id="nickname" type="text" maxlength="16" autocomplete="off" spellcheck="false"></label>
+        <div class="actions"><button type="button" class="primary" id="save" data-action="save"></button></div>
+      </section>
+      <section id="microsoft-page" hidden>
+        <div id="device" hidden>
+          <p id="instructions"></p>
+          <div id="code"></div>
+          <div class="actions"><button type="button" class="primary" id="open" data-action="open"></button><button type="button" id="copy" data-action="copy"></button></div>
+        </div>
+        <div class="actions" id="retry-row" hidden><button type="button" class="primary" id="retry" data-action="retry"></button></div>
+      </section>
+      <footer><p id="status" role="status"></p><button type="button" class="back" id="back" data-action="back"></button></footer>
+    </section>
+  </main>
+  <script>
+  const $ = id => document.getElementById(id);
+  const pages = { list: $('profiles-page'), offline: $('offline-page'), microsoft: $('microsoft-page') };
+  const nickname = $('nickname');
+  const targets = ['nickname-label', 'offline', 'save', 'instructions', 'open', 'copy', 'retry', 'back'];
+  let currentPage, profileKey, initialized = false;
+
+  function send(action, value = '') {
+    window.webkit.messageHandlers.paradox.postMessage(JSON.stringify({action, value}));
+  }
+
+  function profiles(state) {
+    const key = JSON.stringify([state.profiles, state.active, state.offlineType]);
+    if (profileKey !== key) {
+      profileKey = key;
+      $('profiles').textContent = '';
+      for (const entry of state.profiles) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'profile';
+        button.dataset.action = 'select';
+        button.dataset.value = entry.id;
+        button.setAttribute('aria-current', entry.id === state.active ? 'true' : 'false');
+        const icon = document.createElement('span');
+        icon.className = 'profile-icon';
+        icon.textContent = entry.name.slice(0, 1).toUpperCase();
+        icon.setAttribute('aria-hidden', 'true');
+        const copy = document.createElement('span');
+        copy.className = 'profile-copy';
+        const name = document.createElement('strong');
+        const type = document.createElement('small');
+        name.textContent = entry.name;
+        type.textContent = entry.offline ? state.offlineType : 'Microsoft';
+        copy.appendChild(name);
+        copy.appendChild(type);
+        button.appendChild(icon);
+        button.appendChild(copy);
+        if (entry.id === state.active) {
+          const mark = document.createElement('span');
+          mark.className = 'active';
+          mark.textContent = '✓';
+          button.appendChild(mark);
+        }
+        $('profiles').appendChild(button);
+      }
+    }
+    for (const button of $('profiles').querySelectorAll('button')) {
+      button.disabled = state.busy || button.dataset.value === state.active;
+    }
+  }
+
+  function enabledButtons() {
+    return Array.from(document.querySelectorAll('button, input')).filter(node => !node.disabled && !node.closest('[hidden]'));
+  }
+
+  window.paradox = {
+    update(state) {
+      document.documentElement.setAttribute('data-theme', state.theme);
+      document.documentElement.style.setProperty('--accent', state.accent);
+      document.documentElement.style.setProperty('--on-accent', state.accentInk);
+      $('heading').textContent = state.heading;
+      $('caption').textContent = state.caption;
+      $('caption').hidden = !state.caption;
+      $('status').textContent = state.status;
+      for (const id of targets) $(id).textContent = state.labels[id];
+      for (const page of Object.keys(pages)) pages[page].hidden = page !== state.page;
+      if (state.page === 'list') profiles(state);
+      if (state.page === 'offline' && currentPage !== 'offline') nickname.value = state.name;
+      $('device').hidden = !state.code;
+      $('code').textContent = state.code;
+      $('retry-row').hidden = !!state.code || state.busy;
+      for (const id of ['microsoft', 'offline', 'save', 'retry', 'open']) $(id).disabled = !state.ready;
+      nickname.disabled = !state.ready;
+      if (state.page === 'offline' && state.ready && (!initialized || currentPage !== 'offline' || document.activeElement === document.body)) nickname.focus();
+      currentPage = state.page;
+      initialized = true;
+    },
+    editShortcut(shortcut) {
+      if (currentPage !== 'offline' || nickname.disabled || document.activeElement !== nickname) return;
+      if (shortcut.command === 'select') nickname.select();
+      if (shortcut.command === 'paste' || shortcut.command === 'type') {
+        const start = nickname.selectionStart == null ? nickname.value.length : nickname.selectionStart;
+        const end = nickname.selectionEnd == null ? start : nickname.selectionEnd;
+        const inserted = shortcut.text.replace(/[^A-Za-z0-9_]/g, '').slice(0, 16 - (nickname.value.length - (end - start)));
+        nickname.value = nickname.value.slice(0, start) + inserted + nickname.value.slice(end);
+        if (typeof nickname.setSelectionRange === 'function') nickname.setSelectionRange(start + inserted.length, start + inserted.length);
+      }
+    }
+  };
+
+  document.addEventListener('click', event => {
+    const button = event.target.closest('button[data-action]');
+    if (!button || button.disabled) return;
+    send(button.dataset.action, button.dataset.action === 'save' ? nickname.value : button.dataset.value || '');
+  });
+  document.addEventListener('keydown', event => {
+    const focused = document.activeElement;
+    if (event.key === 'Enter' && focused === nickname) {
+      if (!$('save').disabled) send('save', nickname.value);
+      event.preventDefault();
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      if (focused && focused.tagName === 'BUTTON' && !focused.disabled) {
+        focused.click();
+        event.preventDefault();
+      }
+    } else if (event.key === 'Tab' || ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && focused !== nickname)) {
+      const buttons = enabledButtons();
+      if (!buttons.length) return;
+      const step = event.key === 'ArrowUp' || event.shiftKey ? -1 : 1;
+      const at = buttons.indexOf(focused);
+      const next = at < 0 ? (step > 0 ? 0 : buttons.length - 1) : (at + step + buttons.length) % buttons.length;
+      buttons[next].focus();
+      event.preventDefault();
+    }
+  });
+  </script>
+</body>
+</html>

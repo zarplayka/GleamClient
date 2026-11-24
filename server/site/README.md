@@ -1,8 +1,8 @@
-# Подключение существующих аккаунтов Orion
+# API аккаунтов GleamClient
 
-`app.py` — исходник уже работающего `/opt/orion-site/app.py`. Для этого изменения добавлен только явный список разрешённых origin из `ORION_SITE_ADDITIONAL_ORIGINS`; исходный `ORION_SITE_ORIGIN` продолжает действовать. Публичные API, схема базы, хеширование паролей, сессии, CSRF и лимиты запросов сохранены.
+`app.py` разворачивается в `/opt/orion-site/app.py`. Доверенные origin задаются переменными `ORION_SITE_ORIGIN` и `ORION_SITE_ADDITIONAL_ORIGINS`.
 
-В production основной origin — `https://orion.51-250-32-198.sslip.io`, дополнительный — `https://orionclient.51-250-32-198.sslip.io`. Дополнительный адрес настроен в `/etc/systemd/system/orion-site.service.d/orion-client-origin.conf`. Сервис `orion-site.service` слушает `127.0.0.1:8088`. База `/var/lib/orion-site/site.db` не переносилась и не менялась.
+В production основной origin — `https://gleamclient.xyz`. Сервис `orion-site.service` слушает `127.0.0.1:8088` на `153.51.172.5` и хранит аккаунты в `/var/lib/orion-site/site.db`. Для параметров интеграций предусмотрен `/etc/orion-site/site.env`. Ежедневные снимки SQLite хранятся в `/var/lib/orion-site/backups`.
 
 Новый сайт передаёт `/api/*` через Caddy на существующий сервис без подмены браузерного Origin. POST требует заголовок `X-Orion-Request: 1`, защищённые операции — также CSRF-токен из ответа сессии. Авторизация использует Secure/HttpOnly/SameSite=Strict cookie `__Host-orion_session` сроком до семи суток. Пароли и токены не хранятся в localStorage.
 
@@ -16,7 +16,7 @@
 
 ## Проверки
 
-Для подтверждения контактов зарегистрируйте приложение Discord и OAuth App GitHub. В поле redirect URL укажите `https://orionclient.51-250-32-198.sslip.io/api/profile/oauth/discord/callback` и `https://orionclient.51-250-32-198.sslip.io/api/profile/oauth/github/callback` соответственно. Установите `ORION_SOCIAL_ORIGIN` в HTTPS-адрес сайта из списка доверенных origin. Для каждого сервиса задайте `ORION_DISCORD_CLIENT_ID` или `ORION_GITHUB_CLIENT_ID` и путь к файлу секрета в `ORION_DISCORD_SECRET_FILE` или `ORION_GITHUB_SECRET_FILE`. Секреты можно передавать через `LoadCredential`, как пароль приложения для почты.
+Для подтверждения контактов зарегистрируйте приложение Discord и OAuth App GitHub. В поле redirect URL укажите `https://gleamclient.xyz/api/profile/oauth/discord/callback` и `https://gleamclient.xyz/api/profile/oauth/github/callback` соответственно. Установите `ORION_SOCIAL_ORIGIN` в HTTPS-адрес сайта из списка доверенных origin. Для каждого сервиса задайте `ORION_DISCORD_CLIENT_ID` или `ORION_GITHUB_CLIENT_ID` и путь к файлу секрета в `ORION_DISCORD_SECRET_FILE` или `ORION_GITHUB_SECRET_FILE`. Секреты можно передавать через `LoadCredential`, как пароль приложения для почты.
 
 Контакты подтверждаются только после входа в Orion. Сервер сохраняет идентификатор и имя внешнего профиля. Токены провайдера используются для одного запроса профиля и не сохраняются. Имена, введённые до появления привязки, остаются видны владельцу в настройках и публикуются после подтверждения.
 

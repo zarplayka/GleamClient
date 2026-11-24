@@ -1,0 +1,1310 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gleam Worlds</title>
+<!-- Общий интерфейс превью и GleamClient. Клиент подключает данные через Lumen. -->
+<style>
+@font-face{font-family:Paradox;src:url("../../src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-Regular.ttf")}
+@font-face{font-family:Paradox;src:url("../../src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-Medium.ttf");font-weight:500}
+@font-face{font-family:Paradox;src:url("../../src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-SemiBold.ttf");font-weight:600}
+@font-face{font-family:Paradox;src:url("../../src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-Bold.ttf");font-weight:700}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07090d}
+html{
+  --accent:#a9b4ff;--accent-ink:#181c33;
+  --ink:#f4f5f9;--muted:#b3b8c7;--subtle:#8c92a3;
+  --panel:#141820d9;--panel-line:#ffffff1c;--chip:#ffffff14;--chip-line:#ffffff1f;
+  --hover:#ffffff1a;--danger:#ff6b6b;--warn:#ffc966;--good:#6fe0a0;
+  --shade-side:linear-gradient(90deg,#07090ded 0%,#07090db8 38%,#07090d40 68%,#07090d00 86%);
+  --shade-bottom:linear-gradient(0deg,#07090df2 0%,#07090d99 26%,#07090d00 52%);
+  --shade-top:linear-gradient(180deg,#07090dcc 0%,#07090d00 22%);
+  --tile-bg:#1b2029;--glow:#0009;
+}
+html[data-theme="light"]{
+  --accent:#4257b2;--accent-ink:#fff;
+  --ink:#1d2436;--muted:#4b5670;--subtle:#6a7590;
+  --panel:#f6f8fce6;--panel-line:#1d243626;--chip:#1d243612;--chip-line:#1d24361f;
+  --hover:#1d243614;--danger:#d64545;--warn:#b7791f;--good:#1f9d63;
+  --shade-side:linear-gradient(90deg,#f3f5faf2 0%,#f3f5fac9 38%,#f3f5fa4d 68%,#f3f5fa00 86%);
+  --shade-bottom:linear-gradient(0deg,#f3f5faf5 0%,#f3f5faa8 26%,#f3f5fa00 52%);
+  --shade-top:linear-gradient(180deg,#f3f5fad9 0%,#f3f5fa00 22%);
+  --tile-bg:#dfe4ef;--glow:#1d243633;
+}
+html[data-theme="glass"]{
+  --panel:#10161e66;--panel-line:#edf7ff38;--chip:#ffffff1c;--chip-line:#ffffff2e;
+  --shade-side:linear-gradient(90deg,#07090dad 0%,#07090d70 40%,#07090d00 78%);
+  --shade-bottom:linear-gradient(0deg,#07090dc4 0%,#07090d66 26%,#07090d00 50%);
+}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit}
+
+/* Сцена рисуется в дизайн-пикселях и масштабируется целиком, как OrionTitleMenu. */
+#stage{position:absolute;left:0;top:0;display:grid;grid-template-rows:auto minmax(16px,1fr) auto;padding:278px 48px 56px 64px;transform-origin:0 0;overflow:hidden;color:var(--ink);font:15px Paradox,sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
+.bg,.bg img,.shade{position:absolute;inset:0;width:100%;height:100%}
+.bg{pointer-events:none}
+.bg img{object-fit:cover;opacity:0;transition:opacity .4s ease}
+.bg img.on{opacity:1}
+.shade{background:var(--shade-top),var(--shade-bottom),var(--shade-side)}
+
+/* Верхняя панель */
+.top{position:absolute;left:64px;right:48px;top:26px;height:40px;display:flex;align-items:center;gap:28px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.3px}
+.brand img{width:26px;height:26px}
+.tabs{display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;background:var(--chip);border:1px solid var(--chip-line)}
+.tab{position:relative;height:32px;padding:0 16px;border:0;border-radius:999px;background:transparent;color:var(--muted);font-weight:600;font-size:14px;cursor:pointer;transition:color .2s,background-color .2s}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--accent-ink)}
+html[data-theme="dark"] .tab[aria-selected="true"],html[data-theme="glass"] .tab[aria-selected="true"]{color:#11141b}
+html[data-theme="light"] .tab[aria-selected="true"]{color:#fff}
+.tabs kbd{margin:0 4px}
+.status{margin-left:auto;display:flex;align-items:center;gap:10px}
+.search{display:flex;align-items:center;gap:8px;height:34px;width:34px;padding:0 7px;border-radius:999px;background:var(--chip);border:1px solid var(--chip-line);overflow:hidden;transition:width .28s cubic-bezier(.2,.8,.2,1)}
+.search.open{width:230px}
+.search svg{flex:none;cursor:pointer}
+.search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:13px}
+.search input::placeholder{color:var(--subtle)}
+.clock{font-weight:600;font-size:15px;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
+.account-picker{position:relative;z-index:6}
+.account{
+  display:flex;align-items:center;gap:8px;height:34px;max-width:192px;padding:0 9px 0 4px;
+  border:1px solid var(--chip-line);border-radius:999px;background:var(--chip);
+  font-size:13px;font-weight:600;cursor:pointer;transition:background .2s,border-color .2s;
+}
+.account:hover,.account[aria-expanded="true"]{background:var(--hover);border-color:var(--accent)}
+.account-name{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.account .account-chevron{width:12px;height:12px;color:var(--muted);transition:transform .25s}
+.account[aria-expanded="true"] .account-chevron{transform:rotate(180deg)}
+.account-picker button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.account-symbols{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
+.profile-avatar{
+  display:block;flex:none;width:32px;height:32px;border:1px solid var(--panel-line);border-radius:9px;
+  background-color:var(--tile-bg);background-size:100% 100%;image-rendering:pixelated;
+}
+.profile-avatar[data-face="steve"]{
+  background-image:url('launcher-default-skin.png');background-size:800% 800%;background-position:14.2857% 14.2857%;
+}
+.account .profile-avatar{width:24px;height:24px;border-radius:50%}
+
+.account-panel{
+  position:absolute;top:calc(100% + 8px);right:0;width:274px;max-height:min(var(--account-space, 340px), 340px);
+  display:flex;flex-direction:column;gap:7px;padding:9px;overflow:hidden;
+  border:1px solid var(--panel-line);border-radius:14px;background:#171b23;box-shadow:0 18px 42px var(--glow);
+  transform-origin:calc(100% - 24px) 0;transform:translateY(-8px) scale(.955,.97);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .18s,transform .23s cubic-bezier(.2,.75,.24,1),visibility 0s linear .23s;
+}
+.account-panel[data-open]{
+  transform:none;opacity:1;visibility:visible;pointer-events:auto;
+  transition:opacity .2s,transform .34s cubic-bezier(.17,.85,.25,1.13),visibility 0s;
+}
+html[data-theme="light"] .account-panel{background:#f6f8fc}
+html[data-theme="glass"] .account-panel{background:#10161eb8;backdrop-filter:blur(18px) saturate(1.4)}
+.account-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 3px}
+.account-panel-head h2{margin:0;font-size:14px;letter-spacing:-.2px}
+.profile-copy{display:grid;min-width:0;gap:2px}
+.profile-copy strong{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px;line-height:1.2}
+.profile-copy small{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--muted);font-size:11px}
+.account-count{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.account-list{display:grid;gap:3px;min-height:0;max-height:196px;margin:0 -3px;padding:3px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.account-row{
+  display:grid;grid-template-columns:minmax(0,1fr) 26px;align-items:center;gap:2px;
+  min-height:41px;border:1px solid transparent;border-radius:9px;background:var(--chip);padding-right:4px;
+  transition:background .2s,border-color .2s;
+}
+.account-row[data-active]{border-color:color-mix(in srgb,var(--accent) 47%,var(--panel-line));background:color-mix(in srgb,var(--accent) 10%,var(--chip))}
+.account-choice{
+  display:grid;grid-template-columns:27px minmax(0,1fr) 14px;align-items:center;gap:7px;min-width:0;
+  padding:5px;border:0;border-radius:8px;background:transparent;text-align:left;cursor:pointer;
+}
+.account-row .profile-avatar{width:27px;height:27px;border-radius:7px}
+.account-choice:hover,.account-edit:hover,.account-add button:hover{background:var(--hover)}
+.account-check{color:var(--accent);opacity:0;transform:translateX(-5px) scale(.8);transition:opacity .2s,transform .27s cubic-bezier(.2,.8,.2,1)}
+.account-check svg.i{width:14px;height:14px;display:block}
+.account-row[data-active] .account-check{opacity:1;transform:none}
+.account-edit{
+  display:grid;place-items:center;width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;
+}
+.account-edit svg.i{width:14px;height:14px}
+.account-add{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:5px;border-top:1px solid var(--panel-line);padding-top:6px}
+.account-add button{
+  display:flex;align-items:center;justify-content:center;gap:4px;min-height:30px;padding:0 4px;
+  border:1px solid var(--panel-line);border-radius:7px;background:var(--chip);font-size:11px;font-weight:600;white-space:nowrap;cursor:pointer;
+}
+.account-add button svg.i{width:13px;height:13px;color:var(--accent)}
+.account-panel[data-open] :is(.account-row,.account-add){animation:account-enter .28s cubic-bezier(.19,.82,.25,1) backwards;animation-delay:var(--account-delay,25ms)}
+.account-add{--account-delay:75ms}
+@keyframes account-enter{from{opacity:.35;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.account-form-error{color:var(--danger);margin:8px 0 0;font-size:13px}
+.account-device-code{display:block;margin:14px 0 0;padding:10px 12px;border:1px solid var(--panel-line);border-radius:9px;background:var(--chip);color:var(--accent);font:700 17px monospace;letter-spacing:.12em;text-align:center;user-select:text}
+.dialog-box .row.account-form-actions{justify-content:space-between}
+.account-form-buttons{display:flex;gap:10px}
+.account-dialog-submit{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.account-dialog-submit:hover{background:var(--accent);filter:brightness(1.07)}
+.icon-btn{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;border:1px solid var(--chip-line);background:var(--chip);cursor:pointer;transition:background-color .18s}
+.icon-btn:hover{background:var(--hover)}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* Лента плиток */
+.rail{position:absolute;left:0;right:0;top:96px;height:150px}
+.tile{position:absolute;left:0;top:27px;width:96px;height:96px;border-radius:16px;background:var(--tile-bg);overflow:hidden;cursor:pointer;transform-origin:0 50%;
+  transition:transform .42s cubic-bezier(.2,.8,.2,1),opacity .3s,box-shadow .25s;box-shadow:0 6px 16px var(--glow)}
+.tile img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.tile img.pixel{image-rendering:pixelated;padding:14px;object-fit:contain}
+.tile .plus{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--chip);border:1.5px dashed var(--chip-line);border-radius:16px}
+.tile .plus svg{width:34px;height:34px;stroke-width:1.6}
+.tile .badge{position:absolute;right:6px;bottom:6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;background:#000a;color:#fff}
+.tile .badge.red{background:#e5484d}
+.tile .badge.warn{background:#d1912a}
+.tile .dot{position:absolute;right:7px;top:7px;width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 2px #0008}
+.tile .dot.off{background:#7a7f8c}
+.tile.focus{box-shadow:0 0 0 3px var(--accent),0 14px 30px var(--glow)}
+.zone-off .tile.focus{box-shadow:0 0 0 2px color-mix(in srgb,var(--ink) 45%,transparent),0 14px 30px var(--glow)}
+.tile.gone{opacity:0;pointer-events:none}
+.focus-label{position:absolute;left:0;top:27px;height:125px;display:flex;flex-direction:column;justify-content:center;width:250px;transition:transform .42s cubic-bezier(.2,.8,.2,1),opacity .25s;pointer-events:none}
+.focus-label strong{font-size:21px;font-weight:700;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.focus-label span{margin-top:4px;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Карточка выбранного */
+.hero{position:relative;grid-row:1;width:620px}
+#stage.has-notice{padding-top:252px}
+.has-notice .hero h1{margin-top:10px;line-height:52px}
+.has-notice .hero .desc{margin-top:9px;min-height:22px}
+.has-notice .hero .notice{margin-top:9px;padding-block:8px}
+.has-notice .hero .actions{margin-top:14px}
+.has-notice .hero :is(.play,.round){height:48px}
+.has-notice .hero .round{width:48px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;min-height:24px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--chip);border:1px solid var(--chip-line);font-size:12px;font-weight:600;color:var(--ink)}
+.chip.red{background:#e5484d2e;border-color:#e5484d66;color:#ff9b9e}
+.chip.warn{background:#d1912a2e;border-color:#d1912a66;color:var(--warn)}
+.chip.good{color:var(--good)}
+html[data-theme="light"] .chip.red{color:#c0262c}
+h1{margin:14px 0 0;font-size:52px;line-height:58px;font-weight:700;letter-spacing:-1.6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{display:flex;align-items:center;gap:14px;margin-top:8px;color:var(--muted);font-size:14px;font-weight:500;white-space:nowrap}
+.meta b{color:var(--ink);font-weight:600}
+.meta .sep{width:4px;height:4px;border-radius:50%;background:var(--subtle)}
+.desc{margin:14px 0 0;max-width:560px;color:var(--muted);font-size:15px;line-height:22px;min-height:44px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.motd-line{display:flex;line-height:22px;white-space:pre;overflow:hidden;color:var(--ink)}
+.motd-run{flex:none;white-space:pre}
+.motd-bold{font-weight:700}
+.notice{display:flex;gap:10px;align-items:flex-start;margin-top:14px;padding:10px 12px;border-radius:12px;background:#d1912a24;border:1px solid #d1912a55;color:var(--ink);font-size:13px;line-height:18px;max-width:520px}
+.notice svg{flex:none;color:var(--warn);margin-top:1px}
+.actions{display:flex;align-items:center;gap:10px;margin-top:22px}
+.play{display:flex;align-items:center;gap:10px;height:52px;padding:0 30px 0 24px;border:0;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:17px;font-weight:700;cursor:pointer;transition:transform .18s,box-shadow .2s,filter .2s;box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 35%,transparent)}
+.play svg{width:20px;height:20px;fill:currentColor;stroke:none}
+.play:hover{filter:brightness(1.06)}
+.play:active{transform:scale(.97)}
+.play[disabled]{background:var(--chip);color:var(--subtle);box-shadow:none;cursor:default;filter:none}
+.round{display:flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:50%;border:1px solid var(--chip-line);background:var(--panel);cursor:pointer;transition:background-color .18s,transform .18s}
+.round:hover{background:var(--hover)}
+.round:active{transform:scale(.95)}
+.round svg{width:20px;height:20px}
+.kfocus{outline:3px solid var(--accent);outline-offset:3px}
+
+/* Полка */
+.shelf{position:relative;grid-row:3;min-height:112px}
+.shelf h2{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.2px;display:flex;gap:18px}
+.shelf h2 span b{color:var(--ink);font-weight:600}
+.shelf h2 small{font:inherit}
+.cards{display:flex;gap:12px}
+.card{display:flex;align-items:center;gap:12px;width:250px;height:76px;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid var(--panel-line);cursor:pointer;transition:transform .2s,background-color .2s,border-color .2s;text-align:left}
+.card:hover{background:color-mix(in srgb,var(--panel) 80%,var(--ink) 8%)}
+.card .thumb{flex:none;width:48px;height:48px;border-radius:10px;object-fit:cover;background:var(--tile-bg);image-rendering:pixelated}
+.card .txt{min-width:0}
+.card strong{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card span{display:block;margin-top:3px;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .stat{font-size:20px;font-weight:700;color:var(--ink);margin:0}
+.card.info{cursor:default}
+.card.focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+html[data-theme="glass"] .card,html[data-theme="glass"] .round,html[data-theme="glass"] .menu-pop,html[data-theme="glass"] .dialog-box{backdrop-filter:blur(18px) saturate(1.4)}
+
+/* Подсказки клавиш */
+.hints{position:absolute;left:64px;right:48px;bottom:22px;display:flex;gap:22px;color:var(--muted);font-size:12px;font-weight:500}
+.hints span{display:flex;align-items:center;gap:7px}
+kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:6px;border:1px solid var(--chip-line);border-bottom-width:2px;background:var(--chip);color:var(--ink);font:600 11px Paradox,sans-serif}
+
+/* Всплывающее меню, диалог и уведомление */
+.menu-pop{position:absolute;z-index:5;width:230px;padding:6px;border-radius:14px;background:var(--panel);border:1px solid var(--panel-line);box-shadow:0 18px 40px var(--glow);opacity:0;transform:translateY(-6px) scale(.98);transform-origin:0 0;pointer-events:none;transition:opacity .16s,transform .2s cubic-bezier(.2,.8,.2,1)}
+.menu-pop.open{opacity:1;transform:none;pointer-events:auto}
+html[data-theme="dark"] .menu-pop{background:#191d26f7}
+.mi{display:flex;align-items:center;gap:10px;width:100%;height:38px;padding:0 10px;border:0;border-radius:9px;background:transparent;cursor:pointer;font-size:14px;font-weight:500;text-align:left}
+.mi:hover,.mi.sel{background:var(--hover)}
+.mi.danger{color:var(--danger)}
+.mi svg{width:17px;height:17px;flex:none}
+.mi-sep{height:1px;margin:5px 6px;background:var(--panel-line)}
+.dialog{position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;background:#05070acc;opacity:0;pointer-events:none;transition:opacity .2s}
+html[data-theme="light"] .dialog{background:#1d243659}
+.dialog.open{opacity:1;pointer-events:auto}
+.dialog-box{width:440px;padding:26px;border-radius:22px;background:var(--panel);border:1px solid var(--panel-line);box-shadow:0 30px 60px var(--glow);transform:scale(.96);transition:transform .24s cubic-bezier(.2,.8,.2,1)}
+html[data-theme="dark"] .dialog-box{background:#171b23}
+.dialog.open .dialog-box{transform:none}
+.dialog-box h3{margin:0;font-size:22px;font-weight:700;letter-spacing:-.4px}
+.dialog-box p{margin:10px 0 0;color:var(--muted);font-size:14px;line-height:20px}
+.dialog-box .row{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+.btn{height:42px;padding:0 20px;border-radius:999px;border:1px solid var(--chip-line);background:var(--chip);font-weight:600;font-size:14px;cursor:pointer}
+.btn:hover{background:var(--hover)}
+.btn.red{background:var(--danger);border-color:var(--danger);color:#fff}
+.field{display:block;margin-top:14px}
+.field span{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.field input{width:100%;height:42px;padding:0 14px;border-radius:12px;border:1px solid var(--chip-line);background:var(--chip);color:var(--ink);font:inherit;outline:0}
+.field input:focus{border-color:var(--accent)}
+.toast{position:absolute;z-index:9;left:50%;bottom:64px;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;background:var(--panel);border:1px solid var(--panel-line);font-size:14px;font-weight:600;box-shadow:0 14px 30px var(--glow);transform:translate(-50%,16px);opacity:0;pointer-events:none;transition:opacity .2s,transform .3s cubic-bezier(.2,.8,.2,1)}
+html[data-theme="dark"] .toast{background:#191d26}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.spinner{width:16px;height:16px;border-radius:50%;border:2px solid var(--chip-line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Пустой список */
+.empty{position:absolute;left:64px;top:300px;width:520px}
+.empty h1{font-size:40px;line-height:46px}
+
+/* Пинг */
+.ping{display:inline-flex;align-items:flex-end;gap:2px;height:12px}
+.ping i{display:block;width:3px;border-radius:1px;background:var(--chip-line)}
+.ping i:nth-child(1){height:4px}.ping i:nth-child(2){height:6px}.ping i:nth-child(3){height:9px}.ping i:nth-child(4){height:12px}
+.ping.p4 i,.ping.p3 i:nth-child(-n+3),.ping.p2 i:nth-child(-n+2),.ping.p1 i:nth-child(1){background:var(--good)}
+.ping.p2 i:nth-child(-n+2){background:var(--warn)}
+.ping.p1 i:nth-child(1){background:var(--danger)}
+
+.short .shelf{display:none}
+@media(prefers-reduced-motion:reduce){
+  .bg img,.tile,.focus-label{transition:none}
+  .account-picker *{transition:none!important;animation:none!important}
+}
+
+/* Панель превью — не часть игрового интерфейса */
+.dev{position:fixed;right:14px;bottom:14px;z-index:20;font:12px system-ui,sans-serif;color:#e8eaf0}
+.dev>button{height:32px;padding:0 12px;border-radius:999px;border:1px solid #ffffff30;background:#101318ee;color:inherit;font-weight:600;cursor:pointer}
+.dev-panel{position:absolute;right:0;bottom:40px;width:290px;padding:12px;border-radius:14px;background:#101318f5;border:1px solid #ffffff26;box-shadow:0 18px 40px #0009}
+.dev-panel h4{margin:0 0 8px;font-size:11px;font-weight:600;color:#9aa1b2;text-transform:uppercase;letter-spacing:.6px}
+.dev-panel section+section{margin-top:12px}
+.seg{display:flex;gap:3px;padding:3px;border-radius:9px;background:#ffffff10}
+.seg button{flex:1;height:26px;border:0;border-radius:7px;background:transparent;color:#c9cdd8;font:inherit;font-weight:600;cursor:pointer}
+.seg button.on{background:#e8eaf0;color:#101318}
+.swatches{display:flex;gap:6px}
+.swatches button{width:24px;height:24px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.swatches button.on{border-color:#fff}
+.dev label{display:flex;align-items:center;gap:8px;margin-top:6px;color:#c9cdd8;cursor:pointer}
+.dev small{display:block;margin-top:6px;color:#8a90a0;line-height:15px}
+
+</style>
+</head>
+<body>
+<svg class="account-symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="account-down" viewBox="0 0 24 24"><path d="m5 9 7 7 7-7"/></symbol>
+  <symbol id="account-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="account-edit" viewBox="0 0 24 24"><path d="m4 20 4.2-1.1L19 8.1 15.9 5 5 15.8 4 20Zm9.8-12.9 3.1 3.1"/></symbol>
+  <symbol id="account-microsoft" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 4v16M4 12h16"/></symbol>
+  <symbol id="account-offline" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1m3-12v6m-3-3h6"/></symbol>
+</svg>
+<div id="stage" class="zone-tiles">
+  <div class="bg"><img id="bgA" alt=""><img id="bgB" alt=""><div class="shade"></div></div>
+
+  <header class="top">
+    <div class="brand"><img src="../../src/main/resources/assets/orion-client/textures/cosmetics/orion_badge.png" alt="">GleamClient</div>
+    <nav class="tabs" role="tablist">
+      <kbd>Q</kbd>
+      <button class="tab" role="tab" data-tab="single" aria-selected="true">Одиночная игра</button>
+      <button class="tab" id="preview-tab-multi" role="tab" data-tab="multi" aria-selected="false">Сетевая игра</button>
+      <kbd>E</kbd>
+    </nav>
+    <div class="status">
+      <label class="search" id="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="query" type="text" maxlength="96" placeholder="Поиск по названию" tabindex="-1"></label>
+      <div class="account-picker" id="accountPicker">
+        <button type="button" class="account" id="accountTrigger" aria-label="Аккаунты Minecraft" aria-expanded="false" aria-controls="accountPanel">
+          <span class="profile-avatar" id="accountAvatar" aria-hidden="true"></span>
+          <span class="account-name" id="accountName"></span>
+          <svg class="i account-chevron" aria-hidden="true"><use href="#account-down"/></svg>
+        </button>
+        <section class="account-panel" id="accountPanel" aria-labelledby="accountHeading" inert>
+          <header class="account-panel-head"><h2 id="accountHeading">Аккаунты Minecraft</h2><span class="account-count" id="accountCount"></span></header>
+          <div class="account-list" id="accountList" role="group" aria-label="Сохранённые профили"></div>
+          <div class="account-add" role="group" aria-label="Добавить аккаунт">
+            <button type="button" data-account-type="microsoft" aria-label="Добавить аккаунт Microsoft"><svg class="i" aria-hidden="true"><use href="#account-microsoft"/></svg>Microsoft</button>
+            <button type="button" data-account-type="offline" aria-label="Добавить офлайн-профиль"><svg class="i" aria-hidden="true"><use href="#account-offline"/></svg><span id="offlineProfileLabel">Офлайн-профиль</span></button>
+          </div>
+        </section>
+      </div>
+      <span class="clock" id="clock">00:00</span>
+      <button class="icon-btn" id="back" title="Назад (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+  </header>
+
+  <section class="rail" id="rail"><div id="track"></div><div class="focus-label" id="label"><strong></strong><span></span></div></section>
+
+  <section class="hero" id="hero">
+    <div class="chips" id="chips"></div>
+    <h1 id="title"></h1>
+    <div class="meta" id="meta"></div>
+    <p class="desc" id="desc"></p>
+    <div class="notice" id="notice" hidden><svg class="i" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4.5m0 3v.01"/></svg><span></span></div>
+    <div class="actions" id="actions">
+      <button class="play" id="play"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg><span>Играть</span></button>
+      <button class="round" id="edit" title="Изменить"><svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg></button>
+      <button class="round" id="more" title="Ещё"><svg class="i" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/></svg></button>
+    </div>
+  </section>
+
+  <section class="empty" id="empty" hidden>
+    <div class="chips"><span class="chip" id="emptyChip">Пока пусто</span></div>
+    <h1 id="emptyTitle"></h1>
+    <p class="desc" id="emptyDesc"></p>
+    <div class="actions"><button class="play" id="emptyAction"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6H5v-2h6z"/></svg><span></span></button>
+      <button class="round" id="emptyDirect" title="Прямое подключение" hidden><svg class="i" viewBox="0 0 24 24"><path d="M10 13a4 4 0 0 0 6 .4l3-3a4 4 0 1 0-5.7-5.7l-1.7 1.7M14 11a4 4 0 0 0-6-.4l-3 3a4 4 0 1 0 5.7 5.7l1.7-1.7"/></svg></button>
+    </div>
+  </section>
+
+  <section class="shelf" id="shelf"><h2 id="shelfTitle"></h2><div class="cards" id="cards"></div></section>
+
+  <footer class="hints" id="hints"></footer>
+
+  <div class="menu-pop" id="pop" role="menu"></div>
+  <div class="dialog" id="dialog" inert><div class="dialog-box" id="dialogBox" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"></div></div>
+  <div class="toast" id="toast"><span class="spinner" id="toastSpin"></span><span id="toastText"></span></div>
+</div>
+
+<div class="dev" id="dev">
+  <div class="dev-panel" id="devPanel" hidden>
+    <section><h4>Тема</h4><div class="seg" id="segTheme"><button data-v="dark" class="on">Тёмная</button><button data-v="light">Светлая</button><button data-v="glass">Стекло</button></div></section>
+    <section><h4>Акцент</h4><div class="swatches" id="swatches"></div></section>
+    <section><h4>Проверка вёрстки</h4>
+      <label><input type="checkbox" id="optEmpty"> Пустой список</label>
+      <label><input type="checkbox" id="optLong"> Длинные названия</label>
+    </section>
+  </div>
+  <button id="devToggle">Превью ▾</button>
+</div>
+<template id="accountRow">
+  <div class="account-row">
+    <button type="button" class="account-choice" aria-pressed="false">
+      <span class="profile-avatar" aria-hidden="true"></span>
+      <span class="profile-copy"><strong></strong><small></small></span>
+      <span class="account-check" aria-hidden="true"><svg class="i"><use href="#account-check"/></svg></span>
+    </button>
+    <button type="button" class="account-edit"><svg class="i" aria-hidden="true"><use href="#account-edit"/></svg></button>
+  </div>
+</template>
+
+<!-- gleam-worlds-game-config -->
+<script>
+const $ = id => document.getElementById(id);
+const game = window.gleamWorldsGame;
+const t = text => game?.labels?.[text] || text;
+const IMG = '../../src/main/resources/assets/orion-client/textures/gui/gleam_title_panorama.png';
+const SHOTS = ['launcher-background-26-3.webp','launcher-background-26-2.webp','launcher-background-26-1-2.webp',
+  'launcher-background-1-21-11.webp','launcher-background-1-21-4.webp','launcher-background-1-16-5.webp',
+  '../assets/gameplay-baseline.webp','../assets/gameplay-orion.webp'];
+
+// Пиксельные иконки серверов: симметричный узор 8×8 из сида (как у favicon сервера 64×64).
+function pixelIcon(seed, palette) {
+  const c = document.createElement('canvas'); c.width = c.height = 8;
+  const g = c.getContext('2d'); let s = seed * 9301 + 49297;
+  const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+  g.fillStyle = palette[0]; g.fillRect(0, 0, 8, 8);
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 4; x++) {
+    const r = rnd(); if (r < .38) continue;
+    g.fillStyle = palette[1 + Math.floor(r * 10) % (palette.length - 1)];
+    g.fillRect(x, y, 1, 1); g.fillRect(7 - x, y, 1, 1);
+  }
+  return c.toDataURL();
+}
+
+const WORLDS = game ? [] : [
+  {name:'Лесной хутор', mode:'Выживание', diff:'Нормальная', version:'26.3', played:'Сегодня, 14:12', size:'412 МБ', time:'38 ч', shot:0,
+   desc:'Дом у реки, ферма на 4 культуры и шахта до глубинного сланца. Последнее сохранение — у портала в Незер.', cheats:false},
+  {name:'Город на побережье', mode:'Творческий', diff:'Мирная', version:'26.3', played:'Вчера, 22:40', size:'1,8 ГБ', time:'112 ч', shot:6,
+   desc:'Мегапроект: порт, метро и небоскрёбы. Команды включены.', cheats:true},
+  {name:'Хардкор #3', mode:'Хардкор', diff:'Сложная', version:'26.3', played:'3 дня назад', size:'96 МБ', time:'9 ч', shot:1, hardcore:true,
+   desc:'Одна жизнь. Предыдущие две попытки закончились в Незере.'},
+  {name:'Паркур от друзей', mode:'Приключение', diff:'Нормальная', version:'26.2', played:'12 нояб.', size:'38 МБ', time:'2 ч', shot:2,
+   desc:'Карта из 40 уровней с чекпоинтами.'},
+  {name:'Старый мир', mode:'Выживание', diff:'Нормальная', version:'1.20.1', played:'2 года назад', size:'2,4 ГБ', time:'410 ч', shot:5, upgrade:true,
+   desc:'Самый первый мир. Тут ещё стоит деревянный дом из первой ночи.'},
+  {name:'Скайблок', mode:'Выживание', diff:'Лёгкая', version:'26.3', played:'1 нояб.', size:'12 МБ', time:'5 ч', shot:3,
+   desc:'Один остров, одно дерево и сундук с лавой.'},
+  {name:'Тестовый мир', mode:'Творческий', diff:'Мирная', version:'26.3', played:'28 окт.', size:'64 МБ', time:'1 ч', shot:4, cheats:true,
+   desc:'Редстоун-схемы и проверка модулей GleamClient.'},
+];
+const SERVERS = game ? [] : [
+  {name:'Gleam SMP', address:'smp.gleam.example', motd:'§aВыживание без вайпов §7| §eСезон 4 открыт!', online:186, max:500, ping:38, version:'1.21.11–26.3', shot:0, icon:[3,['#1f2b46','#a9b4ff','#6b8cff','#ffffff']]},
+  {name:'Мини-игры', address:'play.minigames.example', motd:'§bBedWars §f• §dSkyWars §f• §6Duels', online:2481, max:5000, ping:61, version:'1.8–26.3', shot:6, icon:[7,['#2a1640','#ff7ad9','#ffd36b','#8a5cff']]},
+  {name:'Анархия', address:'anarchy.example', motd:'§cНет правил. §7Нет вайпов.', online:93, max:200, ping:142, version:'26.3', shot:1, icon:[11,['#1a0f0f','#ff5c5c','#7a2a2a','#f2f2f2']]},
+  {name:'Сервер класса', address:'192.168.0.40:25565', motd:'§7Только для своих', online:4, max:20, ping:9, version:'26.3', shot:2, icon:[5,['#0f2a22','#6fe0a0','#2f8a5f','#d8ffe9']]},
+  {name:'Старый сервер', address:'legacy.example', motd:'§7Сервер на 1.20.4', online:12, max:100, ping:77, version:'1.20.4', shot:5, incompatible:true, icon:[2,['#2b2416','#d1a35a','#7a5c2a','#f5e3bf']]},
+  {name:'localhost', address:'localhost', motd:'', online:0, max:0, ping:-1, version:'', shot:4, offline:true, icon:[9,['#1b1e26','#5d6475','#8a90a0','#3a3f4c']]},
+];
+const LAN = game ? [] : [{name:'Мир игрока Alex', sub:'LAN · 192.168.0.12:51734', shot:3}];
+const FRIENDS = game ? [] : [{name:'Nyx — «Остров»', sub:'Миры друзей · 2 игрока', shot:2},{name:'Kira — «Шахты»', sub:'Миры друзей · приглашение', shot:7}];
+
+const LONG = 'Очень длинное название мира, которое не помещается в одну строку интерфейса';
+const MOTD = {'0':'#000','1':'#00a','2':'#0a0','3':'#0aa','4':'#a00','5':'#a0a','6':'#fa0','7':'#aaa','8':'#555','9':'#55f',a:'#5f5',b:'#5ff',c:'#f55',d:'#f5f',e:'#ff5',f:'#fff'};
+
+const state = {tab:'single', focus:{single:1, multi:1}, zone:'tiles', action:0, card:0, query:'', empty:false, long:false, menu:null, dialog:null};
+for (const s of SERVERS) s.iconUrl = pixelIcon(...s.icon);
+
+// ——— масштаб сцены ———
+const stage = $('stage');
+let stageWidth = 1280;
+const reducedMotion = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : {matches:false};
+function layoutStage() {
+  const w = game ? game.width : innerWidth, h = game ? game.height : innerHeight;
+  const scale = game ? 1 : Math.min(2, Math.max(.6, Math.min(w / 1280, h / 720)));
+  stageWidth = w / scale;
+  stage.style.width = stageWidth + 'px'; stage.style.height = h / scale + 'px';
+  if (!game) stage.style.transform = `scale(${scale})`;
+  stage.style.setProperty('--account-space', Math.max(188, h / scale - 94) + 'px');
+  stage.classList.toggle('short', h / scale < 690);
+  placeTiles();
+}
+
+// ——— данные текущего раздела ———
+function items() {
+  if (state.empty) return [];
+  const list = state.tab === 'single' ? WORLDS : SERVERS;
+  const q = state.query.trim().toLowerCase();
+  const named = state.long ? list.map((it, i) => i === 1 ? {...it, name: LONG} : it) : list;
+  return q ? named.filter(it => it.name.toLowerCase().includes(q) || (it.address || '').includes(q)) : named;
+}
+const createEntry = {create:true};
+function entries() { return [createEntry, ...items()]; }
+function current() {
+  const list = items();
+  const index = Math.min(state.focus[state.tab], list.length);
+  return index === 0 ? createEntry : list[index - 1];
+}
+
+// ——— плитки ———
+const track = $('track'), label = $('label');
+const BASE = 96, BIG = 125, GAP = 18, STEP = BASE + GAP, LEFT = 64, LABEL = 280;
+const visibleTiles = new Map(), labelTitle = label.querySelector('strong'), labelDetail = label.querySelector('span');
+function tileMarkup(it) {
+  if (it.create) return '<div class="plus"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>';
+  const src = it.iconUrl || SHOTS[it.shot];
+  if (state.tab === 'single') {
+    return `<img src="${src}" alt="">` + (it.hardcore ? '<span class="badge red">♥</span>' : it.upgrade ? '<span class="badge warn">!</span>' : '');
+  }
+  return `<img${it.iconUrl ? ' class="pixel"' : ''} src="${src}" alt=""><span class="dot${it.offline || it.incompatible || it.pending ? ' off' : ''}"></span>`;
+}
+track.addEventListener('click', e => {
+  const tile = e.target.closest('.tile');
+  if (!tile) return;
+  const i = +tile.dataset.i;
+  if (state.focus[state.tab] === i && state.zone === 'tiles') { activate(); return; }
+  state.zone = 'tiles';
+  if (!setFocus(i)) syncZone();
+});
+track.addEventListener('dblclick', e => { if (e.target.closest('.tile')) activate(); });
+function placeTiles(options = entries()) {
+  const f = Math.min(state.focus[state.tab], options.length - 1), anchor = Math.max(0, f - 1);
+  const first = Math.max(0, anchor - 3);
+  const last = Math.min(options.length - 1, anchor + Math.ceil((stageWidth - LEFT) / STEP) + 1);
+  for (const [i, tile] of visibleTiles) {
+    if (i >= first && i <= last) continue;
+    tile.node.remove();
+    visibleTiles.delete(i);
+  }
+  for (let i = first; i <= last; i++) {
+    let tile = visibleTiles.get(i);
+    if (!tile) {
+      const node = document.createElement('div');
+      node.className = 'tile'; node.dataset.i = i;
+      tile = {node};
+      visibleTiles.set(i, tile);
+    }
+    const {node} = tile;
+    const markup = tileMarkup(options[i]);
+    if (tile.markup !== markup) {
+      node.innerHTML = markup;
+      tile.markup = markup;
+    }
+    const x = LEFT + (i - anchor) * STEP + (i > f ? (BIG - BASE) + LABEL : 0);
+    const s = i === f ? BIG / BASE : 1;
+    if (tile.x !== x || tile.scale !== s) {
+      node.style.transform = `translate(${x}px, ${i === f ? -(BIG - BASE) / 2 : 0}px) scale(${s})`;
+      node.classList.toggle('focus', i === f);
+      tile.x = x; tile.scale = s;
+    }
+    const gone = x < -BASE || x >= stageWidth;
+    if (tile.gone !== gone) {
+      node.classList.toggle('gone', gone);
+      tile.gone = gone;
+    }
+    if (!node.parentNode) track.appendChild(node);
+  }
+  const it = options[f];
+  const transform = `translate(${LEFT + (f - anchor) * STEP + BIG + 22}px, -14px)`;
+  if (label.style.transform !== transform) label.style.transform = transform;
+  const title = it.create ? t(state.tab === 'single' ? 'Создать мир' : 'Добавить сервер') : it.name;
+  const detail = it.create
+    ? t(state.tab === 'single' ? 'Новый мир с нуля' : 'По адресу или из списка')
+    : state.tab === 'single' ? [it.mode, it.played].filter(Boolean).join(' · ')
+      : (it.status && (it.pending || it.online == null) ? it.status : it.offline ? t('Нет соединения') : `${fmt(it.online)} ${t('игроков')}`);
+  if (labelTitle.textContent !== title) labelTitle.textContent = title;
+  if (labelDetail.textContent !== detail) labelDetail.textContent = detail;
+}
+
+// ——— карточка выбранного ———
+const fmt = n => n.toLocaleString('ru-RU');
+function motdColor(color, light) {
+  if (!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)) return '';
+  if (!light) return color;
+  const rgb = Number.parseInt(color.length === 4 ? color.slice(1).replace(/./g, digit => digit + digit) : color.slice(1), 16);
+  const channels = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
+  const ink = [22, 25, 36];
+  return '#' + channels.map((value, i) => Math.round(value * .32 + ink[i] * .68).toString(16).padStart(2, '0')).join('');
+}
+function serverMotd(entry) {
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  const [head, ...legacy] = (entry.motd || '').split('§');
+  const runs = entry.motdRuns || [{text:head}, ...legacy.map(part => ({text:part.slice(1), color:MOTD[part[0]]}))];
+  const lines = [[]];
+  for (const run of runs) {
+    run.text.split('\n').forEach((text, i) => {
+      if (i) lines.push([]);
+      if (text) lines.at(-1).push({...run, text});
+    });
+  }
+  return lines.filter(line => line.some(run => run.text.trim())).slice(0, 2).map(line => {
+    while (!line[0].text.trim()) line.shift();
+    while (!line.at(-1).text.trim()) line.pop();
+    line[0].text = line[0].text.trimStart();
+    line.at(-1).text = line.at(-1).text.trimEnd();
+    const markup = line.map(run => {
+      const color = motdColor(run.color, light);
+      const decoration = run.underline ? (run.strike ? 'underline line-through' : 'underline') : run.strike ? 'line-through' : '';
+      const style = (color ? `color:${color};` : '') + (run.italic ? 'font-style:italic;' : '') + (decoration ? `text-decoration:${decoration};` : '');
+      return run.text.split(/( +)/).filter(Boolean).map(part => part.startsWith(' ')
+        ? `<span class="motd-run" style="width:${part.length * 4}px">${part}</span>`
+        : `<span class="motd-run${run.bold ? ' motd-bold' : ''}" style="${style}">${esc(part)}</span>`).join('');
+    }).join('');
+    return `<span class="motd-line">${markup}</span>`;
+  }).join('');
+}
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function ping(ms) {
+  const lvl = ms < 0 ? 0 : ms < 60 ? 4 : ms < 120 ? 3 : ms < 250 ? 2 : 1;
+  return `<span class="ping p${lvl}"><i></i><i></i><i></i><i></i></span>`;
+}
+const sep = '<span class="sep"></span>';
+let heroAnimation;
+function renderHero(animate = true) {
+  const it = current(), single = state.tab === 'single';
+  const hero = $('hero');
+  hero.hidden = !it || state.empty; $('empty').hidden = !state.empty;
+  if (animate) heroAnimation?.cancel();
+  if (state.empty) {
+    $('emptyTitle').textContent = t(single ? 'Здесь появятся ваши миры' : 'Добавьте первый сервер');
+    $('emptyDesc').textContent = t(single ? 'Создайте мир — он откроется сразу после генерации.' : 'Введите адрес сервера или подключитесь напрямую без сохранения.');
+    $('emptyAction').querySelector('span').textContent = t(single ? 'Создать мир' : 'Добавить сервер');
+    $('emptyDirect').hidden = !game || single;
+    stage.classList.remove('has-notice');
+    setBackground(IMG); renderShelf(); return;
+  }
+  if (!it) return;
+  const chips = [], meta = [];
+  let desc = '', notice = '', playText = t(single ? 'Играть' : 'Подключиться'), disabled = false;
+  if (it.create) {
+    chips.push('<span class="chip">' + t(single ? 'Новый мир' : 'Новый сервер') + '</span>');
+    $('title').textContent = t(single ? 'Создать мир' : 'Добавить сервер');
+    meta.push(t(single ? 'Выживание, творческий или хардкор' : 'Сохраняется в списке серверов'));
+    desc = t(single ? 'Выберите режим, сид и правила мира. Можно сразу включить команды и импортировать набор данных.'
+      : 'Введите название и адрес. Для разового входа используйте «Прямое подключение».');
+    playText = t(single ? 'Создать' : 'Добавить');
+    setBackground(IMG);
+  } else if (single) {
+    if (it.hardcore) chips.push(`<span class="chip red">♥ ${t('Хардкор')}</span>`); else chips.push(`<span class="chip">${esc(it.mode)}</span>`);
+    if (it.cheats) chips.push(`<span class="chip">${t('Команды')}</span>`);
+    if (it.upgrade) chips.push(`<span class="chip warn">${t('Мир из')} ${esc(it.version)}</span>`);
+    $('title').textContent = it.name;
+    if (it.played) meta.push(`<b>${esc(it.played)}</b>`);
+    if (it.diff) meta.push(`${t('Сложность')}: ${esc(it.diff)}`);
+    if (it.version) meta.push(`${t('Версия')} ${esc(it.version)}`);
+    desc = esc(it.desc || '');
+    if (game) { notice = it.notice; playText = it.play || playText; disabled = !it.canPlay; }
+    else if (it.upgrade) { notice = 'Мир создан в Minecraft 1.20.1. Перед открытием в 26.3 будет сделана резервная копия.'; playText = 'Копия и запуск'; }
+    setBackground(SHOTS[it.shot]);
+  } else {
+    if (it.pending) chips.push(`<span class="chip">${esc(it.status)}</span>`);
+    else if (it.offline) chips.push(`<span class="chip red">${t('Нет соединения')}</span>`);
+    else if (it.incompatible) chips.push(`<span class="chip warn">${t('Версия')} ${esc(it.version)}</span>`);
+    else chips.push(`<span class="chip good">${game ? '<span class="live-dot"></span>' : '●'} ${t('В сети')}</span>`);
+    chips.push(`<span class="chip">${esc(it.address)}</span>`);
+    $('title').textContent = it.name;
+    if (it.offline) meta.push(t('Сервер не ответил на запрос'));
+    else {
+      if (it.online != null) meta.push(`<b>${fmt(it.online)}</b> / ${fmt(it.max)} ${t('игроков')}`);
+      if (it.ping >= 0) meta.push(`${ping(it.ping)} ${it.ping} ${t('мс')}`);
+      if (it.version && !it.pending) meta.push(`${t('Версия')} ${esc(it.version)}`);
+    }
+    desc = serverMotd(it);
+    if (game) notice = it.notice;
+    else if (it.incompatible) { notice = 'Сервер работает на 1.20.4. Подключение из 26.3 невозможно без прокси с поддержкой версий.'; disabled = true; }
+    if (it.offline) playText = t('Повторить');
+    setBackground(SHOTS[it.shot]);
+  }
+  $('chips').innerHTML = chips.join('');
+  $('meta').innerHTML = meta.join(sep);
+  $('desc').innerHTML = it.create ? esc(desc) : desc;
+  $('notice').hidden = !notice; $('notice').querySelector('span').textContent = notice;
+  stage.classList.toggle('has-notice', !!notice);
+  $('play').querySelector('span').textContent = playText; $('play').disabled = disabled;
+  $('edit').hidden = !!it.create || it.canEdit === false; $('more').hidden = !!it.create && (single || !game);
+  if (!game && animate && !reducedMotion.matches && typeof hero.animate === 'function') {
+    heroAnimation = hero.animate([{opacity:.55, transform:'translateY(8px)'}, {opacity:1, transform:'none'}],
+      {duration:260, easing:'cubic-bezier(.2,.8,.2,1)'});
+  }
+  renderShelf();
+}
+const backgroundLayers = [$('bgA'), $('bgB')], backgroundImages = new Map();
+let activeBackground = 0, backgroundRequest = 0, requestedBackground, backgroundTimer;
+async function setBackground(src) {
+  if (src === requestedBackground) return;
+  requestedBackground = src;
+  if (game) {
+    const layer = backgroundLayers[0];
+    layer.src = src;
+    layer.classList.add('on');
+    return;
+  }
+  const request = ++backgroundRequest;
+  clearTimeout(backgroundTimer);
+  const previous = backgroundLayers[activeBackground];
+  if (previous.getAttribute('src') === src) return;
+  if (!backgroundImages.has(src)) {
+    const image = new Image();
+    image.src = src;
+    backgroundImages.set(src, image.decode());
+  }
+  try { await backgroundImages.get(src); }
+  catch {
+    backgroundImages.delete(src);
+    if (request === backgroundRequest) requestedBackground = undefined;
+    return;
+  }
+  if (request !== backgroundRequest) return;
+  function show() {
+    activeBackground = 1 - activeBackground;
+    const next = backgroundLayers[activeBackground];
+    next.src = src;
+    previous.classList.remove('on');
+    next.classList.add('on');
+  }
+  if (previous.classList.contains('on') && !reducedMotion.matches) backgroundTimer = setTimeout(show, 100);
+  else show();
+}
+
+// ——— полка ———
+function shelfCards() {
+  const it = current();
+  if (state.tab === 'multi') return [...LAN.map(l => ({...l, kind:'lan'})), ...FRIENDS.map(f => ({...f, kind:'friend'}))];
+  if (!it || it.create) return [];
+  return [
+    {stat:it.time, sub:t('Время в мире'), info:true},
+    {stat:it.size, sub:t('Размер на диске'), info:true},
+    {name:t('Резервная копия'), sub:t('Сохранить ZIP рядом с миром'), kind:'backup'},
+    {name:t('Открыть папку'), sub:it.folder || 'saves/' + it.name.replace(/\s+/g, '_').slice(0, 20), kind:'folder'},
+  ];
+}
+const shelf = $('shelf'), shelfList = $('cards');
+let shelfMode;
+function renderShelf() {
+  const cards = shelfCards();
+  const mode = cards.length || (game && state.tab === 'multi') ? state.tab : '';
+  const signature = mode === 'multi' && game ? JSON.stringify(cards) : mode;
+  shelf.hidden = !mode;
+  if (shelfMode !== signature) {
+    shelfMode = signature;
+    $('shelfTitle').innerHTML = mode === 'multi'
+      ? `<span><b>${t('В локальной сети')}</b><small> · ${LAN.length}</small></span><span><b>${t('Миры друзей')}</b><small> · ${FRIENDS.length}</small></span>` : `<span><b>${t('О мире')}</b></span>`;
+    shelfList.innerHTML = cards.map((c, i) => c.info
+      ? `<div class="card info" data-i="${i}"><div class="txt"><p class="stat">${esc(c.stat)}</p><span>${esc(c.sub)}</span></div></div>`
+      : `<button class="card" data-i="${i}">${c.shot !== undefined ? `<img class="thumb" src="${SHOTS[c.shot]}" alt="">`
+        : `<span class="thumb" style="display:flex;align-items:center;justify-content:center"><svg class="i" viewBox="0 0 24 24">${c.kind === 'backup' ? '<path d="M12 4v11m-4-4 4 4 4-4M5 19h14"/>' : '<path d="M4 7h6l2 2h8v9H4z"/>'}</svg></span>`}
+        <span class="txt"><strong>${esc(c.name)}</strong><span>${esc(c.sub)}</span></span></button>`).join('');
+  } else if (mode === 'single') {
+    shelfList.children[0].querySelector('.stat').textContent = cards[0].stat;
+    shelfList.children[1].querySelector('.stat').textContent = cards[1].stat;
+    shelfList.children[3].querySelector('.txt > span').textContent = cards[3].sub;
+  }
+  syncZone();
+}
+shelfList.addEventListener('click', e => {
+  const card = e.target.closest('button.card');
+  if (!card) return;
+  state.zone = 'shelf'; state.card = +card.dataset.i; shelfActivate(); syncZone();
+});
+function shelfActivate() {
+  const c = shelfCards()[state.card]; if (!c || c.info) return;
+  if (game) return game.send(c.id ? 'play' : c.kind, c.id || current().id);
+  if (c.kind === 'lan' || c.kind === 'friend') toast(`Подключение к «${c.name}»…`, true);
+  else if (c.kind === 'backup') toast('Резервная копия сохранена');
+  else toast('Папка мира открыта в проводнике');
+}
+
+// ——— фокус и зоны ———
+function setFocus(i) {
+  const next = Math.max(0, Math.min(items().length, i));
+  if (next === state.focus[state.tab]) return false;
+  state.focus[state.tab] = next;
+  placeTiles(); renderHero();
+  if (game) game.send('select', current().id || '+');
+  return true;
+}
+function actionButtons() {
+  return (game && state.empty ? [$('emptyAction'), $('emptyDirect')] : [$('play'), $('edit'), $('more')]).filter(b => !b.hidden && !b.disabled);
+}
+function focusableCards() { return [...$('cards').children].filter(c => !c.classList.contains('info')); }
+function syncZone() {
+  stage.classList.toggle('zone-off', state.zone !== 'tiles');
+  document.querySelectorAll('.kfocus').forEach(e => e.classList.remove('kfocus'));
+  document.querySelectorAll('.card.focus').forEach(e => e.classList.remove('focus'));
+  if (state.zone === 'actions') { const b = actionButtons(); state.action = Math.min(state.action, b.length - 1); b[state.action]?.classList.add('kfocus'); }
+  if (state.zone === 'shelf') { const c = $('cards').children[state.card]; c?.classList.add('focus'); }
+  hints();
+}
+function moveZone(dir) {
+  const zones = ['tiles', 'actions', ...(!$('shelf').hidden && focusableCards().length && !stage.classList.contains('short') ? ['shelf'] : [])];
+  const i = zones.indexOf(state.zone), next = zones[Math.max(0, Math.min(zones.length - 1, i + dir))];
+  if (next === state.zone) return;
+  state.zone = next;
+  if (next === 'shelf') state.card = +focusableCards()[0].dataset.i;
+  if (next === 'actions') state.action = 0;
+  syncZone();
+}
+function moveWithin(dir) {
+  if (state.zone === 'tiles') setFocus(state.focus[state.tab] + dir);
+  else if (state.zone === 'actions') { const n = actionButtons().length; state.action = Math.max(0, Math.min(n - 1, state.action + dir)); syncZone(); }
+  else { const idx = focusableCards().map(c => +c.dataset.i), p = idx.indexOf(state.card); state.card = idx[Math.max(0, Math.min(idx.length - 1, p + dir))]; syncZone(); }
+}
+function activate() {
+  if (state.zone === 'shelf') return shelfActivate();
+  if (state.zone === 'actions') { const b = actionButtons()[state.action]; return b?.click(); }
+  $(game && state.empty ? 'emptyAction' : 'play').click();
+}
+
+// ——— действия ———
+$('play').addEventListener('click', () => {
+  const it = current(), single = state.tab === 'single';
+  if (state.empty || !it) return;
+  if (game) return it.create ? (single ? game.send('create') : openServerForm()) : game.send(it.offline ? 'refresh' : 'play', it.id);
+  if (it.create) return single ? openCreate() : openServerForm();
+  if (single) toast(it.upgrade ? 'Создаём резервную копию и открываем мир…' : `Загрузка мира «${it.name}»…`, true);
+  else if (it.offline) toast('Повторный запрос статуса…', true);
+  else toast(`Подключение к ${it.address}…`, true);
+});
+$('emptyAction').addEventListener('click', () => state.tab === 'single' ? openCreate() : openServerForm());
+$('emptyDirect').addEventListener('click', openDirect);
+$('edit').addEventListener('click', () => state.tab === 'single' ? openRename() : openServerForm(current()));
+$('more').addEventListener('click', () => openMenu());
+
+const ICON = {
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>', copy:'<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V5h10"/>',
+  backup:'<path d="M12 4v11m-4-4 4 4 4-4M5 19h14"/>', folder:'<path d="M4 7h6l2 2h8v9H4z"/>', refresh:'<path d="M19 11a7 7 0 1 0-2 5.5M19 5v6h-6"/>',
+  left:'<path d="m14 6-6 6 6 6"/>', right:'<path d="m10 6 6 6-6 6"/>', trash:'<path d="M5 7h14M10 7V5h4v2m-7 0 1 12h8l1-12"/>', link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  recreate:'<path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4"/>'
+};
+function menuItems() {
+  if (game) return game.menuItems();
+  return state.tab === 'single' ? [
+    ['edit','Переименовать', openRename], ['backup','Резервная копия', () => toast('Резервная копия сохранена')],
+    ['folder','Открыть папку', () => toast('Папка мира открыта в проводнике')], ['recreate','Пересоздать с теми же настройками', () => toast('Открыт экран создания мира с настройками')],
+    null, ['trash','Удалить мир', confirmDelete, true]]
+  : [
+    ['edit','Изменить', () => openServerForm(current())], ['refresh','Обновить статус', () => toast('Статус обновлён')],
+    ['link','Прямое подключение', openDirect], ['left','Переместить левее', () => moveServer(-1)], ['right','Переместить правее', () => moveServer(1)],
+    null, ['trash','Удалить сервер', confirmDelete, true]];
+}
+function openMenu() {
+  const pop = $('pop'), r = $('more'), hero = $('hero'), list = menuItems();
+  pop.innerHTML = list.map((m, i) => m ? `<button class="mi${m[3] ? ' danger' : ''}" data-i="${i}"><svg class="i" viewBox="0 0 24 24">${ICON[m[0]]}</svg>${m[1]}</button>` : '<div class="mi-sep"></div>').join('');
+  const anchor = hero.offsetTop + $('actions').offsetTop;
+  const below = anchor + r.offsetHeight + 8;
+  const top = below + pop.offsetHeight < stage.clientHeight - 12 ? below : Math.max(12, anchor - pop.offsetHeight - 8);
+  pop.style.left = Math.max(12, Math.min(hero.offsetLeft + r.offsetLeft, stage.clientWidth - pop.offsetWidth - 12)) + 'px';
+  pop.style.top = top + 'px';
+  pop.classList.add('open');
+  state.menu = {sel: 0, list};
+  [...pop.querySelectorAll('.mi')].forEach(b => b.addEventListener('click', () => { closeMenu(); list[+b.dataset.i][2](); }));
+  menuSel(0);
+}
+function menuSel(d) {
+  const btns = [...$('pop').querySelectorAll('.mi')];
+  state.menu.sel = (state.menu.sel + d + btns.length) % btns.length;
+  btns.forEach((b, i) => b.classList.toggle('sel', i === state.menu.sel));
+}
+function closeMenu() { $('pop').classList.remove('open'); state.menu = null; }
+function moveServer(dir) {
+  const i = state.focus.multi - 1, j = i + dir;
+  if (j < 0 || j >= SERVERS.length) return;
+  [SERVERS[i], SERVERS[j]] = [SERVERS[j], SERVERS[i]];
+  state.focus.multi = j + 1; refresh();
+}
+
+let dialogReturnFocus;
+function dialog(html, onOpen, returnFocus) {
+  const overlay = $('dialog'), box = $('dialogBox');
+  dialogReturnFocus = returnFocus;
+  box.innerHTML = html;
+  box.querySelector('h3')?.setAttribute('id', 'dialogTitle');
+  overlay.inert = false;
+  overlay.classList.add('open'); state.dialog = true;
+  onOpen?.(box);
+  hints();
+}
+function closeDialog() {
+  const overlay = $('dialog');
+  overlay.classList.remove('open');
+  overlay.inert = true;
+  state.dialog = null;
+  dialogReturnFocus?.focus();
+  dialogReturnFocus = null;
+  hints();
+}
+function focusDialogField(step) {
+  const fields = Array.from($('dialogBox').querySelectorAll('input, button'));
+  const index = fields.indexOf(document.activeElement);
+  fields[index < 0 ? (step < 0 ? fields.length - 1 : 0) : (index + step + fields.length) % fields.length]?.focus();
+}
+$('dialog').addEventListener('click', e => { if (e.target === $('dialog')) closeDialog(); });
+function confirmDelete() {
+  const it = current(), single = state.tab === 'single';
+  if (!it || it.create || it.canDelete === false) return;
+  if (game && single) return game.send('delete', it.id);
+  dialog(`<h3>${t(single ? 'Удалить мир' : 'Удалить сервер')} «${esc(it.name)}»?</h3>
+    <p>${t(single ? 'Мир будет удалён с диска без возможности восстановления. Сначала можно сделать резервную копию.' : 'Сервер исчезнет из списка. Его можно добавить заново по адресу.')}</p>
+    <div class="row"><button class="btn" id="dCancel">${t('Отмена')}</button><button class="btn red" id="dOk">${t('Удалить')}</button></div>`, box => {
+    box.querySelector('#dCancel').addEventListener('click', closeDialog);
+    box.querySelector('#dOk').addEventListener('click', () => {
+      const list = single ? WORLDS : SERVERS, idx = list.indexOf(it);
+      if (game) { closeDialog(); return game.send('delete', it.id); }
+      if (idx >= 0) list.splice(idx, 1);
+      closeDialog();
+      state.focus[state.tab] = Math.min(state.focus[state.tab], items().length);
+      refresh(); toast(single ? 'Мир удалён' : 'Сервер удалён');
+    });
+    box.querySelector('#dCancel').focus();
+  });
+}
+function openRename() {
+  const it = current();
+  if (game) return game.send('edit', it.id);
+  dialog(`<h3>Переименовать мир</h3><label class="field"><span>Название</span><input id="dName" value="${esc(it.name)}" maxlength="64"></label>
+    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">Сохранить</button></div>`, box => {
+    const input = box.querySelector('#dName'); input.focus(); input.select();
+    box.querySelector('#dCancel').onclick = closeDialog;
+    box.querySelector('#dOk').onclick = () => { it.name = input.value.trim() || it.name; closeDialog(); placeTiles(); renderHero(); };
+  });
+}
+function openServerForm(server) {
+  dialog(`<h3>${t(server ? 'Изменить сервер' : 'Добавить сервер')}</h3>
+    <label class="field"><span>${t('Название')}</span><input id="dName" type="text" maxlength="128" value="${esc(server ? server.name : t('Сервер Minecraft'))}"></label>
+    <label class="field"><span>${t('Адрес')}</span><input id="dAddr" type="text" maxlength="255" value="${server ? esc(server.address) : ''}" placeholder="play.example.com"></label>
+    <div class="row"><button class="btn" id="dCancel">${t('Отмена')}</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">${t(server ? 'Сохранить' : 'Добавить')}</button></div>`, box => {
+    box.querySelector(server ? '#dName' : '#dAddr').focus();
+    box.querySelector('#dCancel').addEventListener('click', closeDialog);
+    box.querySelector('#dOk').addEventListener('click', () => {
+      const name = box.querySelector('#dName').value.trim(), address = box.querySelector('#dAddr').value.trim();
+      if (!address) return box.querySelector('#dAddr').focus();
+      if (game) return game.send('save-server', server?.id, {kind:server ? 'edit' : 'add', name:name || address, address});
+      if (server) Object.assign(server, {name: name || address, address});
+      else { SERVERS.push({name: name || address, address, motd:'§7Запрос статуса…', online:0, max:0, ping:-1, version:'', shot:7, offline:true, icon:[SERVERS.length + 13, ['#1b2230','#a9b4ff','#5d6475','#e8eaf0']]}); SERVERS.at(-1).iconUrl = pixelIcon(...SERVERS.at(-1).icon); state.focus.multi = SERVERS.length; }
+      closeDialog(); refresh();
+    });
+  });
+}
+function openDirect() {
+  dialog(`<h3>${t('Прямое подключение')}</h3><p>${t('Сервер не будет сохранён в списке.')}</p><label class="field"><span>${t('Адрес')}</span><input id="dAddr" type="text" maxlength="255" placeholder="play.example.com"></label>
+    <div class="row"><button class="btn" id="dCancel">${t('Отмена')}</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">${t('Подключиться')}</button></div>`, box => {
+    const input = box.querySelector('#dAddr'); input.focus();
+    box.querySelector('#dCancel').addEventListener('click', closeDialog);
+    box.querySelector('#dOk').addEventListener('click', () => {
+      if (!input.value.trim()) return input.focus();
+      if (game) return game.send('save-server', '', {kind:'direct', address:input.value.trim()});
+      closeDialog(); toast(`Подключение к ${input.value.trim()}…`, true);
+    });
+  });
+}
+function openCreate() {
+  if (game) return game.send('create');
+  dialog(`<h3>Создать мир</h3><label class="field"><span>Название мира</span><input id="dName" value="Новый мир"></label>
+    <p style="margin-top:14px">Режим, сложность, сид и правила — на следующем шаге. В первой версии он откроет стандартный экран создания мира Minecraft.</p>
+    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">Далее</button></div>`, box => {
+    const input = box.querySelector('#dName'); input.focus(); input.select();
+    box.querySelector('#dCancel').onclick = closeDialog;
+    box.querySelector('#dOk').onclick = () => { closeDialog(); toast(`Генерация мира «${input.value.trim() || 'Новый мир'}»…`, true); };
+  });
+}
+let toastTimer;
+function toast(text, busy) {
+  $('toastText').textContent = text; $('toastSpin').hidden = !busy;
+  $('toast').classList.add('show'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('toast').classList.remove('show'), busy ? 2600 : 1800);
+}
+
+// ——— аккаунты Minecraft в превью ———
+const accountPicker = $('accountPicker'), accountTrigger = $('accountTrigger');
+const accountPanel = $('accountPanel'), accountList = $('accountList');
+const accountKey = 'gleam-worlds-preview-minecraft-accounts';
+const accountTypes = {microsoft:'Microsoft', offline:'Офлайн-профиль'};
+const accountNamePattern = /^[a-zA-Z0-9_]{3,16}$/;
+const defaultAccounts = [
+  {id:'steve', name:'Steve_Builder', type:'microsoft', face:'steve'},
+  {id:'nyx', name:'Nyx_Orbit', type:'microsoft', face:'nyx'},
+  {id:'copper', name:'CopperFox', type:'offline', face:'copper'},
+];
+
+function paintedFace(palette) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 8;
+  const painter = canvas.getContext('2d');
+  const rows = ['hhhhhhhh','hhhhhssh','hhsssssh','hssssssh','hswerweh','hsssssah','hssmmssh','hhcttchh'];
+  for (const [y, row] of rows.entries()) {
+    for (const [x, pixel] of [...row].entries()) {
+      painter.fillStyle = palette[pixel];
+      painter.fillRect(x, y, 1, 1);
+    }
+  }
+  return 'url(' + canvas.toDataURL() + ')';
+}
+
+const accountFaces = game ? {} : {
+  steve: '',
+  nyx: paintedFace({h:'#222338', s:'#d9a191', w:'#fff1ed', e:'#9883e4', r:'#d69f93', a:'#ba807b', m:'#974d5e', c:'#6b58aa', t:'#c5b7fa'}),
+  copper: paintedFace({h:'#8b462d', s:'#ecb783', w:'#fff3d9', e:'#337d6c', r:'#cc895d', a:'#bf7753', m:'#9a5541', c:'#387865', t:'#78be9c'}),
+};
+const accountState = game ? {profiles:[], active:''} : loadAccounts();
+let accountOpen = false, profileAvatarAnimation, headerAccountAnimation;
+
+function loadAccounts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(accountKey));
+    if (Array.isArray(saved?.profiles)) {
+      const ids = new Set();
+      const profiles = saved.profiles.filter(account => {
+        if (typeof account?.id !== 'string' || ids.has(account.id) || typeof account.name !== 'string' || !accountNamePattern.test(account.name)) return false;
+        if (!Object.hasOwn(accountTypes, account.type) || !Object.hasOwn(accountFaces, account.face)) return false;
+        ids.add(account.id);
+        return true;
+      });
+      if (profiles.length) return {profiles, active:ids.has(saved.active) ? saved.active : profiles[0].id};
+    }
+  } catch { /* Storage is optional for the preview. */ }
+  return {profiles:defaultAccounts.map(account => ({...account})), active:defaultAccounts[0].id};
+}
+
+function saveAccounts() {
+  try { localStorage.setItem(accountKey, JSON.stringify(accountState)); } catch { /* Keep the current session usable. */ }
+}
+
+function setAvatar(node, face) {
+  node.dataset.face = face;
+  if (!game) { node.style.backgroundImage = accountFaces[face]; return; }
+  if (node.firstElementChild) return;
+  const image = document.createElement('img');
+  image.src = 'assets/worlds-face.png';
+  image.alt = '';
+  node.appendChild(image);
+}
+
+function updateActiveAccount(animate) {
+  const account = accountState.profiles.find(profile => profile.id === accountState.active);
+  if (!account) return;
+  const headerName = $('accountName'), avatar = $('accountAvatar');
+  headerName.textContent = account.name;
+  accountTrigger.setAttribute('aria-label', 'Аккаунты Minecraft, текущий профиль ' + account.name);
+  setAvatar(avatar, account.face);
+
+  for (const row of accountList.children) {
+    const active = row.dataset.accountId === account.id;
+    row.toggleAttribute('data-active', active);
+    row.querySelector('.account-choice').setAttribute('aria-pressed', String(active));
+  }
+
+  profileAvatarAnimation?.cancel(); headerAccountAnimation?.cancel();
+  if (!animate || reducedMotion.matches || typeof avatar.animate !== 'function') return;
+  profileAvatarAnimation = avatar.animate([{opacity:.6, transform:'scale(.82) rotate(-6deg)'}, {opacity:1, transform:'none'}],
+    {duration:320, easing:'cubic-bezier(.18,.88,.26,1.19)'});
+  headerAccountAnimation = headerName.animate([{opacity:.45, transform:'translateY(4px)'}, {opacity:1, transform:'none'}],
+    {duration:210, easing:'ease-out'});
+}
+
+function finishAccountEdit() {
+  saveAccounts(); closeDialog(); renderAccounts(true); showAccounts(true);
+}
+
+function addPreviewAccount(name, type) {
+  const existing = accountState.profiles.find(profile => profile.name.toLowerCase() === name.toLowerCase() && profile.type === type);
+  if (existing) { accountState.active = existing.id; return; }
+  const profile = {id:crypto.randomUUID(), name, type, face:type === 'offline' ? 'copper' : 'steve'};
+  accountState.profiles.push(profile);
+  accountState.active = profile.id;
+}
+
+function openMicrosoftAccountPreview() {
+  showAccounts(false);
+  dialog(`<h3>Вход через Microsoft</h3><p>В клиенте вход подтверждается в браузере с помощью одноразового кода. Здесь показан демонстрационный сценарий.</p>
+    <code class="account-device-code">GLEAM-DEMO</code>
+    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn account-dialog-submit" id="dOk">Завершить демовход</button></div>`, box => {
+      box.querySelector('#dCancel').onclick = closeDialog;
+      const finish = box.querySelector('#dOk');
+      finish.onclick = () => { addPreviewAccount('Alex_Microsoft', 'microsoft'); finishAccountEdit(); };
+      finish.focus();
+    }, accountTrigger);
+}
+
+function renderAccounts(animate = false) {
+  const template = $('accountRow').content?.firstElementChild;
+  const rows = accountState.profiles.map((account, i) => {
+    const row = game ? game.accountRow() : template.cloneNode(true);
+    row.dataset.accountId = account.id;
+    row.style.setProperty('--account-delay', `${Math.min(5, i) * 26 + 45}ms`);
+    setAvatar(row.querySelector('.profile-avatar'), account.face);
+    row.querySelector('strong').textContent = account.name;
+    row.querySelector('small').textContent = t(accountTypes[account.type]);
+    row.querySelector('.account-edit').setAttribute('aria-label', t('Управление профилем') + ' ' + account.name);
+    row.querySelector('.account-edit').title = t('Управление профилем');
+    return row;
+  });
+  accountList.replaceChildren(...rows);
+  $('accountCount').textContent = rows.length;
+  updateActiveAccount(animate);
+}
+
+function showAccounts(open, restoreFocus = false) {
+  if (accountOpen === open) return;
+  accountOpen = open;
+  accountTrigger.setAttribute('aria-expanded', String(open));
+  accountPanel.toggleAttribute('data-open', open);
+  accountPanel.inert = !open;
+  if (open) {
+    closeMenu();
+    if (game) game.send('account-list');
+    const selected = accountList.querySelector('[aria-pressed="true"]');
+    selected?.focus({preventScroll:true});
+    selected?.scrollIntoView?.({block:'nearest'});
+  } else if (restoreFocus) accountTrigger.focus({preventScroll:true});
+}
+
+function openAccountEditor(type, account) {
+  showAccounts(false);
+  const title = account ? 'Управление профилем' : 'Добавить офлайн-профиль';
+  const note = account ? accountTypes[type] : 'Профиль для запуска с локальным ником.';
+  const remove = account && accountState.profiles.length > 1 ? '<button class="btn red" id="accountRemove">Удалить</button>' : '<span></span>';
+  dialog(`<h3>${title}</h3><p>${note}</p>
+    <label class="field"><span>Ник Minecraft</span><input id="accountInput" maxlength="16" autocomplete="off" spellcheck="false" value="${account ? esc(account.name) : ''}"></label>
+    <div class="account-form-error" id="accountError" role="alert" hidden></div>
+    <div class="row account-form-actions">${remove}<div class="account-form-buttons"><button class="btn" id="dCancel">Отмена</button><button class="btn account-dialog-submit" id="dOk">${account ? 'Сохранить' : 'Добавить'}</button></div></div>`, box => {
+      const input = box.querySelector('#accountInput'), error = box.querySelector('#accountError');
+      input.focus(); input.select();
+      input.oninput = () => { error.hidden = true; input.removeAttribute('aria-invalid'); input.removeAttribute('aria-describedby'); };
+      box.querySelector('#dCancel').onclick = closeDialog;
+      const removeButton = box.querySelector('#accountRemove');
+      if (removeButton) removeButton.onclick = () => confirmAccountRemoval(account);
+      box.querySelector('#dOk').onclick = () => {
+        const name = input.value.trim();
+        const duplicate = accountState.profiles.some(profile => profile !== account && profile.type === type && profile.name.toLowerCase() === name.toLowerCase());
+        if (!accountNamePattern.test(name) || duplicate) {
+          error.textContent = duplicate ? 'Профиль с таким ником уже сохранён' : 'Ник содержит от 3 до 16 латинских букв, цифр или знаков подчёркивания';
+          error.hidden = false;
+          input.setAttribute('aria-invalid', 'true'); input.setAttribute('aria-describedby', error.id);
+          input.focus(); return;
+        }
+        if (account) account.name = name;
+        else addPreviewAccount(name, type);
+        finishAccountEdit();
+      };
+    }, accountTrigger);
+}
+
+function confirmAccountRemoval(account) {
+  dialog(`<h3>Удалить профиль «${esc(account.name)}»?</h3><p>Он исчезнет из списка превью.</p>
+    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn red" id="dOk">Удалить</button></div>`, box => {
+      const cancel = box.querySelector('#dCancel');
+      cancel.onclick = closeDialog; cancel.focus();
+      box.querySelector('#dOk').onclick = () => {
+        accountState.profiles = accountState.profiles.filter(profile => profile !== account);
+        if (accountState.active === account.id) accountState.active = accountState.profiles[0].id;
+        finishAccountEdit();
+      };
+    }, accountTrigger);
+}
+
+accountTrigger.addEventListener('click', () => showAccounts(!accountOpen));
+accountPanel.addEventListener('click', e => {
+  const add = e.target.closest('[data-account-type]');
+  if (add) {
+    if (game) return game.send('account-' + add.dataset.accountType);
+    if (add.dataset.accountType === 'microsoft') openMicrosoftAccountPreview();
+    else openAccountEditor('offline');
+    return;
+  }
+  const row = e.target.closest('.account-row');
+  if (!row) return;
+  const account = accountState.profiles.find(profile => profile.id === row.dataset.accountId);
+  if (!account) return;
+  if (game) {
+    if (e.target.closest('.account-edit')) return game.send('account');
+    if (e.target.closest('.account-choice') && accountState.active !== account.id) game.send('account-select', account.id);
+    return;
+  }
+  if (e.target.closest('.account-edit')) { openAccountEditor(account.type, account); return; }
+  if (e.target.closest('.account-choice') && accountState.active !== account.id) {
+    accountState.active = account.id;
+    saveAccounts(); updateActiveAccount(true);
+  }
+});
+accountPicker.addEventListener('focusout', e => {
+  if (e.relatedTarget && !accountPicker.contains(e.relatedTarget)) showAccounts(false);
+});
+document.addEventListener('pointerdown', e => {
+  if (!accountPicker.contains(e.target)) showAccounts(false);
+});
+
+// ——— разделы и поиск ———
+function setTab(tab) {
+  if (tab === state.tab) return;
+  if (game) return game.send(tab);
+  state.tab = tab; state.zone = 'tiles'; closeMenu();
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === tab));
+  refresh();
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+const search = $('search'), query = $('query');
+search.querySelector('svg').addEventListener('click', () => openSearch());
+function openSearch() { search.classList.add('open'); query.tabIndex = 0; query.focus(); }
+function closeSearch() { search.classList.remove('open'); query.blur(); query.tabIndex = -1; if (state.query) { query.value = state.query = ''; refresh(); } }
+function updateQuery() { state.query = query.value; state.focus[state.tab] = entries().length > 1 ? 1 : 0; refresh(); }
+query.addEventListener('input', updateQuery);
+function refresh() { placeTiles(); renderHero(); }
+$('back').addEventListener('click', () => game ? game.send('back') : toast('Возврат в главное меню'));
+
+// ——— подсказки ———
+let renderedHints;
+function hints() {
+  const list = state.dialog ? [['Enter','Подтвердить'],['Esc','Отмена']]
+    : state.menu ? [['↑↓','Выбрать'],['Enter','Выполнить'],['Esc','Закрыть']]
+    : [['← →','Выбрать'],['↑ ↓','Перейти'],['Enter', state.tab === 'single' ? 'Играть' : 'Подключиться'],['Q E','Раздел'],['/','Поиск'],
+       ...(current() && !current().create ? [['Del','Удалить']] : []), ...(state.tab === 'multi' ? [['F5','Обновить']] : []), ['Esc','Назад']];
+  const markup = list.map(([key, label]) => `<span><kbd>${key}</kbd>${t(label)}</span>`).join('');
+  if (markup === renderedHints) return;
+  renderedHints = markup;
+  $('hints').innerHTML = markup;
+}
+
+// ——— клавиатура и колесо ———
+document.addEventListener('keydown', e => {
+  if (state.dialog) {
+    if (dialogReturnFocus === accountTrigger) {
+      if (e.key === 'Escape') { e.preventDefault(); closeDialog(); }
+      if (e.key === 'Enter' && e.target.id === 'accountInput') { e.preventDefault(); $('dOk')?.click(); }
+      if (e.key === 'Tab') {
+        const controls = [...$('dialogBox').querySelectorAll('button,input')];
+        const boundary = e.shiftKey ? controls[0] : controls.at(-1);
+        if (document.activeElement === boundary || !$('dialogBox').contains(document.activeElement)) {
+          e.preventDefault(); (e.shiftKey ? controls.at(-1) : controls[0])?.focus();
+        }
+      }
+      return;
+    }
+    if (e.key === 'Escape') { e.preventDefault(); closeDialog(); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      (document.activeElement?.closest('button') || $('dOk'))?.click();
+    }
+    if (e.key === 'Tab' && game) {
+      focusDialogField(e.shiftKey ? -1 : 1);
+      e.preventDefault();
+    }
+    return;
+  }
+  if (accountOpen) {
+    if (e.key === 'Escape') { e.preventDefault(); showAccounts(false, true); }
+    if (['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
+      const choices = [...accountList.querySelectorAll('.account-choice')];
+      const rowChoice = document.activeElement.closest('.account-row')?.querySelector('.account-choice');
+      const start = choices.indexOf(rowChoice);
+      const index = e.key === 'Home' ? 0 : e.key === 'End' ? choices.length - 1
+        : Math.max(0, Math.min(choices.length - 1, start + (e.key === 'ArrowUp' ? -1 : 1)));
+      e.preventDefault(); choices[index]?.focus();
+    }
+    return;
+  }
+  if (e.target === accountTrigger) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); showAccounts(true); return; }
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Tab') return;
+  }
+  if (document.activeElement === query) {
+    if (e.key === 'Escape') { e.preventDefault(); closeSearch(); }
+    if (e.key === 'Enter' || e.key === 'ArrowDown') { query.blur(); }
+    return;
+  }
+  if (state.menu) {
+    if (e.key === 'ArrowDown') menuSel(1); else if (e.key === 'ArrowUp') menuSel(-1);
+    else if (e.key === 'Enter') $('pop').querySelectorAll('.mi')[state.menu.sel].click();
+    else if (e.key === 'Escape') closeMenu();
+    e.preventDefault(); hints(); return;
+  }
+  const k = e.key;
+  if (k === 'ArrowRight') moveWithin(1);
+  else if (k === 'ArrowLeft') moveWithin(-1);
+  else if (k === 'ArrowDown') moveZone(1);
+  else if (k === 'ArrowUp') moveZone(-1);
+  else if (k === 'Enter' || k === ' ') activate();
+  else if (k === 'q' || k === 'Q' || k === 'й' || k === 'Й') setTab('single');
+  else if (k === 'e' || k === 'E' || k === 'у' || k === 'У') setTab('multi');
+  else if (k === 'Tab') setTab(state.tab === 'single' ? 'multi' : 'single');
+  else if (k === '/') {
+    openSearch();
+    if (game) game.send('search-shortcut');
+  }
+  else if (k === 'Delete' && current() && !current().create) confirmDelete();
+  else if (k === 'F5' && state.tab === 'multi') { if (game) game.send('refresh'); else toast('Статус серверов обновлён'); }
+  else if (k === 'Escape') { if (state.zone !== 'tiles') { state.zone = 'tiles'; syncZone(); } else if (game) game.send('back'); else toast('Возврат в главное меню'); }
+  else return;
+  e.preventDefault();
+});
+let wheel = 0;
+$('rail').addEventListener('wheel', e => {
+  e.preventDefault(); wheel += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if (Math.abs(wheel) >= 60) {
+    state.zone = 'tiles';
+    if (!setFocus(state.focus[state.tab] + Math.sign(wheel))) syncZone();
+    wheel = 0;
+  }
+}, {passive:false});
+document.addEventListener('click', e => { if (state.menu && !$('pop').contains(e.target) && !$('more').contains(e.target)) closeMenu(); });
+
+// ——— часы ———
+function tick() { const d = new Date(); $('clock').textContent = d.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'}); }
+if (!game) { tick(); setInterval(tick, 15000); }
+
+// ——— панель превью ———
+$('devToggle').onclick = () => $('devPanel').hidden = !$('devPanel').hidden;
+function seg(id, fn) { $(id).querySelectorAll('button').forEach(b => b.onclick = () => { $(id).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); fn(b.dataset.v); }); }
+seg('segTheme', v => {
+  document.documentElement.dataset.theme = v;
+  applyAccent();
+  if (state.tab === 'multi') renderHero(false);
+});
+const ACCENTS = [['#a9b4ff','#4257b2'],['#7ee0c0','#16865f'],['#ffb37a','#b4561a'],['#ff8fb4','#b42a5c'],['#e8eaf0','#2b3346']];
+let accentIndex = 0;
+function applyAccent() {
+  const [dark, light] = ACCENTS[accentIndex], isLight = document.documentElement.dataset.theme === 'light';
+  document.documentElement.style.setProperty('--accent', isLight ? light : dark);
+  document.documentElement.style.setProperty('--accent-ink', isLight ? '#fff' : '#161a24');
+}
+$('swatches').innerHTML = ACCENTS.map((a, i) => `<button style="background:${a[0]}" data-i="${i}" class="${i ? '' : 'on'}"></button>`).join('');
+$('swatches').querySelectorAll('button').forEach(b => b.onclick = () => { accentIndex = +b.dataset.i; $('swatches').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); applyAccent(); });
+$('optEmpty').onchange = e => { state.empty = e.target.checked; state.focus[state.tab] = 0; refresh(); };
+$('optLong').onchange = e => { state.long = e.target.checked; refresh(); };
+
+if (!game) {
+  renderAccounts(); layoutStage(); renderHero();
+  addEventListener('resize', layoutStage);
+}
+</script>
+<!-- gleam-worlds-game-bridge -->
+</body>
+</html>

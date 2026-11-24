@@ -1956,6 +1956,10 @@ pub async fn launch_minecraft(
             SettingsSync::prepare(session, &game_dir).ok().flatten()
         });
         command.env_remove("GLEAM_LAUNCH_SESSION");
+        if let (Ok(executable), Ok(data)) = (std::env::current_exe(), app.path().app_data_dir()) {
+            command.env("GLEAM_MC_ACCOUNT_HELPER", executable);
+            command.env("GLEAM_MC_ACCOUNT_DATA", data);
+        }
         if let Some(directory) = &gleam_session {
             command.env("GLEAM_LAUNCH_SESSION", directory.path().join("session.bin"));
             if let Some(invite) = &options.world_invite {

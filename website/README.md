@@ -37,11 +37,17 @@
 - `assets/social.png` — превью сайта для ссылок
 - `Caddyfile` — отдельный virtual host, дополняет существующие сервисы
 
-В блоке «GleamClient в игре» показаны два игровых скриншота с выключенными и включёнными модулями. Кнопка скачивает `gleamclient.jar` из последнего публичного GitHub-релиза. При публикации прикладывайте проверенный файл с этим именем и указывайте совместимость в описании релиза.
+В блоке «GleamClient в игре» показаны два игровых скриншота с выключенными и включёнными модулями. Кнопка скачивает установщик из `/downloads/launcher/Gleam.Launcher.Setup.exe`. Лаунчер проверяет подпись манифеста и SHA-256 файла обновления.
 
 ## Размещение
 
-Файлы `index.html`, `privacy.html`, `terms.html`, `auth.html`, `style.css`, `i18n.js`, `app.js`, `auth.js` и каталог `assets` размещены в `/var/www/orion-client`. Это символическая ссылка на текущий релиз в `/var/www/orion-client-releases/`: обновления переключаются атомарно, предыдущие релизы сохраняются для отката. Блок из `Caddyfile` добавлен в `/etc/caddy/Caddyfile` с проверкой `caddy validate` перед reload. Существующие virtual hosts и API сохранены. Caddy автоматически обслуживает HTTPS.
+Сайт, API аккаунтов, косметика и файлы обновлений размещены на `153.51.172.5`. Файлы клиента доступны в `/downloads/client/`, канал лаунчера — в `/downloads/launcher/`. Caddy направляет запросы `/api/*` на `127.0.0.1:8088`, а `/v1/*` на `127.0.0.1:8765`.
+
+Caddy получает и продлевает сертификат для `gleamclient.xyz` при направленной на новый хост A-записи. Авторизация и скачивание обновлений используют HTTPS-домен.
+
+Ежедневные копии SQLite создают `orion-site-backup.timer` и `orion-cosmetics-backup.timer`. Они хранятся соответственно в `/var/lib/orion-site/backups` и `/var/backups/orion-cosmetics`.
+
+Файлы `index.html`, `privacy.html`, `terms.html`, `auth.html`, `style.css`, `i18n.js`, `app.js`, `auth.js` и каталог `assets` размещены в `/var/www/orion-client`. Символическая ссылка указывает на текущий релиз в `/var/www/orion-client-releases/`. Обновления переключаются атомарно, предыдущие релизы сохраняются для отката. Боевой конфиг расположен в `/etc/caddy/Caddyfile`.
 
 Перед обновлением сохраняйте копию текущего каталога сайта и Caddyfile. После загрузки проверяйте `caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile` и выполняйте `systemctl reload caddy`. SSH-ключи находятся вне проекта и сайта.
 

@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.orion.client.gui.OrionTitleMenu;
+import ru.orion.client.gui.OrionWorldBrowser;
 
 /** IAS рисует подпись после извлечения экрана через Fabric ScreenEvents. */
 @Pseudo
@@ -17,6 +18,6 @@ abstract class OrionIasTitleTextMixin {
     @Inject(method = "onDraw(Lnet/minecraft/client/gui/screens/Screen;Lnet/minecraft/client/gui/Font;Lnet/minecraft/client/gui/GuiGraphicsExtractor;)V",
             at = @At("HEAD"), cancellable = true, require = 0)
     private static void orion$hideDuplicateTitleAccount(Screen screen, Font font, GuiGraphicsExtractor graphics, CallbackInfo ci) {
-        if (OrionTitleMenu.INSTANCE.active(screen)) ci.cancel();
+        if (OrionTitleMenu.INSTANCE.active(screen) || OrionWorldBrowser.active(screen)) ci.cancel();
     }
 }
