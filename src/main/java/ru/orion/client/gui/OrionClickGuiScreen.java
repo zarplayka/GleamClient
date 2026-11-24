@@ -26,6 +26,7 @@ import ru.orion.client.OrionClient;
 import ru.orion.client.config.OrionConfig;
 import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.cosmetic.GleamPet;
+import ru.orion.client.cosmetic.GleamTailModel;
 import ru.orion.client.config.OrionConfigLibrary;
 import ru.orion.client.config.OrionAccounts;
 import ru.orion.client.config.OrionVisualPresets.Profile;
@@ -827,6 +828,7 @@ public final class OrionClickGuiScreen extends Screen {
         look.addProperty("windowY",config.getClickGuiWindowY());
         look.addProperty("wingsStyle",config.getWingsStyle());
         look.addProperty("cosmeticPet",config.getCosmeticPet());
+        look.addProperty("cosmeticTail",config.getCosmeticTail());
         look.addProperty("headwear",config.getCosmeticHat());
         data.add("look",look);
 
@@ -993,7 +995,8 @@ public final class OrionClickGuiScreen extends Screen {
         if (w < 12 || h < 12 || top >= bottom || x < 0 || x + w > width + 1) return;
         var items = preview.items();
         boolean wings = items.stream().anyMatch(ru.orion.client.effect.GleamWingModel.IDS::contains);
-        float stageWidth = wings ? (friend ? 5.15F : 5.5F) : previewPet != null ? 3.2F : 2.6F;
+        boolean tail = items.stream().anyMatch(GleamTailModel.IDS::contains);
+        float stageWidth = wings ? (friend ? 5.15F : 5.5F) : previewPet != null || tail ? 3.2F : 2.6F;
         boolean headwear = items.stream().anyMatch(ru.orion.client.cosmetic.GleamHatModel.IDS::contains);
         float stageHeight = wings ? 2.95F : headwear ? 2.84F : (friend ? 2.5F : 2.8F);
         float size = Math.min(w / stageWidth, h / stageHeight) * preview.zoom();
@@ -1483,7 +1486,9 @@ public final class OrionClickGuiScreen extends Screen {
                 var items = new java.util.HashSet<String>();
                 for (var item : event.getAsJsonArray("items")) {
                     String id = item.getAsString();
-                    if ((ru.orion.client.effect.GleamWingModel.IDS.contains(id) || id.matches("halo|hat|dance")) || GleamPet.byId(id) != null || ru.orion.client.cosmetic.GleamHatModel.IDS.contains(id)) items.add(id);
+                    if (ru.orion.client.effect.GleamWingModel.IDS.contains(id) || id.matches("halo|hat|dance")
+                            || GleamPet.byId(id) != null || ru.orion.client.cosmetic.GleamHatModel.IDS.contains(id)
+                            || GleamTailModel.IDS.contains(id)) items.add(id);
                 }
                 GleamPet pet = GleamPet.in(items);
                 if (previewPet != pet) {
@@ -1597,6 +1602,14 @@ public final class OrionClickGuiScreen extends Screen {
                     config.setCosmeticHat(id.equals(config.getCosmeticHat()) ? "" : id);
                     configManager.save();
                     ru.orion.client.effect.OrionBadgePresence.requestRefresh();
+                }
+            }
+            case "cosmetic-tail" -> {
+                if (!"COSMETICS".equals(siteSection) || !event.has("id") || !event.get("id").isJsonPrimitive()) return;
+                String id = GleamTailModel.sanitize(event.get("id").getAsString());
+                if (!id.isEmpty()) {
+                    String current = configManager.getConfig().getCosmeticTail();
+                    configManager.setCosmeticTail(id.equals(current) ? "" : id);
                 }
             }
             case "cosmetic-pet" -> {

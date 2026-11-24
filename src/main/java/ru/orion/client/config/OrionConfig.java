@@ -77,6 +77,14 @@ public final class OrionConfig {
     private boolean haloEnabled;
     private boolean wingsEnabled;
     private int wingsStyle;
+    private String cosmeticTail = "";
+
+    public String getCosmeticTail() { return cosmeticTail; }
+
+    public void setCosmeticTail(String id) {
+        cosmeticTail = ru.orion.client.cosmetic.GleamTailModel.sanitize(id);
+    }
+
     private String cosmeticPet = "";
     public String getCosmeticPet() { return cosmeticPet; }
     public void setCosmeticPet(String id) {
@@ -1696,6 +1704,7 @@ public final class OrionConfig {
             wingsEnabled = false;
         }
         setCosmeticPet(cosmeticPet);
+        setCosmeticTail(cosmeticTail);
         setCosmeticHat(getCosmeticHat());
         setSkinLayersThickness(skinLayersThickness);
         setSkinLayersDistance(skinLayersDistance);

@@ -17,6 +17,7 @@ import org.joml.Vector3f;
 import java.util.Set;
 import ru.orion.client.cosmetic.GleamPet;
 import ru.orion.client.cosmetic.GleamPetRenderer;
+import ru.orion.client.cosmetic.GleamTailModel;
 import ru.orion.client.effect.OrionChinaHeadRenderer;
 import ru.orion.client.effect.OrionHalo;
 import ru.orion.client.effect.OrionWings;
@@ -60,6 +61,8 @@ public final class OrionCosmeticPreview extends AvatarRenderState {
     public String selectedHat() {
         return ru.orion.client.cosmetic.GleamHatModel.IDS.stream().filter(items::contains).findFirst().orElse("");
     }
+
+    public String selectedTail() { return GleamTailModel.selected(items); }
 
     public boolean dances() { return items.contains("dance"); }
 

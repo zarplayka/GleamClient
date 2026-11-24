@@ -123,6 +123,7 @@ public final class OrionClient implements ClientModInitializer {
         halo.register();
         wings.register();
         pets.register();
+        ru.orion.client.cosmetic.GleamTailModel.preload();
         healthTags.register();
         worldParticles.register();
         breadcrumbs.register();

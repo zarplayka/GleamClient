@@ -14,6 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.orion.client.OrionClient;
 import ru.orion.client.cosmetic.GleamHatModel;
+import ru.orion.client.cosmetic.GleamTailModel;
 import ru.orion.client.effect.OrionFreeLook;
 import ru.orion.client.effect.OrionBadgePresence;
 import ru.orion.client.gui.OrionCosmeticPreview;
@@ -36,14 +37,16 @@ abstract class OrionCosmeticPreviewMixin {
 
     @Inject(method = "submit(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/EntityModel;setupAnim(Ljava/lang/Object;)V", shift = At.Shift.AFTER))
-    private void gleam$submitEquippedHat(LivingEntityRenderState state, PoseStack pose, SubmitNodeCollector collector,
+    private void gleam$submitEquippedCosmetics(LivingEntityRenderState state, PoseStack pose, SubmitNodeCollector collector,
                                         CameraRenderState camera, CallbackInfo callback) {
         if (!(state instanceof AvatarRenderState avatar) || avatar.isInvisible || avatar.isSpectator
                 || !(((LivingEntityRenderer<?, ?, ?>) (Object) this).getModel() instanceof PlayerModel playerModel)) return;
 
         String id;
+        String tail = "";
         if (avatar instanceof OrionCosmeticPreview preview) {
             id = preview.selectedHat();
+            tail = preview.selectedTail();
         } else {
             var client = Minecraft.getInstance();
             var player = client.player;
@@ -51,10 +54,12 @@ abstract class OrionCosmeticPreviewMixin {
             if (player == null || client.level == null || config == null) return;
             if (avatar.id == player.getId()) {
                 id = config.getCosmeticHat();
+                tail = config.getCosmeticTail();
             } else if (client.level.getEntity(avatar.id) instanceof net.minecraft.client.player.AbstractClientPlayer remote) {
                 id = OrionBadgePresence.hat(remote.getUUID());
             } else return;
         }
         if (!id.isEmpty()) GleamHatModel.submit(playerModel, pose, collector, id, avatar.lightCoords);
+        if (!tail.isEmpty()) GleamTailModel.submit(playerModel, pose, collector, tail, avatar.lightCoords);
     }
 }

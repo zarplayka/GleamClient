@@ -26,6 +26,7 @@ const paths = {
   monitor:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',
   speaker:'<path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12"/>',
   target:'<circle cx="12" cy="12" r="7"/><path d="M12 2v5m0 10v5M2 12h5m10 0h5"/>',
+  tail:'<path d="M21 18c-6 1-12 0-16-4-2-2-2-5 0-7 2-2 5-2 6 0 2 2 0 4-2 4"/><path d="M21 18c-4-1-8-1-12-4"/>',
   paw:'<circle cx="5" cy="10" r="1.6"/><circle cx="9" cy="5.5" r="1.6"/><circle cx="15" cy="5.5" r="1.6"/><circle cx="19" cy="10" r="1.6"/><path d="M12 11c-2 0-3.5 2-5.2 3.6C4.2 17 6 21 9.3 19.5l2.7-1.2 2.7 1.2c3.3 1.5 5.1-2.5 2.5-4.9C15.5 13 14 11 12 11Z"/>',
   movement:'<path d="m7 17 10-10M8 7h9v9M3 13l5-5m3 13 5-5"/>',
   eye:'<path d="M2 12c5-9 15-9 20 0-5 9-15 9-20 0z"/><circle cx="12" cy="12" r="3"/>',
@@ -111,7 +112,7 @@ const state = {
   favorites:new Set(), values:new Map(), account:0,categoriesExpanded:true,
   configTab:'catalog',config:null,friendTab:null,friendProfile:null,preset:0,appliedPreset:-1,point:null,
   publication:false,publicationReady:true,chatQuery:'',cosmetic:'angel',cosmeticSlot:'all',
-  cosmeticQuery:'',cosmeticOnlyEquipped:false,cosmeticYaw:-19,cosmeticZoom:1,wingsStyle:0,cosmeticPet:'',headwear:'',
+  cosmeticQuery:'',cosmeticOnlyEquipped:false,cosmeticYaw:-19,cosmeticZoom:1,wingsStyle:0,cosmeticPet:'',cosmeticTail:'',headwear:'',
   seq:100,theme:'dark',density:'normal',toggleStyle,windowSize,windowScale,accent,languageChoice:'auto',windowX:0,windowY:0
 };
 const currentAccount = () => accounts.find(item => item.key === state.account) || accounts[0];
@@ -907,11 +908,16 @@ const cosmetics = [
   ['space_slime','PET','Слизень-космонавт','Питомцы'],
   ['tracked_scout','PET','Гусеничный разведчик','Питомцы'],
   ['bell_fawn','PET','Оленёнок с бубенчиком','Питомцы'],
-  ['gingerbread_pup','PET','Пряничный щенок','Питомцы']
+  ['gingerbread_pup','PET','Пряничный щенок','Питомцы'],
+  ['ember_fox_tail','TAIL','Лисий хвост','Хвосты'],
+  ['verdigris_stinger','TAIL','Медное жало','Хвосты'],
+  ['amethyst_drake_tail','TAIL','Аметистовый хвост','Хвосты']
 ];
 const cosmeticById = id => cosmetics.find(item => item[0] === id);
-const cosmeticSlots = [['all','Все','grid'],['Спина','Спина','layers'],['Голова','Голова','user'],['Шляпы','Шляпы','hat'],['Анимация','Анимация','movement'],['Питомцы','Питомцы','paw']];
+const cosmeticSlots = [['all','Все','grid'],['Спина','Спина','layers'],['Голова','Голова','user'],['Шляпы','Шляпы','hat'],['Анимация','Анимация','movement'],['Питомцы','Питомцы','paw'],['Хвосты','Хвосты','tail']];
+const tails = cosmetics.filter(item => item[1] === 'TAIL');
 const isCosmeticEquipped = ([id,module,,,style]) => module === 'PET' ? state.cosmeticPet === id
+  : module === 'TAIL' ? state.cosmeticTail === id
   : module === 'CHINA_HEAD' ? (state.headwear || (state.enabled.has(module) ? 'hat' : '')) === id
   : state.enabled.has(module) && (style === undefined || style === state.wingsStyle);
 function cosmeticDrawing(id, model) {
@@ -922,7 +928,7 @@ function renderCosmetics() {
   const [id,module,label,type] = selected, active = isCosmeticEquipped(selected);
   const search = '<label class="chat-search cosmetic-search">' + icon('search') + '<input id="cosmetic-search" autocomplete="off"'
     + ' placeholder="' + text(t('Поиск вещей')) + '" aria-label="' + text(t('Поиск вещей')) + '" value="' + text(state.cosmeticQuery) + '"></label>';
-  return pageHead(t('Косметика'),t('Надето') + ' ' + cosmetics.filter(isCosmeticEquipped).length + ' / ' + cosmetics.length,search)
+  return pageHead(t('Косметика'),t('Надето') + ' ' + cosmetics.filter(isCosmeticEquipped).length + ' / ' + (cosmetics.length - tails.length + 1),search)
     + '<div class="cosmetics-layout"><nav class="cosmetic-slots" aria-label="' + text(t('Тип вещи')) + '">'
     + cosmeticSlots.map(([key,label,svg]) => '<button type="button" class="button" data-cosmetic-slot="' + key + '" aria-label="'
       + text(t(label)) + '" title="' + text(t(label)) + '" aria-pressed="' + (key === state.cosmeticSlot) + '">' + icon(svg) + '</button>').join('')
@@ -944,16 +950,25 @@ function renderCosmetics() {
 }
 function patchCosmeticShelf() {
   const query = state.cosmeticQuery.trim().toLocaleLowerCase(uiLanguage);
-  const items = cosmetics.filter(item => (state.cosmeticSlot === 'all' || item[3] === state.cosmeticSlot)
-    && (!state.cosmeticOnlyEquipped || isCosmeticEquipped(item))
-    && (!query || t(item[2]).toLocaleLowerCase(uiLanguage).includes(query)));
-  $('cosmetic-count').textContent = String(items.length);
-  $('cosmetic-items').innerHTML = items.length ? items.map(item => {
+  const matches = item => (!state.cosmeticOnlyEquipped || isCosmeticEquipped(item))
+    && (!query || t(item[2]).toLocaleLowerCase(uiLanguage).includes(query)
+      || (item[1] === 'TAIL' && t(item[3]).toLocaleLowerCase(uiLanguage).includes(query)));
+  const all = state.cosmeticSlot === 'all';
+  const items = cosmetics.filter(item => (all ? item[1] !== 'TAIL' : item[3] === state.cosmeticSlot) && matches(item));
+  const visibleTail = all ? tails.find(matches) : null;
+  const tailArtId = state.cosmeticTail || visibleTail?.[0];
+  const group = visibleTail ? '<button type="button" class="cosmetic-tile" data-cosmetic-slot="Хвосты"'
+    + ' aria-label="' + text(t('Хвосты')) + '">' + cosmeticDrawing(tailArtId,false)
+    + '<strong>' + text(t('Хвосты')) + '</strong>'
+    + (state.cosmeticTail ? '<span class="cosmetic-equipped" aria-label="' + text(t('Надето')) + '">' + icon('check') + '</span>' : '')
+    + '</button>' : '';
+  $('cosmetic-count').textContent = String(items.length + (visibleTail ? 1 : 0));
+  $('cosmetic-items').innerHTML = items.length || group ? items.map(item => {
     const [id,,label,type] = item;
     return '<button type="button" class="cosmetic-tile" data-cosmetic="' + id + '" aria-pressed="' + (id === state.cosmetic)
       + '">' + cosmeticDrawing(id,false) + '<strong>' + text(t(label)) + '</strong><small>' + text(t(type)) + '</small>'
       + (isCosmeticEquipped(item) ? '<span class="cosmetic-equipped" aria-label="' + text(t('Надето')) + '">' + icon('check') + '</span>' : '') + '</button>';
-  }).join('') : '<p class="chat-hint">' + text(t('Ничего не найдено')) + '</p>';
+  }).join('') + group : '<p class="chat-hint">' + text(t('Ничего не найдено')) + '</p>';
 }
 let cosmeticFrame = 0, cosmeticLayout = '';
 let cosmeticHover = '', cosmeticSuppressed = '', cosmeticSpin = null, cosmeticTurn = null;
@@ -1563,13 +1578,18 @@ document.addEventListener('click', event => {
     state.cosmetic = data.cosmetic;
     cosmeticSuppressed = data.cosmetic;
     cosmeticHover = '';
-    turnCosmetic(cosmeticById(data.cosmetic)?.[1] === 'WINGS' ? 158 : -19);
+    const module = cosmeticById(data.cosmetic)?.[1];
+    turnCosmetic(module === 'WINGS' ? 158 : module === 'TAIL' ? 127 : -19);
     render(false,false);
   } else if (data.cosmeticSlot) {
     state.cosmeticSlot = data.cosmeticSlot;
     if (state.cosmeticSlot === 'Питомцы' && cosmeticById(state.cosmetic)?.[1] !== 'PET') {
       state.cosmetic = state.cosmeticPet || cosmetics.find(item => item[1] === 'PET')[0];
       turnCosmetic(-19);
+    }
+    if (state.cosmeticSlot === 'Хвосты' && cosmeticById(state.cosmetic)?.[1] !== 'TAIL') {
+      state.cosmetic = state.cosmeticTail || tails[0][0];
+      turnCosmetic(127);
     }
     state.cosmeticQuery = cosmeticHover = '';
     render(false,false);
