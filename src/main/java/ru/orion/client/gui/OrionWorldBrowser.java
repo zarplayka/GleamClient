@@ -201,6 +201,9 @@ public final class OrionWorldBrowser {
             ScreenMouseEvents.allowMouseDrag(screen).register((owner, event, dx, dy) -> current != menu || !menu.active);
             ScreenMouseEvents.allowMouseScroll(screen).register((owner, x, y, dx, dy) -> current != menu || !menu.wheel(x, y, dx, dy));
             ScreenKeyboardEvents.allowKeyPress(screen).register((owner, key) -> current != menu || !menu.key(key));
+            //? if >=26.1 {
+            ScreenKeyboardEvents.allowCharType(screen).register((owner, event) -> current != menu || !type(event));
+            //?}
         });
     }
 
