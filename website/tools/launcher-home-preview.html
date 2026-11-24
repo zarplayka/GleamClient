@@ -25,13 +25,14 @@
     }
     .concept-play {
       min-width: 0;
-      display: grid; grid-template-rows: minmax(480px,1fr) auto; gap: 10px;
+      display: grid; grid-template-rows: minmax(480px,1fr) auto;
+      border: 1px solid var(--concept-line); border-radius: 15px; overflow: clip;
+      background: var(--concept-panel);
     }
     .concept-stage {
       position: relative; isolation: isolate;
-      display: grid; grid-template-rows: auto minmax(0,1fr) auto;
-      min-width: 0; overflow: clip; border-radius: 15px;
-      border: 1px solid #53627873;
+      display: grid; grid-template-rows: minmax(0,1fr) auto;
+      min-width: 0; overflow: clip;
       color: #fff5ec;
       background: #202946 url("launcher-home-scene.webp") center / cover no-repeat;
     }
@@ -40,22 +41,10 @@
       background: linear-gradient(180deg,#13152770 0%,transparent 33%,transparent 60%,#121425c9 100%);
       pointer-events: none;
     }
-    .concept-stage-header {
-      position: relative; z-index: 1;
-      display: flex; justify-content: center;
-      padding: 10px 12px 0; pointer-events: none;
+    .concept-stage #play-heading {
+      position: absolute; width: 1px; height: 1px; padding: 0;
+      overflow: hidden; clip-path: inset(50%); white-space: nowrap;
     }
-    .concept-stage-header h1 {
-      max-width: min(58%,260px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      padding: 3px 14px 5px; border: 1px solid #90a5eb3d;
-      background: #131d40d9; color: #fff7ed;
-      box-shadow: inset 0 -3px #0e1531;
-      text-shadow: 2px 2px #0b122c;
-      font: 700 clamp(18px,2.65cqw,29px)/1.02 Consolas, monospace;
-      letter-spacing: -.035em;
-    }
-    .concept-stage-header #minecraft-name { margin: 0; color: inherit; font: inherit }
-    .concept-stage-header h1:has(#minecraft-name:not([hidden])) .concept-default-name { display: none }
     .concept-stage .home-preview { position: absolute; inset: 0; width: auto; height: auto; z-index: 0 }
     .concept-stage .skin-stage {
       --unit: clamp(8px,2.14cqh,17px);
@@ -64,34 +53,26 @@
     }
     .concept-stage .home-preview { container-type: size }
     .concept-stage .model { bottom: 56%; }
+    .concept-stage .model::before {
+      position: absolute; bottom: calc(100% + var(--unit)); left: 50%;
+      content: attr(data-player-name); color: #fff7ed; background: #182b55e6;
+      padding: 3px 9px; white-space: nowrap; font: 700 calc(1.7 * var(--unit)) Consolas, monospace;
+      transform: translateX(-50%) rotateY(calc(-1 * var(--yaw)));
+    }
+    .concept-stage #home-cosmetic-preview { top: -7%; pointer-events: none }
     .concept-stage .skin-shadow {
       left: 50%; bottom: 17%; width: min(28%,230px); height: 6%;
       transform: translateX(-50%); background: #1013207a; filter: blur(13px);
     }
-    .concept-stage .home-zoom { top: 22px; right: 24px; gap: 5px }
-    .concept-stage .home-zoom .button, .concept-stage #open-cosmetics {
-      color: #fff6ee; background: #17192cab; border: 1px solid #ffffff27; border-radius: 8px;
-    }
-    .concept-stage .home-zoom .button { width: 34px; min-height: 34px }
-    .concept-stage :is(.home-zoom .button,#open-cosmetics):hover { background: #282d45e6; color: #fff }
-    .concept-stage .home-loadout {
-      position: absolute; right: 20px; bottom: 21px; z-index: 2;
-      width: auto; max-width: 124px; text-align: right;
-    }
-    .concept-stage .home-loadout h2 { margin: 0; font-size: 13px; letter-spacing: 0 }
-    .concept-stage #open-cosmetics { min-height: 34px; padding: 0 11px; font-size: 12px }
-    .concept-stage #open-cosmetics .icon { display: none }
-    .concept-stage #cosmetics-summary { display: none }
-    .concept-stage #home-equipped { justify-content: flex-end; margin-top: 5px }
     .concept-launch {
-      position: relative; z-index: 1; grid-area: 3 / 1;
+      position: relative; z-index: 1; grid-area: 2 / 1;
       justify-self: center; display: grid; gap: 7px;
       width: min(100% - 32px,350px);
-      margin: 0 0 18px; min-width: 0;
+      margin: 0 0 21px; min-width: 0;
       font-variant-numeric: tabular-nums;
     }
     .concept-launch .launch-actions {
-      display: grid; grid-template-columns: minmax(0,1fr) auto auto;
+      display: grid; grid-template-columns: minmax(0,1fr) auto;
       gap: 0; align-items: stretch;
       border: 1px solid #ffe6c28a; border-radius: 12px;
       background: #fff0d9; color: #211a1b; box-shadow: 0 8px 20px #11111d7a,0 2px 0 #976b524a;
@@ -112,7 +93,7 @@
     }
     .concept-launch .profile-spec span:not(#profile-version) { color: inherit }
     .concept-launch .profile-button {
-      align-self: stretch; width: 45px; min-height: 100%; padding: 0;
+      align-self: stretch; width: 58px; min-height: 100%; padding: 0;
       border: 0; border-left: 1px solid #30252123; border-radius: 0;
       color: #3a2f32; background: #f2dfc6;
     }
@@ -120,7 +101,9 @@
     .concept-launch :is(#launch,.profile-button):focus-visible {
       outline: 2px solid #6255a0; outline-offset: -4px;
     }
-    .concept-launch .launch-note-slot { min-height: 17px; margin: 0; text-align: center }
+    .concept-launch #first-launch-note { display: none }
+    .concept-launch .launch-note-slot { min-height: 0; margin: 0; text-align: center }
+    .concept-launch .launch-note-slot:has(#version-unavailable[hidden]) { display: none }
     .concept-launch .launch-note, .concept-launch-status {
       margin: 0; color: #f2e7ed; font-size: 11px; line-height: 1.35;
     }
@@ -132,6 +115,7 @@
     }
     .concept-quick {
       display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 6px 9px 6px 13px;
+      border: 0; border-top: 1px solid var(--concept-line); border-radius: 0;
     }
     .concept-quick h2 { flex: none; font-size: 12px; letter-spacing: 0; color: var(--side-muted) }
     .concept-quick-list { display: flex; min-width: 0; flex: 1; gap: 4px; overflow-x: auto; scrollbar-width: thin }
@@ -207,10 +191,6 @@
     .concept-versions .version-shelf { grid-area: auto; width: 100%; justify-self: center; gap: 5px; animation: none }
     .concept-versions .version-tile { font-size: 13px; padding: 6px }
     .concept-versions .version-tile[aria-pressed="true"] { border-color: #e6ccac }
-    @container workspace (max-width: 850px) {
-      .concept-stage .home-zoom { top: 17px; right: 17px }
-      .concept-stage .home-loadout { right: 12px; bottom: auto; top: 60px }
-    }
     @container workspace (max-width: 700px) {
       .home-concept .home-board { grid-template-columns: minmax(0,1fr); grid-template-rows: auto auto }
       .concept-rail { grid-template: 1fr / minmax(0,1fr) minmax(0,1fr) }
@@ -225,7 +205,7 @@
       .concept-launch #launch { padding-inline: 9px; gap: 7px }
       .concept-launch #launch > .icon { width: 20px; height: 20px }
       .concept-launch #launch-label { font-size: 17px }
-      .concept-launch .profile-button { width: 39px }
+      .concept-launch .profile-button { width: 48px }
     }
     @media (max-height: 670px) {
       .home-concept .home-board { min-height: 0 }
@@ -238,9 +218,7 @@
   <template id="home-layout">
     <div class="concept-play">
       <section class="concept-stage" aria-labelledby="play-heading">
-        <header class="concept-stage-header">
-          <h1 id="play-heading"><span class="concept-default-name">LayOffick</span></h1>
-        </header>
+        <h1 id="play-heading">LayOffick</h1>
       </section>
       <section class="concept-quick" aria-labelledby="concept-quick-title">
         <h2 id="concept-quick-title">Быстрый вход</h2>
@@ -286,19 +264,86 @@
 
       const stage = board.querySelector('.concept-stage');
       launchColumn.querySelector('h1').remove();
-      const profileName = cosmetics.querySelector('#minecraft-name');
-      const nameLabel = document.createElement('span');
-      nameLabel.id = profileName.id;
-      nameLabel.textContent = profileName.textContent;
-      nameLabel.hidden = profileName.hidden;
-      profileName.remove();
-      stage.querySelector('h1').append(nameLabel);
-      stage.insertBefore(cosmetics.querySelector('.home-preview'),stage.firstChild);
-      stage.append(cosmetics.querySelector('.home-loadout'),launchColumn);
+      const profileName = cosmetics.querySelector('#minecraft-name'), loadout = cosmetics.querySelector('.home-loadout');
+      const avatar = cosmetics.querySelector('.home-preview');
+      avatar.querySelector('.home-zoom').remove();
+      loadout.hidden = true;
+      home.append(loadout);
+      stage.append(avatar,launchColumn);
+      skinStage.setAttribute('aria-label','Персонаж Minecraft. Поворот мышью или стрелками, масштаб колёсиком');
+
+      class HomeAvatar extends GleamCosmeticPreview {
+        setName(name) {
+          if (this.nameplate?.name === name) return;
+          if (this.nameplate) {
+            this.gl.deleteBuffer(this.nameplate.mesh.buffer);
+            this.gl.deleteTexture(this.nameplate.texture);
+          }
+          const label = document.createElement('canvas'), font = 'bold 15px Consolas, monospace';
+          const context = label.getContext('2d');
+          context.font = font;
+          label.width = Math.ceil(context.measureText(name).width) + 10;
+          label.height = 21;
+          context.font = font;
+          context.textBaseline = 'middle';
+          context.fillStyle = '#182b55e8';
+          context.fillRect(0,0,label.width,label.height);
+          context.fillStyle = '#0c1631';
+          context.fillRect(0,label.height-2,label.width,2);
+          context.fillText(name,6,12);
+          context.fillStyle = '#fff7ed';
+          context.fillText(name,5,11);
+          const x = label.width * .0045, y = label.height * .0045;
+          const vertices = [
+            [-x,-y,0,0,0], [x,-y,0,1,0], [x,y,0,1,1],
+            [-x,-y,0,0,0], [x,y,0,1,1], [-x,y,0,0,1]
+          ].flatMap(corner => [...corner,1,1,1,1,1]);
+          this.nameplate = {name,halfWidth:x,halfHeight:y,mesh:this.mesh(vertices),texture:this.texture(label)};
+        }
+
+        draw(options) {
+          this.nameplateYaw = options.yaw + .17;
+          super.draw({...options,zoom:options.zoom * .79});
+        }
+
+        drawPlayer(dance,time) {
+          const label = this.nameplate;
+          if (!label) return super.drawPlayer(dance,time);
+          const c = Math.cos(this.nameplateYaw), s = Math.sin(this.nameplateYaw);
+          const y = -1.98, z = .06;
+          const pose = [c,0,s,0, 0,1,0,0, -s,0,c,0, 0,y,z,1];
+          const view = this.view;
+          const labelTop = Math.abs(view[1]*c + view[9]*s)*label.halfWidth
+            + Math.abs(view[5])*label.halfHeight + view[5]*y + view[9]*z + view[13];
+          // The canvas is raised within the scene. Keep the name in its visible area when zooming.
+          view[13] -= Math.max(0,labelTop-.83);
+          const head = super.drawPlayer(dance,time);
+          this.drawMesh(label.mesh,label.texture,pose,true);
+          return head;
+        }
+      }
+
+      try { homeView = new HomeAvatar(homeCanvas); }
+      catch (error) { console.warn('Using the CSS model for the launcher preview',error); }
+
+      const title = stage.querySelector('#play-heading');
+      const defaultName = title.textContent;
+      function updateNameplate() {
+        const name = profileName.textContent.trim() || defaultName;
+        title.textContent = name;
+        skinModel.dataset.playerName = name;
+        homeView?.setName(name);
+        queueCosmeticFrame();
+      }
+      updateNameplate();
+      new MutationObserver(updateNameplate).observe(profileName,{childList:true});
+      updateCosmeticPreviews();
+
       launchColumn.classList.add('concept-launch');
       const copy = document.createElement('span');
       copy.append($('launch-label'),launchColumn.querySelector('.profile-spec'));
       $('launch').append(copy);
+      $('quick-settings').remove();
 
       const picker = $('concept-versions');
       picker.querySelector('.concept-version-options').append(...versions);
@@ -310,7 +355,7 @@
       versionButton.setAttribute('aria-label','Выбрать версию Minecraft');
       versionButton.title = 'Выбрать версию Minecraft';
       versionButton.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-profiles"/></svg>';
-      launchActions.insertBefore(versionButton,$('quick-settings'));
+      launchActions.append(versionButton);
       versionButton.addEventListener('click',() => {
         picker.showModal();
         picker.querySelector('[aria-pressed="true"]')?.focus();
@@ -422,6 +467,7 @@
         const page = markup
           .replace(/\r?\n    showGleamLogin\('restore'\);(?=\r?\n    showStartup\()/,'')
           .replace('      return restoreGleamLogin();','      return undefined;')
+          .replace('if (wings || halo || hat || pet || headwear) {','if (homeView || wings || halo || hat || pet || headwear) {')
           .replace('</head>', () => '<style>' + css + '</style></head>')
           .replace('</body>', () => layout + '<script>' + script + '<' + '/script></body>');
         document.open();
