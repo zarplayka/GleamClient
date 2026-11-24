@@ -42,14 +42,17 @@
     }
     .concept-stage-header {
       position: relative; z-index: 1;
-      display: flex; justify-content: space-between; align-items: flex-start;
-      gap: 12px; padding: 25px 26px 0; pointer-events: none;
+      display: flex; justify-content: center;
+      padding: 16px 12px 0; pointer-events: none;
     }
     .concept-stage-header h1 {
-      font-size: clamp(29px,4.2cqw,62px); line-height: .96; letter-spacing: -.075em;
-      color: #fff7ed; text-shadow: 0 3px 22px #15162599;
+      max-width: min(58%,260px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      padding: 4px 11px 5px; border: 1px solid #ffffff24; border-radius: 6px;
+      background: #17192cab; color: #fff7ed;
+      font-size: clamp(15px,1.7cqw,21px); line-height: 1.12; letter-spacing: -.025em;
     }
-    .concept-stage-header p { margin: 8px 0 0; color: #f3e5e3; font-size: 13px }
+    .concept-stage-header #minecraft-name { margin: 0; color: inherit; font: inherit }
+    .concept-stage-header h1:has(#minecraft-name:not([hidden])) .concept-default-name { display: none }
     .concept-stage .home-preview { position: absolute; inset: 0; width: auto; height: auto; z-index: 0 }
     .concept-stage .skin-stage {
       --unit: clamp(8px,2.14cqh,17px);
@@ -202,7 +205,6 @@
     .concept-versions .version-tile { font-size: 13px; padding: 6px }
     .concept-versions .version-tile[aria-pressed="true"] { border-color: #e6ccac }
     @container workspace (max-width: 850px) {
-      .concept-stage-header { padding: 20px 18px 0 }
       .concept-stage .home-zoom { top: 17px; right: 17px }
       .concept-stage .home-loadout { right: 12px; bottom: auto; top: 60px }
     }
@@ -215,7 +217,6 @@
       .concept-quick { align-items: stretch; flex-direction: column; gap: 4px }
       .concept-quick-list { flex: auto }
       .concept-rail { grid-template: auto auto / minmax(0,1fr) }
-      .concept-stage-header h1 { font-size: 33px }
       .concept-stage .skin-stage { --unit: clamp(8px,1.8cqh,11px) }
       .concept-stage .model { bottom: 51% }
       .concept-launch #launch { padding-inline: 9px; gap: 7px }
@@ -234,7 +235,9 @@
   <template id="home-layout">
     <div class="concept-play">
       <section class="concept-stage" aria-labelledby="play-heading">
-        <header class="concept-stage-header"><div><p>Minecraft Java Edition</p></div></header>
+        <header class="concept-stage-header">
+          <h1 id="play-heading"><span class="concept-default-name">Steve</span></h1>
+        </header>
       </section>
       <section class="concept-quick" aria-labelledby="concept-quick-title">
         <h2 id="concept-quick-title">Быстрый вход</h2>
@@ -279,9 +282,14 @@
       home.classList.add('home-concept');
 
       const stage = board.querySelector('.concept-stage');
-      const stageHeading = stage.querySelector('.concept-stage-header div');
-      stageHeading.prepend(launchColumn.querySelector('h1'));
-      stageHeading.append(cosmetics.querySelector('#minecraft-name'));
+      launchColumn.querySelector('h1').remove();
+      const profileName = cosmetics.querySelector('#minecraft-name');
+      const nameLabel = document.createElement('span');
+      nameLabel.id = profileName.id;
+      nameLabel.textContent = profileName.textContent;
+      nameLabel.hidden = profileName.hidden;
+      profileName.remove();
+      stage.querySelector('h1').append(nameLabel);
       stage.insertBefore(cosmetics.querySelector('.home-preview'),stage.firstChild);
       stage.append(cosmetics.querySelector('.home-loadout'),launchColumn);
       launchColumn.classList.add('concept-launch');
