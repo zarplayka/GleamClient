@@ -928,7 +928,7 @@ function renderCosmetics() {
   const [id,module,label,type] = selected, active = isCosmeticEquipped(selected);
   const search = '<label class="chat-search cosmetic-search">' + icon('search') + '<input id="cosmetic-search" autocomplete="off"'
     + ' placeholder="' + text(t('Поиск вещей')) + '" aria-label="' + text(t('Поиск вещей')) + '" value="' + text(state.cosmeticQuery) + '"></label>';
-  return pageHead(t('Косметика'),t('Надето') + ' ' + cosmetics.filter(isCosmeticEquipped).length + ' / ' + (cosmetics.length - tails.length + 1),search)
+  return pageHead(t('Косметика'),t('Надето') + ' ' + cosmetics.filter(isCosmeticEquipped).length + ' / ' + cosmetics.length,search)
     + '<div class="cosmetics-layout"><nav class="cosmetic-slots" aria-label="' + text(t('Тип вещи')) + '">'
     + cosmeticSlots.map(([key,label,svg]) => '<button type="button" class="button" data-cosmetic-slot="' + key + '" aria-label="'
       + text(t(label)) + '" title="' + text(t(label)) + '" aria-pressed="' + (key === state.cosmeticSlot) + '">' + icon(svg) + '</button>').join('')
@@ -950,25 +950,17 @@ function renderCosmetics() {
 }
 function patchCosmeticShelf() {
   const query = state.cosmeticQuery.trim().toLocaleLowerCase(uiLanguage);
-  const matches = item => (!state.cosmeticOnlyEquipped || isCosmeticEquipped(item))
+  const items = cosmetics.filter(item => (state.cosmeticSlot === 'all' || item[3] === state.cosmeticSlot)
+    && (!state.cosmeticOnlyEquipped || isCosmeticEquipped(item))
     && (!query || t(item[2]).toLocaleLowerCase(uiLanguage).includes(query)
-      || (item[1] === 'TAIL' && t(item[3]).toLocaleLowerCase(uiLanguage).includes(query)));
-  const all = state.cosmeticSlot === 'all';
-  const items = cosmetics.filter(item => (all ? item[1] !== 'TAIL' : item[3] === state.cosmeticSlot) && matches(item));
-  const visibleTail = all ? tails.find(matches) : null;
-  const tailArtId = state.cosmeticTail || visibleTail?.[0];
-  const group = visibleTail ? '<button type="button" class="cosmetic-tile" data-cosmetic-slot="Хвосты"'
-    + ' aria-label="' + text(t('Хвосты')) + '">' + cosmeticDrawing(tailArtId,false)
-    + '<strong>' + text(t('Хвосты')) + '</strong>'
-    + (state.cosmeticTail ? '<span class="cosmetic-equipped" aria-label="' + text(t('Надето')) + '">' + icon('check') + '</span>' : '')
-    + '</button>' : '';
-  $('cosmetic-count').textContent = String(items.length + (visibleTail ? 1 : 0));
-  $('cosmetic-items').innerHTML = items.length || group ? items.map(item => {
+      || (item[1] === 'TAIL' && t(item[3]).toLocaleLowerCase(uiLanguage).includes(query))));
+  $('cosmetic-count').textContent = String(items.length);
+  $('cosmetic-items').innerHTML = items.length ? items.map(item => {
     const [id,,label,type] = item;
     return '<button type="button" class="cosmetic-tile" data-cosmetic="' + id + '" aria-pressed="' + (id === state.cosmetic)
       + '">' + cosmeticDrawing(id,false) + '<strong>' + text(t(label)) + '</strong><small>' + text(t(type)) + '</small>'
       + (isCosmeticEquipped(item) ? '<span class="cosmetic-equipped" aria-label="' + text(t('Надето')) + '">' + icon('check') + '</span>' : '') + '</button>';
-  }).join('') + group : '<p class="chat-hint">' + text(t('Ничего не найдено')) + '</p>';
+  }).join('') : '<p class="chat-hint">' + text(t('Ничего не найдено')) + '</p>';
 }
 let cosmeticFrame = 0, cosmeticLayout = '';
 let cosmeticHover = '', cosmeticSuppressed = '', cosmeticSpin = null, cosmeticTurn = null;

@@ -44,6 +44,8 @@ abstract class OrionCosmeticPreviewMixin {
 
         String id;
         String tail = "";
+        boolean sprinting = false;
+        float verticalSpeed = 0F;
         if (avatar instanceof OrionCosmeticPreview preview) {
             id = preview.selectedHat();
             tail = preview.selectedTail();
@@ -55,11 +57,13 @@ abstract class OrionCosmeticPreviewMixin {
             if (avatar.id == player.getId()) {
                 id = config.getCosmeticHat();
                 tail = config.getCosmeticTail();
+                sprinting = player.isSprinting();
+                verticalSpeed = player.onGround() ? 0F : (float) player.getDeltaMovement().y;
             } else if (client.level.getEntity(avatar.id) instanceof net.minecraft.client.player.AbstractClientPlayer remote) {
                 id = OrionBadgePresence.hat(remote.getUUID());
             } else return;
         }
         if (!id.isEmpty()) GleamHatModel.submit(playerModel, pose, collector, id, avatar.lightCoords);
-        if (!tail.isEmpty()) GleamTailModel.submit(playerModel, pose, collector, tail, avatar.lightCoords);
+        if (!tail.isEmpty()) GleamTailModel.submit(playerModel, pose, collector, tail, avatar, sprinting, verticalSpeed);
     }
 }
