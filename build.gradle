@@ -48,6 +48,13 @@ loom {
 processResources {
     dependsOn rootProject.tasks.named('buildMediaHelpers')
     from(mediaHelpersResources)
+    from(rootProject.file('website/tools/worlds-preview.html')) {
+        into 'assets/orion-client/html'
+        rename { 'world-browser.html' }
+    }
+    from(rootProject.file('website/tools/launcher-default-skin.png')) {
+        into 'assets/orion-client/textures/gui/worlds'
+    }
     doFirst {
         ['OrionThumbnail.exe', 'OrionVolume.exe', 'SHA256SUMS'].each { name ->
             if (!mediaHelpersResources.get().file("assets/orion-client/media/${name}").asFile.isFile()) {

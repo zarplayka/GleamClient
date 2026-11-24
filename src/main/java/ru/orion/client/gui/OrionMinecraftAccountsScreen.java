@@ -451,16 +451,20 @@ public final class OrionMinecraftAccountsScreen extends Screen {
     private void selectProfile(String id) {
         status = "Переключаем профиль…";
         request("session", id, null, reply -> {
-            var uuid = UUID.fromString(reply.get("uuid").getAsString().replaceFirst(
-                    "^([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})$", "$1-$2-$3-$4-$5"));
-            String token = reply.get("token").getAsString();
-            User user = new User(reply.get("name").getAsString(), uuid, token, Optional.empty(), Optional.empty());
-            if (!((OrionMinecraftSession) (Object) minecraft).gleam$useSession(user, token.equals("0"))) {
+            if (!applySession(minecraft, reply)) {
                 status = "Профиль можно сменить только до входа в мир";
                 return;
             }
             request("select", id, null, this::replaceProfiles);
         });
+    }
+
+    static boolean applySession(Minecraft client, JsonObject reply) {
+        var uuid = UUID.fromString(reply.get("uuid").getAsString().replaceFirst(
+                "^([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})$", "$1-$2-$3-$4-$5"));
+        String token = reply.get("token").getAsString();
+        User user = new User(reply.get("name").getAsString(), uuid, token, Optional.empty(), Optional.empty());
+        return ((OrionMinecraftSession) (Object) client).gleam$useSession(user, token.equals("0"));
     }
 
     private void request(String action, String id, String name, Consumer<JsonObject> success) {
@@ -515,7 +519,7 @@ public final class OrionMinecraftAccountsScreen extends Screen {
     private static String translated(String value) { return OrionGuiLanguage.translate(value); }
     private static Component text(String value) { return Component.literal(translated(value)); }
 
-    private static Path helperExecutable() {
+    static Path helperExecutable() {
         String value = System.getenv("GLEAM_MC_ACCOUNT_HELPER");
         if (value == null || System.getenv("GLEAM_MC_ACCOUNT_DATA") == null) return null;
         try {
@@ -525,7 +529,7 @@ public final class OrionMinecraftAccountsScreen extends Screen {
     }
 
     /** The launcher worker is private to this screen. Only selected sessions are returned to Java. */
-    private static final class Worker {
+    static final class Worker {
         private final Path executable;
         private final ExecutorService executor = Executors.newSingleThreadExecutor(Thread.ofVirtual().factory());
         private Process process;
@@ -533,7 +537,7 @@ public final class OrionMinecraftAccountsScreen extends Screen {
         private BufferedWriter output;
         private boolean closed;
 
-        private Worker(Path executable) { this.executable = executable; }
+        Worker(Path executable) { this.executable = executable; }
 
         CompletableFuture<JsonObject> request(String action, String id, String name) {
             return CompletableFuture.supplyAsync(() -> {
