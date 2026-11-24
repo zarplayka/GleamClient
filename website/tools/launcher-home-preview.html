@@ -199,7 +199,7 @@
       display: flex; flex-direction: column; gap: 10px;
       width: min(100%,clamp(390px,44vw,535px)); height: 100%; min-height: 0;
       padding: 14px; border: 1px solid var(--side-rule); border-radius: 14px;
-      background: var(--frame); box-shadow: 0 18px 56px #0b0b1480;
+      background: var(--frame); box-shadow: 0 18px 56px #0b0b1480; container-type: inline-size;
     }
     .concept-version-sheet > :not(.concept-version-options) { flex: none }
     #concept-versions-title {
@@ -219,38 +219,52 @@
     }
     .concept-loader-tabs { grid-template-columns: repeat(6,minmax(0,1fr)); margin-top: -6px }
     :is(.concept-version-tabs,.concept-loader-tabs) button {
+      display: flex; align-items: center; justify-content: center; gap: 5px;
       min-height: 33px; min-width: 0; padding: 4px 2px; border: 0; border-radius: 5px;
       background: transparent; color: var(--muted); font-size: 12px; font-weight: 650;
     }
+    .concept-version-symbols { position: absolute; width: 0; height: 0; overflow: hidden }
+    .concept-version-icon { display: block; flex: none; width: 15px; height: 15px; object-fit: contain }
+    .concept-loader-tabs .concept-version-icon { width: 13px; height: 13px }
     :is(.concept-version-tabs,.concept-loader-tabs) button:hover {
       background: var(--side-hover); color: var(--text);
     }
     :is(.concept-version-tabs,.concept-loader-tabs) button[aria-pressed="true"] {
       background: var(--selected-bg); color: var(--selected-text);
     }
+    .concept-version-filter { position: relative; }
+    .concept-version-filter > .icon {
+      position: absolute; top: 50%; left: 11px; translate: 0 -50%;
+      width: 15px; height: 15px; color: var(--muted); pointer-events: none;
+    }
     .concept-version-search {
-      width: 100%; min-height: 37px; padding: 0 12px; border: 1px solid var(--side-rule); border-radius: 7px;
+      width: 100%; min-height: 37px; padding: 0 10px 0 34px; border: 1px solid var(--side-rule); border-radius: 7px;
       background: var(--control-bg); color: var(--text); font: inherit; font-size: 13px;
     }
     .concept-version-options { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; overscroll-behavior: contain }
+    .concept-version-options:has(.profile-content-empty,.concept-version-note) { display: grid; place-items: center }
+    .concept-version-options .profile-content-empty { padding: clamp(10px,2.4vh,24px) 12px }
+    .concept-version-options .profile-content-empty .button { margin-top: 3px }
     .concept-version-row {
-      display: grid; grid-template-columns: 10px minmax(0,1fr) auto; align-items: center; gap: 10px;
+      display: grid; grid-template-columns: 15px minmax(0,1fr) auto; align-items: center; gap: 10px;
       width: 100%; min-height: 40px; padding: 0 11px; border: 0; border-radius: 6px;
       background: transparent; color: var(--text); font: inherit; text-align: left;
     }
-    .concept-version-row::before { content: ""; width: 7px; height: 7px; border: 1px solid var(--muted); border-radius: 2px }
+    .concept-version-row .concept-version-icon { color: var(--muted) }
     .concept-version-row:hover { background: var(--side-hover) }
     .concept-version-row[aria-pressed="true"] { background: var(--selected-bg); color: var(--selected-text) }
-    .concept-version-row[aria-pressed="true"]::before { border-color: currentColor; background: currentColor }
+    .concept-version-row[aria-pressed="true"] .concept-version-icon { color: inherit }
     .concept-version-row:focus-visible { outline-offset: -2px }
     .concept-version-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px }
     .concept-version-row small { color: var(--muted); font-size: 11px }
     .concept-version-note { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 6px 0 }
     .concept-version-sheet footer { display: flex; justify-content: center; border-top: 1px solid var(--side-rule); padding-top: 8px }
-    .concept-version-sheet footer button { min-height: 27px; padding: 3px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--selected-text); font-size: 12px; font-weight: 650 }
+    .concept-version-sheet footer button { display: flex; align-items: center; gap: 6px; min-height: 27px; padding: 3px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--selected-text); font-size: 12px; font-weight: 650 }
     .concept-version-sheet footer button:hover { background: var(--side-hover) }
     @media (max-width: 760px) {
       .concept-version-sheet { gap: 8px; padding: 10px }
+    }
+    @container (max-width: 390px) {
       .concept-loader-tabs { grid-template-columns: repeat(3,minmax(0,1fr)) }
     }
     @container workspace (max-width: 700px) {
@@ -284,6 +298,15 @@
 <body>
   <p id="preview-loading" role="status">Открываем превью Gleam Launcher…</p>
   <template id="home-layout">
+    <svg class="concept-version-symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <symbol id="i-picker-vanilla" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm-8 4.5 8 4.5 8-4.5M12 12v9"/></symbol>
+      <symbol id="i-picker-optifine" viewBox="0 0 24 24"><path d="M5 7h3l2 2v6l-2 2H5l-2-2V9l2-2Zm8 10V7h8m-8 5h6"/></symbol>
+      <symbol id="i-picker-forge" viewBox="0 0 24 24"><path d="M3 7h18l-3.5 4H14v3l3 3v2H7v-2l3-3v-3H7L3 7Z"/></symbol>
+      <symbol id="i-picker-fabric" viewBox="0 0 24 24"><path d="m4 10 8-6 8 6-8 6-8-6Zm0 4 8 6 8-6m-13-3 5-4 5 4"/></symbol>
+      <symbol id="i-picker-neoforge" viewBox="0 0 24 24"><path d="m4 11 1-7 5 4h4l5-4 1 7-2 6-6 3-6-3-2-6Zm4 1 2 1m6-1-2 1m-3 3h2"/></symbol>
+      <symbol id="i-picker-quilt" viewBox="0 0 24 24"><path d="M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6zm-5-5 6 6m0-6-6 6"/></symbol>
+      <symbol id="i-picker-add" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    </svg>
     <div class="concept-play">
       <section class="concept-stage" aria-labelledby="play-heading">
         <h1 id="play-heading">LayOffick</h1>
@@ -324,9 +347,9 @@
           <button id="concept-close-versions" class="button" type="button" aria-label="Закрыть">×</button>
         </header>
         <div class="concept-version-tabs" role="group" aria-labelledby="concept-versions-title">
-          <button type="button" data-concept-kind="classic" aria-pressed="true">Minecraft</button>
+          <button type="button" data-concept-kind="classic" aria-pressed="true"><svg class="icon concept-version-icon" aria-hidden="true"><use href="#i-picker-vanilla"/></svg>Minecraft</button>
           <button type="button" data-concept-kind="gleam" aria-pressed="false">GleamClient</button>
-          <button type="button" data-concept-kind="profiles" aria-pressed="false">Мои сборки</button>
+          <button type="button" data-concept-kind="profiles" aria-pressed="false"><svg class="icon concept-version-icon" aria-hidden="true"><use href="#i-profiles"/></svg><span>Мои сборки</span></button>
         </div>
         <div class="concept-loader-tabs" role="group" aria-label="Загрузчик модов">
           <button type="button" data-concept-loader="vanilla" aria-pressed="true">Vanilla</button>
@@ -336,11 +359,22 @@
           <button type="button" data-concept-loader="neoforge" aria-pressed="false">NeoForge</button>
           <button type="button" data-concept-loader="quilt" aria-pressed="false">Quilt</button>
         </div>
-        <input id="concept-version-query" class="concept-version-search" type="search" placeholder="Поиск версии" autocomplete="off">
+        <div class="concept-version-filter">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+          <input id="concept-version-query" class="concept-version-search" type="search" placeholder="Поиск версии" autocomplete="off">
+        </div>
         <div class="concept-version-options" id="concept-version-options"></div>
-        <footer><button id="concept-manage-profiles" type="button">Создать сборку</button></footer>
+        <footer><button id="concept-manage-profiles" type="button"><svg class="icon concept-version-icon" aria-hidden="true"><use href="#i-picker-add"/></svg><span id="concept-manage-profiles-label">Создать сборку</span></button></footer>
       </div>
     </dialog>
+    <template id="concept-picker-empty">
+      <div class="profile-content-empty" role="status">
+        <span class="profile-empty-icon"><svg class="icon" aria-hidden="true"><use/></svg></span>
+        <strong></strong>
+        <p></p>
+        <button type="button" class="button" hidden>Повторить</button>
+      </div>
+    </template>
   </template>
   <script type="text/plain" id="home-script">
     (() => {
@@ -358,7 +392,15 @@
         'Поиск версии':['Search versions','Versionen suchen','Buscar versiones'],
         'Ничего не найдено':['No results','Keine Treffer','Sin resultados'],
         'Не удалось загрузить версии':['Could not load versions','Versionen konnten nicht geladen werden','No se pudieron cargar las versiones'],
-        'У тебя пока нет своих сборок':['You have no custom profiles yet','Du hast noch keine eigenen Profile','Aún no tienes perfiles propios'],
+        'Своих сборок пока нет':['No custom profiles yet','Noch keine eigenen Profile','Aún no hay perfiles propios'],
+        'Создай сборку, чтобы хранить её моды и настройки отдельно.':[
+          'Create a profile to keep its mods and settings separate.',
+          'Erstelle ein Profil, um seine Mods und Einstellungen getrennt zu speichern.',
+          'Crea un perfil para mantener sus mods y ajustes separados.'
+        ],
+        'Попробуй изменить поисковый запрос.':[
+          'Try a different search term.','Versuche einen anderen Suchbegriff.','Prueba con otro término de búsqueda.'
+        ],
         'Запуск обычного Minecraft пока недоступен в этом превью':[
           'Vanilla Minecraft cannot be launched from this preview',
           'Vanilla Minecraft kann aus dieser Vorschau noch nicht gestartet werden',
@@ -394,12 +436,12 @@
       board.replaceChildren();
       board.append(layout);
       home.classList.add('home-concept');
-      for (const id of ['concept-quick-title','concept-friends-title','concept-open-friends','concept-versions-title','concept-picker-account','concept-manage-profiles']) {
+      for (const id of ['concept-quick-title','concept-friends-title','concept-open-friends','concept-versions-title','concept-picker-account','concept-manage-profiles-label']) {
         const element = $(id);
         writeLocale(element,element.textContent.trim());
       }
       writeLabel($('concept-close-versions'),'Закрыть');
-      writeLocale(board.querySelector('[data-concept-kind="profiles"]'),'Мои сборки');
+      writeLocale(board.querySelector('[data-concept-kind="profiles"] span'),'Мои сборки');
       writeLabel(board.querySelector('.concept-loader-tabs'),'Загрузчик модов');
       const versionQuery = $('concept-version-query');
       const querySource = versionQuery.placeholder;
@@ -607,6 +649,24 @@
       const tabs = [...picker.querySelectorAll('[data-concept-kind]')];
       const loaderTabs = [...picker.querySelectorAll('[data-concept-loader]')];
       const loaderLabels = new Map(loaderTabs.map(tab => [tab.dataset.conceptLoader,tab.textContent.trim()]));
+      const svgNamespace = 'http://www.w3.org/2000/svg';
+      function pickerIcon(kind) {
+        if (kind === 'gleam') {
+          const icon = launcher.querySelector('.brand img').cloneNode();
+          icon.className = 'concept-version-icon';
+          icon.alt = '';
+          return icon;
+        }
+        const icon = document.createElementNS(svgNamespace,'svg');
+        icon.setAttribute('class','icon concept-version-icon');
+        icon.setAttribute('aria-hidden','true');
+        const use = document.createElementNS(svgNamespace,'use');
+        use.setAttribute('href',kind === 'profiles' ? '#i-profiles' : '#i-picker-'+kind);
+        icon.append(use);
+        return icon;
+      }
+      picker.querySelector('[data-concept-kind="gleam"]').prepend(pickerIcon('gleam'));
+      for (const tab of loaderTabs) tab.prepend(pickerIcon(tab.dataset.conceptLoader));
       let browseKind = 'classic', browseLoader = 'vanilla', classicTarget, catalog, catalogRequest, catalogFailed = false;
       let pickerMotions = [];
 
@@ -664,11 +724,26 @@
       function pickerNotice(source) {
         const note = document.createElement('p');
         note.className = 'concept-version-note';
+        note.setAttribute('role','status');
         writeLocale(note,source);
         rows.append(note);
       }
 
-      function versionRow(value,kind,selected,action) {
+      function pickerEmpty(icon,title,description,retry) {
+        const state = $('concept-picker-empty').content.firstElementChild.cloneNode(true);
+        state.querySelector('use').setAttribute('href','#i-'+icon);
+        writeLocale(state.querySelector('strong'),title);
+        writeLocale(state.querySelector('p'),description);
+        if (retry) {
+          const button = state.querySelector('button');
+          button.hidden = false;
+          writeLocale(button,'Повторить');
+          button.addEventListener('click',retry);
+        }
+        rows.append(state);
+      }
+
+      function versionRow(value,kind,icon,selected,action) {
         const row = document.createElement('button');
         row.type = 'button';
         row.className = 'concept-version-row';
@@ -677,7 +752,7 @@
         title.textContent = value;
         const label = document.createElement('small');
         label.textContent = kind;
-        row.append(title,label);
+        row.append(pickerIcon(icon),title,label);
         row.addEventListener('click',action);
         return row;
       }
@@ -716,31 +791,36 @@
         const query = versionQuery.value.trim().toLowerCase();
         rows.replaceChildren();
         if (browseKind === 'classic' && !catalog) {
-          pickerNotice(catalogFailed ? 'Не удалось загрузить версии' : 'Загрузка…');
+          if (catalogFailed) {
+            pickerEmpty('download','Не удалось загрузить версии','Проверь подключение и повтори попытку',() => {
+              loadVersionCatalog();
+              renderVersionList();
+            });
+          } else pickerNotice('Загрузка…');
           return;
         }
         if (browseKind === 'profiles') {
           const profiles = importedProfiles.filter(profile => (profile.name+' '+profile.version).toLowerCase().includes(query));
-          for (const profile of profiles) rows.append(versionRow(profile.name,profile.version,false,() => {
+          for (const profile of profiles) rows.append(versionRow(profile.name,profile.version,'profiles',false,() => {
             togglePicker(false);
             navigate('profiles',profile.id);
           }));
-          if (!profiles.length) pickerNotice(query ? 'Ничего не найдено' : 'У тебя пока нет своих сборок');
-          return;
-        }
-        if (browseKind === 'gleam') {
+          if (!profiles.length && !query) {
+            pickerEmpty('profiles','Своих сборок пока нет','Создай сборку, чтобы хранить её моды и настройки отдельно.');
+          }
+        } else if (browseKind === 'gleam') {
           for (const tile of gleamVersions) {
             const version = tile.dataset.version;
-            if (version.includes(query)) rows.append(versionRow(version,'GleamClient',!classicTarget && selectedVersion === version,
+            if (version.includes(query)) rows.append(versionRow(version,'GleamClient','gleam',!classicTarget && selectedVersion === version,
               () => chooseVersion(version,tile)));
           }
         } else {
           for (const version of catalog[browseLoader] ?? []) {
             const selected = classicTarget?.version === version && classicTarget.loader === browseLoader;
-            if (version.includes(query)) rows.append(versionRow(version,loaderLabels.get(browseLoader),selected,() => chooseVersion(version)));
+            if (version.includes(query)) rows.append(versionRow(version,loaderLabels.get(browseLoader),browseLoader,selected,() => chooseVersion(version)));
           }
         }
-        if (!rows.childElementCount) pickerNotice('Ничего не найдено');
+        if (!rows.childElementCount) pickerEmpty('search','Ничего не найдено','Попробуй изменить поисковый запрос.');
       }
 
       function browseVersions(kind) {
