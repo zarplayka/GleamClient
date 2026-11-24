@@ -267,6 +267,29 @@
   </template>
   <script type="text/plain" id="home-script">
     (() => {
+      Object.assign(launcherTranslations,{
+        'Быстрый вход':['Quick Play','Schnellstart','Acceso rápido'],
+        'Все друзья':['All friends','Alle Freunde','Todos los amigos'],
+        'Все новости':['All news','Alle Neuigkeiten','Todas las noticias'],
+        'Выбрать версию Minecraft':['Choose a Minecraft version','Minecraft-Version auswählen','Elegir versión de Minecraft'],
+        'Персонаж Minecraft. Поворот мышью или стрелками, масштаб колёсиком':[
+          'Minecraft character. Drag or use arrow keys to rotate, scroll to zoom',
+          'Minecraft-Figur. Mit Maus oder Pfeiltasten drehen, mit dem Mausrad zoomen',
+          'Personaje de Minecraft. Arrastra o usa las flechas para girar y la rueda para acercar'
+        ],
+        'Запуск доступен в приложении Gleam Launcher':[
+          'Launch the game from the Gleam Launcher app','Starte das Spiel in der Gleam-Launcher-App',
+          'Inicia el juego desde la aplicación Gleam Launcher'
+        ],
+        'Подключение к {0} доступно в приложении':[
+          'Join {0} from the Gleam Launcher app','Tritt {0} in der Gleam-Launcher-App bei',
+          'Conéctate a {0} desde la aplicación Gleam Launcher'
+        ],
+        'Выбери поддерживаемую версию Minecraft':[
+          'Choose a supported Minecraft version','Wähle eine unterstützte Minecraft-Version',
+          'Elige una versión compatible de Minecraft'
+        ]
+      });
       const home = $('page-play');
       launcher.removeAttribute('data-auth-required');
       gleamLogin.hidden = true;
@@ -280,6 +303,11 @@
       board.replaceChildren();
       board.append(layout);
       home.classList.add('home-concept');
+      for (const id of ['concept-quick-title','concept-friends-title','concept-open-friends','concept-versions-title']) {
+        const element = $(id);
+        writeLocale(element,element.textContent.trim());
+      }
+      writeLabel($('concept-versions').querySelector('[type="submit"]'),'Закрыть');
 
       const stage = board.querySelector('.concept-stage');
       launchColumn.querySelector('h1').remove();
@@ -289,7 +317,7 @@
       loadout.hidden = true;
       home.append(loadout);
       stage.append(avatar,launchColumn);
-      skinStage.setAttribute('aria-label','Персонаж Minecraft. Поворот мышью или стрелками, масштаб колёсиком');
+      writeLabel(skinStage,'Персонаж Minecraft. Поворот мышью или стрелками, масштаб колёсиком');
 
       const nameFont = '600 20px "Pixelify Sans", monospace';
       class HomeAvatar extends GleamCosmeticPreview {
@@ -404,8 +432,8 @@
       versionButton.className = 'button profile-button';
       versionButton.setAttribute('aria-haspopup','dialog');
       versionButton.setAttribute('aria-controls',picker.id);
-      versionButton.setAttribute('aria-label','Выбрать версию Minecraft');
-      versionButton.title = 'Выбрать версию Minecraft';
+      versionButton.title = '';
+      writeLabel(versionButton,'Выбрать версию Minecraft');
       versionButton.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-profiles"/></svg>';
       launchActions.append(versionButton);
       versionButton.addEventListener('click',() => {
@@ -422,28 +450,29 @@
       feedback.setAttribute('role','status');
       launchColumn.append(feedback);
       $('launch').addEventListener('click',() => {
-        feedback.textContent = 'Запуск доступен в приложении Gleam Launcher';
+        writeLocale(feedback,'Запуск доступен в приложении Gleam Launcher');
       });
       for (const button of board.querySelectorAll('[data-concept-server]')) {
         const address = button.dataset.conceptServer;
         button.addEventListener('click',() => {
-          feedback.textContent = playableVersions.has(selectedVersion)
-            ? 'Подключение к ' + address + ' доступно в приложении'
-            : 'Выбери поддерживаемую версию Minecraft';
-          if (playableVersions.has(selectedVersion)) void launchGame(null,button,null,address);
+          if (playableVersions.has(selectedVersion)) {
+            writeLocale(feedback,'Подключение к {0} доступно в приложении',address);
+            void launchGame(null,button,null,address);
+          } else writeLocale(feedback,'Выбери поддерживаемую версию Minecraft');
         });
       }
-      for (const tile of versionTiles) tile.addEventListener('click',() => { feedback.textContent = ''; });
+      for (const tile of versionTiles) tile.addEventListener('click',() => writeLocale(feedback,''));
 
       news.classList.add('concept-panel','concept-news');
       const cover = document.createElement('button');
       cover.type = 'button';
       cover.className = 'concept-news-art';
       const topStory = news.querySelector('.news-entry');
-      cover.setAttribute('aria-label',topStory.querySelector('strong').textContent);
+      topStory.querySelector('strong').id = 'concept-news-title';
+      cover.setAttribute('aria-labelledby','concept-news-title');
       cover.addEventListener('click',() => topStory.click());
       news.querySelector('header').after(cover);
-      news.querySelector('#news-shortcut').replaceChildren('Все новости');
+      writeLocale(news.querySelector('#news-shortcut'),'Все новости');
       board.querySelector('.concept-rail').append(news);
 
       const friends = [
@@ -463,7 +492,7 @@
         if (index && presence === 'offline' && friends[index-1].at(-1) !== 'offline') {
           const label = document.createElement('li');
           label.className = 'concept-offline';
-          label.textContent = 'Не в сети';
+          writeLocale(label,'Не в сети');
           people.append(label);
         }
         const item = document.createElement('li');
@@ -495,7 +524,7 @@
         person.append(nick);
         if (status) {
           const detail = document.createElement('small');
-          detail.textContent = status;
+          writeLocale(detail,status);
           person.append(detail);
         }
         row.append(face,person);
