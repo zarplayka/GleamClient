@@ -1,6 +1,9 @@
 // The shared preview owns the markup, layout, and interactions. This adapter supplies game data.
 game.send = (action, id = '', fields = {}) => {
-  window.webkit.messageHandlers.paradox.postMessage(JSON.stringify({action, id, ...fields}));
+  // Keep Unicode intact across Lumen's native message channel.
+  const payload = JSON.stringify({action, id, ...fields}).replace(/[^\x00-\x7f]/g,
+    char => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0'));
+  window.webkit.messageHandlers.paradox.postMessage(payload);
 };
 
 game.accountRow = () => {
@@ -35,12 +38,14 @@ game.menuItems = () => {
   ].filter(item => item !== false);
 };
 
-let lastRows, lastHero, lastLabels, lastProfiles, lastAccount;
+let lastLabels, lastProfiles, lastAccount;
 function updateGame(next) {
   const tab = next.single ? 'single' : 'multi';
   const changedTab = !game.loaded || state.tab !== tab;
-  const selected = game.selected === next.selected && !changedTab ? current()?.id || '+' : next.selected;
+  const previousEntry = current(), wasEmpty = state.empty;
+  const selected = game.selected === next.selected && !changedTab ? previousEntry?.id || '+' : next.selected;
   const sizeChanged = game.width !== next.width || game.height !== next.height;
+  const themeChanged = game.theme !== next.theme;
   const labelsChanged = lastLabels !== JSON.stringify(next.labels);
   const profilesChanged = lastProfiles !== JSON.stringify(next.profiles);
   const activeChanged = lastAccount !== next.activeAccount;
@@ -76,12 +81,25 @@ function updateGame(next) {
     accountState.active = next.activeAccount;
     if (profilesChanged) renderAccounts(activeChanged); else updateActiveAccount(true);
   }
-  document.documentElement.setAttribute('data-theme', next.theme);
-  if (next.accent) {
-    document.documentElement.style.setProperty('--accent', next.accent);
-    document.documentElement.style.setProperty('--accent-ink', next.accentInk);
+  const root = document.documentElement;
+  if (themeChanged) {
+    root.setAttribute('data-theme', next.theme);
+    game.theme = next.theme;
   }
-  $('clock').textContent = next.clock;
+  if (game.accent !== next.accent) {
+    if (next.accent) {
+      root.style.setProperty('--accent', next.accent);
+      root.style.setProperty('--accent-ink', next.accentInk);
+    } else {
+      root.style.removeProperty('--accent');
+      root.style.removeProperty('--accent-ink');
+    }
+    game.accent = next.accent;
+  }
+  if (game.clock !== next.clock) {
+    $('clock').textContent = next.clock;
+    game.clock = next.clock;
+  }
 
   const list = next.single ? WORLDS : SERVERS;
   list.splice(0, list.length, ...next.entries.filter(entry => entry.kind === (next.single ? 'world' : 'server')));
@@ -91,19 +109,12 @@ function updateGame(next) {
   const options = entries();
   const selectionIndex = selected === '+' ? 0 : options.findIndex(entry => entry.id === selected);
   state.focus[tab] = selectionIndex < 0 ? Math.min(1, options.length - 1) : selectionIndex;
-  const signature = JSON.stringify(options.map(it => [it.id, it.iconUrl, it.hardcore, it.upgrade, it.offline, it.pending, it.incompatible]));
-  if (signature !== lastRows || changedTab) {
-    lastRows = signature;
-    buildTiles();
-  }
   if (sizeChanged) layoutStage();
-  else placeTiles();
-  const currentEntry = current();
-  const hero = JSON.stringify([tab, state.empty, currentEntry]);
-  if (hero !== lastHero || labelsChanged) {
-    const animate = !lastHero || JSON.parse(lastHero)[2]?.id !== currentEntry?.id || changedTab;
-    lastHero = hero;
-    renderHero(animate);
+  else placeTiles(options);
+  const currentEntry = options[state.focus[tab]];
+  if (changedTab || themeChanged || labelsChanged || wasEmpty !== state.empty
+      || JSON.stringify(previousEntry) !== JSON.stringify(currentEntry)) {
+    renderHero(false);
   } else renderShelf();
 
   if (game.feedback !== next.feedback?.revision) {
@@ -135,7 +146,7 @@ window.paradox = {
     if (!field || field.tagName !== 'INPUT') return;
     if (field === query ? !search.classList.contains('open') : !state.dialog || !$('dialogBox').contains(field)) return;
     if (shortcut.command === 'select') { field.select(); return; }
-    if (shortcut.command !== 'paste' && shortcut.command !== 'type') return;
+    if (shortcut.command !== 'paste') return;
     const start = field.selectionStart ?? field.value.length;
     const end = field.selectionEnd ?? start;
     const max = field.maxLength > 0 ? field.maxLength : 255;

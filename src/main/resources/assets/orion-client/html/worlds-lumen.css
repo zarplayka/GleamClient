@@ -8,10 +8,13 @@
 #stage .hero { position:absolute; left:64px; top:278px; }
 #stage.has-notice .hero { top:252px; }
 #stage.has-notice .hero .play,#stage.has-notice .hero .round { height:48px; }
-.hero-enter { animation:world-hero-enter .26s cubic-bezier(.2,.8,.2,1); }
-@keyframes world-hero-enter {
-  from { opacity:.55; transform:translateY(8px); }
-  to { opacity:1; transform:translateY(0); }
+.bg img { transition:none; }
+.tile { transition:transform .26s cubic-bezier(.2,.8,.2,1); box-shadow:none; }
+.focus-label { transition:transform .26s cubic-bezier(.2,.8,.2,1); }
+.tile.focus,.zone-off .tile.focus { box-shadow:none; outline:3px solid var(--accent); }
+.zone-off .tile.focus { outline-color:var(--muted); }
+@media (prefers-reduced-motion:reduce) {
+  .tile,.focus-label { transition:none; }
 }
 #stage .shelf { position:absolute; left:64px; right:48px; bottom:56px; }
 .top { z-index:4; }
@@ -33,7 +36,6 @@
 .shelf h2 span b,.card strong,kbd,.btn,.toast { font-family:WorldsSemibold,sans-serif; font-weight:normal; }
 .brand,.account-panel h2,.profile-copy strong,.focus-label strong,.tile .badge,
 h1,.play,.card .stat,.dialog-box h3 { font-family:WorldsBold,sans-serif; font-weight:normal; }
-.desc,.motd { font-family:WorldsRegular,sans-serif; }
-.desc { max-height:44px; }
-.motd { white-space:pre-line; }
+.desc { display:block; max-height:44px; font-family:WorldsRegular,sans-serif; }
+.motd-bold { font-family:WorldsBold,sans-serif; font-weight:normal; }
 .account-symbols,.dev { display:none; }

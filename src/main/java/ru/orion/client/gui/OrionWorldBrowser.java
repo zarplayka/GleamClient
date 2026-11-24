@@ -89,9 +89,11 @@ public final class OrionWorldBrowser {
     private final DateTimeFormatter dates = DATE.withLocale(Locale.forLanguageTag(OrionGuiLanguage.language()));
     private List<Row> rows = List.of();
     private JsonObject previous;
-    private boolean active, attempted, initialized, dirty = true;
+    private boolean active, attempted, initialized, dirty = true, searchShortcut;
     private float scale = 1;
     private long nextUpdate;
+    private long clockMinute = -1;
+    private float pointerX = Float.NaN, pointerY = Float.NaN;
     private int viewportWidth, viewportHeight, serverResponse;
     private String selected = "", status = "";
     private JsonObject feedback;
@@ -199,9 +201,6 @@ public final class OrionWorldBrowser {
             ScreenMouseEvents.allowMouseDrag(screen).register((owner, event, dx, dy) -> current != menu || !menu.active);
             ScreenMouseEvents.allowMouseScroll(screen).register((owner, x, y, dx, dy) -> current != menu || !menu.wheel(x, y, dx, dy));
             ScreenKeyboardEvents.allowKeyPress(screen).register((owner, key) -> current != menu || !menu.key(key));
-            //? if >=26.1 {
-            ScreenKeyboardEvents.allowCharType(screen).register((owner, event) -> current != menu || !type(event));
-            //?}
         });
     }
 
@@ -211,7 +210,9 @@ public final class OrionWorldBrowser {
         var menu = current;
         if (menu == null || !menu.active || GleamMinecraft.screen(menu.client) != menu.screen
                 || GleamMinecraft.overlay(menu.client) != null) return false;
-        if (event.isAllowedChatCharacter()) menu.view.insertText(event.codepointAsString());
+        boolean openingSlash = menu.searchShortcut && event.codepoint() == '/';
+        menu.searchShortcut = false;
+        if (!openingSlash && event.isAllowedChatCharacter()) menu.view.text(event.codepointAsString());
         return true;
     }
 
@@ -242,13 +243,24 @@ public final class OrionWorldBrowser {
         scale = ratio / window.getGuiScale();
         viewportWidth = (int) Math.ceil(width / scale);
         viewportHeight = (int) Math.ceil(height / scale);
-        dirty |= view.resize(viewportWidth, viewportHeight, ratio);
+        boolean resized = view.resize(viewportWidth, viewportHeight, ratio);
+        dirty |= resized;
+        long minute = System.currentTimeMillis() / 60_000;
+        if (clockMinute != minute) {
+            clockMinute = minute;
+            dirty = true;
+        }
         if (dirty) {
             JsonObject state = state();
             if (!state.equals(previous)) { view.update(state); previous = state; }
             dirty = false;
         }
-        view.move(mouseX / scale, mouseY / scale);
+        float x = mouseX / scale, y = mouseY / scale;
+        if (resized || x != pointerX || y != pointerY) {
+            view.move(x, y);
+            pointerX = x;
+            pointerY = y;
+        }
         view.frame();
         active = view.draw(graphics, 0, 0, width, height, scale, scale);
         if (active) receive();
@@ -370,11 +382,16 @@ public final class OrionWorldBrowser {
                 next.add(new Row(id, entry, () -> OrionFriendWorlds.accept(client, key), null, null));
             }
         }
+        boolean changed = rows.size() != next.size();
+        for (int i = 0; !changed && i < next.size(); i++) {
+            changed = !rows.get(i).data().equals(next.get(i).data());
+        }
         rows = next;
         if (!rows.isEmpty() && (selected.isEmpty() || !selected.equals(CREATE) && find(selected) == null)) {
             selected = rows.getFirst().id();
+            changed = true;
         }
-        dirty = true;
+        dirty |= changed;
     }
 
     private static JsonObject entry(String id, String name, String tag, String description, String kind) {
@@ -399,6 +416,10 @@ public final class OrionWorldBrowser {
                 var run = new JsonObject();
                 run.addProperty("text", readable);
                 if (style.getColor() != null) run.addProperty("color", String.format(Locale.ROOT, "#%06x", style.getColor().getValue()));
+                if (style.isBold()) run.addProperty("bold", true);
+                if (style.isItalic()) run.addProperty("italic", true);
+                if (style.isUnderlined()) run.addProperty("underline", true);
+                if (style.isStrikethrough()) run.addProperty("strike", true);
                 runs.add(run);
             }
             return Optional.empty();
@@ -412,6 +433,7 @@ public final class OrionWorldBrowser {
             int smallCap = MOTD_SMALL_CAPS.indexOf(codepoint);
             if (smallCap >= 0) result.append((char) ('A' + smallCap));
             else if (codepoint == '\n' || codepoint == ' ') result.appendCodePoint(codepoint);
+            else if (codepoint == '\r') { return; }
             else if (Character.isWhitespace(codepoint)) result.append(' ');
             else if (Character.isISOControl(codepoint) || Character.getType(codepoint) == Character.FORMAT
                     || Character.getType(codepoint) == Character.PRIVATE_USE || codepoint == 0xfffd) { return; }
@@ -488,7 +510,7 @@ public final class OrionWorldBrowser {
         if (previous != null && previous.fingerprint() == fingerprint) return previous.asset();
         if (page.nextIcon >= 128) return "";
         String name = "assets/world-browser-" + page.id + "-" + ++page.nextIcon + ".png";
-        view.registerImage(name, bytes);
+        if (LumenNative.registerImage(bytes(name), bytes) < 0) return "";
         page.icons.put(id, new Icon(fingerprint, name));
         return name;
     }
@@ -564,6 +586,7 @@ public final class OrionWorldBrowser {
 
     private boolean key(KeyEvent event) {
         if (!active) return false;
+        searchShortcut = false;
         if (event.key() == InputConstants.KEY_TAB && event.hasShiftDown()) {
             JsonObject shortcut = new JsonObject();
             shortcut.addProperty("command", "previous-field");
@@ -627,6 +650,10 @@ public final class OrionWorldBrowser {
     private void handle(JsonObject message) {
         if (!message.has("action")) return;
         String action = message.get("action").getAsString();
+        if (action.equals("search-shortcut")) {
+            searchShortcut = true;
+            return;
+        }
         String id = message.has("id") && !message.get("id").getAsString().isEmpty() ? message.get("id").getAsString() : selected;
         Row row = find(id);
         if (action.equals("select")) {
@@ -636,7 +663,6 @@ public final class OrionWorldBrowser {
                     var list = serverList();
                     if (list != null) list.setScrollAmount(Math.max(0, list.children().indexOf(row.server()) - 2) * 36.0);
                 }
-                nextUpdate = 0;
                 OrionClickGuiScreen.playInterfaceSound(client, "click");
             }
             return;
