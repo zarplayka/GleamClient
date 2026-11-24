@@ -61,7 +61,8 @@
     .concept-stage .model::before {
       position: absolute; bottom: calc(100% + var(--unit)); left: 50%;
       content: attr(data-player-name); color: #fff; background: #1a3b7688;
-      padding: 3px 9px; white-space: nowrap; font: 700 calc(2 * var(--unit)) "Pixelify Sans", monospace;
+      padding: 3px 9px; white-space: nowrap; font: 600 calc(2 * var(--unit)) "Pixelify Sans", monospace;
+      letter-spacing: .035em;
       transform: translateX(-50%) rotateY(calc(-1 * var(--yaw)));
     }
     .concept-stage #home-cosmetic-preview { pointer-events: none }
@@ -277,7 +278,7 @@
       stage.append(avatar,launchColumn);
       skinStage.setAttribute('aria-label','Персонаж Minecraft. Поворот мышью или стрелками, масштаб колёсиком');
 
-      const nameFont = '700 20px "Pixelify Sans", monospace';
+      const nameFont = '600 20px "Pixelify Sans", monospace';
       class HomeAvatar extends GleamCosmeticPreview {
         setSkin(image,slim,headLayer) {
           this.skinAtlasHeight = image.height;
@@ -310,22 +311,30 @@
           const label = document.createElement('canvas');
           const context = label.getContext('2d');
           context.font = nameFont;
-          label.width = Math.ceil(context.measureText(name).width) + 14;
-          label.height = 24;
+          context.letterSpacing = '.7px';
+          const width = Math.ceil(context.measureText(name).width) + 14;
+          const height = 24, rasterScale = 8;
+          label.width = width * rasterScale;
+          label.height = height * rasterScale;
+          context.scale(rasterScale,rasterScale);
           context.font = nameFont;
-          context.textBaseline = 'middle';
+          context.letterSpacing = '.7px';
+          const {actualBoundingBoxAscent:ascent,actualBoundingBoxDescent:descent} = context.measureText('Mg');
           context.fillStyle = '#1a3b7688';
-          context.fillRect(0,0,label.width,label.height);
-          context.fillStyle = '#162344';
-          context.fillText(name,8,14);
+          context.fillRect(0,0,width,height);
           context.fillStyle = '#fff';
-          context.fillText(name,7,13);
-          const x = label.width * .0052, y = label.height * .0052;
+          context.fillText(name,7,(height+ascent-descent)/2);
+          const x = width * .0052, y = height * .0052;
           const vertices = [
             [-x,-y,0,0,0], [x,-y,0,1,0], [x,y,0,1,1],
             [-x,-y,0,0,0], [x,y,0,1,1], [-x,y,0,0,1]
           ].flatMap(corner => [...corner,1,1,1,1,1]);
-          this.nameplate = {name,halfWidth:x,halfHeight:y,mesh:this.mesh(vertices),texture:this.texture(label)};
+          // Keep the skin pixelated while sampling the separate high-resolution text texture smoothly.
+          const texture = this.texture(label);
+          const gl = this.gl;
+          gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+          this.nameplate = {name,halfWidth:x,halfHeight:y,mesh:this.mesh(vertices),texture};
         }
 
         draw(options) {
