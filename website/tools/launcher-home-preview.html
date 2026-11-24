@@ -29,14 +29,14 @@
     }
     .concept-play {
       min-width: 0;
-      display: grid; grid-template-rows: minmax(480px,1fr) auto;
+      display: grid; grid-template-rows: minmax(0,1fr) max-content;
       border: 1px solid var(--concept-line); border-radius: 15px; overflow: clip;
       background: var(--concept-panel);
     }
     .concept-stage {
       position: relative; isolation: isolate;
       display: grid; grid-template-rows: minmax(0,1fr) auto;
-      min-width: 0; overflow: clip;
+      min-width: 0; min-height: 420px; overflow: clip;
       color: #fff5ec;
       background: #202946 url("launcher-home-scene.webp") center / cover no-repeat;
     }
@@ -190,25 +190,51 @@
     .concept-news .news-entry strong { font-size: 14px; line-height: 1.2 }
     .concept-news .news-entry .release-meta { font-size: 11px }
     .concept-versions {
-      width: min(560px,calc(100vw - 24px)); padding: 18px; border: 1px solid var(--side-rule); border-radius: 14px;
-      background: var(--frame); color: var(--text); box-shadow: 0 20px 60px #08080d96;
+      position: absolute; inset: auto auto calc(100% + 9px) 50%; translate: -50% 0;
+      width: min(435px,calc(100% + 52px)); max-width: none; margin: 0; padding: 12px;
+      border: 1px solid var(--side-rule); border-radius: 13px;
+      background: var(--frame); color: var(--text); box-shadow: 0 14px 36px #08080d88;
+      text-align: left; overflow: hidden;
     }
-    .concept-versions::backdrop { background: #11121bb0 }
-    .concept-versions header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px }
-    .concept-versions h2 { font-size: 19px }
-    .concept-versions .concept-version-options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px }
-    .concept-versions .version-shelf { grid-area: auto; width: 100%; justify-self: center; gap: 5px; animation: none }
-    .concept-versions .version-tile { font-size: 13px; padding: 6px }
-    .concept-versions .version-tile[aria-pressed="true"] { border-color: #e6ccac }
+    .concept-versions[open] { display: flex; flex-direction: column; gap: 8px }
+    .concept-versions header { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+    .concept-versions h2 { font-size: 17px }
+    .concept-versions header button { min-height: 24px; width: 26px; padding: 0; border-radius: 6px; font-size: 16px }
+    .concept-version-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 3px; padding: 3px; border-radius: 7px; background: var(--control-bg) }
+    .concept-version-tabs button {
+      min-height: 31px; min-width: 0; padding: 4px; border: 0; border-radius: 5px;
+      background: transparent; color: var(--muted); font-size: 12px; font-weight: 650;
+    }
+    .concept-version-tabs button:hover, .concept-version-tabs button[aria-pressed="true"] {
+      background: var(--side-hover); color: var(--text);
+    }
+    .concept-version-search {
+      width: 100%; min-height: 33px; padding: 0 9px; border: 1px solid var(--side-rule); border-radius: 6px;
+      background: var(--control-bg); color: var(--text); font: inherit; font-size: 13px;
+    }
+    .concept-version-options { min-height: 0; overflow: auto; scrollbar-width: thin; overscroll-behavior: contain }
+    .concept-version-row {
+      display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px;
+      width: 100%; min-height: 39px; padding: 0 9px; border: 0; border-radius: 6px;
+      background: transparent; color: var(--text); font: inherit; text-align: left;
+    }
+    .concept-version-row:hover { background: var(--side-hover) }
+    .concept-version-row[aria-pressed="true"] { background: var(--selected-bg); color: var(--selected-text) }
+    .concept-version-row:focus-visible { outline-offset: -2px }
+    .concept-version-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px }
+    .concept-version-row small { color: var(--muted); font-size: 11px }
+    .concept-version-note { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 6px 0 }
     @container workspace (max-width: 700px) {
       .home-concept .home-board { grid-template-columns: minmax(0,1fr); grid-template-rows: auto auto }
       .concept-rail { grid-template: 1fr / minmax(0,1fr) minmax(0,1fr) }
-      .concept-play { grid-template-rows: minmax(430px,68dvh) auto }
+      .concept-play { grid-template-rows: minmax(430px,68dvh) max-content }
     }
     @container workspace (max-width: 470px) {
-      .concept-quick { align-items: flex-start; flex-direction: column; gap: 4px; padding-block: 9px }
-      .concept-quick-list { flex-wrap: wrap; gap: 1px 5px }
-      .concept-quick-list button { padding-inline: 5px }
+      .concept-quick { min-height: 45px; padding: 4px 8px }
+      .concept-quick h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%) }
+      .concept-quick-list { flex: 1; gap: 3px }
+      .concept-quick-list button { min-height: 32px; padding-inline: 5px; font-size: 12px }
+      .concept-server-icon { width: 19px; height: 19px }
       .concept-rail { grid-template: auto auto / minmax(0,1fr) }
       .concept-stage .skin-stage { --unit: clamp(8px,1.8cqh,11px) }
       .concept-stage .model { bottom: 51% }
@@ -216,10 +242,14 @@
       .concept-launch #launch > .icon { width: 20px; height: 20px }
       .concept-launch #launch-label { font-size: 17px }
       .concept-launch .profile-button { width: 48px }
+      .concept-versions { width: 100% }
     }
     @media (max-height: 670px) {
       .home-concept .home-board { min-height: 0 }
-      .concept-play { grid-template-rows: minmax(435px,69dvh) auto }
+      .concept-stage { min-height: min(390px,63dvh) }
+      .concept-quick { min-height: 42px; padding-block: 4px }
+      .concept-quick-list button { min-height: 31px }
+      .concept-server-icon { width: 22px; height: 22px }
     }
   </style>
 </head>
@@ -260,9 +290,15 @@
     <dialog class="concept-versions" id="concept-versions" aria-labelledby="concept-versions-title">
       <header>
         <h2 id="concept-versions-title">Версия Minecraft</h2>
-        <form method="dialog"><button class="button" type="submit" aria-label="Закрыть">×</button></form>
+        <button id="concept-close-versions" class="button" type="button" aria-label="Закрыть">×</button>
       </header>
-      <div class="concept-version-options"></div>
+      <div class="concept-version-tabs" role="group" aria-labelledby="concept-versions-title">
+        <button type="button" data-concept-kind="gleam" aria-pressed="true">GleamClient</button>
+        <button type="button" data-concept-kind="vanilla" aria-pressed="false">Vanilla</button>
+        <button type="button" data-concept-kind="profiles" aria-pressed="false">Мои сборки</button>
+      </div>
+      <input id="concept-version-query" class="concept-version-search" type="search" placeholder="Поиск версии" autocomplete="off">
+      <div class="concept-version-options" id="concept-version-options"></div>
     </dialog>
   </template>
   <script type="text/plain" id="home-script">
@@ -272,10 +308,21 @@
         'Все друзья':['All friends','Alle Freunde','Todos los amigos'],
         'Все новости':['All news','Alle Neuigkeiten','Todas las noticias'],
         'Выбрать версию Minecraft':['Choose a Minecraft version','Minecraft-Version auswählen','Elegir versión de Minecraft'],
-        'Персонаж Minecraft. Поворот мышью или стрелками, масштаб колёсиком':[
-          'Minecraft character. Drag or use arrow keys to rotate, scroll to zoom',
-          'Minecraft-Figur. Mit Maus oder Pfeiltasten drehen, mit dem Mausrad zoomen',
-          'Personaje de Minecraft. Arrastra o usa las flechas para girar y la rueda para acercar'
+        'Персонаж Minecraft. Поворот мышью или стрелками':[
+          'Minecraft character. Drag or use arrow keys to rotate',
+          'Minecraft-Figur. Mit Maus oder Pfeiltasten drehen',
+          'Personaje de Minecraft. Arrastra o usa las flechas para girar'
+        ],
+        'Мои сборки':['My profiles','Meine Profile','Mis perfiles'],
+        'Поиск версии':['Search versions','Versionen suchen','Buscar versiones'],
+        'Ничего не найдено':['No results','Keine Treffer','Sin resultados'],
+        'Не удалось загрузить версии':['Could not load versions','Versionen konnten nicht geladen werden','No se pudieron cargar las versiones'],
+        'У тебя пока нет своих сборок':['You have no custom profiles yet','Du hast noch keine eigenen Profile','Aún no tienes perfiles propios'],
+        'Открыть профили':['Open profiles','Profile öffnen','Abrir perfiles'],
+        'Запуск обычного Minecraft пока недоступен в этом превью':[
+          'Vanilla Minecraft cannot be launched from this preview',
+          'Vanilla Minecraft kann aus dieser Vorschau noch nicht gestartet werden',
+          'Minecraft Vanilla aún no se puede iniciar desde esta vista previa'
         ],
         'Запуск доступен в приложении Gleam Launcher':[
           'Launch the game from the Gleam Launcher app','Starte das Spiel in der Gleam-Launcher-App',
@@ -298,7 +345,6 @@
       const launchActions = launchColumn.querySelector('.launch-actions');
       const news = board.querySelector('.news');
       const cosmetics = board.querySelector('.cosmetics');
-      const versions = [...board.querySelectorAll('.version-shelf')];
       const layout = $('home-layout').content.cloneNode(true);
       board.replaceChildren();
       board.append(layout);
@@ -307,7 +353,13 @@
         const element = $(id);
         writeLocale(element,element.textContent.trim());
       }
-      writeLabel($('concept-versions').querySelector('[type="submit"]'),'Закрыть');
+      writeLabel($('concept-close-versions'),'Закрыть');
+      writeLocale(board.querySelector('[data-concept-kind="profiles"]'),'Мои сборки');
+      const versionQuery = $('concept-version-query');
+      const querySource = versionQuery.placeholder;
+      writeLabel(versionQuery,querySource);
+      versionQuery.placeholder = translated(querySource);
+      localeAttributes.push({element:versionQuery,attribute:'placeholder',source:querySource});
 
       const stage = board.querySelector('.concept-stage');
       launchColumn.querySelector('h1').remove();
@@ -317,10 +369,13 @@
       loadout.hidden = true;
       home.append(loadout);
       stage.append(avatar,launchColumn);
-      writeLabel(skinStage,'Персонаж Minecraft. Поворот мышью или стрелками, масштаб колёсиком');
+      writeLabel(skinStage,'Персонаж Minecraft. Поворот мышью или стрелками');
 
       const nameFont = '600 20px "Pixelify Sans", monospace';
       class HomeAvatar extends GleamCosmeticPreview {
+        meshSources = new WeakMap();
+        wingSides = new WeakMap();
+
         setSkin(image,slim,headLayer) {
           this.skinAtlasHeight = image.height;
           try { super.setSkin(image,slim,headLayer); }
@@ -340,7 +395,42 @@
               }
             }
           }
-          return super.mesh(vertices);
+          const mesh = super.mesh(vertices);
+          if (!this.skinAtlasHeight) this.meshSources?.set(mesh,vertices);
+          return mesh;
+        }
+
+        async loadGeometry(wing) {
+          await super.loadGeometry(wing);
+          const cosmetic = this.cosmetics[wing];
+          const mesh = cosmetic?.plane ?? cosmetic;
+          if (!mesh || this.wingSides.has(mesh)) return;
+          const source = this.meshSources.get(mesh);
+          if (!source) return;
+          const left = [], right = [];
+          for (let face = 0; face < source.length; face += 60) {
+            let x = 0;
+            for (let vertex = face; vertex < face+60; vertex += 10) x += source[vertex];
+            (x < 0 ? left : right).push(...source.slice(face,face+60));
+          }
+          this.wingSides.set(mesh,[super.mesh(left),super.mesh(right)]);
+          this.meshSources.delete(mesh);
+        }
+
+        drawMesh(mesh,texture,model,alpha) {
+          const sides = this.wingSides.get(mesh);
+          if (!sides || !this.cosmeticTime) return super.drawMesh(mesh,texture,model,alpha);
+          const unit = model[0];
+          const flap = Math.sin(this.cosmeticTime*3.2)*.24;
+          sides.forEach((sideMesh,index) => {
+            const side = index ? 1 : -1;
+            const c = Math.cos(flap), s = Math.sin(flap)*side;
+            const x = side*.24, z = .15;
+            super.drawMesh(sideMesh,texture,[
+              c*unit,0,-s*unit,0, 0,unit,0,0, s*unit,0,c*unit,0,
+              x-c*x-s*z,0,z+s*x-c*z,1
+            ],alpha);
+          });
         }
 
         setName(name) {
@@ -379,17 +469,21 @@
         }
 
         draw(options) {
+          const slots = options.slots ?? {};
           this.nameplateYaw = options.yaw - Math.sin(options.yaw) * .46;
-          super.draw({...options,zoom:options.zoom * .79});
+          this.cosmeticTime = settings.motion && !reducedMotion.matches ? options.time : 0;
+          this.nameplateY = slots.hat || slots.headwear ? -2.46 : slots.halo ? -2.28 : -2.07;
+          super.draw({...options,time:this.cosmeticTime,zoom:.79});
         }
 
         drawPlayer(dance,time) {
           const label = this.nameplate;
           if (!label) return super.drawPlayer(dance,time);
           const c = Math.cos(this.nameplateYaw), s = Math.sin(this.nameplateYaw);
-          const y = -2.07, z = -.08;
+          const y = this.nameplateY, z = -.08;
           const pose = [c,0,s,0, 0,1,0,0, -s,0,c,0, 0,y,z,1];
           const view = this.view;
+          view[12] *= this.canvas.clientWidth < 440 ? .35 : 0;
           const labelTop = Math.abs(view[1]*c + view[9]*s)*label.halfWidth
             + Math.abs(view[5])*label.halfHeight + view[5]*y + view[9]*z + view[13];
           // Keep the entire name visible when zooming.
@@ -415,6 +509,19 @@
         homeView?.setName(name);
         queueCosmeticFrame();
       }
+      const demoLoadout = {halo:true,pet:'moon_moth'};
+      const loadoutKey = 'gleam.launcher.home-preview.loadout';
+      try { wardrobeSlots = {...demoLoadout,...JSON.parse(localStorage.getItem(loadoutKey))}; }
+      catch { wardrobeSlots = {...demoLoadout}; }
+      refreshWardrobe = async change => {
+        if (!change) return;
+        wardrobeSlots[change.slot] = change.value;
+        if (change.value && change.slot === 'hat') wardrobeSlots.headwear = '';
+        if (change.value && change.slot === 'headwear') wardrobeSlots.hat = false;
+        try { localStorage.setItem(loadoutKey,JSON.stringify(wardrobeSlots)); }
+        catch {}
+        renderWardrobe();
+      };
       updateNameplate();
       new MutationObserver(updateNameplate).observe(profileName,{childList:true});
       updateCosmeticPreviews();
@@ -426,36 +533,205 @@
       $('quick-settings').remove();
 
       const picker = $('concept-versions');
-      picker.querySelector('.concept-version-options').append(...versions);
+      launchColumn.append(picker);
       const versionButton = document.createElement('button');
       versionButton.type = 'button';
       versionButton.className = 'button profile-button';
       versionButton.setAttribute('aria-haspopup','dialog');
       versionButton.setAttribute('aria-controls',picker.id);
+      versionButton.setAttribute('aria-expanded','false');
       versionButton.title = '';
       writeLabel(versionButton,'Выбрать версию Minecraft');
       versionButton.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-profiles"/></svg>';
       launchActions.append(versionButton);
-      versionButton.addEventListener('click',() => {
-        picker.showModal();
-        picker.querySelector('[aria-pressed="true"]')?.focus();
-      });
-      picker.addEventListener('click',event => {
-        if (event.target.closest('.version-tile')) picker.close();
-      });
-      picker.addEventListener('close',() => versionButton.focus());
 
       const feedback = document.createElement('p');
       feedback.className = 'concept-launch-status';
       feedback.setAttribute('role','status');
       launchColumn.append(feedback);
+      const versionLabel = $('profile-version');
+      const edition = document.createElement('small');
+      edition.hidden = true;
+      versionLabel.after(edition);
+      const rows = $('concept-version-options');
+      const gleamVersions = [...versionTiles].reverse().filter(tile => playableVersions.has(tile.dataset.version));
+      const tabs = [...picker.querySelectorAll('[data-concept-kind]')];
+      let browseKind = 'gleam', vanillaVersion = '', vanillaVersions, vanillaRequest, vanillaFailed = false;
+      let pickerMotion;
+
+      function fitPicker() {
+        const available = launchColumn.getBoundingClientRect().top - stage.getBoundingClientRect().top;
+        picker.style.maxHeight = Math.max(150,Math.min(425,available-18))+'px';
+      }
+
+      function togglePicker(open,restoreFocus = false) {
+        if (!open && !picker.open) return;
+        if (open) fitPicker();
+        const current = picker.open ? getComputedStyle(picker) : null;
+        const from = current ? {opacity:current.opacity,transform:current.transform}
+          : {opacity:0,transform:'translateY(12px) scale(.98)'};
+        pickerMotion?.cancel();
+        pickerMotion = undefined;
+        if (open && !picker.open) picker.show();
+        versionButton.setAttribute('aria-expanded',String(open));
+        if (open) versionQuery.focus({preventScroll:true});
+        function finish() {
+          if (!open) {
+            picker.close();
+            if (restoreFocus) versionButton.focus({preventScroll:true});
+          }
+        }
+        if (!settings.motion || reducedMotion.matches) return finish();
+        const to = open ? {opacity:1,transform:'none'} : {opacity:0,transform:'translateY(9px) scale(.98)'};
+        const motion = picker.animate([from,to],{duration:open ? 230 : 140,easing:'cubic-bezier(.22,1,.36,1)',fill:'both'});
+        pickerMotion = motion;
+        motion.finished.then(() => {
+          if (pickerMotion !== motion) return;
+          finish();
+          motion.cancel();
+          pickerMotion = undefined;
+        }).catch(() => {});
+      }
+
+      function pickerNotice(source) {
+        const note = document.createElement('p');
+        note.className = 'concept-version-note';
+        writeLocale(note,source);
+        rows.append(note);
+      }
+
+      function versionRow(value,kind,selected,action) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'concept-version-row';
+        row.setAttribute('aria-pressed',String(selected));
+        const title = document.createElement('strong');
+        title.textContent = value;
+        const label = document.createElement('small');
+        label.textContent = kind;
+        row.append(title,label);
+        row.addEventListener('click',action);
+        return row;
+      }
+
+      function loadVanillaVersions() {
+        if (vanillaVersions || vanillaRequest) return;
+        vanillaFailed = false;
+        vanillaRequest = fetch('launcher-home-assets/minecraft-releases.json').then(response => {
+          if (!response.ok) throw Error(response.status);
+          return response.json();
+        }).then(data => {
+          if (!Array.isArray(data.versions) || !data.versions.length) throw Error('Empty Minecraft version catalog');
+          vanillaVersions = data.versions;
+        })
+          .catch(() => { vanillaFailed = true; }).finally(() => {
+            vanillaRequest = undefined;
+            if (browseKind === 'vanilla') renderVersionList();
+          });
+      }
+
+      function chooseVersion(version, tile) {
+        vanillaVersion = tile ? '' : version;
+        edition.hidden = Boolean(tile);
+        edition.textContent = ' · Vanilla';
+        if (tile) tile.click();
+        else {
+          versionLabel.textContent = version;
+          $('version-unavailable').hidden = true;
+          $('launch').disabled = false;
+          writeLocale(feedback,'');
+        }
+        togglePicker(false,true);
+      }
+
+      function renderVersionList() {
+        const query = versionQuery.value.trim().toLowerCase();
+        rows.replaceChildren();
+        if (browseKind === 'vanilla' && !vanillaVersions) {
+          pickerNotice(vanillaFailed ? 'Не удалось загрузить версии' : 'Загрузка…');
+          return;
+        }
+        if (browseKind === 'profiles') {
+          const profiles = importedProfiles.filter(profile => (profile.name+' '+profile.version).toLowerCase().includes(query));
+          for (const profile of profiles) rows.append(versionRow(profile.name,profile.version,false,() => {
+            togglePicker(false);
+            navigate('profiles',profile.id);
+          }));
+          if (!profiles.length) pickerNotice(query ? 'Ничего не найдено' : 'У тебя пока нет своих сборок');
+          if (!query) {
+            const profilesLink = versionRow('','',false,() => {
+              togglePicker(false);
+              navigate('profiles');
+            });
+            writeLocale(profilesLink.firstElementChild,'Открыть профили');
+            rows.append(profilesLink);
+          }
+          return;
+        }
+        if (browseKind === 'gleam') {
+          for (const tile of gleamVersions) {
+            const version = tile.dataset.version;
+            if (version.includes(query)) rows.append(versionRow(version,'GleamClient',!vanillaVersion && selectedVersion === version,
+              () => chooseVersion(version,tile)));
+          }
+        } else {
+          for (const version of vanillaVersions) {
+            if (version.includes(query)) rows.append(versionRow(version,'Vanilla',vanillaVersion === version,() => chooseVersion(version)));
+          }
+        }
+        if (!rows.childElementCount) pickerNotice('Ничего не найдено');
+      }
+
+      function browseVersions(kind) {
+        browseKind = kind;
+        for (const tab of tabs) tab.setAttribute('aria-pressed',String(tab.dataset.conceptKind === kind));
+        versionQuery.value = '';
+        if (kind === 'vanilla') loadVanillaVersions();
+        renderVersionList();
+      }
+
+      versionButton.addEventListener('click',() => {
+        const open = versionButton.getAttribute('aria-expanded') === 'false';
+        if (open) browseVersions(vanillaVersion ? 'vanilla' : 'gleam');
+        togglePicker(open,!open);
+      });
+      for (const tab of tabs) tab.addEventListener('click',() => browseVersions(tab.dataset.conceptKind));
+      versionQuery.addEventListener('input',renderVersionList);
+      $('concept-close-versions').addEventListener('click',() => togglePicker(false,true));
+      picker.addEventListener('keydown',event => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          togglePicker(false,true);
+        } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          const choices = [...rows.querySelectorAll('button')];
+          const index = choices.indexOf(document.activeElement);
+          if (index < 0 && document.activeElement !== versionQuery) return;
+          event.preventDefault();
+          const next = index + (event.key === 'ArrowDown' ? 1 : -1);
+          (index < 0 ? choices.at(event.key === 'ArrowDown' ? 0 : -1)
+            : next < 0 ? versionQuery : choices[Math.min(next,choices.length-1)])?.focus();
+        }
+      });
+      document.addEventListener('pointerdown',event => {
+        if (picker.open && !picker.contains(event.target) && !versionButton.contains(event.target)) togglePicker(false);
+      });
+      new ResizeObserver(() => { if (picker.open) fitPicker(); }).observe(stage);
+      new MutationObserver(() => { if (home.hidden) togglePicker(false); }).observe(home,{attributes:true,attributeFilter:['hidden']});
+
+      $('launch').addEventListener('click',event => {
+        if (!vanillaVersion) return;
+        event.stopImmediatePropagation();
+        writeLocale(feedback,'Запуск обычного Minecraft пока недоступен в этом превью');
+      },true);
       $('launch').addEventListener('click',() => {
         writeLocale(feedback,'Запуск доступен в приложении Gleam Launcher');
       });
       for (const button of board.querySelectorAll('[data-concept-server]')) {
         const address = button.dataset.conceptServer;
         button.addEventListener('click',() => {
-          if (playableVersions.has(selectedVersion)) {
+          if (vanillaVersion) writeLocale(feedback,'Запуск обычного Minecraft пока недоступен в этом превью');
+          else if (playableVersions.has(selectedVersion)) {
             writeLocale(feedback,'Подключение к {0} доступно в приложении',address);
             void launchGame(null,button,null,address);
           } else writeLocale(feedback,'Выбери поддерживаемую версию Minecraft');
@@ -549,6 +825,9 @@
           .replace('      return restoreGleamLogin();','      return undefined;')
           .replace("image.src = 'launcher-default-skin.png';","image.src = 'launcher-home-assets/LayOffick.png';")
           .replace('if (wings || halo || hat || pet || headwear) {','if (homeView || wings || halo || hat || pet || headwear) {')
+          .replace('return !reducedMotion.matches && Boolean(pet?.idle || slots.dance);',
+            'return settings.motion && !reducedMotion.matches && Boolean(pet?.idle || slots.dance || canvas===homeCanvas && slots.wings);')
+          .replace(/    bindPreviewZoom\(skinStage,'home',[\s\S]*?\n    \}\);/,'')
           .replace('</head>', () => '<style>' + css + '</style></head>')
           .replace('</body>', () => layout + '<script>' + script + '<' + '/script></body>');
         document.open();
