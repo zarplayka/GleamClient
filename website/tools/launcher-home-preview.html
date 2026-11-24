@@ -120,26 +120,29 @@
       border-radius: 12px; background: var(--concept-panel);
     }
     .concept-quick {
-      display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 6px 9px 6px 13px;
+      display: flex; align-items: center; justify-content: center;
+      gap: 12px; min-height: 52px; padding: 6px 12px;
       border: 0; border-top: 1px solid var(--concept-line); border-radius: 0;
     }
     .concept-quick h2 { flex: none; font-size: 12px; letter-spacing: 0; color: var(--side-muted) }
-    .concept-quick-list { display: flex; min-width: 0; flex: 1; gap: 4px; overflow-x: auto; scrollbar-width: thin }
+    .concept-quick-list {
+      display: flex; align-items: center; min-width: 0; gap: 5px;
+      overflow-x: auto; scrollbar-width: thin;
+    }
     .concept-quick-list button, .concept-person {
       display: flex; min-width: 0; align-items: center; gap: 8px;
       border: 0; background: none; color: var(--text); text-align: left; border-radius: 7px;
     }
     .concept-quick-list button {
-      flex: 1 0 auto; justify-content: center; min-height: 34px;
-      padding: 0 8px; font-size: 12px; font-weight: 650; white-space: nowrap;
+      flex: none; min-height: 36px;
+      padding: 0 10px; font-size: 13px; font-weight: 550; white-space: nowrap;
     }
     .concept-quick-list button:hover,.concept-person:hover { background: var(--side-hover) }
+    .concept-quick-list button:focus-visible { outline-offset: -2px }
     .concept-server-icon {
-      display: grid; place-items: center; flex: none; width: 19px; height: 19px; border-radius: 4px;
-      background: var(--selected-bg); color: var(--selected-text); font-size: 12px;
+      display: block; flex: none; width: 24px; height: 24px;
+      border-radius: 4px; object-fit: contain;
     }
-    .concept-server-icon.amber { background: #b5743030; color: #c8853d }
-    .concept-server-icon.mauve { background: #bd68a329; color: #c153a9 }
     .concept-rail { min-width: 0; display: grid; grid-template-rows: minmax(244px,1fr) auto; gap: 10px }
     .concept-panel { padding: 14px 13px }
     .concept-panel header {
@@ -203,8 +206,9 @@
       .concept-play { grid-template-rows: minmax(430px,68dvh) auto }
     }
     @container workspace (max-width: 470px) {
-      .concept-quick { align-items: stretch; flex-direction: column; gap: 4px }
-      .concept-quick-list { flex: auto }
+      .concept-quick { align-items: flex-start; flex-direction: column; gap: 4px; padding-block: 9px }
+      .concept-quick-list { flex-wrap: wrap; gap: 1px 5px }
+      .concept-quick-list button { padding-inline: 5px }
       .concept-rail { grid-template: auto auto / minmax(0,1fr) }
       .concept-stage .skin-stage { --unit: clamp(8px,1.8cqh,11px) }
       .concept-stage .model { bottom: 51% }
@@ -229,9 +233,18 @@
       <section class="concept-quick" aria-labelledby="concept-quick-title">
         <h2 id="concept-quick-title">Быстрый вход</h2>
         <div class="concept-quick-list">
-          <button type="button" data-concept-server="ht-1.ru"><span class="concept-server-icon mauve" aria-hidden="true">A</span>AlterPrac</button>
-          <button type="button" data-concept-server="play.lunamine.ru"><span class="concept-server-icon" aria-hidden="true">L</span>LunaMine</button>
-          <button type="button" data-concept-server="mc.hypixel.net"><span class="concept-server-icon amber" aria-hidden="true">H</span>Hypixel</button>
+          <button type="button" data-concept-server="ht-1.ru" title="AlterPrac">
+            <img class="concept-server-icon" src="launcher-home-assets/server-alterprac.png" alt="" width="24" height="24">
+            ht-1.ru
+          </button>
+          <button type="button" data-concept-server="mc.lunamine.ru" title="LunaMine">
+            <img class="concept-server-icon" src="launcher-home-assets/server-lunamine.png" alt="" width="24" height="24">
+            mc.lunamine.ru
+          </button>
+          <button type="button" data-concept-server="mc.hypixel.net" title="Hypixel">
+            <img class="concept-server-icon" src="launcher-home-assets/server-hypixel.png" alt="" width="24" height="24">
+            mc.hypixel.net
+          </button>
         </div>
       </section>
     </div>
@@ -413,7 +426,6 @@
       });
       for (const button of board.querySelectorAll('[data-concept-server]')) {
         const address = button.dataset.conceptServer;
-        button.title = address;
         button.addEventListener('click',() => {
           feedback.textContent = playableVersions.has(selectedVersion)
             ? 'Подключение к ' + address + ' доступно в приложении'
