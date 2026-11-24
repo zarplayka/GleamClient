@@ -1,7 +1,7 @@
 # Orion Cosmetics — собственный хостинг
 
-Рабочий endpoint: https://orion-cosmetics.51-250-32-198.sslip.io
-VPS: 51.250.32.198, SSH-пользователь orionclient
+Публичный endpoint — https://gleamclient.xyz/v1/.
+Сервис развёрнут на `153.51.172.5`, SSH-пользователь — `zarik`.
 
 Сервис обслуживает общий значок Orion, ореолы, два вида крыльев, онлайн-присутствие и уведомления об изменениях. Модели и текстуры рендерит Minecraft-клиент; выбранная косметика остаётся в его конфиге и передаётся серверу при подключении. Сервер хранит последние значения в SQLite
 
@@ -27,7 +27,7 @@ VPS: 51.250.32.198, SSH-пользователь orionclient
 - API слушает только 127.0.0.1:8765
 - Caddy публикует HTTPS на 443, перенаправляет HTTP на HTTPS и продлевает сертификат
 - systemd unit: orion-cosmetics.service, непривилегированный DynamicUser, автоперезапуск
-- Логи: journalctl -u orion-cosmetics; журнал HTTPS — /var/log/caddy/orion-access.log
+- Логи доступны через `journalctl -u orion-cosmetics -u caddy`
 - Ежедневный backup: orion-cosmetics-backup.timer, 30 дней хранения, /var/backups/orion-cosmetics, доступ только root
 
 Для обновления установите app.py, football.py, basketball.py и requirements.txt в /opt/orion-cosmetics, выполните pip install -r requirements.txt внутри установленного venv и перезапустите orion-cosmetics.service. Перед изменением обратного прокси проверяйте Caddyfile командой caddy validate

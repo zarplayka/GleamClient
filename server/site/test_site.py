@@ -560,7 +560,7 @@ class AccountTests(unittest.IsolatedAsyncioTestCase):
                 changed = delivered.call_args.args[1]
                 self.assertEqual(changed['Subject'], 'Пароль изменён')
                 self.assertIn('RecoveryUser', changed.get_body(('plain',)).get_content())
-                self.assertIn('поддержку Orion', changed.get_body(('html',)).get_content())
+                self.assertIn('поддержку GleamClient', changed.get_body(('html',)).get_content())
                 self.assertNotIn('#reset=', changed.get_body(('plain',)).get_content())
 
                 me = await client.get('/api/me', headers=session_headers)

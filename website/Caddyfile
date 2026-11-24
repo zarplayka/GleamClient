@@ -33,27 +33,16 @@ gleamclient.xyz {
         root * /var/www/gleam-client-downloads
         file_server
     }
-    handle /v1/* {
+    @cosmetics path /v1/* /healthz
+    handle @cosmetics {
         request_body {
             max_size 64KB
         }
-        reverse_proxy https://51.250.32.198 {
-            header_up Host gleamclient.xyz
+        reverse_proxy 127.0.0.1:8765 {
             transport http {
-                tls_server_name gleamclient.xyz
                 read_timeout 30s
             }
         }
-    }
-    @siteRelay {
-        path /api/* /auth.html
-        remote_ip 51.250.32.198
-    }
-    handle @siteRelay {
-        request_body {
-            max_size 4KB
-        }
-        reverse_proxy 127.0.0.1:8088
     }
     @site path /api/* /auth.html
     handle @site {
