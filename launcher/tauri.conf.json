@@ -1,6 +1,6 @@
 {
   "productName": "Gleam Launcher",
-  "version": "0.1.94",
+  "version": "0.1.95",
   "identifier": "xyz.gleamclient.launcher",
   "build": {
     "frontendDist": [

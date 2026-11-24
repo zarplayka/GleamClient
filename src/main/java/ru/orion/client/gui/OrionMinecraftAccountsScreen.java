@@ -398,6 +398,14 @@ public final class OrionMinecraftAccountsScreen extends Screen {
     private void rebuild() {
         htmlDirty = true;
         if (!html) { clearWidgets(); drawControls(); }
+        //? if >=26.3 {
+        // HTML-поле не получает фокус ванильного EditBox, который включает ввод SDL.
+        if (html && page == Page.OFFLINE && ready()) {
+            minecraft.textInputManager().startTextInput(this);
+        } else {
+            minecraft.textInputManager().stopTextInput(this);
+        }
+        //?}
     }
     private void scrollProfiles(int direction) { firstProfile += direction; rebuild(); }
     private void loadProfiles() { request("list", null, null, this::replaceProfiles); }
@@ -511,6 +519,9 @@ public final class OrionMinecraftAccountsScreen extends Screen {
     @Override
     public void removed() {
         disposed = true;
+        //? if >=26.3 {
+        minecraft.textInputManager().stopTextInput(this);
+        //?}
         if (worker != null) worker.close();
         view.dispose();
         super.removed();
