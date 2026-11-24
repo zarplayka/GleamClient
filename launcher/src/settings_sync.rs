@@ -286,11 +286,16 @@ fn activate_profile(
         write_json(&path, &saved)?;
     }
     let path = profile_path(&directory, account);
-    let mut profile: Profile = read_json(&path)?.unwrap_or_default();
-    if active.is_none() || active == Some(account) {
+    let cached: Option<Profile> = read_json(&path)?;
+    let empty_cloud = remote.as_ref().is_some_and(|cloud| {
+        cloud.revision == 0 && cloud.settings == Settings::default()
+    });
+    let initialize_from_instance = empty_cloud && cached.is_none();
+    let mut profile = cached.unwrap_or_default();
+    if active.is_none() || active == Some(account) || initialize_from_instance {
         profile.local = files.portable.clone();
     }
-    if let Some(cloud) = remote {
+    if let Some(cloud) = remote.filter(|_| !empty_cloud) {
         let (minecraft, mc_conflict) = merge_field(
             &profile.synced.minecraft,
             &profile.local.minecraft,
@@ -307,6 +312,10 @@ fn activate_profile(
         profile.local = Settings { minecraft, modules };
         profile.revision = cloud.revision;
         profile.synced = cloud.settings;
+    } else if empty_cloud {
+        // A new account or a restored server has no baseline to merge against.
+        profile.revision = 0;
+        profile.synced = Settings::default();
     }
     write_json(&path, &profile)?;
     files.activate(&profile.local, &marker, account)?;
@@ -460,6 +469,44 @@ mod tests {
         assert_eq!(fs::read_to_string(&options).unwrap(), "lang:ru_ru\n");
         activate_profile(dir, 2, None).unwrap();
         assert_eq!(fs::read_to_string(&options).unwrap(), "lang:de_de\n");
+    }
+
+    #[test]
+    fn first_sign_in_after_server_reset_keeps_the_current_instance_settings() {
+        let game = tempfile::tempdir().unwrap();
+        let dir = game.path();
+        let options = dir.join("options.txt");
+        let config = dir.join("config/orion-client.json");
+        write_file(&options, Some("lang:ru_ru\nfullscreen:true\n")).unwrap();
+        write_file(&config, Some(r#"{"zoomEnabled":true}"#)).unwrap();
+        activate_profile(dir, 2, None).unwrap();
+
+        let empty = Cloud { account_id: 1, revision: 0, settings: Settings::default() };
+        let (directory, profile) = activate_profile(dir, 1, Some(empty)).unwrap();
+        assert_eq!(fs::read_to_string(&options).unwrap(), "lang:ru_ru\nfullscreen:true\n");
+        assert_eq!(fs::read_to_string(&config).unwrap(), r#"{"zoomEnabled":true}"#);
+        assert_eq!(profile.local.minecraft.as_deref(), Some("lang:ru_ru\n"));
+        assert!(profile.local != profile.synced);
+        let previous: Profile = read_json(&profile_path(&directory, 2)).unwrap().unwrap();
+        assert!(previous.local == profile.local);
+    }
+
+    #[test]
+    fn empty_cloud_after_restore_does_not_remove_saved_settings() {
+        let game = tempfile::tempdir().unwrap();
+        let dir = game.path();
+        let options = dir.join("options.txt");
+        write_file(&options, Some("lang:ru_ru\n")).unwrap();
+        let cloud = |revision, minecraft| Cloud {
+            account_id: 1,
+            revision,
+            settings: Settings { minecraft, modules: None },
+        };
+        activate_profile(dir, 1, Some(cloud(4, Some("lang:ru_ru\n".into())))).unwrap();
+        let (_, profile) = activate_profile(dir, 1, Some(cloud(0, None))).unwrap();
+        assert_eq!(profile.revision, 0);
+        assert!(profile.synced == Settings::default());
+        assert_eq!(fs::read_to_string(&options).unwrap(), "lang:ru_ru\n");
     }
 
     #[test]

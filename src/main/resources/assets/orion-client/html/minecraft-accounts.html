@@ -193,7 +193,7 @@
     editShortcut(shortcut) {
       if (currentPage !== 'offline' || nickname.disabled || document.activeElement !== nickname) return;
       if (shortcut.command === 'select') nickname.select();
-      if (shortcut.command === 'paste') {
+      if (shortcut.command === 'paste' || shortcut.command === 'type') {
         const start = nickname.selectionStart == null ? nickname.value.length : nickname.selectionStart;
         const end = nickname.selectionEnd == null ? start : nickname.selectionEnd;
         const inserted = shortcut.text.replace(/[^A-Za-z0-9_]/g, '').slice(0, 16 - (nickname.value.length - (end - start)));

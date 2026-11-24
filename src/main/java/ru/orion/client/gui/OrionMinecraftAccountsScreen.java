@@ -342,7 +342,7 @@ public final class OrionMinecraftAccountsScreen extends Screen {
     @Override
     public boolean charTyped(CharacterEvent event) {
         if (!html) return super.charTyped(event);
-        if (page == Page.OFFLINE && event.isAllowedChatCharacter()) view.text(event.codepointAsString());
+        if (page == Page.OFFLINE && event.isAllowedChatCharacter()) view.insertText(event.codepointAsString());
         return true;
     }
 

@@ -25,6 +25,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.util.Util;
 import net.minecraft.world.level.storage.LevelStorageSource;
 import ru.orion.client.GleamMinecraft;
@@ -34,6 +35,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.awt.Font;
+import java.awt.FontFormatException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -42,11 +45,15 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import javax.imageio.ImageIO;
 
@@ -56,6 +63,7 @@ public final class OrionWorldBrowser {
     private static final String CREATE = "+";
     private static final String ROOT = "/assets/orion-client/";
     private static final String PREVIEW_ROOT = "../../src/main/resources/assets/orion-client/";
+    private static final String MOTD_SMALL_CAPS = "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘꞯʀꜱᴛᴜᴠᴡꭓʏᴢ";
     private static final String[] ARTWORK = {
             "launcher-background-26-3.webp", "launcher-background-26-2.webp", "launcher-background-26-1-2.webp",
             "launcher-background-1-21-11.webp", "launcher-background-1-21-4.webp", "launcher-background-1-16-5.webp",
@@ -67,6 +75,7 @@ public final class OrionWorldBrowser {
     private static OrionWorldBrowser current;
     private static BrowserPage switchingPage;
     private static int nextPage;
+    private static Font motdFont;
 
     private final Minecraft client;
     private final Screen screen;
@@ -75,7 +84,9 @@ public final class OrionWorldBrowser {
     private final OrionLumenView view;
     private final Map<Path, CompletableFuture<byte[]>> worldIcons = new HashMap<>();
     private final Map<Path, CompletableFuture<WorldStats>> worldStats = new HashMap<>();
+    private final Map<Component, JsonArray> motdCache = new IdentityHashMap<>();
     private final JsonObject labels = labels();
+    private final DateTimeFormatter dates = DATE.withLocale(Locale.forLanguageTag(OrionGuiLanguage.language()));
     private List<Row> rows = List.of();
     private JsonObject previous;
     private boolean active, attempted, initialized, dirty = true;
@@ -120,7 +131,12 @@ public final class OrionWorldBrowser {
             for (String weight : List.of("Regular", "Medium", "SemiBold", "Bold")) {
                 String file = "fonts/paradox/ParadoxSans-" + weight + ".ttf";
                 String alias = "assets/worlds-" + weight + ".ttf";
-                LumenNative.registerFont(bytes(alias), resource(file));
+                byte[] font = resource(file);
+                LumenNative.registerFont(bytes(alias), font);
+                if (weight.equals("Regular") && motdFont == null) {
+                    try { motdFont = Font.createFont(Font.TRUETYPE_FONT, new ByteArrayInputStream(font)); }
+                    catch (FontFormatException ignored) { }
+                }
                 html = html.replace(PREVIEW_ROOT + file, alias);
             }
             for (int index = 0; index < ARTWORK.length; index++) {
@@ -183,6 +199,9 @@ public final class OrionWorldBrowser {
             ScreenMouseEvents.allowMouseDrag(screen).register((owner, event, dx, dy) -> current != menu || !menu.active);
             ScreenMouseEvents.allowMouseScroll(screen).register((owner, x, y, dx, dy) -> current != menu || !menu.wheel(x, y, dx, dy));
             ScreenKeyboardEvents.allowKeyPress(screen).register((owner, key) -> current != menu || !menu.key(key));
+            //? if >=26.1 {
+            ScreenKeyboardEvents.allowCharType(screen).register((owner, event) -> current != menu || !type(event));
+            //?}
         });
     }
 
@@ -192,7 +211,7 @@ public final class OrionWorldBrowser {
         var menu = current;
         if (menu == null || !menu.active || GleamMinecraft.screen(menu.client) != menu.screen
                 || GleamMinecraft.overlay(menu.client) != null) return false;
-        if (event.isAllowedChatCharacter()) menu.view.text(event.codepointAsString());
+        if (event.isAllowedChatCharacter()) menu.view.insertText(event.codepointAsString());
         return true;
     }
 
@@ -288,7 +307,7 @@ public final class OrionWorldBrowser {
                     entry.addProperty("hardcore", hardcore);
                     entry.addProperty("cheats", hasSettings && level.hasCommands());
                     entry.addProperty("upgrade", upgrade);
-                    entry.addProperty("played", level.getLastPlayed() <= 0 ? "" : DATE.format(Instant.ofEpochMilli(level.getLastPlayed())));
+                    entry.addProperty("played", level.getLastPlayed() <= 0 ? "" : dates.format(Instant.ofEpochMilli(level.getLastPlayed())));
                     entry.addProperty("diff", hasSettings ? difficulty(settings) : "");
                     entry.addProperty("notice", upgrade || level.isDisabled() ? level.getInfo().getString() : "");
                     entry.addProperty("folder", "saves/" + level.getLevelId());
@@ -317,7 +336,8 @@ public final class OrionWorldBrowser {
                         case INCOMPATIBLE -> t("Другая версия Minecraft");
                         case UNREACHABLE -> t("Нет соединения");
                     };
-                    JsonObject entry = entry(id, data.name, status, data.motd == null ? "" : data.motd.getString(), "server");
+                    JsonObject entry = entry(id, data.name, status, "", "server");
+                    if (data.motd != null) entry.add("motdRuns", motdCache.computeIfAbsent(data.motd, OrionWorldBrowser::motdRuns));
                     entry.addProperty("address", data.ip);
                     entry.addProperty("version", data.version == null ? "" : data.version.getString());
                     entry.addProperty("pending", data.state() == ServerData.State.INITIAL || data.state() == ServerData.State.PINGING);
@@ -369,6 +389,37 @@ public final class OrionWorldBrowser {
         entry.addProperty("kind", kind);
         entry.addProperty("shot", Math.floorMod(id.hashCode(), ARTWORK.length));
         return entry;
+    }
+
+    private static JsonArray motdRuns(Component description) {
+        var runs = new JsonArray();
+        description.visit((style, text) -> {
+            String readable = readableMotd(text, motdFont);
+            if (!readable.isEmpty()) {
+                var run = new JsonObject();
+                run.addProperty("text", readable);
+                if (style.getColor() != null) run.addProperty("color", String.format(Locale.ROOT, "#%06x", style.getColor().getValue()));
+                runs.add(run);
+            }
+            return Optional.empty();
+        }, Style.EMPTY);
+        return runs;
+    }
+
+    private static String readableMotd(String text, Font font) {
+        var result = new StringBuilder(text.length());
+        Normalizer.normalize(text, Normalizer.Form.NFKC).codePoints().forEach(codepoint -> {
+            int smallCap = MOTD_SMALL_CAPS.indexOf(codepoint);
+            if (smallCap >= 0) result.append((char) ('A' + smallCap));
+            else if (codepoint == '\n' || codepoint == ' ') result.appendCodePoint(codepoint);
+            else if (Character.isWhitespace(codepoint)) result.append(' ');
+            else if (Character.isISOControl(codepoint) || Character.getType(codepoint) == Character.FORMAT
+                    || Character.getType(codepoint) == Character.PRIVATE_USE || codepoint == 0xfffd) { return; }
+            else if (font == null || font.canDisplay(codepoint)) result.appendCodePoint(codepoint);
+            else if (Character.isLetterOrDigit(codepoint)) result.append('…');
+            else if (Character.getType(codepoint) != Character.NON_SPACING_MARK) result.append('·');
+        });
+        return result.toString().replaceAll("…+", "…");
     }
 
     private static String difficulty(net.minecraft.world.level.LevelSettings settings) {
@@ -513,6 +564,12 @@ public final class OrionWorldBrowser {
 
     private boolean key(KeyEvent event) {
         if (!active) return false;
+        if (event.key() == InputConstants.KEY_TAB && event.hasShiftDown()) {
+            JsonObject shortcut = new JsonObject();
+            shortcut.addProperty("command", "previous-field");
+            view.editShortcut(shortcut);
+            return true;
+        }
         if (event.hasControlDownWithQuirk() && event.key() == InputConstants.KEY_V) {
             String clipboard = client.keyboardHandler.getClipboard();
             JsonObject shortcut = new JsonObject();
@@ -832,7 +889,19 @@ public final class OrionWorldBrowser {
                 "Удалить сервер", "Сохранить", "Название", "Адрес", "Отмена", "Поиск по названию",
                 "Сложность", "Версия", "Хардкор", "игроков", "мс", "Нет соединения", "В сети", "Сервер не ответил на запрос",
                 "В локальной сети", "Миры друзей", "О мире", "Удалить мир", "Переместить левее", "Переместить правее",
-                "Открыть папку", "Резервная копия", "Время в мире", "Размер на диске")) labels.addProperty(label, t(label));
+                "Открыть папку", "Резервная копия", "Время в мире", "Размер на диске", "Сохранить ZIP рядом с миром",
+                "Подтвердить", "Выполнить", "Закрыть", "Перейти", "Новый мир с нуля", "По адресу или из списка",
+                "Здесь появятся ваши миры", "Добавьте первый сервер", "Создайте мир — он откроется сразу после генерации.",
+                "Введите адрес сервера или подключитесь напрямую без сохранения.", "Новый мир", "Новый сервер",
+                "Выживание, творческий или хардкор", "Сохраняется в списке серверов",
+                "Выберите режим, сид и правила мира. Можно сразу включить команды и импортировать набор данных.",
+                "Введите название и адрес. Для разового входа используйте «Прямое подключение».", "Создать", "Добавить",
+                "Команды", "Мир из", "Повторить", "Сервер Minecraft", "Сервер не будет сохранён в списке.",
+                "Сервер исчезнет из списка. Его можно добавить заново по адресу.", "Пока пусто", "Ещё",
+                "Офлайн-профиль", "Добавить аккаунт Microsoft", "Добавить офлайн-профиль", "Управление профилем",
+                "Мир будет удалён с диска без возможности восстановления. Сначала можно сделать резервную копию.")) {
+            labels.addProperty(label, t(label));
+        }
         return labels;
     }
 

@@ -309,7 +309,7 @@ html[data-theme="dark"] .toast{background:#191d26}
       <kbd>E</kbd>
     </nav>
     <div class="status">
-      <label class="search" id="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="query" placeholder="Поиск по названию" tabindex="-1"></label>
+      <label class="search" id="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="query" type="text" maxlength="96" placeholder="Поиск по названию" tabindex="-1"></label>
       <div class="account-picker" id="accountPicker">
         <button type="button" class="account" id="accountTrigger" aria-label="Аккаунты Minecraft" aria-expanded="false" aria-controls="accountPanel">
           <span class="profile-avatar" id="accountAvatar" aria-hidden="true"></span>
@@ -321,7 +321,7 @@ html[data-theme="dark"] .toast{background:#191d26}
           <div class="account-list" id="accountList" role="group" aria-label="Сохранённые профили"></div>
           <div class="account-add" role="group" aria-label="Добавить аккаунт">
             <button type="button" data-account-type="microsoft" aria-label="Добавить аккаунт Microsoft"><svg class="i" aria-hidden="true"><use href="#account-microsoft"/></svg>Microsoft</button>
-            <button type="button" data-account-type="offline" aria-label="Добавить офлайн-профиль"><svg class="i" aria-hidden="true"><use href="#account-offline"/></svg>Офлайн-профиль</button>
+            <button type="button" data-account-type="offline" aria-label="Добавить офлайн-профиль"><svg class="i" aria-hidden="true"><use href="#account-offline"/></svg><span id="offlineProfileLabel">Офлайн-профиль</span></button>
           </div>
         </section>
       </div>
@@ -346,7 +346,7 @@ html[data-theme="dark"] .toast{background:#191d26}
   </section>
 
   <section class="empty" id="empty" hidden>
-    <div class="chips"><span class="chip">Пока пусто</span></div>
+    <div class="chips"><span class="chip" id="emptyChip">Пока пусто</span></div>
     <h1 id="emptyTitle"></h1>
     <p class="desc" id="emptyDesc"></p>
     <div class="actions"><button class="play" id="emptyAction"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6H5v-2h6z"/></svg><span></span></button>
@@ -512,9 +512,9 @@ function placeTiles() {
   label.style.transform = `translate(${LEFT + (f - anchor) * STEP + BIG + 22}px, -14px)`;
   label.querySelector('strong').textContent = it ? (it.create ? t(state.tab === 'single' ? 'Создать мир' : 'Добавить сервер') : it.name) : '';
   label.querySelector('span').textContent = !it ? '' : it.create
-    ? (state.tab === 'single' ? 'Новый мир с нуля' : 'По адресу или из списка')
+    ? t(state.tab === 'single' ? 'Новый мир с нуля' : 'По адресу или из списка')
     : state.tab === 'single' ? [it.mode, it.played].filter(Boolean).join(' · ')
-      : (it.status && (it.pending || it.online == null) ? it.status : it.offline ? 'Нет соединения' : `${fmt(it.online)} ${t('игроков')}`);
+      : (it.status && (it.pending || it.online == null) ? it.status : it.offline ? t('Нет соединения') : `${fmt(it.online)} ${t('игроков')}`);
 }
 
 // ——— карточка выбранного ———
@@ -525,6 +525,13 @@ function motd(text) {
     const rest = esc(part.slice(1)), color = MOTD[part[0]];
     return color ? `<span style="color:${color}">${rest}</span>` : rest;
   }).join('');
+}
+function serverMotd(entry) {
+  if (entry.motdRuns) return entry.motdRuns.map(run => {
+    const value = esc(run.text);
+    return /^#[0-9a-f]{6}$/i.test(run.color) ? `<span style="color:${run.color}">${value}</span>` : value;
+  }).join('');
+  return entry.motd ? motd(entry.motd) : '';
 }
 const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function ping(ms) {
@@ -539,9 +546,9 @@ function renderHero(animate = true) {
   hero.hidden = !it || state.empty; $('empty').hidden = !state.empty;
   if (animate) heroAnimation?.cancel();
   if (state.empty) {
-    $('emptyTitle').textContent = single ? 'Здесь появятся ваши миры' : 'Добавьте первый сервер';
-    $('emptyDesc').textContent = single ? 'Создайте мир — он откроется сразу после генерации.' : 'Введите адрес сервера или подключитесь напрямую без сохранения.';
-    $('emptyAction').querySelector('span').textContent = single ? 'Создать мир' : 'Добавить сервер';
+    $('emptyTitle').textContent = t(single ? 'Здесь появятся ваши миры' : 'Добавьте первый сервер');
+    $('emptyDesc').textContent = t(single ? 'Создайте мир — он откроется сразу после генерации.' : 'Введите адрес сервера или подключитесь напрямую без сохранения.');
+    $('emptyAction').querySelector('span').textContent = t(single ? 'Создать мир' : 'Добавить сервер');
     $('emptyDirect').hidden = !game || single;
     stage.classList.remove('has-notice');
     setBackground(IMG); renderShelf(); return;
@@ -550,17 +557,17 @@ function renderHero(animate = true) {
   const chips = [], meta = [];
   let desc = '', notice = '', playText = t(single ? 'Играть' : 'Подключиться'), disabled = false;
   if (it.create) {
-    chips.push('<span class="chip">' + (single ? 'Новый мир' : 'Новый сервер') + '</span>');
-    $('title').textContent = single ? 'Создать мир' : 'Добавить сервер';
-    meta.push(single ? 'Выживание, творческий или хардкор' : 'Сохраняется в списке серверов');
-    desc = single ? 'Выберите режим, сид и правила мира. Можно сразу включить команды и импортировать набор данных.'
-      : 'Введите название и адрес. Для разового входа используйте «Прямое подключение».';
-    playText = single ? 'Создать' : 'Добавить';
+    chips.push('<span class="chip">' + t(single ? 'Новый мир' : 'Новый сервер') + '</span>');
+    $('title').textContent = t(single ? 'Создать мир' : 'Добавить сервер');
+    meta.push(t(single ? 'Выживание, творческий или хардкор' : 'Сохраняется в списке серверов'));
+    desc = t(single ? 'Выберите режим, сид и правила мира. Можно сразу включить команды и импортировать набор данных.'
+      : 'Введите название и адрес. Для разового входа используйте «Прямое подключение».');
+    playText = t(single ? 'Создать' : 'Добавить');
     setBackground(IMG);
   } else if (single) {
     if (it.hardcore) chips.push(`<span class="chip red">♥ ${t('Хардкор')}</span>`); else chips.push(`<span class="chip">${esc(it.mode)}</span>`);
-    if (it.cheats) chips.push('<span class="chip">Команды</span>');
-    if (it.upgrade) chips.push('<span class="chip warn">Мир из ' + it.version + '</span>');
+    if (it.cheats) chips.push(`<span class="chip">${t('Команды')}</span>`);
+    if (it.upgrade) chips.push(`<span class="chip warn">${t('Мир из')} ${esc(it.version)}</span>`);
     $('title').textContent = it.name;
     if (it.played) meta.push(`<b>${esc(it.played)}</b>`);
     if (it.diff) meta.push(`${t('Сложность')}: ${esc(it.diff)}`);
@@ -582,10 +589,10 @@ function renderHero(animate = true) {
       if (it.ping >= 0) meta.push(`${ping(it.ping)} ${it.ping} ${t('мс')}`);
       if (it.version && !it.pending) meta.push(`${t('Версия')} ${esc(it.version)}`);
     }
-    desc = it.motd ? `<span class="motd">${motd(it.motd)}</span>` : '';
+    desc = `<span class="motd">${serverMotd(it)}</span>`;
     if (game) notice = it.notice;
     else if (it.incompatible) { notice = 'Сервер работает на 1.20.4. Подключение из 26.3 невозможно без прокси с поддержкой версий.'; disabled = true; }
-    if (it.offline) playText = 'Повторить';
+    if (it.offline) playText = t('Повторить');
     setBackground(SHOTS[it.shot]);
   }
   $('chips').innerHTML = chips.join('');
@@ -647,7 +654,7 @@ function shelfCards() {
   return [
     {stat:it.time, sub:t('Время в мире'), info:true},
     {stat:it.size, sub:t('Размер на диске'), info:true},
-    {name:t('Резервная копия'), sub:'Сохранить ZIP рядом с миром', kind:'backup'},
+    {name:t('Резервная копия'), sub:t('Сохранить ZIP рядом с миром'), kind:'backup'},
     {name:t('Открыть папку'), sub:it.folder || 'saves/' + it.name.replace(/\s+/g, '_').slice(0, 20), kind:'folder'},
   ];
 }
@@ -795,6 +802,7 @@ function dialog(html, onOpen, returnFocus) {
   overlay.inert = false;
   overlay.classList.add('open'); state.dialog = true;
   onOpen?.(box);
+  hints();
 }
 function closeDialog() {
   const overlay = $('dialog');
@@ -803,15 +811,21 @@ function closeDialog() {
   state.dialog = null;
   dialogReturnFocus?.focus();
   dialogReturnFocus = null;
+  hints();
+}
+function focusDialogField(step) {
+  const fields = Array.from($('dialogBox').querySelectorAll('input, button'));
+  const index = fields.indexOf(document.activeElement);
+  fields[index < 0 ? (step < 0 ? fields.length - 1 : 0) : (index + step + fields.length) % fields.length]?.focus();
 }
 $('dialog').addEventListener('click', e => { if (e.target === $('dialog')) closeDialog(); });
 function confirmDelete() {
   const it = current(), single = state.tab === 'single';
   if (!it || it.create || it.canDelete === false) return;
   if (game && single) return game.send('delete', it.id);
-  dialog(`<h3>${single ? 'Удалить мир' : 'Удалить сервер'} «${esc(it.name)}»?</h3>
-    <p>${single ? 'Мир будет удалён с диска без возможности восстановления. Сначала можно сделать резервную копию.' : 'Сервер исчезнет из списка. Его можно добавить заново по адресу.'}</p>
-    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn red" id="dOk">Удалить</button></div>`, box => {
+  dialog(`<h3>${t(single ? 'Удалить мир' : 'Удалить сервер')} «${esc(it.name)}»?</h3>
+    <p>${t(single ? 'Мир будет удалён с диска без возможности восстановления. Сначала можно сделать резервную копию.' : 'Сервер исчезнет из списка. Его можно добавить заново по адресу.')}</p>
+    <div class="row"><button class="btn" id="dCancel">${t('Отмена')}</button><button class="btn red" id="dOk">${t('Удалить')}</button></div>`, box => {
     box.querySelector('#dCancel').addEventListener('click', closeDialog);
     box.querySelector('#dOk').addEventListener('click', () => {
       const list = single ? WORLDS : SERVERS, idx = list.indexOf(it);
@@ -833,10 +847,10 @@ function openRename() {
   });
 }
 function openServerForm(server) {
-  dialog(`<h3>${server ? 'Изменить сервер' : 'Добавить сервер'}</h3>
-    <label class="field"><span>Название</span><input id="dName" value="${server ? esc(server.name) : 'Сервер Minecraft'}"></label>
-    <label class="field"><span>Адрес</span><input id="dAddr" value="${server ? esc(server.address) : ''}" placeholder="play.example.com"></label>
-    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">${server ? 'Сохранить' : 'Добавить'}</button></div>`, box => {
+  dialog(`<h3>${t(server ? 'Изменить сервер' : 'Добавить сервер')}</h3>
+    <label class="field"><span>${t('Название')}</span><input id="dName" type="text" maxlength="128" value="${esc(server ? server.name : t('Сервер Minecraft'))}"></label>
+    <label class="field"><span>${t('Адрес')}</span><input id="dAddr" type="text" maxlength="255" value="${server ? esc(server.address) : ''}" placeholder="play.example.com"></label>
+    <div class="row"><button class="btn" id="dCancel">${t('Отмена')}</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">${t(server ? 'Сохранить' : 'Добавить')}</button></div>`, box => {
     box.querySelector(server ? '#dName' : '#dAddr').focus();
     box.querySelector('#dCancel').addEventListener('click', closeDialog);
     box.querySelector('#dOk').addEventListener('click', () => {
@@ -850,8 +864,8 @@ function openServerForm(server) {
   });
 }
 function openDirect() {
-  dialog(`<h3>Прямое подключение</h3><p>Сервер не будет сохранён в списке.</p><label class="field"><span>Адрес</span><input id="dAddr" placeholder="play.example.com"></label>
-    <div class="row"><button class="btn" id="dCancel">Отмена</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">Подключиться</button></div>`, box => {
+  dialog(`<h3>${t('Прямое подключение')}</h3><p>${t('Сервер не будет сохранён в списке.')}</p><label class="field"><span>${t('Адрес')}</span><input id="dAddr" type="text" maxlength="255" placeholder="play.example.com"></label>
+    <div class="row"><button class="btn" id="dCancel">${t('Отмена')}</button><button class="btn" id="dOk" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">${t('Подключиться')}</button></div>`, box => {
     const input = box.querySelector('#dAddr'); input.focus();
     box.querySelector('#dCancel').addEventListener('click', closeDialog);
     box.querySelector('#dOk').addEventListener('click', () => {
@@ -997,9 +1011,9 @@ function renderAccounts(animate = false) {
     row.style.setProperty('--account-delay', `${Math.min(5, i) * 26 + 45}ms`);
     setAvatar(row.querySelector('.profile-avatar'), account.face);
     row.querySelector('strong').textContent = account.name;
-    row.querySelector('small').textContent = accountTypes[account.type];
-    row.querySelector('.account-edit').setAttribute('aria-label', 'Управление профилем ' + account.name);
-    row.querySelector('.account-edit').title = 'Управление профилем';
+    row.querySelector('small').textContent = t(accountTypes[account.type]);
+    row.querySelector('.account-edit').setAttribute('aria-label', t('Управление профилем') + ' ' + account.name);
+    row.querySelector('.account-edit').title = t('Управление профилем');
     return row;
   });
   accountList.replaceChildren(...rows);
@@ -1110,7 +1124,8 @@ const search = $('search'), query = $('query');
 search.querySelector('svg').addEventListener('click', () => openSearch());
 function openSearch() { search.classList.add('open'); query.tabIndex = 0; query.focus(); }
 function closeSearch() { search.classList.remove('open'); query.blur(); query.tabIndex = -1; if (state.query) { query.value = state.query = ''; refresh(); } }
-query.addEventListener('input', () => { state.query = query.value; state.focus[state.tab] = entries().length > 1 ? 1 : 0; refresh(); });
+function updateQuery() { state.query = query.value; state.focus[state.tab] = entries().length > 1 ? 1 : 0; refresh(); }
+query.addEventListener('input', updateQuery);
 function refresh() { buildTiles(); placeTiles(); renderHero(); }
 $('back').addEventListener('click', () => game ? game.send('back') : toast('Возврат в главное меню'));
 
@@ -1121,7 +1136,7 @@ function hints() {
     : state.menu ? [['↑↓','Выбрать'],['Enter','Выполнить'],['Esc','Закрыть']]
     : [['← →','Выбрать'],['↑ ↓','Перейти'],['Enter', state.tab === 'single' ? 'Играть' : 'Подключиться'],['Q E','Раздел'],['/','Поиск'],
        ...(current() && !current().create ? [['Del','Удалить']] : []), ...(state.tab === 'multi' ? [['F5','Обновить']] : []), ['Esc','Назад']];
-  const markup = list.map(([k, t]) => `<span><kbd>${k}</kbd>${t}</span>`).join('');
+  const markup = list.map(([key, label]) => `<span><kbd>${key}</kbd>${t(label)}</span>`).join('');
   if (markup === renderedHints) return;
   renderedHints = markup;
   $('hints').innerHTML = markup;
@@ -1142,8 +1157,15 @@ document.addEventListener('keydown', e => {
       }
       return;
     }
-    if (e.key === 'Escape') closeDialog();
-    if (e.key === 'Enter') $('dialogBox').querySelector('#dOk')?.click();
+    if (e.key === 'Escape') { e.preventDefault(); closeDialog(); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      (document.activeElement?.closest('button') || $('dOk'))?.click();
+    }
+    if (e.key === 'Tab' && game) {
+      focusDialogField(e.shiftKey ? -1 : 1);
+      e.preventDefault();
+    }
     return;
   }
   if (accountOpen) {
@@ -1202,7 +1224,7 @@ document.addEventListener('click', e => { if (state.menu && !$('pop').contains(e
 
 // ——— часы ———
 function tick() { const d = new Date(); $('clock').textContent = d.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'}); }
-tick(); setInterval(tick, 15000);
+if (!game) { tick(); setInterval(tick, 15000); }
 
 // ——— панель превью ———
 $('devToggle').onclick = () => $('devPanel').hidden = !$('devPanel').hidden;

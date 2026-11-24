@@ -60,6 +60,14 @@ function updateGame(next) {
     for (const button of document.querySelectorAll('.tab')) button.textContent = t(button.dataset.tab === 'single' ? 'Одиночная игра' : 'Сетевая игра');
     $('query').placeholder = t('Поиск по названию');
     $('accountHeading').textContent = t('Аккаунты Minecraft');
+    $('offlineProfileLabel').textContent = t('Офлайн-профиль');
+    $('emptyChip').textContent = t('Пока пусто');
+    for (const [id, label] of [['back','Назад'], ['edit','Изменить'], ['more','Ещё'], ['emptyDirect','Прямое подключение']]) {
+      $(id).title = t(label);
+    }
+    for (const [type, label] of [['microsoft','Добавить аккаунт Microsoft'], ['offline','Добавить офлайн-профиль']]) {
+      document.querySelector(`[data-account-type="${type}"]`).setAttribute('aria-label', t(label));
+    }
   }
   if (profilesChanged || activeChanged) {
     lastProfiles = JSON.stringify(next.profiles);
@@ -119,16 +127,21 @@ function updateGame(next) {
 window.paradox = {
   update: updateGame,
   editShortcut(shortcut) {
+    if (shortcut.command === 'previous-field') {
+      if (state.dialog) focusDialogField(-1);
+      return;
+    }
     const field = document.activeElement;
     if (!field || field.tagName !== 'INPUT') return;
+    if (field === query ? !search.classList.contains('open') : !state.dialog || !$('dialogBox').contains(field)) return;
     if (shortcut.command === 'select') { field.select(); return; }
-    if (shortcut.command !== 'paste') return;
+    if (shortcut.command !== 'paste' && shortcut.command !== 'type') return;
     const start = field.selectionStart ?? field.value.length;
     const end = field.selectionEnd ?? start;
     const max = field.maxLength > 0 ? field.maxLength : 255;
     const value = shortcut.text.replace(/[\r\n]/g, '').slice(0, Math.max(0, max - (field.value.length - end + start)));
     field.value = field.value.slice(0, start) + value + field.value.slice(end);
     field.setSelectionRange?.(start + value.length, start + value.length);
-    if (field === query) { state.query = query.value; state.focus[state.tab] = Math.min(1, entries().length - 1); refresh(); }
+    if (field === query) updateQuery();
   }
 };

@@ -73,6 +73,7 @@ processResources {
 processResources.doLast {
     def descriptor = destinationDir.toPath().resolve('orion-client.mixins.json').toFile()
     def mixins = new groovy.json.JsonSlurper().parse(descriptor)
+    if (!legacyMinecraft) mixins.client.remove('OrionWorldBrowserTextMixin')
     if (stonecutter.eval(stonecutter.current.version, '<26.2')) {
         mixins.client.addAll(['OrionLegacyLanAccess', 'OrionLanListenersAccess'])
     }
