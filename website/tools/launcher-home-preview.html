@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gleam Launcher — главная</title>
   <style id="home-css" media="not all">
+    @font-face {
+      font-family: "Pixelify Sans"; font-weight: 400 700;
+      src: url("launcher-home-assets/PixelifySans.ttf") format("truetype");
+    }
     #page-play.home-concept {
       --concept-gap: 14px;
       --concept-line: color-mix(in srgb,var(--text) 12%,transparent);
@@ -17,9 +21,9 @@
     #page-play.home-concept[hidden] { display: none }
     .home-concept .home-board {
       display: grid;
-      grid-template: minmax(0,1fr) / minmax(0,1fr) clamp(220px,25cqw,310px);
+      grid-template: minmax(0,1fr) / minmax(0,1fr) clamp(220px,25cqw,356px);
       gap: var(--concept-gap);
-      width: 100%; max-width: 1540px; margin-inline: auto;
+      width: 100%; max-width: 1800px; margin-inline: auto;
       min-height: max(540px,calc(var(--content-height) - 2 * var(--concept-gap)));
       padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
     }
@@ -53,21 +57,22 @@
     }
     .concept-stage .home-preview { container-type: size }
     .concept-stage .model { bottom: 56%; }
+    .concept-stage .model .face { background-image: url("launcher-home-assets/LayOffick.png") }
     .concept-stage .model::before {
       position: absolute; bottom: calc(100% + var(--unit)); left: 50%;
-      content: attr(data-player-name); color: #fff7ed; background: #182b55e6;
-      padding: 3px 9px; white-space: nowrap; font: 700 calc(1.7 * var(--unit)) Consolas, monospace;
+      content: attr(data-player-name); color: #fff; background: #1a3b7688;
+      padding: 3px 9px; white-space: nowrap; font: 700 calc(2 * var(--unit)) "Pixelify Sans", monospace;
       transform: translateX(-50%) rotateY(calc(-1 * var(--yaw)));
     }
-    .concept-stage #home-cosmetic-preview { top: -7%; pointer-events: none }
+    .concept-stage #home-cosmetic-preview { pointer-events: none }
     .concept-stage .skin-shadow {
-      left: 50%; bottom: 17%; width: min(28%,230px); height: 6%;
+      left: 50%; bottom: 14%; width: min(28%,230px); height: 6%;
       transform: translateX(-50%); background: #1013207a; filter: blur(13px);
     }
     .concept-launch {
       position: relative; z-index: 1; grid-area: 2 / 1;
       justify-self: center; display: grid; gap: 7px;
-      width: min(100% - 32px,350px);
+      width: min(100% - 32px,clamp(330px,34cqw,460px));
       margin: 0 0 21px; min-width: 0;
       font-variant-numeric: tabular-nums;
     }
@@ -80,16 +85,16 @@
     }
     .concept-launch #launch {
       display: flex; align-items: center; justify-content: flex-start; gap: 12px;
-      min-height: 62px; padding: 8px 14px;
+      min-height: clamp(62px,5.2cqw,76px); padding: 8px 14px;
       border-radius: 0; background: #fff0d9; color: #211a1b; text-align: left;
     }
     .concept-launch #launch:not(:disabled):hover { background: #fff9eb }
     .concept-launch #launch[data-close-game], .concept-launch #launch[data-close-game]:hover { background: #b93042; color: #fff }
     .concept-launch #launch > .icon { width: 24px; height: 24px }
-    .concept-launch #launch-label { display: block; font-size: 19px; line-height: 1.12; white-space: normal }
+    .concept-launch #launch-label { display: block; font-size: clamp(19px,2.1cqw,24px); line-height: 1.12; white-space: normal }
     .concept-launch .profile-spec {
       display: block; margin: 3px 0 0; color: inherit;
-      font-size: 11px; font-weight: 600; opacity: .76; white-space: nowrap;
+      font-size: clamp(11px,1.12cqw,13px); font-weight: 600; opacity: .76; white-space: nowrap;
     }
     .concept-launch .profile-spec span:not(#profile-version) { color: inherit }
     .concept-launch .profile-button {
@@ -272,28 +277,50 @@
       stage.append(avatar,launchColumn);
       skinStage.setAttribute('aria-label','Персонаж Minecraft. Поворот мышью или стрелками, масштаб колёсиком');
 
+      const nameFont = '700 20px "Pixelify Sans", monospace';
       class HomeAvatar extends GleamCosmeticPreview {
+        setSkin(image,slim,headLayer) {
+          this.skinAtlasHeight = image.height;
+          try { super.setSkin(image,slim,headLayer); }
+          finally { this.skinAtlasHeight = 0; }
+        }
+
+        mesh(vertices) {
+          if (this.skinAtlasHeight) {
+            // Pull face coordinates inside their atlas cells so adjacent pixels cannot bleed at the edges.
+            const insetU = .25/64, insetV = .25/this.skinAtlasHeight;
+            for (let face = 0; face < vertices.length; face += 60) {
+              const centerU = (vertices[face+3]+vertices[face+23])/2;
+              const centerV = (vertices[face+4]+vertices[face+24])/2;
+              for (let uv = face+3; uv < face+60; uv += 10) {
+                vertices[uv] += Math.sign(centerU-vertices[uv])*insetU;
+                vertices[uv+1] += Math.sign(centerV-vertices[uv+1])*insetV;
+              }
+            }
+          }
+          return super.mesh(vertices);
+        }
+
         setName(name) {
           if (this.nameplate?.name === name) return;
           if (this.nameplate) {
             this.gl.deleteBuffer(this.nameplate.mesh.buffer);
             this.gl.deleteTexture(this.nameplate.texture);
           }
-          const label = document.createElement('canvas'), font = 'bold 15px Consolas, monospace';
+          const label = document.createElement('canvas');
           const context = label.getContext('2d');
-          context.font = font;
-          label.width = Math.ceil(context.measureText(name).width) + 10;
-          label.height = 21;
-          context.font = font;
+          context.font = nameFont;
+          label.width = Math.ceil(context.measureText(name).width) + 14;
+          label.height = 24;
+          context.font = nameFont;
           context.textBaseline = 'middle';
-          context.fillStyle = '#182b55e8';
+          context.fillStyle = '#1a3b7688';
           context.fillRect(0,0,label.width,label.height);
-          context.fillStyle = '#0c1631';
-          context.fillRect(0,label.height-2,label.width,2);
-          context.fillText(name,6,12);
-          context.fillStyle = '#fff7ed';
-          context.fillText(name,5,11);
-          const x = label.width * .0045, y = label.height * .0045;
+          context.fillStyle = '#162344';
+          context.fillText(name,8,14);
+          context.fillStyle = '#fff';
+          context.fillText(name,7,13);
+          const x = label.width * .0052, y = label.height * .0052;
           const vertices = [
             [-x,-y,0,0,0], [x,-y,0,1,0], [x,y,0,1,1],
             [-x,-y,0,0,0], [x,y,0,1,1], [-x,y,0,0,1]
@@ -302,7 +329,7 @@
         }
 
         draw(options) {
-          this.nameplateYaw = options.yaw + .17;
+          this.nameplateYaw = options.yaw - Math.sin(options.yaw) * .46;
           super.draw({...options,zoom:options.zoom * .79});
         }
 
@@ -310,13 +337,13 @@
           const label = this.nameplate;
           if (!label) return super.drawPlayer(dance,time);
           const c = Math.cos(this.nameplateYaw), s = Math.sin(this.nameplateYaw);
-          const y = -1.98, z = .06;
+          const y = -2.07, z = -.08;
           const pose = [c,0,s,0, 0,1,0,0, -s,0,c,0, 0,y,z,1];
           const view = this.view;
           const labelTop = Math.abs(view[1]*c + view[9]*s)*label.halfWidth
             + Math.abs(view[5])*label.halfHeight + view[5]*y + view[9]*z + view[13];
-          // The canvas is raised within the scene. Keep the name in its visible area when zooming.
-          view[13] -= Math.max(0,labelTop-.83);
+          // Keep the entire name visible when zooming.
+          view[13] -= Math.max(0,labelTop-.91);
           const head = super.drawPlayer(dance,time);
           this.drawMesh(label.mesh,label.texture,pose,true);
           return head;
@@ -328,10 +355,13 @@
 
       const title = stage.querySelector('#play-heading');
       const defaultName = title.textContent;
-      function updateNameplate() {
+      const fontReady = document.fonts.load(nameFont).catch(() => {});
+      async function updateNameplate() {
         const name = profileName.textContent.trim() || defaultName;
         title.textContent = name;
         skinModel.dataset.playerName = name;
+        await fontReady;
+        if (title.textContent !== name) return;
         homeView?.setName(name);
         queueCosmeticFrame();
       }
@@ -467,6 +497,7 @@
         const page = markup
           .replace(/\r?\n    showGleamLogin\('restore'\);(?=\r?\n    showStartup\()/,'')
           .replace('      return restoreGleamLogin();','      return undefined;')
+          .replace("image.src = 'launcher-default-skin.png';","image.src = 'launcher-home-assets/LayOffick.png';")
           .replace('if (wings || halo || hat || pet || headwear) {','if (homeView || wings || halo || hat || pet || headwear) {')
           .replace('</head>', () => '<style>' + css + '</style></head>')
           .replace('</body>', () => layout + '<script>' + script + '<' + '/script></body>');
