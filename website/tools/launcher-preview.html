@@ -1422,6 +1422,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       :is(input[type="search"],input[type="number"],select,.sidebar-resize):focus-visible { outline: 1px solid Highlight; outline-offset: -2px }
     }
   </style>
+  <link rel="stylesheet" href="launcher-home.css">
 </head>
 <body>
   <div class="startup" id="startup">
@@ -2602,7 +2603,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     let stopRequest;
     const playableVersions = new Set(['26.3','26.2','26.1.2','1.21.11']);
     const defaultVersion = '26.3';
+    const homeDemo = !window.__TAURI__ && ['127.0.0.1','localhost'].includes(location.hostname)
+      && new URLSearchParams(location.search).get('home-demo') === '1';
     let selectedVersion = defaultVersion;
+    let classicTarget, renderHomeFriends = () => {}, updateHomeLaunchStatus = () => {};
     let launchAction = 'Играть';
     let catalogJob = null;
     const catalogState = {provider:'modrinth',kind:'mods',query:'',sort:'downloads',category:'',version:'26.3',offset:0,pages:1,request:0,key:'',projects:[]};
@@ -3504,7 +3508,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
     function renderLaunchAvailability() {
-      const available = playableVersions.has(selectedVersion);
+      const available = Boolean(classicTarget) || playableVersions.has(selectedVersion);
       const active = launchPending || running;
       launch.disabled = (!available && !active) || launchCancelling || !!stopRequest;
       launch.toggleAttribute('data-close-game',running);
@@ -3520,6 +3524,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }).catch(() => {});
     }
     function selectVersion(tile) {
+      classicTarget = undefined;
       selectedVersion = tile.dataset.version;
       syncDiscordPresence();
       $('profile-version').textContent = selectedVersion;
@@ -4002,6 +4007,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (page === 'play' && !$('startup')) void renderBackdrop();
       if (page === 'catalog') loadCatalog();
       if (page === 'friends') void refreshFriends(true);
+      if (page === 'play') renderHomeFriends();
       if (page === 'cosmetics' || page === 'play') void refreshWardrobe();
       if (page === 'cosmetics' || page === 'play') renderWardrobe();
       if (page === 'profiles') {
@@ -4060,7 +4066,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     const homeEquipped = $('home-equipped'), homeEmpty = $('cosmetics-summary');
     const cosmeticIcons = new Map(), cosmeticIconJobs = new Map();
     let wardrobeView, homeView, iconPreview, skinRequest, defaultCosmeticSkin, homeLoadoutKey;
-    let homeZoom = 1;
     const wardrobeFrontYaw = -.55, wardrobeBackYaw = Math.PI - .22;
     let cosmeticFrame = 0, wardrobeYaw = wardrobeFrontYaw, wardrobePitch = .16, wardrobeZoom = 1;
     let wardrobeDrag, wardrobeTurn;
@@ -4070,7 +4075,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (cosmeticSkin) return Promise.resolve(cosmeticSkin);
       if (!skinRequest) {
         const image = new Image();
-        image.src = 'launcher-default-skin.png';
+        image.src = homeDemo ? 'launcher-home-assets/LayOffick.png' : 'launcher-default-skin.png';
         skinRequest = image.decode().then(()=>(defaultCosmeticSkin = {image,slim:false,headLayer:true}));
       }
       return skinRequest;
@@ -4150,13 +4155,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
         const time = reducedMotion.matches ? 0 : now/1000;
         view.draw({yaw:angle,pitch,slots,pet,time,zoom,home:canvas===homeCanvas});
-        return !reducedMotion.matches && Boolean(pet?.idle || slots.dance);
+        return settings.motion && !reducedMotion.matches && Boolean(pet?.idle || slots.dance || canvas === homeCanvas && slots.wings);
       };
       const drawWardrobe = wardrobeScene?.view && !$('page-cosmetics').hidden;
       if (drawWardrobe && wardrobeTurn) advanceWardrobeTurn(now);
       const animateWardrobe = drawWardrobe && draw(wardrobeScene,wardrobeYaw,wardrobePitch,wardrobeZoom);
       const animateHome = homeScene?.view && !$('page-play').hidden && !homeCanvas.hidden &&
-        draw(homeScene,yaw*Math.PI/180,.16,homeZoom);
+        draw(homeScene,yaw*Math.PI/180,.16);
       if (animateWardrobe || animateHome || (drawWardrobe && wardrobeTurn)) queueCosmeticFrame();
     }
 
@@ -4213,7 +4218,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
       if ($('page-play').hidden) return;
       const {wings,halo,hat,pet,headwear} = wardrobeSlots ?? {};
-      if (wings || halo || hat || pet || headwear) {
+      if (homeView || wings || halo || hat || pet || headwear) {
         void load(homeCanvas,{wings,halo,hat,pet,headwear},homeScene,(scene,check) => check ? homeScene===scene : (homeScene=scene),
           ()=>homeView ?? (homeView=new GleamCosmeticPreview(homeCanvas)));
       } else {
@@ -4280,10 +4285,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
     }
     bindPreviewZoom(wardrobeCanvas,'wardrobe',.75,2.6,zoom => { wardrobeZoom = zoom; });
-    bindPreviewZoom(skinStage,'home',.68,2.2,zoom => {
-      homeZoom = zoom;
-      skinStage.style.setProperty('--skin-zoom',zoom);
-    });
     wardrobeCanvas.addEventListener('pointerdown',event => {
       if (event.button!==0 || wardrobeDrag) return;
       if (wardrobeTurn) setWardrobeAngle(wardrobeYaw);
@@ -5481,6 +5482,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       launchAction = label;
       renderLaunchAvailability();
       syncProfileLaunchButtons();
+      updateHomeLaunchStatus(title,detail);
       renderDownloads();
       if (launchedProfileId) writeProfileStatus(idle ? '' : title,error,launchedProfileId);
     }
@@ -5625,8 +5627,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         cancelLaunch();
         return;
       }
-      const version = world?.version ?? profile?.version ?? selectedVersion;
-      if (!playableVersions.has(version) || (profile && !profile.playable)) return;
+      const classic = !world && !profile ? classicTarget : undefined;
+      const version = world?.version ?? profile?.version ?? classic?.version ?? selectedVersion;
+      if ((!classic && !playableVersions.has(version)) || (profile && !profile.playable)) return;
       if (!window.__TAURI__) {
         setStatus('Открой Gleam Launcher, чтобы запустить игру','','Играть',true);
         return;
@@ -5643,16 +5646,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       runningVersion = version;
       launchPending = true;
       const instanceId = profileInstanceId(profile);
-      launchedProfileId = profile?.id ?? defaultProfileId(version);
+      launchedProfileId = classic ? null : profile?.id ?? defaultProfileId(version);
       launchStage = undefined;
       let title = 'Игра закрыта';
       let detail = '';
       let failed = false;
       let busy = false;
-      const instance = readInstanceSettings(launchedProfileId);
+      const instance = classic ? {} : readInstanceSettings(launchedProfileId);
       const options = {
         version,account:selectedMinecraftAccount,memory:Math.min(instance.memory ?? selectedMemory(),memoryLimits.maximum),
-        instanceId,
+        instanceId,classicLoader:classic?.loader ?? null,
         width:instance.width ?? settings.gameWidth,height:instance.height ?? settings.gameHeight,
         fullscreen:(instance.mode ?? settings.windowMode) === 'fullscreen',jvmArguments:instance.jvm ?? settings.jvmArguments,
         fabricLoader:instance.loader ?? settings.fabricLoader,installOptimizers:instance.optimizers ?? settings.installOptimizers,worldInvite:world?.id ?? null,serverAddress
@@ -5675,7 +5678,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           detail = Array.isArray(message) ? translated(message[0],translated(message[1])) : message;
         }
         if (kind === 'game_exit' && /^-?\d+$/.test(exitCode)) detail = translated('Код выхода: {0}',exitCode);
-        if (kind === 'game_exit' || kind === 'game_spawn' || kind === 'game_jvm_quotes') {
+        if (launchedProfileId && (kind === 'game_exit' || kind === 'game_spawn' || kind === 'game_jvm_quotes')) {
           showGameCrash(launchedProfileId,title,detail,kind === 'game_jvm_quotes' ? 'jvm_option' : diagnosis,report,crashEvidence.join(':'));
         }
       } finally {
@@ -6044,18 +6047,25 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       if (!signedIn || !window.__TAURI__ || social.pending) return;
       const owner = $('account-name').textContent;
       if (social.owner !== owner) Object.assign(social,{owner,friends:[],worlds:{items:[],people:{}},tab:'all',selected:'',
-        seen:new Set(),epoch:social.epoch+1});
+        seen:new Set(),homeReady:false,homeError:false,epoch:social.epoch+1});
       void syncFriendAppearance();
       const epoch = social.epoch;
       social.pending = true;
       try {
         const [worlds, list] = await Promise.all([friendCall('presence'), full ? friendCall('list') : null]);
         if (!signedIn || epoch !== social.epoch || owner !== $('account-name').textContent) return;
-        if (list) social.friends = list.items;
+        if (list) {
+          social.friends = list.items;
+          social.homeReady = true;
+          social.homeError = false;
+        }
         const changed = JSON.stringify({...worlds,items:worlds.items.map(({remaining,...i}) => i)}) !==
           JSON.stringify({...social.worlds,items:social.worlds.items.map(({remaining,...i}) => i)});
         social.worlds = worlds;
-        if (full || changed) renderFriends();
+        if (full || changed) {
+          renderFriends();
+          renderHomeFriends();
+        }
         for (const invite of worlds.items) {
           if (!invite.incoming || invite.state !== 'pending' || social.seen.has(invite.id)) continue;
           social.seen.add(invite.id);
@@ -6070,7 +6080,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           }
         }
       } catch (error) {
-        if (full && friendsOpen()) friendError(error);
+        if (full) {
+          if (friendsOpen()) friendError(error);
+          if (!social.homeReady && signedIn && epoch === social.epoch) social.homeError = true;
+          renderHomeFriends();
+        }
       } finally { social.pending = false; }
     }
     $('friends-search').addEventListener('input',renderFriends);
@@ -7653,12 +7667,95 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       ++gleamAttempt; clearTimeout(gleamPoll);
       gleamAuth('cancel').catch(() => {}); showGleamLogin('choice');
     });
-    showGleamLogin('restore');
+    if (homeDemo) {
+      launcher.removeAttribute('data-auth-required');
+      gleamLogin.hidden = true;
+    } else showGleamLogin('restore');
     showStartup().then(revealed => {
       if (!revealed) return;
       if (!settings.autoUpdate) void checkLauncherUpdate();
-      return restoreGleamLogin();
+      if (!homeDemo) return restoreGleamLogin();
     }).catch(() => {});
   </script>
+  <template id="home-layout">
+    <svg class="concept-version-symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <symbol id="i-picker-vanilla" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm-8 4.5 8 4.5 8-4.5M12 12v9"/></symbol>
+      <symbol id="i-picker-optifine" viewBox="0 0 24 24"><path d="M5 7h3l2 2v6l-2 2H5l-2-2V9l2-2Zm8 10V7h8m-8 5h6"/></symbol>
+      <symbol id="i-picker-forge" viewBox="0 0 24 24"><path d="M3 7h18l-3.5 4H14v3l3 3v2H7v-2l3-3v-3H7L3 7Z"/></symbol>
+      <symbol id="i-picker-fabric" viewBox="0 0 24 24"><path d="m4 10 8-6 8 6-8 6-8-6Zm0 4 8 6 8-6m-13-3 5-4 5 4"/></symbol>
+      <symbol id="i-picker-neoforge" viewBox="0 0 24 24"><path d="m4 11 1-7 5 4h4l5-4 1 7-2 6-6 3-6-3-2-6Zm4 1 2 1m6-1-2 1m-3 3h2"/></symbol>
+      <symbol id="i-picker-quilt" viewBox="0 0 24 24"><path d="M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6zm-5-5 6 6m0-6-6 6"/></symbol>
+      <symbol id="i-picker-add" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    </svg>
+    <div class="concept-play">
+      <section class="concept-stage" aria-labelledby="play-heading">
+        <h1 id="play-heading">Minecraft</h1>
+      </section>
+      <section class="concept-quick" aria-labelledby="concept-quick-title">
+        <h2 id="concept-quick-title">Быстрый вход</h2>
+        <div class="concept-quick-list">
+          <button type="button" data-concept-server="ht-1.ru" title="AlterPrac">
+            <img class="concept-server-icon" src="launcher-home-assets/server-alterprac.png" alt="" width="24" height="24">
+            ht-1.ru
+          </button>
+          <button type="button" data-concept-server="mc.lunamine.ru" title="LunaMine">
+            <img class="concept-server-icon" src="launcher-home-assets/server-lunamine.png" alt="" width="24" height="24">
+            mc.lunamine.ru
+          </button>
+          <button type="button" data-concept-server="mc.hypixel.net" title="Hypixel">
+            <img class="concept-server-icon" src="launcher-home-assets/server-hypixel.png" alt="" width="24" height="24">
+            mc.hypixel.net
+          </button>
+        </div>
+      </section>
+    </div>
+    <div class="concept-rail">
+      <section class="concept-panel" aria-labelledby="concept-friends-title">
+        <header>
+          <h2 id="concept-friends-title">Друзья</h2>
+          <button type="button" id="concept-open-friends">Все друзья</button>
+        </header>
+        <ul class="concept-people" id="concept-people"></ul>
+      </section>
+    </div>
+    <dialog class="concept-versions" id="concept-versions" aria-labelledby="concept-versions-title">
+      <div class="concept-version-sheet">
+        <h2 id="concept-versions-title">Версия Minecraft</h2>
+        <header class="concept-picker-profile">
+          <canvas class="concept-picker-face" width="8" height="8" aria-hidden="true"></canvas>
+          <div><strong id="concept-picker-nick"></strong><small id="concept-picker-account">Аккаунт Minecraft</small></div>
+          <button id="concept-close-versions" class="button" type="button" aria-label="Закрыть">×</button>
+        </header>
+        <div class="concept-version-tabs" role="group" aria-labelledby="concept-versions-title">
+          <button type="button" data-concept-kind="classic" aria-pressed="true"><svg class="icon concept-version-icon" aria-hidden="true"><use href="#i-picker-vanilla"/></svg>Minecraft</button>
+          <button type="button" data-concept-kind="gleam" aria-pressed="false">GleamClient</button>
+          <button type="button" data-concept-kind="profiles" aria-pressed="false"><svg class="icon concept-version-icon" aria-hidden="true"><use href="#i-profiles"/></svg><span>Мои сборки</span></button>
+        </div>
+        <div class="concept-loader-tabs" role="group" aria-label="Загрузчик модов">
+          <button type="button" data-concept-loader="vanilla" aria-pressed="true">Vanilla</button>
+          <button type="button" data-concept-loader="optifine" aria-pressed="false">OptiFine</button>
+          <button type="button" data-concept-loader="forge" aria-pressed="false">Forge</button>
+          <button type="button" data-concept-loader="fabric" aria-pressed="false">Fabric</button>
+          <button type="button" data-concept-loader="neoforge" aria-pressed="false">NeoForge</button>
+          <button type="button" data-concept-loader="quilt" aria-pressed="false">Quilt</button>
+        </div>
+        <div class="concept-version-filter">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+          <input id="concept-version-query" class="concept-version-search" type="search" placeholder="Поиск версии" autocomplete="off">
+        </div>
+        <div class="concept-version-options" id="concept-version-options"></div>
+        <footer><button id="concept-manage-profiles" type="button"><svg class="icon concept-version-icon" aria-hidden="true"><use href="#i-picker-add"/></svg><span id="concept-manage-profiles-label">Создать сборку</span></button></footer>
+      </div>
+    </dialog>
+    <template id="concept-picker-empty">
+      <div class="profile-content-empty" role="status">
+        <span class="profile-empty-icon"><svg class="icon" aria-hidden="true"><use/></svg></span>
+        <strong></strong>
+        <p></p>
+        <button type="button" class="button" hidden>Повторить</button>
+      </div>
+    </template>
+  </template>
+  <script src="launcher-home.js"></script>
 </body>
 </html>

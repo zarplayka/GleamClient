@@ -1,0 +1,287 @@
+#page-play.home-concept {
+  --concept-gap: 14px;
+  --concept-line: color-mix(in srgb,var(--text) 12%,transparent);
+  --concept-panel: var(--frame);
+  display: block;
+  min-height: var(--content-height);
+  padding: var(--concept-gap);
+  background: var(--page-bg);
+}
+#page-play.home-concept[hidden] { display: none }
+.home-concept .home-board {
+  display: grid;
+  grid-template: minmax(0,1fr) / minmax(0,1fr) clamp(220px,25cqw,356px);
+  gap: var(--concept-gap);
+  width: 100%; max-width: 1800px; margin-inline: auto;
+  min-height: max(540px,calc(var(--content-height) - 2 * var(--concept-gap)));
+  padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
+}
+.concept-play {
+  min-width: 0;
+  display: grid; grid-template-rows: minmax(0,1fr) max-content;
+  border: 1px solid var(--concept-line); border-radius: 15px; overflow: clip;
+  background: var(--concept-panel);
+}
+.concept-stage {
+  position: relative; isolation: isolate;
+  display: grid; grid-template-rows: minmax(0,1fr) auto;
+  min-width: 0; min-height: 420px; overflow: clip;
+  color: #fff5ec;
+  background: #202946 url("launcher-home-scene.webp") center / cover no-repeat;
+}
+.concept-stage::before {
+  position: absolute; z-index: -1; inset: 0; content: "";
+  background: linear-gradient(180deg,#13152770 0%,transparent 33%,transparent 60%,#121425c9 100%);
+  pointer-events: none;
+}
+.concept-stage #play-heading {
+  position: absolute; width: 1px; height: 1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.concept-stage .home-preview { position: absolute; inset: 0; width: auto; height: auto; z-index: 0 }
+.concept-stage .skin-stage {
+  --unit: clamp(8px,2.14cqh,17px);
+  container-type: size; height: 100%; width: 100%; animation: none;
+  touch-action: none;
+}
+.concept-stage .home-preview { container-type: size }
+.concept-stage .model { bottom: 56%; }
+.concept-stage .model::before {
+  position: absolute; bottom: calc(100% + var(--unit)); left: 50%;
+  content: attr(data-player-name); color: #fff; background: #1a3b7688;
+  padding: 3px 9px; white-space: nowrap; font: 600 calc(2 * var(--unit)) "Pixelify Sans", monospace;
+  letter-spacing: .035em;
+  transform: translateX(-50%) rotateY(calc(-1 * var(--yaw)));
+}
+.concept-stage #home-cosmetic-preview { pointer-events: none }
+.concept-stage .skin-shadow {
+  left: 50%; bottom: 14%; width: min(28%,230px); height: 6%;
+  transform: translateX(-50%); background: #1013207a; filter: blur(13px);
+}
+.concept-launch {
+  position: relative; z-index: 1; grid-area: 2 / 1;
+  justify-self: center; display: grid; gap: 7px;
+  width: min(100% - 32px,clamp(330px,34cqw,460px));
+  margin: 0 0 21px; min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.concept-launch .launch-actions {
+  display: grid; grid-template-columns: minmax(0,1fr) auto;
+  gap: 0; align-items: stretch;
+  border: 1px solid #ffe6c28a; border-radius: 12px;
+  background: #fff0d9; color: #211a1b; box-shadow: 0 8px 20px #11111d7a,0 2px 0 #976b524a;
+  overflow: clip;
+}
+.concept-launch #launch {
+  display: flex; align-items: center; justify-content: flex-start; gap: 12px;
+  min-height: clamp(62px,5.2cqw,76px); padding: 8px 14px;
+  border-radius: 0; background: #fff0d9; color: #211a1b; text-align: left;
+}
+.concept-launch #launch:not(:disabled):hover { background: #fff9eb }
+.concept-launch #launch[data-close-game], .concept-launch #launch[data-close-game]:hover { background: #b93042; color: #fff }
+.concept-launch #launch > .icon { width: 24px; height: 24px }
+.concept-launch #launch-label { display: block; font-size: clamp(19px,2.1cqw,24px); line-height: 1.12; white-space: normal }
+.concept-launch .profile-spec {
+  display: block; margin: 3px 0 0; color: inherit;
+  font-size: clamp(11px,1.12cqw,13px); font-weight: 600; opacity: .76; white-space: nowrap;
+}
+.concept-launch .profile-spec span:not(#profile-version) { color: inherit }
+.concept-launch .profile-button {
+  align-self: stretch; width: 58px; min-height: 100%; padding: 0;
+  border: 0; border-left: 1px solid #30252123; border-radius: 0;
+  color: #3a2f32; background: #f2dfc6;
+}
+.concept-launch .profile-button:hover { background: #fff9eb }
+.concept-launch :is(#launch,.profile-button):focus-visible {
+  outline: 2px solid #6255a0; outline-offset: -4px;
+}
+.concept-launch #first-launch-note { display: none }
+.concept-launch .launch-note-slot { min-height: 0; margin: 0; text-align: center }
+.concept-launch .launch-note-slot:has(#version-unavailable[hidden]):not(:has(.concept-launch-status:not(:empty))) { display: none }
+.concept-launch .launch-note, .concept-launch-status {
+  margin: 0; color: #f2e7ed; font-size: 11px; line-height: 1.35;
+}
+.concept-launch-status:empty { display: none }
+.concept-launch-status { text-align: center }
+.concept-quick, .concept-panel {
+  min-width: 0; border: 1px solid var(--concept-line);
+  border-radius: 12px; background: var(--concept-panel);
+}
+.concept-quick {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; min-height: 52px; padding: 6px 12px;
+  border: 0; border-top: 1px solid var(--concept-line); border-radius: 0;
+}
+.concept-quick h2 { flex: none; font-size: 12px; letter-spacing: 0; color: var(--side-muted) }
+.concept-quick-list {
+  display: flex; align-items: center; min-width: 0; gap: 5px;
+  overflow-x: auto; scrollbar-width: thin;
+}
+.concept-quick-list button, .concept-person {
+  display: flex; min-width: 0; align-items: center; gap: 8px;
+  border: 0; background: none; color: var(--text); text-align: left; border-radius: 7px;
+}
+.concept-quick-list button {
+  flex: none; min-height: 36px;
+  padding: 0 10px; font-size: 13px; font-weight: 550; white-space: nowrap;
+}
+.concept-quick-list button:hover,.concept-person:hover { background: var(--side-hover) }
+.concept-quick-list button:focus-visible { outline-offset: -2px }
+.concept-server-icon {
+  display: block; flex: none; width: 24px; height: 24px;
+  border-radius: 4px; object-fit: contain;
+}
+.concept-rail { min-width: 0; display: grid; grid-template-rows: minmax(244px,1fr) auto; gap: 10px }
+.concept-panel { padding: 14px 13px }
+.concept-panel header {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 12px;
+}
+.concept-panel header h2 { font-size: 17px; letter-spacing: -.035em }
+.concept-panel header button {
+  flex: none; padding: 3px 4px; min-height: 26px; border: 0; border-radius: 4px;
+  background: none; color: var(--side-muted); font-size: 12px; font-weight: 600;
+}
+.concept-panel header button:hover { color: var(--text); background: var(--side-hover) }
+.concept-people { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none }
+.concept-person { width: 100%; padding: 6px; min-height: 43px }
+.concept-face {
+  position: relative; display: grid; place-items: center; flex: none; width: 29px; height: 29px;
+  border-radius: 6px; background: var(--selected-bg); color: var(--selected-text);
+}
+.concept-face canvas, .concept-face .friend-face { width: 100%; height: 100%; border-radius: inherit; image-rendering: pixelated }
+.concept-face::after {
+  position: absolute; right: -1px; bottom: -1px; width: 7px; height: 7px;
+  content: ""; background: #61d3a2; border-radius: 3px; box-shadow: 0 0 0 2px var(--concept-panel);
+}
+.concept-person[data-away] .concept-face::after { background: #c2936a }
+.concept-person[data-offline] .concept-face::after { display: none }
+.concept-person[data-offline] { opacity: .66 }
+.concept-person-copy { display: grid; min-width: 0; gap: 1px; line-height: 1.25 }
+.concept-person-copy strong { font-size: 13px; font-weight: 650 }
+.concept-person-copy small { color: var(--side-muted); font-size: 11px }
+.concept-person-copy > * { overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+.concept-offline {
+  display: flex; align-items: center; gap: 8px; margin: 9px 0 3px; padding-inline: 5px;
+  color: var(--side-muted); font-size: 11px;
+}
+.concept-offline::after { content: ""; flex: 1; height: 1px; background: var(--concept-line) }
+.home-concept .concept-news { grid-area: auto; }
+.concept-news-art {
+  display: block; width: 100%; aspect-ratio: 2.45; margin: 0 0 10px;
+  padding: 0; overflow: hidden; border: 1px solid var(--concept-line);
+  border-radius: 8px; background: #302836 var(--home-news-image,url("../assets/gameplay-orion.webp")) center 78% / cover;
+}
+.concept-news-art { filter: brightness(1.25) }
+.concept-news-art:hover { filter: brightness(1.4) }
+.concept-news #recent-releases li + li { display: none }
+.concept-news .news-entry { display: grid; gap: 5px; padding: 0 1px 2px }
+.concept-news .news-entry strong { font-size: 14px; line-height: 1.2 }
+.concept-news .news-entry .release-meta { font-size: 11px }
+.concept-versions {
+  position: fixed; z-index: 8; width: auto; height: auto; max-width: none; max-height: none;
+  margin: 0; padding: clamp(10px,1.65vw,24px); border: 0; overflow: clip;
+  background: color-mix(in srgb,var(--page-bg) 79%,transparent);
+  backdrop-filter: blur(9px); color: var(--text);
+}
+.concept-version-sheet {
+  display: flex; flex-direction: column; gap: 10px;
+  width: min(100%,clamp(390px,44vw,535px)); height: 100%; min-height: 0;
+  padding: 14px; border: 1px solid var(--side-rule); border-radius: 14px;
+  background: var(--frame); box-shadow: 0 18px 56px #0b0b1480; container-type: inline-size;
+}
+.concept-version-sheet > :not(.concept-version-options) { flex: none }
+#concept-versions-title {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; white-space: nowrap; clip-path: inset(50%);
+}
+.concept-picker-profile {
+  display: grid; grid-template-columns: 44px minmax(0,1fr) auto; align-items: center; gap: 11px;
+  padding: 13px; border: 1px solid var(--side-rule); border-radius: 9px; background: var(--panel);
+}
+.concept-picker-face { display: block; width: 44px; height: 44px; border-radius: 6px; background: var(--control-bg); image-rendering: pixelated }
+.concept-picker-profile strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px }
+.concept-picker-profile small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px }
+.concept-picker-profile .button { align-self: start; width: 28px; min-height: 28px; padding: 0; border-radius: 6px; font-size: 16px }
+.concept-version-tabs,.concept-loader-tabs {
+  display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 3px;
+  padding: 3px; border-radius: 7px; background: var(--control-bg);
+}
+.concept-loader-tabs { grid-template-columns: repeat(6,minmax(0,1fr)); margin-top: -6px }
+:is(.concept-version-tabs,.concept-loader-tabs) button {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  min-height: 33px; min-width: 0; padding: 4px 2px; border: 0; border-radius: 5px;
+  background: transparent; color: var(--muted); font-size: 12px; font-weight: 650;
+}
+.concept-version-symbols { position: absolute; width: 0; height: 0; overflow: hidden }
+.concept-version-icon { display: block; flex: none; width: 15px; height: 15px; object-fit: contain }
+.concept-loader-tabs .concept-version-icon { width: 13px; height: 13px }
+:is(.concept-version-tabs,.concept-loader-tabs) button:hover {
+  background: var(--side-hover); color: var(--text);
+}
+:is(.concept-version-tabs,.concept-loader-tabs) button[aria-pressed="true"] {
+  background: var(--selected-bg); color: var(--selected-text);
+}
+.concept-version-filter { position: relative; }
+.concept-version-filter > .icon {
+  position: absolute; top: 50%; left: 11px; translate: 0 -50%;
+  width: 15px; height: 15px; color: var(--muted); pointer-events: none;
+}
+.concept-version-search {
+  width: 100%; min-height: 37px; padding: 0 10px 0 34px; border: 1px solid var(--side-rule); border-radius: 7px;
+  background: var(--control-bg); color: var(--text); font: inherit; font-size: 13px;
+}
+.concept-version-options { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; overscroll-behavior: contain }
+.concept-version-options:has(.profile-content-empty,.concept-version-note) { display: grid; place-items: center }
+.concept-version-options .profile-content-empty { padding: clamp(10px,2.4vh,24px) 12px }
+.concept-version-options .profile-content-empty .button { margin-top: 3px }
+.concept-version-row {
+  display: grid; grid-template-columns: 15px minmax(0,1fr) auto; align-items: center; gap: 10px;
+  width: 100%; min-height: 40px; padding: 0 11px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--text); font: inherit; text-align: left;
+}
+.concept-version-row .concept-version-icon { color: var(--muted) }
+.concept-version-row:hover { background: var(--side-hover) }
+.concept-version-row[aria-pressed="true"] { background: var(--selected-bg); color: var(--selected-text) }
+.concept-version-row[aria-pressed="true"] .concept-version-icon { color: inherit }
+.concept-version-row:focus-visible { outline-offset: -2px }
+.concept-version-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px }
+.concept-version-row small { color: var(--muted); font-size: 11px }
+.concept-version-note { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 6px 0 }
+.concept-version-sheet footer { display: flex; justify-content: center; border-top: 1px solid var(--side-rule); padding-top: 8px }
+.concept-version-sheet footer button { display: flex; align-items: center; gap: 6px; min-height: 27px; padding: 3px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--selected-text); font-size: 12px; font-weight: 650 }
+.concept-version-sheet footer button:hover { background: var(--side-hover) }
+@media (max-width: 760px) {
+  .concept-version-sheet { gap: 8px; padding: 10px }
+}
+@container (max-width: 390px) {
+  .concept-loader-tabs { grid-template-columns: repeat(3,minmax(0,1fr)) }
+}
+@container workspace (max-width: 700px) {
+  .home-concept .home-board { grid-template-columns: minmax(0,1fr); grid-template-rows: auto auto }
+  .concept-rail { grid-template: 1fr / minmax(0,1fr) minmax(0,1fr) }
+  .concept-play { grid-template-rows: minmax(430px,68dvh) max-content }
+}
+@container workspace (max-width: 470px) {
+  .concept-quick { min-height: 45px; padding: 4px 8px }
+  .concept-quick h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%) }
+  .concept-quick-list { flex: 1; gap: 3px }
+  .concept-quick-list button { min-height: 32px; padding-inline: 5px; font-size: 12px }
+  .concept-server-icon { width: 19px; height: 19px }
+  .concept-rail { grid-template: auto auto / minmax(0,1fr) }
+  .concept-stage .skin-stage { --unit: clamp(8px,1.8cqh,11px) }
+  .concept-stage .model { bottom: 51% }
+  .concept-launch #launch { padding-inline: 9px; gap: 7px }
+  .concept-launch #launch > .icon { width: 20px; height: 20px }
+  .concept-launch #launch-label { font-size: 17px }
+  .concept-launch .profile-button { width: 48px }
+}
+@media (max-height: 670px) {
+  .home-concept .home-board { min-height: 0 }
+  .concept-stage { min-height: min(390px,63dvh) }
+  .concept-quick { min-height: 42px; padding-block: 4px }
+  .concept-quick-list button { min-height: 31px }
+  .concept-server-icon { width: 22px; height: 22px }
+}
+.concept-face > .friend-face { display: block; position: static }
+.concept-people:empty { display: none }
+.concept-panel > .profile-content-empty { min-height: 120px; padding: 14px 8px }
+.concept-version-row:disabled { opacity: .58; cursor: default }

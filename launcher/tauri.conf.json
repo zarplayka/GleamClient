@@ -1,10 +1,20 @@
 {
   "productName": "Gleam Launcher",
-  "version": "0.1.95",
+  "version": "0.1.96",
   "identifier": "xyz.gleamclient.launcher",
   "build": {
     "frontendDist": [
       "../website/tools/launcher-preview.html",
+      "../website/tools/launcher-home.css",
+      "../website/tools/launcher-home.js",
+      "../website/tools/launcher-home-scene.webp",
+      "../website/assets/gameplay-orion.webp",
+      "../website/tools/launcher-home-assets/PixelifySans.ttf",
+      "../website/tools/launcher-home-assets/PixelifySans-OFL.txt",
+      "../website/tools/launcher-home-assets/server-alterprac.png",
+      "../website/tools/launcher-home-assets/server-lunamine.png",
+      "../website/tools/launcher-home-assets/server-hypixel.png",
+      "../website/tools/launcher-home-assets/minecraft-releases.json",
       "../website/tools/launcher-background-1-16-5.webp",
       "../website/tools/launcher-background-1-21-4.webp",
       "../website/tools/launcher-background-1-21-11.webp",

@@ -1,4 +1,4 @@
-//! Installation and launch of the client's Fabric profile.
+//! Installation and launch of Minecraft and GleamClient profiles.
 use crate::{minecraft::{GameSession, Minecraft}, settings_sync::SettingsSync};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
@@ -22,6 +22,10 @@ const VERSION_INDEX: &str = "https://piston-meta.mojang.com/mc/game/version_mani
 const JAVA_INDEX: &str = "https://piston-meta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
 const FABRIC_META: &str = "https://meta.fabricmc.net/v2/versions/loader";
 const FABRIC_MAVEN: &str = "https://maven.fabricmc.net/";
+const QUILT_META: &str = "https://meta.quiltmc.org/v3/versions/loader";
+const QUILT_MAVEN: &str = "https://maven.quiltmc.org/repository/release/";
+const FABRIC_MAIN: &str = "net.fabricmc.loader.impl.launch.knot.KnotClient";
+const QUILT_MAIN: &str = "org.quiltmc.loader.impl.launch.knot.KnotClient";
 const MODRINTH_CDN: &str = "https://cdn.modrinth.com/data/";
 type ModArtifact = (&'static str, &'static str, u64);
 
@@ -233,6 +237,7 @@ impl Drop for ActiveGame {
 #[serde(rename_all = "camelCase")]
 pub struct LaunchOptions {
     version: String,
+    classic_loader: Option<ClassicLoader>,
     instance_id: Option<String>,
     account: String,
     memory: f64,
@@ -245,6 +250,42 @@ pub struct LaunchOptions {
     install_optimizers: bool,
     world_invite: Option<String>,
     server_address: Option<String>,
+}
+
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum ClassicLoader {
+    Vanilla,
+    Fabric,
+    Quilt,
+}
+
+impl ClassicLoader {
+    const ALL: [Self; 3] = [Self::Vanilla, Self::Fabric, Self::Quilt];
+
+    fn id(self) -> &'static str {
+        match self {
+            Self::Vanilla => "vanilla",
+            Self::Fabric => "fabric",
+            Self::Quilt => "quilt",
+        }
+    }
+
+    fn supports(self, version: &str) -> bool {
+        static CATALOG: std::sync::LazyLock<Value> = std::sync::LazyLock::new(|| {
+            serde_json::from_str(include_str!("../../website/tools/launcher-home-assets/minecraft-releases.json"))
+                .expect("bundled Minecraft version catalog")
+        });
+        let versions = match self {
+            Self::Vanilla => &CATALOG["versions"],
+            loader => &CATALOG["loaders"][loader.id()],
+        };
+        versions.as_array().is_some_and(|versions| versions.iter().any(|id| id == version))
+    }
+
+    fn root(self, app: &tauri::AppHandle) -> Result<PathBuf> {
+        Ok(crate::catalog::instance_dir(app, "classic")?.join(self.id()))
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -383,7 +424,7 @@ impl VerifiedFile {
 }
 
 struct Installer<'a> {
-    profile: &'static GameProfile,
+    profile: Option<&'static GameProfile>,
     client: Client,
     cancelled: &'a AtomicBool,
     progress: &'a (dyn Fn(&str, usize) + Sync),
@@ -417,6 +458,8 @@ impl Installer<'_> {
                         | "launcher.mojang.com"
                         | "meta.fabricmc.net"
                         | "maven.fabricmc.net"
+                        | "meta.quiltmc.org"
+                        | "maven.quiltmc.org"
                         | "cdn.modrinth.com"
                 )
             )
@@ -612,8 +655,7 @@ impl Installer<'_> {
         self.check()
     }
 
-    fn resolve_metadata(&self, cache: &Path, loader: &str) -> Result<LaunchMetadata> {
-        let minecraft = self.profile.version;
+    fn resolve_metadata(&self, cache: &Path, minecraft: &str, classic: Option<ClassicLoader>, loader: &str) -> Result<LaunchMetadata> {
         let versions: Value = self
             .get(VERSION_INDEX)?
             .json()
@@ -622,11 +664,14 @@ impl Installer<'_> {
             .iter()
             .find(|entry| entry["id"] == minecraft)
             .ok_or("game_version")?;
-        let version = self.manifest(
+        let mut version = self.manifest(
             entry,
             &cache.join("versions").join(format!("{minecraft}.json")),
         )?;
-        if version["id"] != minecraft || version["javaVersion"]["majorVersion"].as_u64() != Some(self.profile.java_major) {
+        if classic.is_some() && version["javaVersion"].is_null() {
+            version["javaVersion"] = json!({"component":"jre-legacy","majorVersion":8});
+        }
+        if version["id"] != minecraft || self.profile.is_some_and(|profile| version["javaVersion"]["majorVersion"].as_u64() != Some(profile.java_major)) {
             return Err("game_metadata".into());
         }
         let component = string(&version["javaVersion"]["component"])?;
@@ -641,7 +686,12 @@ impl Installer<'_> {
             resolved_at: SystemTime::now(),
             version,
             java_manifest,
-            fabric: self.resolve_fabric(loader)?,
+            fabric: match classic {
+                Some(ClassicLoader::Vanilla) => Value::Null,
+                Some(ClassicLoader::Quilt) => self.resolve_loader(minecraft, "auto", true)?,
+                Some(ClassicLoader::Fabric) => self.resolve_loader(minecraft, "auto", false)?,
+                None => self.resolve_loader(minecraft, loader, false)?,
+            },
         })
     }
 
@@ -652,14 +702,16 @@ impl Installer<'_> {
         options: &LaunchOptions,
         metadata: &LaunchMetadata,
     ) -> Result<Installation> {
-        let minecraft = self.profile.version;
+        let minecraft = &options.version;
+        let classic = options.classic_loader;
         let version = &metadata.version;
-        if version["id"] != minecraft || version["javaVersion"]["majorVersion"].as_u64() != Some(self.profile.java_major) {
+        if version["id"] != minecraft.as_str() || self.profile.is_some_and(|profile| version["javaVersion"]["majorVersion"].as_u64() != Some(profile.java_major)) {
             return Err("game_metadata".into());
         }
         let runtime = self.java(&version["javaVersion"], &metadata.java_manifest, cache)?;
         let mut files = Vec::new();
         let mut libraries = Vec::new();
+        let mut native_jars = Vec::new();
         for lib in list(&version["libraries"])? {
             let name = string(&lib["name"])?;
             // The Windows x64 runtime uses the unqualified Windows native JARs.
@@ -667,16 +719,30 @@ impl Installer<'_> {
                 continue;
             }
             let artifact = &lib["downloads"]["artifact"];
-            let path = relative(&cache.join("libraries"), string(&artifact["path"])?)?;
-            files.push((download_info(artifact)?, path.clone()));
-            libraries.push(path);
+            if !artifact.is_null() {
+                let path = relative(&cache.join("libraries"), string(&artifact["path"])?)?;
+                files.push((download_info(artifact)?, path.clone()));
+                libraries.push(path);
+            }
+            if let Some(classifier) = lib["natives"]["windows"].as_str() {
+                let classifier = classifier.replace("${arch}", "64");
+                let native = &lib["downloads"]["classifiers"][classifier];
+                let path = relative(&cache.join("libraries"), string(&native["path"])?)?;
+                files.push((download_info(native)?, path.clone()));
+                native_jars.push(path);
+            }
         }
         let jar = cache.join("versions").join(format!("{minecraft}.jar"));
         files.push((download_info(&version["downloads"]["client"])?, jar.clone()));
         libraries.push(jar);
         let logging = &version["logging"]["client"];
-        let log_config = relative(&cache.join("log-config"), string(&logging["file"]["id"])?)?;
-        files.push((download_info(&logging["file"])?, log_config.clone()));
+        let log_config = if logging.is_null() {
+            None
+        } else {
+            let path = relative(&cache.join("log-config"), string(&logging["file"]["id"])?)?;
+            files.push((download_info(&logging["file"])?, path.clone()));
+            Some(path)
+        };
         self.batch(&files, "files", 25, 42)?;
 
         let assets = cache.join("assets");
@@ -708,9 +774,36 @@ impl Installer<'_> {
             }
         }
         self.batch(&files, "assets", 42, 83)?;
-        let mut fabric_libraries = self.fabric(cache, &metadata.fabric)?;
-        fabric_libraries.extend(libraries);
-        let managed_mods = self.managed_mods(game_dir, cache, options.install_optimizers)?;
+        let game_assets = if index["virtual"] == true {
+            assets.join("virtual").join(asset_id)
+        } else {
+            assets.clone()
+        };
+        for destination in [
+            (index["virtual"] == true).then_some(game_assets.clone()),
+            (index["map_to_resources"] == true).then(|| game_dir.join("resources")),
+        ].into_iter().flatten() {
+            for (name, entry) in index["objects"].as_object().ok_or("game_metadata")? {
+                self.check()?;
+                let hash = string(&entry["hash"])?;
+                let source = assets.join("objects").join(&hash[..2]).join(hash);
+                let path = relative(&destination, name)?;
+                if fs::metadata(&path).ok().is_some_and(|meta| Some(meta.len()) == entry["size"].as_u64()) {
+                    continue;
+                }
+                let parent = path.parent().ok_or("game_storage")?;
+                fs::create_dir_all(parent).map_err(io_error)?;
+                let mut output = tempfile::NamedTempFile::new_in(parent).map_err(io_error)?;
+                io::copy(&mut File::open(source).map_err(io_error)?, output.as_file_mut()).map_err(io_error)?;
+                output.persist(path).map_err(|_| "game_storage")?;
+            }
+        }
+        let mut classpath = match classic {
+            Some(ClassicLoader::Vanilla) => Vec::new(),
+            loader => self.loader_libraries(cache, &metadata.fabric, minecraft, matches!(loader, Some(ClassicLoader::Quilt)))?,
+        };
+        classpath.extend(libraries);
+        let managed_mods = self.profile.map(|profile| self.managed_mods(profile, game_dir, cache, options.install_optimizers)).transpose()?;
         let natives = tempfile::Builder::new()
             .prefix("natives-")
             .tempdir_in(game_dir)
@@ -718,12 +811,26 @@ impl Installer<'_> {
         for name in ["java", "jna", "lwjgl", "netty"] {
             fs::create_dir_all(natives.path().join(name)).map_err(io_error)?;
         }
-        let classpath = std::env::join_paths(fabric_libraries).map_err(|_| "game_storage")?;
+        for path in native_jars {
+            self.check()?;
+            let mut jar = zip::ZipArchive::new(File::open(path).map_err(io_error)?).map_err(|_| "game_integrity")?;
+            for index in 0..jar.len() {
+                let mut entry = jar.by_index(index).map_err(|_| "game_integrity")?;
+                if entry.is_file() && entry.name().to_ascii_lowercase().ends_with(".dll") {
+                    let name = entry.enclosed_name().and_then(|path| path.file_name().map(ToOwned::to_owned))
+                        .ok_or("game_integrity")?;
+                    let mut output = File::create(natives.path().join(name)).map_err(io_error)?;
+                    io::copy(&mut entry, &mut output).map_err(io_error)?;
+                }
+            }
+        }
+        let classpath = std::env::join_paths(classpath).map_err(|_| "game_storage")?;
         Ok(Installation {
             version: version.clone(),
             runtime,
             classpath,
             assets,
+            game_assets,
             natives,
             log_config,
             fabric: metadata.fabric.clone(),
@@ -731,16 +838,21 @@ impl Installer<'_> {
         })
     }
 
-    fn resolve_fabric(&self, requested: &str) -> Result<Value> {
-        let minecraft = self.profile.version;
+    fn resolve_loader(&self, minecraft: &str, requested: &str, quilt: bool) -> Result<Value> {
+        let base = if quilt { QUILT_META } else { FABRIC_META };
+        let main_class = if quilt { QUILT_MAIN } else { FABRIC_MAIN };
         let loader = if requested == "auto" {
             let versions: Value = self
-                .get(&format!("{FABRIC_META}/{minecraft}"))?
+                .get(&format!("{base}/{minecraft}"))?
                 .json()
                 .map_err(|_| "game_fabric")?;
             list(&versions)?
                 .iter()
-                .find(|entry| entry["loader"]["stable"] == true)
+                .find(|entry| if quilt {
+                    entry["loader"]["version"].as_str().is_some_and(valid_loader)
+                } else {
+                    entry["loader"]["stable"] == true
+                })
                 .and_then(|entry| entry["loader"]["version"].as_str())
                 .ok_or("game_fabric")?
                 .to_owned()
@@ -751,16 +863,17 @@ impl Installer<'_> {
             return Err("game_fabric".into());
         }
         let mut profile: Value = self
-            .get(&format!("{FABRIC_META}/{minecraft}/{loader}/profile/json"))?
+            .get(&format!("{base}/{minecraft}/{loader}/profile/json"))?
             .json()
             .map_err(|_| "game_fabric")?;
         if profile["inheritsFrom"] != minecraft
-            || profile["mainClass"] != "net.fabricmc.loader.impl.launch.knot.KnotClient"
+            || profile["mainClass"] != main_class
         {
             return Err("game_fabric".into());
         }
         for library in profile["libraries"].as_array_mut().ok_or("game_fabric")? {
-            let url = Self::fabric_library_url(library)?;
+            let (base, artifact) = Self::loader_artifact(library, quilt)?;
+            let url = format!("{base}{artifact}");
             if library["sha1"].as_str().is_none() {
                 let checksum = self
                     .get(&format!("{url}.sha1"))?
@@ -775,13 +888,14 @@ impl Installer<'_> {
         Ok(profile)
     }
 
-    fn fabric_library_url(library: &Value) -> Result<String> {
+    fn loader_artifact(library: &Value, quilt: bool) -> Result<(&str, String)> {
         let name = string(&library["name"])?;
         let parts: Vec<_> = name.split(':').collect();
         let [group, artifact, version] = parts.as_slice() else {
             return Err("game_fabric".into());
         };
-        if library["url"] != FABRIC_MAVEN
+        let base = string(&library["url"])?;
+        if (base != FABRIC_MAVEN && !(quilt && base == QUILT_MAVEN))
             || parts.iter().any(|part| {
                 part.is_empty()
                     || !part.bytes().all(|byte| {
@@ -791,22 +905,23 @@ impl Installer<'_> {
         {
             return Err("game_fabric".into());
         }
-        Ok(format!(
-            "{FABRIC_MAVEN}{}/{artifact}/{version}/{artifact}-{version}.jar",
+        Ok((base, format!(
+            "{}/{artifact}/{version}/{artifact}-{version}.jar",
             group.replace('.', "/")
-        ))
+        )))
     }
 
-    fn fabric(&self, cache: &Path, profile: &Value) -> Result<Vec<PathBuf>> {
-        if profile["inheritsFrom"] != self.profile.version
-            || profile["mainClass"] != "net.fabricmc.loader.impl.launch.knot.KnotClient"
+    fn loader_libraries(&self, cache: &Path, profile: &Value, minecraft: &str, quilt: bool) -> Result<Vec<PathBuf>> {
+        if profile["inheritsFrom"] != minecraft
+            || profile["mainClass"] != if quilt { QUILT_MAIN } else { FABRIC_MAIN }
         {
             return Err("game_fabric".into());
         }
         let mut files = Vec::new();
         for library in list(&profile["libraries"])? {
-            let url = Self::fabric_library_url(library)?;
-            let path = relative(&cache.join("libraries"), &url[FABRIC_MAVEN.len()..])?;
+            let (base, artifact) = Self::loader_artifact(library, quilt)?;
+            let path = relative(&cache.join("libraries"), &artifact)?;
+            let url = format!("{base}{artifact}");
             files.push((
                 Download {
                     url,
@@ -822,13 +937,14 @@ impl Installer<'_> {
 
     fn managed_mods(
         &self,
+        profile: &GameProfile,
         game_dir: &Path,
         cache: &Path,
         install_optimizers: bool,
     ) -> Result<std::ffi::OsString> {
-        let directory = cache.join("optimizers").join(self.profile.version);
+        let directory = cache.join("optimizers").join(profile.version);
         // Old launcher-owned artifact. Mods placed in game_dir/mods are separate.
-        if self.profile.version == PROFILE_26_3.version {
+        if profile.version == PROFILE_26_3.version {
             let _ = fs::remove_file(directory.join("zakoopt-2.1.2+26.3.jar"));
         }
         let installed = crate::catalog::installed_common_mods(game_dir);
@@ -837,14 +953,14 @@ impl Installer<'_> {
         fs::create_dir_all(&mods).map_err(io_error)?;
         let fabric = mods.join("gleam-fabric-api.jar");
         if !external_mod(&installed, "fabric-api", &fabric) {
-            let (file, path) = bundled_mod(&directory, self.profile.fabric_api);
+            let (file, path) = bundled_mod(&directory, profile.fabric_api);
             self.batch(&[(file.clone(), path.clone())], "fabric", 90, 91)?;
             self.publish_mod(&file, &path, &fabric)?;
         } else {
             remove_managed_mod(&installed, "fabric-api", &fabric)?;
         }
         let mut selected = Vec::new();
-        for baseline in self.profile.optimizers {
+        for baseline in profile.optimizers {
             let project = baseline.0.split('/').next().unwrap();
             let id = crate::catalog::common_mod_id(project).ok_or("game_metadata")?;
             let target = mods.join(format!("gleam-optimizer-{id}.jar"));
@@ -856,9 +972,9 @@ impl Installer<'_> {
             }
         }
         if !selected.is_empty() {
-            self.update_optimizers(&directory, &selected)?;
+            self.update_optimizers(profile, &directory, &selected)?;
         }
-        std::env::join_paths([self.install_gleam_client(game_dir)?]).map_err(|_| "game_storage".into())
+        std::env::join_paths([self.install_gleam_client(game_dir, profile)?]).map_err(|_| "game_storage".into())
     }
 
     fn publish_mod(&self, file: &Download, source: &Path, target: &Path) -> Result<()> {
@@ -876,7 +992,7 @@ impl Installer<'_> {
         Ok(())
     }
 
-    fn update_optimizers(&self, directory: &Path, projects: &[((&str, &str, u64), PathBuf)]) -> Result<()> {
+    fn update_optimizers(&self, profile: &GameProfile, directory: &Path, projects: &[((&str, &str, u64), PathBuf)]) -> Result<()> {
         self.check()?;
         (self.progress)("optimizers", 91);
         let receipt = directory.join("optimizer-versions.json");
@@ -889,7 +1005,7 @@ impl Installer<'_> {
                 let cached = &cached;
                 scope.spawn(move || {
                     let project = baseline.0.split('/').next().unwrap();
-                    let game_versions = format!(r#"["{}"]"#, self.profile.version);
+                    let game_versions = format!(r#"["{}"]"#, profile.version);
                     let releases = self.client
                         .get(format!("https://api.modrinth.com/v2/project/{project}/version"))
                         .query(&[("loaders", r#"["fabric"]"#), ("game_versions", game_versions.as_str()), ("include_changelog", "false")])
@@ -897,7 +1013,7 @@ impl Installer<'_> {
                         .send().ok()
                         .and_then(|reply| reply.error_for_status().ok())
                         .and_then(|reply| reply.json::<Vec<Value>>().ok());
-                    let latest = releases.as_deref().and_then(|releases| select_optimizer_release(releases, project, self.profile));
+                    let latest = releases.as_deref().and_then(|releases| select_optimizer_release(releases, project, profile));
                     let last_good = cached.get(project).filter(|file| valid_optimizer_file(file, project));
                     let (file, path) = bundled_mod(directory, *baseline);
                     for candidate in latest.iter().chain(last_good) {
@@ -931,9 +1047,9 @@ impl Installer<'_> {
         Ok(())
     }
 
-    fn install_gleam_client(&self, game_dir: &Path) -> Result<PathBuf> {
+    fn install_gleam_client(&self, game_dir: &Path, profile: &GameProfile) -> Result<PathBuf> {
         self.check()?;
-        let client = self.profile.client;
+        let client = profile.client;
         let directory = game_dir.join("gleam");
         let path = directory.join("gleamclient.jar");
         if let Ok(file) = File::open(&path) {
@@ -993,16 +1109,16 @@ mod tests {
             }
         };
         let installer = Installer {
-            profile: &PROFILE_26_3,
+            profile: Some(&PROFILE_26_3),
             client: Client::new(),
             cancelled: &cancelled,
             progress: &progress,
             verified: Mutex::new(HashMap::new()),
             verification_changed: AtomicBool::new(false),
         };
-        let jar = installer.install_gleam_client(profile.path()).unwrap();
+        let jar = installer.install_gleam_client(profile.path(), &PROFILE_26_3).unwrap();
         assert_eq!(fs::read(&jar).unwrap(), PROFILE_26_3.client);
-        assert_eq!(installer.install_gleam_client(profile.path()).unwrap(), jar);
+        assert_eq!(installer.install_gleam_client(profile.path(), &PROFILE_26_3).unwrap(), jar);
         assert_eq!(writes.load(Relaxed), 1);
 
         let mut previous = PROFILE_26_3.client.to_vec();
@@ -1010,12 +1126,12 @@ mod tests {
         fs::write(&jar, &previous).unwrap();
         cancelled.store(true, Relaxed);
         assert_eq!(
-            installer.install_gleam_client(profile.path()).unwrap_err(),
+            installer.install_gleam_client(profile.path(), &PROFILE_26_3).unwrap_err(),
             "game_cancelled"
         );
         assert_eq!(fs::read(&jar).unwrap(), previous);
         cancelled.store(false, Relaxed);
-        installer.install_gleam_client(profile.path()).unwrap();
+        installer.install_gleam_client(profile.path(), &PROFILE_26_3).unwrap();
         assert_eq!(fs::read(jar).unwrap(), PROFILE_26_3.client);
         assert_eq!(writes.load(Relaxed), 2);
     }
@@ -1025,7 +1141,7 @@ mod tests {
         let instances = tempfile::tempdir().unwrap();
         for profile in GAME_PROFILES {
             let installer = Installer {
-                profile,
+                profile: Some(profile),
                 client: Client::new(),
                 cancelled: &AtomicBool::new(false),
                 progress: &|_, _| {},
@@ -1033,7 +1149,7 @@ mod tests {
                 verification_changed: AtomicBool::new(false),
             };
             let instance = instances.path().join(profile.version);
-            let installed = installer.install_gleam_client(&instance).unwrap();
+            let installed = installer.install_gleam_client(&instance, profile).unwrap();
             assert_eq!(installed, instance.join("gleam/gleamclient.jar"));
             let mut jar = zip::ZipArchive::new(File::open(installed).unwrap()).unwrap();
             let metadata: Value = serde_json::from_reader(jar.by_name("fabric.mod.json").unwrap()).unwrap();
@@ -1041,6 +1157,37 @@ mod tests {
             assert_eq!(metadata["depends"]["minecraft"], profile.version);
             assert_eq!(metadata["depends"]["java"], format!(">={}", profile.java_major));
         }
+    }
+
+    #[test]
+    fn classic_launch_keeps_vanilla_arguments_and_does_not_inject_gleam() {
+        assert!(ClassicLoader::Vanilla.supports("1.12.2"));
+        assert!(!ClassicLoader::Vanilla.supports("../26.3"));
+        assert!(ClassicLoader::Fabric.supports("1.21.11"));
+        let dir = tempfile::tempdir().unwrap();
+        let options: LaunchOptions = serde_json::from_value(json!({
+            "version": "1.12.2", "classicLoader": "vanilla", "account": "test",
+            "memory": 4, "width": 1280, "height": 720, "fullscreen": false,
+            "jvmArguments": "", "fabricLoader": "auto", "serverAddress": "example.org:25566"
+        })).unwrap();
+        let session = GameSession { name: "Player".into(), uuid: "test-uuid".into(), token: "0".into() };
+        let version = json!({
+            "id": "1.12.2", "type": "release", "mainClass": "net.minecraft.client.main.Main",
+            "assetIndex": {"id": "1.12"},
+            "minecraftArguments": "--username ${auth_player_name} --userType ${user_type} --version ${version_name}"
+        });
+        let installed = Installation {
+            version, runtime: "javaw.exe".into(), classpath: "client.jar".into(),
+            assets: dir.path().into(), game_assets: dir.path().into(),
+            natives: tempfile::tempdir_in(dir.path()).unwrap(), log_config: None,
+            fabric: Value::Null, managed_mods: None,
+        };
+        let command = installed.command(dir.path(), &options, &session, Vec::new(), None).unwrap();
+        let args: Vec<_> = command.get_args().map(|arg| arg.to_str().unwrap()).collect();
+        assert!(args.windows(2).any(|args| args == ["--version", "1.12.2"]));
+        assert!(args.windows(2).any(|args| args == ["--userType", "legacy"]));
+        assert_eq!(&args[args.len()-4..], &["--server", "example.org", "--port", "25566"]);
+        assert!(!args.iter().any(|arg| arg.starts_with("-Dfabric.addMods=")));
     }
 
     #[test]
@@ -1060,7 +1207,7 @@ mod tests {
             |stage: &str, percent| events.lock().unwrap().push((stage.to_owned(), percent));
         let client = Client::new();
         let make_installer = |verified| Installer {
-            profile: &PROFILE_26_3,
+            profile: Some(&PROFILE_26_3),
             client: client.clone(),
             cancelled: &cancelled,
             progress: &progress,
@@ -1107,10 +1254,11 @@ struct Installation {
     runtime: PathBuf,
     classpath: std::ffi::OsString,
     assets: PathBuf,
+    game_assets: PathBuf,
     natives: tempfile::TempDir,
-    log_config: PathBuf,
+    log_config: Option<PathBuf>,
     fabric: Value,
-    managed_mods: std::ffi::OsString,
+    managed_mods: Option<std::ffi::OsString>,
 }
 
 fn string(value: &Value) -> Result<&str> {
@@ -1299,11 +1447,17 @@ impl Installation {
             .stderr(Stdio::null());
         let version = &self.version;
         let profile = &self.fabric;
+        let version_name = if profile.is_null() { &version["id"] } else { &profile["id"] };
+        let session_id = format!("token:{}:{}", session.token, session.uuid);
         let values = [
+            ("${auth_session}", session_id.as_str()),
+            ("${user_type}", if session.token == "0" { "legacy" } else { "msa" }),
+            ("${user_properties}", "{}"),
+            ("${game_assets}", self.game_assets.to_str().ok_or("game_storage")?),
             ("${auth_player_name}", session.name.as_str()),
             ("${auth_uuid}", session.uuid.as_str()),
             ("${auth_access_token}", session.token.as_str()),
-            ("${version_name}", string(&profile["id"])?),
+            ("${version_name}", string(version_name)?),
             (
                 "${game_directory}",
                 game_dir.to_str().ok_or("game_storage")?,
@@ -1353,29 +1507,62 @@ impl Installation {
         if let Some(profiler) = profiler {
             profiler.configure(&mut java);
         }
-        let log_argument = string(&version["logging"]["client"]["argument"])?;
-        java.arg(log_argument.replace("${path}", self.log_config.to_str().ok_or("game_storage")?));
-        for arg in arguments(&version["arguments"]["jvm"], !options.fullscreen)? {
-            java.arg(substitute(arg)?);
+        if let Some(path) = &self.log_config {
+            let arg = string(&version["logging"]["client"]["argument"])?;
+            java.arg(arg.replace("${path}", path.to_str().ok_or("game_storage")?));
         }
-        for arg in arguments(&profile["arguments"]["jvm"], !options.fullscreen)? {
-            java.arg(substitute(arg)?);
+        if version["arguments"]["jvm"].is_null() {
+            java.arg(substitute("-Djava.library.path=${natives_directory}")?);
+            java.arg("-cp").arg(&self.classpath);
+        } else {
+            for arg in arguments(&version["arguments"]["jvm"], !options.fullscreen)? {
+                java.arg(substitute(arg)?);
+            }
         }
-        let mut mods_argument = std::ffi::OsString::from("-Dfabric.addMods=");
-        mods_argument.push(&self.managed_mods);
-        java.arg(mods_argument);
-        java.arg(string(&profile["mainClass"])?);
-        for arg in arguments(&version["arguments"]["game"], !options.fullscreen)? {
-            java.arg(substitute(arg)?);
+        if !profile.is_null() {
+            for arg in arguments(&profile["arguments"]["jvm"], !options.fullscreen)? {
+                java.arg(substitute(arg)?);
+            }
         }
-        for arg in arguments(&profile["arguments"]["game"], !options.fullscreen)? {
-            java.arg(substitute(arg)?);
+        if let Some(mods) = &self.managed_mods {
+            let mut argument = std::ffi::OsString::from("-Dfabric.addMods=");
+            argument.push(mods);
+            java.arg(argument);
+        }
+        java.arg(string(if profile.is_null() { &version["mainClass"] } else { &profile["mainClass"] })?);
+        if let Some(legacy) = version["minecraftArguments"].as_str() {
+            for arg in legacy.split_ascii_whitespace() {
+                java.arg(substitute(arg)?);
+            }
+            if !options.fullscreen {
+                java.args(["--width", &options.width.to_string(), "--height", &options.height.to_string()]);
+            }
+        } else {
+            for arg in arguments(&version["arguments"]["game"], !options.fullscreen)? {
+                java.arg(substitute(arg)?);
+            }
+        }
+        if !profile.is_null() {
+            for arg in arguments(&profile["arguments"]["game"], !options.fullscreen)? {
+                java.arg(substitute(arg)?);
+            }
         }
         if options.fullscreen {
             java.arg("--fullscreen");
         }
         if let Some(address) = &options.server_address {
-            java.arg("--quickPlayMultiplayer").arg(address);
+            let has_quick_play = version["arguments"]["game"].as_array().is_some_and(|args| {
+                args.iter().any(|arg| arg["rules"].as_array().is_some_and(|rules| {
+                    rules.iter().any(|rule| rule["features"]["is_quick_play_multiplayer"] == true)
+                }))
+            });
+            if has_quick_play {
+                java.arg("--quickPlayMultiplayer").arg(address);
+            } else {
+                let (host, port) = address.rsplit_once(':').filter(|(_, port)| port.parse::<u16>().is_ok())
+                    .unwrap_or((address, "25565"));
+                java.args(["--server", host, "--port", port]);
+            }
         }
         Ok(java)
     }
@@ -1559,6 +1746,17 @@ fn running_game(app: &tauri::AppHandle) -> Result<Option<(String, process::Runni
         let game_dir = crate::catalog::instance_dir(app, version)?;
         if let Some(game) = process::find(&game_dir) {
             return Ok(Some((version.into(), game)));
+        }
+    }
+    for loader in ClassicLoader::ALL {
+        let Ok(entries) = fs::read_dir(loader.root(app)?) else { continue };
+        for entry in entries.flatten() {
+            let version = entry.file_name().to_string_lossy().into_owned();
+            if loader.supports(&version) {
+                if let Some(game) = process::find(&entry.path()) {
+                    return Ok(Some((version, game)));
+                }
+            }
         }
     }
     for (profile, path) in crate::profile_import::installed(app)? {
@@ -1818,9 +2016,12 @@ pub async fn launch_minecraft(
     if !cfg!(all(windows, target_arch = "x86_64")) {
         return Err("game_platform".into());
     }
-    let profile = GAME_PROFILES.into_iter()
-        .find(|profile| profile.version == options.version)
-        .ok_or("game_version")?;
+    let classic = options.classic_loader;
+    let profile = match classic {
+        Some(loader) if loader.supports(&options.version) && options.instance_id.is_none() && options.world_invite.is_none() => None,
+        Some(_) => return Err("game_version".into()),
+        None => Some(GAME_PROFILES.into_iter().find(|profile| profile.version == options.version).ok_or("game_version")?),
+    };
     if !(2.0..=memory_limits().maximum).contains(&options.memory)
         || !(320..=8192).contains(&options.width)
         || !(240..=8192).contains(&options.height)
@@ -1848,8 +2049,11 @@ pub async fn launch_minecraft(
     let active = ActiveGame { game: game.clone(), app: app.clone() };
     tauri::async_runtime::spawn_blocking(move || {
         let _active = active;
-        let version = profile.version;
-        let game_dir = crate::profile_import::instance(&app, version, options.instance_id.as_deref())?;
+        let version = options.version.as_str();
+        let game_dir = match classic {
+            Some(loader) => loader.root(&app)?.join(version),
+            None => crate::profile_import::instance(&app, version, options.instance_id.as_deref())?,
+        };
         let cache = app
             .path()
             .app_cache_dir()
@@ -1910,10 +2114,10 @@ pub async fn launch_minecraft(
             verification_changed: AtomicBool::new(false),
         };
         progress("files", 0);
-        let metadata_path = cache.join(format!(
-            "launch-{version}-{}-v1.json",
-            options.fabric_loader
-        ));
+        let metadata_path = cache.join(match classic {
+            Some(loader) => format!("classic-{version}-{}-v1.json", loader.id()),
+            None => format!("launch-{version}-{}-v1.json", options.fabric_loader),
+        });
         let cached = LaunchMetadata::read(&metadata_path);
         let cached_installation = cached
             .as_ref()
@@ -1932,7 +2136,7 @@ pub async fn launch_minecraft(
                 return Err(error);
             }
             _ => {
-                let metadata = installer.resolve_metadata(&cache, &options.fabric_loader)?;
+                let metadata = installer.resolve_metadata(&cache, version, classic, &options.fabric_loader)?;
                 let installed = installer.install(&game_dir, &cache, &options, &metadata)?;
                 metadata.save(&metadata_path);
                 (installed, false)
@@ -1942,23 +2146,25 @@ pub async fn launch_minecraft(
         drop(catalog_lock);
         progress("account", 97);
         let session = minecraft.game_session(&app, &options.account)?;
-        let profiler = MinecraftProfiler::stage(&installed.runtime);
+        let profiler = if classic.is_none() { MinecraftProfiler::stage(&installed.runtime) } else { None };
         let mut command = installed.command(&game_dir, &options, &session, extra, profiler.as_ref())?;
         let launch_log = game_dir.join("logs/gleam-launch.log");
         if let Some(log) = launch_log.parent().and_then(|dir| fs::create_dir_all(dir).ok())
             .and_then(|_| File::create(&launch_log).ok()) {
             command.stderr(Stdio::from(log));
         }
-        let gleam_auth = auth.game_auth()?;
+        let gleam_auth = if classic.is_none() { auth.game_auth()? } else { None };
         let gleam_session = gleam_auth.as_ref().map(|session| session.stage_game_session(&game_dir)).transpose()?;
         let mut settings_sync = gleam_auth.and_then(|session| {
             progress("settings", 98);
             SettingsSync::prepare(session, &game_dir).ok().flatten()
         });
         command.env_remove("GLEAM_LAUNCH_SESSION");
-        if let (Ok(executable), Ok(data)) = (std::env::current_exe(), app.path().app_data_dir()) {
-            command.env("GLEAM_MC_ACCOUNT_HELPER", executable);
-            command.env("GLEAM_MC_ACCOUNT_DATA", data);
+        if classic.is_none() {
+            if let (Ok(executable), Ok(data)) = (std::env::current_exe(), app.path().app_data_dir()) {
+                command.env("GLEAM_MC_ACCOUNT_HELPER", executable);
+                command.env("GLEAM_MC_ACCOUNT_DATA", data);
+            }
         }
         if let Some(directory) = &gleam_session {
             command.env("GLEAM_LAUNCH_SESSION", directory.path().join("session.bin"));
@@ -1998,6 +2204,7 @@ pub async fn launch_minecraft(
         if refresh_metadata {
             let client = installer.client.clone();
             let loader = options.fabric_loader.clone();
+            let version = version.to_owned();
             let _refresh = tauri::async_runtime::spawn_blocking(move || {
                 let resolver = Installer {
                     profile,
@@ -2007,7 +2214,7 @@ pub async fn launch_minecraft(
                     verified: Mutex::new(HashMap::new()),
                     verification_changed: AtomicBool::new(false),
                 };
-                if let Ok(metadata) = resolver.resolve_metadata(&cache, &loader) {
+                if let Ok(metadata) = resolver.resolve_metadata(&cache, &version, classic, &loader) {
                     if LaunchMetadata::read(&metadata_path)
                         .is_none_or(|current| current.resolved_at <= metadata.resolved_at)
                     {
