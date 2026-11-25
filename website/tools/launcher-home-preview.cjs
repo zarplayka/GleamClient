@@ -20,8 +20,10 @@ createServer(async (request,response) => {
     if (route === '/') return response.writeHead(302,{Location:'/tools/launcher-home-preview.html'}).end();
     if (route === '/favicon.ico') return response.writeHead(204).end();
     const cosmetic = /^\/src\/main\/resources\/assets\/orion-client\/((?:textures\/)?cosmetics\/(?:wings|pets|hats)\/[a-z_]+\.(?:json|png|mesh))$/.exec(route);
+    const pauseAsset = /^\/src\/main\/resources\/assets\/orion-client\/(fonts\/paradox\/ParadoxSans-(?:Regular|SemiBold|Bold)\.ttf|textures\/cosmetics\/orion_badge\.png)$/.exec(route);
     const extension = path.extname(route);
-    const file = cosmetic ? path.join(assets,cosmetic[1])
+    const gameAsset = cosmetic ?? pauseAsset;
+    const file = gameAsset ? path.join(assets,gameAsset[1])
       : route === '/build/launcher-cosmetics.json' ? path.join(root,'build/launcher-cosmetics.json')
       : /^(?:\/tools\/|\/assets\/)[a-zA-Z0-9_/-]+\.[a-z0-9]+$/.test(route) && types[extension]
         ? path.join(site,route) : null;

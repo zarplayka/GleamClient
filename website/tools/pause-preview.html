@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Локальный макет меню паузы и откатов GleamClient">
+  <title>GleamClient · Пауза</title>
+  <link rel="icon" href="/src/main/resources/assets/orion-client/textures/cosmetics/orion_badge.png">
+  <style>
+    @font-face { font-family: Paradox; src: url("/src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-Regular.ttf"); font-weight: 400; font-display: swap }
+    @font-face { font-family: Paradox; src: url("/src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-SemiBold.ttf"); font-weight: 600; font-display: swap }
+    @font-face { font-family: Paradox; src: url("/src/main/resources/assets/orion-client/fonts/paradox/ParadoxSans-Bold.ttf"); font-weight: 700; font-display: swap }
+    :root {
+      color-scheme: dark;
+      --ink: #f3f5fb;
+      --muted: #aab3c3;
+      --accent: #c2ccff;
+      --accent-ink: #1c2450;
+      --shell: #161a23;
+      --line: #ffffff19;
+      --surface: #ffffff08;
+      --good: #8fe6b3;
+      --danger: #f4a8aa;
+      --edge: clamp(22px, 5vw, 88px);
+      font: 14px Paradox, system-ui, sans-serif;
+    }
+    * { box-sizing: border-box }
+    body { margin: 0; min-height: 100dvh; color: var(--ink); background: #101411 }
+    [hidden] { display: none !important }
+    .world, .shade { position: fixed; inset: 0; pointer-events: none }
+    .world { background: url("../assets/gameplay-baseline.webp") center / cover no-repeat }
+    .shade {
+      background:
+        linear-gradient(90deg, #0b0e16f5, #0b0e16b2 30%, #0b0e162a 64%, #0b0e160a),
+        linear-gradient(0deg,#0b0e167a,transparent 25%);
+    }
+    button, select, input { font: inherit; color: inherit }
+    button, select { cursor: pointer }
+    button:disabled, select:disabled, input:disabled { cursor: default; opacity: .46 }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px }
+    kbd {
+      display: inline-grid; place-items: center; min-height: 24px; padding: 2px 6px;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
+      color: currentColor; font: 600 11px Paradox, sans-serif; white-space: nowrap;
+    }
+    .symbols { position: absolute; width: 0; height: 0 }
+    .icon {
+      width: 21px; height: 21px; flex: none; stroke: currentColor; fill: none;
+      stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .pause {
+      position: relative; display: grid; grid-template-rows: auto 1fr auto;
+      align-items: start; min-height: 100dvh; width: min(100%, 560px);
+      padding: clamp(20px, 4.5vh, 48px) 28px clamp(18px, 4vh, 44px) var(--edge);
+    }
+    .brand { display: flex; align-items: center; gap: 11px; font-size: 15px; font-weight: 700 }
+    .brand img { width: 30px; height: 30px; object-fit: contain }
+    .pause-content { align-self: center; padding-block: 36px; width: min(100%, 390px) }
+    h1 { margin: 0 0 23px; font-size: clamp(45px, 6vw, 85px); font-weight: 700; letter-spacing: -.055em; line-height: .96 }
+    .menu { display: grid; gap: 7px }
+    .item {
+      display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 14px;
+      align-items: center; width: 100%; min-height: 51px; padding: 0 14px;
+      border: 1px solid transparent; border-radius: 11px; text-align: left;
+      background: transparent; font-size: 15px; font-weight: 600;
+      transition: background-color .16s, color .16s, border-color .16s;
+    }
+    .item:hover, .item[aria-expanded="true"] { border-color: var(--line); background: #ffffff12 }
+    .item .icon { color: var(--muted) }
+    .item.primary { min-height: 55px; border-color: transparent; background: var(--accent); color: var(--accent-ink) }
+    .item.primary:hover, .save:hover:enabled { background: #d7ddff }
+    .item.primary .icon { color: inherit }
+    .item.primary kbd, .save kbd { border-color: #1c245032; background: #1c245014 }
+    .item.replay { min-height: 59px; background: #a9b4ff12; border-color: #a9b4ff2b }
+    .item.replay:hover, .item.replay[aria-expanded="true"] { background: #a9b4ff26; border-color: #a9b4ff75 }
+    .item.replay > .icon { color: var(--accent) }
+    .item.replay .trailing { display: flex; gap: 10px; align-items: center }
+    .item.replay .trailing .icon { width: 15px; height: 15px }
+    .status { font-size: 11.5px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums }
+    .replay[data-ready] .status { color: var(--good) }
+    .menu-separator { height: 1px; margin: 5px 13px; background: var(--line) }
+    .item.exit { color: var(--danger) }
+    .item.exit .icon { color: inherit }
+    .pause-hint { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px }
+    .resume-preview {
+      position: fixed; left: var(--edge); bottom: 30px; display: flex; gap: 9px; align-items: center;
+      padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--shell);
+    }
+
+    .drawer {
+      position: fixed; inset: auto; top: var(--drawer-edge); right: var(--drawer-edge); bottom: var(--drawer-edge);
+      --drawer-edge: clamp(14px, 3.2vw, 58px);
+      margin: 0; width: min(460px, calc(100vw - 2 * var(--drawer-edge)));
+      height: auto; max-width: none; max-height: none; padding: 0; overflow: hidden;
+      color: var(--ink); background: var(--shell); border: 1px solid #ffffff25; border-radius: 17px;
+      box-shadow: 0 22px 64px #080a10a6;
+      opacity: 0; transform: translateX(25px);
+      transition: transform .24s cubic-bezier(.2,.8,.25,1), opacity .18s ease-out;
+    }
+    .drawer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto }
+    .drawer[data-visible] { opacity: 1; transform: none }
+    .drawer::backdrop { background: #080c1440 }
+    .drawer-header {
+      display: flex; align-items: center; gap: 13px;
+      margin-inline: 23px; padding-block: 19px 16px; border-bottom: 1px solid var(--line);
+    }
+    .drawer-emblem {
+      display: grid; place-items: center; width: 43px; height: 43px; flex: none;
+      border: 1px solid #c2ccff2a; border-radius: 11px; background: #a9b4ff14; color: var(--accent);
+    }
+    .drawer-emblem .icon { width: 23px; height: 23px }
+    h2 { margin: 0; font-size: 28px; letter-spacing: -.035em; line-height: 1 }
+    .close {
+      display: grid; place-items: center; width: 35px; height: 35px; margin-left: auto;
+      border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+    }
+    .close:hover { background: #ffffff16 }
+    .close .icon { width: 16px; height: 16px }
+    .drawer-body { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 16px 23px }
+    .buffer {
+      display: grid; gap: 11px; padding: 13px 15px;
+      border: 1px solid #c2ccff24; border-radius: 11px; background: #a9b4ff0b;
+    }
+    .buffer-head { display: flex; justify-content: space-between; align-items: center; gap: 10px }
+    .buffer-label { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--muted) }
+    .indicator { width: 7px; height: 7px; border-radius: 50%; background: #747e92 }
+    .buffer[data-state="ready"] .indicator { background: var(--good) }
+    .buffer[data-state="buffering"] .indicator { background: var(--accent) }
+    .buffer-time { color: var(--ink); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap }
+    .buffer-time small { color: var(--muted); font-size: inherit; font-weight: 400 }
+    .buffer progress {
+      width: 100%; height: 5px; overflow: hidden; border: 0; border-radius: 4px;
+      appearance: none; background: #272d3d; color: var(--accent);
+    }
+    .buffer progress::-webkit-progress-bar { background: #272d3d }
+    .buffer progress::-webkit-progress-value { background: var(--accent); border-radius: 4px }
+    .buffer progress::-moz-progress-bar { background: var(--accent); border-radius: 4px }
+    .save {
+      display: grid; align-items: center; grid-template-columns: 20px minmax(0, 1fr) auto;
+      gap: 9px; width: 100%; min-height: 50px; margin-top: 9px; padding: 7px 11px;
+      border: 0; border-radius: 9px; background: var(--accent); color: var(--accent-ink);
+      text-align: left; font-weight: 700; transition: background-color .16s;
+    }
+    .save .icon { width: 19px; height: 19px }
+    .note { margin: 8px 2px 0; font-size: 11.5px; line-height: 1.45; color: var(--muted) }
+    .options { margin-top: 12px }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 40px }
+    .row > label, .row > span { font-size: 13px; font-weight: 600 }
+    .select-wrap { position: relative; flex: none }
+    .select-wrap > .icon {
+      position: absolute; top: 50%; right: 9px; transform: translateY(-50%);
+      width: 12px; height: 12px; color: var(--muted); pointer-events: none;
+    }
+    select, .rate-input {
+      appearance: none; min-height: 31px; border: 1px solid var(--line); border-radius: 7px;
+      background: #222734; padding: 4px 26px 4px 9px; font-size: 12px;
+    }
+    select { min-width: 126px; max-width: 180px }
+    .rate-input { width: 62px; padding-right: 5px; font-variant-numeric: tabular-nums }
+    .control-group { display: flex; gap: 6px; align-items: center }
+    .control-group select { min-width: 74px; max-width: 125px }
+    .switch {
+      position: relative; flex: none; appearance: none; display: block; width: 35px; height: 20px;
+      border: 1px solid #ffffff34; border-radius: 999px;
+      margin: 0; background: #2b3140; cursor: pointer; transition: background-color .16s;
+    }
+    .switch::after {
+      content: ""; position: absolute; left: 3px; top: 3px; width: 12px; height: 12px;
+      border-radius: 50%; background: #b6bece; transition: transform .16s;
+    }
+    .switch:checked { background: var(--accent); border-color: var(--accent) }
+    .switch:checked::after { transform: translateX(15px); background: var(--accent-ink) }
+    details { margin-top: 11px; border-top: 1px solid var(--line) }
+    summary {
+      display: flex; gap: 9px; align-items: center; min-height: 46px; cursor: pointer;
+      list-style: none; font-size: 13.5px; font-weight: 700;
+    }
+    summary::-webkit-details-marker { display: none }
+    summary .icon { width: 17px; height: 17px; color: var(--muted) }
+    summary .chevron { margin-left: auto; transition: transform .18s }
+    details[open] .chevron { transform: rotate(180deg) }
+    .settings { padding-top: 1px }
+    .settings .row + .row { border-top: 1px solid #ffffff0c }
+    .drawer-footer {
+      min-height: 37px; display: flex; justify-content: space-between; gap: 7px; align-items: center;
+      margin-inline: 23px; padding-block: 6px; border-top: 1px solid var(--line);
+      color: var(--muted); font-size: 11.5px;
+    }
+    .drawer-footer > span:first-child { display: flex; gap: 6px; align-items: center }
+    .estimate { font-variant-numeric: tabular-nums }
+    .toast {
+      position: fixed; z-index: 1; right: var(--edge); bottom: 31px; max-width: min(390px, calc(100vw - 40px));
+      margin: 0; padding: 11px 15px; border: 1px solid var(--line); border-radius: 9px;
+      background: var(--shell); color: var(--ink); box-shadow: 0 12px 30px #080a1070;
+    }
+    .drawer-status { color: var(--good); min-height: 0 }
+    .drawer-status:empty { display: none }
+    @media (max-width: 620px) {
+      .pause { width: min(100%, 455px); padding-right: var(--edge) }
+      .shade { background: linear-gradient(90deg,#0b0e16e8,#0b0e1652) }
+      .drawer-header, .drawer-footer { margin-inline: 15px }
+      .drawer-body { padding-inline: 15px }
+    }
+    @media (max-width: 379px) {
+      .item { gap: 9px; padding-inline: 9px }
+      .item.replay .trailing { gap: 3px }
+      .save { font-size: 12px }
+      .row { gap: 7px }
+      .row > label { font-size: 12px }
+      select { min-width: 100px }
+    }
+    @media (max-height: 630px) {
+      .pause-content { padding-block: 18px }
+      h1 { font-size: clamp(45px, 5.7vw, 64px); margin-bottom: 15px }
+      .item, .item.primary, .item.replay { min-height: 44px }
+      .menu { gap: 4px }
+      .drawer { --drawer-edge: 12px }
+      .drawer-header { padding-block: 11px }
+      .drawer-body { padding-block: 11px }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important } }
+  </style>
+</head>
+<body>
+  <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5 19 12 8 18.5z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-replay" viewBox="0 0 24 24"><path d="M4 13a8 8 0 1 0 1.8-6L3 10m0-5v5h5m4-2v4l3 2"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M10 4h4l.7 2.4 2 .9 2.3-.9 2 3.4-1.6 1.8v2l1.6 1.8-2 3.4-2.3-.9-2 .9L14 21h-4l-.7-2.2-2-.9-2.3.9-2-3.4 1.6-1.8v-2L3 9.8l2-3.4 2.3.9 2-.9z"/><circle cx="12" cy="12.5" r="2.8"/></symbol>
+    <symbol id="i-modules" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+    <symbol id="i-exit" viewBox="0 0 24 24"><path d="M10 4H5v16h5m4-12 4 4-4 4m-5-4h10"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></symbol>
+  </svg>
+
+  <div class="world" aria-hidden="true"></div>
+  <div class="shade" id="shade" aria-hidden="true"></div>
+  <main class="pause" id="pause" aria-labelledby="pause-title">
+    <header class="brand">
+      <img src="/src/main/resources/assets/orion-client/textures/cosmetics/orion_badge.png" alt="">
+      <span>GleamClient</span>
+    </header>
+    <div class="pause-content">
+      <h1 id="pause-title">Пауза</h1>
+      <nav class="menu" aria-label="Меню паузы">
+        <button class="item primary" id="resume" type="button"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Продолжить игру</span><kbd>Esc</kbd></button>
+        <button class="item replay" id="open-replay" type="button" aria-controls="replay" aria-haspopup="dialog" aria-expanded="false">
+          <svg class="icon" aria-hidden="true"><use href="#i-replay"/></svg><span>Откаты</span>
+          <span class="trailing"><span class="status" id="menu-status"></span><svg class="icon" aria-hidden="true"><use href="#i-right"/></svg></span>
+        </button>
+        <button class="item" type="button" data-preview="В игре откроются настройки Minecraft"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg><span>Настройки</span></button>
+        <button class="item" type="button" data-preview="В игре откроется ClickGUI"><svg class="icon" aria-hidden="true"><use href="#i-modules"/></svg><span>Модули</span></button>
+        <div class="menu-separator" aria-hidden="true"></div>
+        <button class="item exit" type="button" data-preview="В игре эта кнопка выходит из мира"><svg class="icon" aria-hidden="true"><use href="#i-exit"/></svg><span>Выйти из мира</span></button>
+      </nav>
+    </div>
+    <footer class="pause-hint"><kbd>↑</kbd><kbd>↓</kbd><span>Выбрать</span><kbd>Enter</kbd><span>Открыть</span></footer>
+  </main>
+  <button class="resume-preview" id="show-pause" type="button" hidden><kbd>Esc</kbd> Открыть паузу</button>
+
+  <dialog class="drawer" id="replay" aria-labelledby="replay-title">
+    <header class="drawer-header">
+      <span class="drawer-emblem"><svg class="icon" aria-hidden="true"><use href="#i-replay"/></svg></span>
+      <h2 id="replay-title">Откаты</h2>
+      <button class="close" id="close-replay" type="button" aria-label="Закрыть" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </header>
+    <div class="drawer-body">
+      <section class="buffer" id="buffer">
+        <div class="buffer-head">
+          <span class="buffer-label"><span class="indicator" aria-hidden="true"></span><span id="buffer-label"></span></span>
+          <span class="buffer-time"><span id="buffer-time"></span><small id="buffer-total"></small></span>
+        </div>
+        <progress id="buffer-progress" aria-label="Заполнение буфера"></progress>
+      </section>
+      <button class="save" id="save" type="button"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg><span id="save-label"></span><kbd>Alt + F10</kbd></button>
+      <p class="note" id="buffer-note">При сохранении из паузы клип закончится на открытии меню.</p>
+      <p class="note drawer-status" id="drawer-status" role="status"></p>
+
+      <section class="options" aria-label="Буфер откатов">
+        <div class="row"><label for="enabled">Буфер откатов</label><input class="switch" id="enabled" type="checkbox" role="switch" checked></div>
+        <div class="row"><label for="duration">Длительность</label><span class="select-wrap"><select id="duration"><option value="30">30 секунд</option><option value="60" selected>60 секунд</option><option value="120">120 секунд</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
+      </section>
+
+      <details open>
+        <summary><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>Настройки записи<svg class="icon chevron" aria-hidden="true"><use href="#i-down"/></svg></summary>
+        <div class="settings">
+          <div class="row"><label for="audio">Источник звука</label><span class="select-wrap"><select id="audio"><option value="game">Minecraft</option><option value="system">Вся система</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
+          <div class="row"><label for="mic">Микрофон</label><input class="switch" id="mic" type="checkbox" role="switch"></div>
+          <div class="row"><label for="resolution">Разрешение</label><span class="select-wrap"><select id="resolution"><option value="720">720p</option><option value="1080" selected>1080p</option><option value="1440">1440p</option><option value="source">Исходное</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
+          <div class="row"><label for="fps">FPS записи</label><span class="select-wrap"><select id="fps"><option value="30">30 FPS</option><option value="60" selected>60 FPS</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
+          <div class="row"><label for="quality">Качество</label><span class="select-wrap"><select id="quality"><option value="performance">Производительность</option><option value="balanced" selected>Баланс</option><option value="quality">Качество</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
+          <div class="row"><label for="bitrate-mode">Битрейт</label><div class="control-group"><span class="select-wrap"><select id="bitrate-mode"><option value="auto">Авто</option><option value="manual">Вручную</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span><input class="rate-input" id="bitrate" type="number" min="2" max="60" value="16" aria-label="Битрейт в Мбит/с" hidden></div></div>
+        </div>
+      </details>
+    </div>
+    <footer class="drawer-footer"><span><kbd>Esc</kbd> Назад</span><span class="estimate" id="estimate"></span></footer>
+  </dialog>
+  <p class="toast" id="toast" role="status" hidden></p>
+
+  <script>
+    (() => {
+      const byId = id => document.getElementById(id);
+      const query = new URLSearchParams(location.search);
+      const pause = byId('pause');
+      const drawer = byId('replay');
+      const opener = byId('open-replay');
+      const enabled = byId('enabled');
+      const duration = byId('duration');
+      const save = byId('save');
+      const bitrateMode = byId('bitrate-mode');
+      const bitrate = byId('bitrate');
+      const motion = matchMedia('(prefers-reduced-motion: reduce)');
+      const recording = ['resolution', 'fps', 'quality', 'bitrate-mode', 'bitrate'];
+      const rateBase = {720: 9, 1080: 16, 1440: 25, source: 16};
+      const rateFactors = {performance: .75, balanced: 1, quality: 1.25};
+      let available = query.get('state') === 'buffering' ? 24 : 60;
+      let playingSince = null;
+      let previewTimer;
+      let savePending = false;
+      let closingTimer;
+      let settingBitrate = null;
+      enabled.checked = query.get('state') !== 'off';
+      if (!enabled.checked) available = 0;
+
+      function length() { return Number(duration.value); }
+      function seconds() {
+        const playing = playingSince === null ? 0 : (performance.now() - playingSince) / 1000;
+        return enabled.checked ? Math.min(length(), Math.floor(available + playing)) : 0;
+      }
+      function time(sec) {
+        return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+      }
+      function rate() {
+        if (bitrateMode.value === 'manual') {
+          return Math.max(2, Math.min(60, Number(bitrate.value) || 16));
+        }
+        const profile = rateFactors[byId('quality').value];
+        const frameRate = byId('fps').value === '60' ? 1 : .65;
+        return Math.round(rateBase[byId('resolution').value] * profile * frameRate);
+      }
+      function render() {
+        const target = length();
+        const buffered = seconds();
+        const ready = buffered === target;
+        opener.toggleAttribute('data-ready', ready);
+        byId('menu-status').textContent = ready ? 'Готово · ' + target + ' с'
+          : enabled.checked ? (buffered ? buffered + ' из ' + target + ' с' : 'Накопление…') : 'Выключено';
+        byId('buffer').dataset.state = ready ? 'ready' : enabled.checked ? 'buffering' : 'off';
+        byId('buffer-label').textContent = ready ? 'Буфер готов' : enabled.checked ? 'Буфер заполняется' : 'Буфер выключен';
+        byId('buffer-time').textContent = time(buffered);
+        byId('buffer-total').textContent = ' / ' + time(target);
+        byId('buffer-progress').max = target;
+        byId('buffer-progress').value = buffered;
+        byId('save-label').textContent = savePending ? 'Сохраняем клип…'
+          : buffered ? 'Сохранить последние ' + buffered + ' с' : 'Сохранить откат';
+        save.disabled = savePending || buffered < 1;
+        byId('buffer-note').textContent = !enabled.checked ? 'Включи буфер, чтобы сохранять моменты из игры.'
+          : buffered === 0 ? 'Буфер заполнится, когда вернёшься в игру.'
+          : 'При сохранении из паузы клип закончится на открытии меню.';
+        bitrate.hidden = bitrateMode.value !== 'manual';
+        if (bitrate.hidden) bitrate.value = rate();
+        const source = byId('resolution').value;
+        const resolution = source === 'source' ? 'Исходное' : source + 'p';
+        byId('estimate').textContent = resolution + ' · ' + byId('fps').value + ' FPS · ' + rate() + ' Мбит/с';
+      }
+      function drawerMessage(message = '') {
+        byId('drawer-status').textContent = message;
+        byId('buffer-note').hidden = Boolean(message);
+      }
+      function toast(message) {
+        if (drawer.open) {
+          drawerMessage(message);
+          return;
+        }
+        const element = byId('toast');
+        clearTimeout(previewTimer);
+        element.textContent = message;
+        element.hidden = false;
+        previewTimer = setTimeout(() => { element.hidden = true; }, 2500);
+      }
+      function openDrawer() {
+        clearTimeout(closingTimer);
+        if (!drawer.open) drawer.showModal();
+        opener.setAttribute('aria-expanded', 'true');
+        if (motion.matches) drawer.dataset.visible = '';
+        else requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (drawer.open && opener.getAttribute('aria-expanded') === 'true') drawer.dataset.visible = '';
+        }));
+      }
+      function closeDrawer() {
+        if (!drawer.open || opener.getAttribute('aria-expanded') === 'false') return;
+        delete drawer.dataset.visible;
+        opener.setAttribute('aria-expanded', 'false');
+        const finish = () => {
+          drawer.close();
+          drawerMessage();
+          opener.focus();
+        };
+        if (motion.matches) finish();
+        else closingTimer = setTimeout(finish, 245);
+      }
+      function resume() {
+        playingSince = performance.now();
+        pause.hidden = true;
+        byId('shade').hidden = true;
+        byId('show-pause').hidden = false;
+        byId('show-pause').focus();
+      }
+      function showPause() {
+        available = seconds();
+        playingSince = null;
+        pause.hidden = false;
+        byId('shade').hidden = false;
+        byId('show-pause').hidden = true;
+        render();
+        byId('resume').focus();
+      }
+      function saveClip() {
+        const buffered = seconds();
+        if (savePending || buffered < 1) {
+          if (!drawer.open && buffered < 1) toast(enabled.checked ? 'Буфер пока пуст' : 'Буфер откатов выключен');
+          return;
+        }
+        savePending = true;
+        drawerMessage();
+        render();
+        setTimeout(() => {
+          savePending = false;
+          render();
+          toast('Клип сохранён · ' + buffered + ' с');
+        }, 330);
+      }
+
+      opener.addEventListener('click', openDrawer);
+      byId('close-replay').addEventListener('click', closeDrawer);
+      drawer.addEventListener('cancel', event => { event.preventDefault(); closeDrawer(); });
+      drawer.addEventListener('click', event => {
+        if (event.target !== drawer) return;
+        const bounds = drawer.getBoundingClientRect();
+        if (event.clientX < bounds.left || event.clientX > bounds.right ||
+            event.clientY < bounds.top || event.clientY > bounds.bottom) closeDrawer();
+      });
+      byId('resume').addEventListener('click', resume);
+      byId('show-pause').addEventListener('click', showPause);
+      save.addEventListener('click', saveClip);
+      enabled.addEventListener('change', () => { available = 0; render(); });
+      duration.addEventListener('change', () => { available = Math.min(available, length()); render(); });
+      for (const id of recording) byId(id).addEventListener('change', () => {
+        const value = rate();
+        if (id !== 'bitrate-mode' || value !== settingBitrate) available = 0;
+        settingBitrate = value;
+        if (id === 'bitrate') bitrate.value = value;
+        render();
+      });
+      for (const button of pause.querySelectorAll('[data-preview]')) {
+        button.addEventListener('click', () => toast(button.dataset.preview));
+      }
+      document.addEventListener('keydown', event => {
+        if (event.altKey && event.code === 'F10') {
+          event.preventDefault();
+          if (!event.repeat) saveClip();
+          return;
+        }
+        if (drawer.open) return;
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          if (pause.hidden) showPause(); else resume();
+          return;
+        }
+        if (pause.hidden || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+        event.preventDefault();
+        const items = [...pause.querySelectorAll('.item')];
+        const index = items.indexOf(document.activeElement);
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        items[index < 0 ? 0 : (index + step + items.length) % items.length].focus();
+      });
+      settingBitrate = rate();
+      render();
+      if (query.get('panel') === 'replays') openDrawer();
+    })();
+  </script>
+</body>
+</html>
