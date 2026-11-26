@@ -79,13 +79,17 @@
 
     .replay-screen {
       --screen-edge: clamp(16px, 3vw, 48px);
-      position: fixed; inset: 0; width: 100%; height: 100dvh; max-width: none; max-height: none;
-      margin: 0; border: 0; padding: 0; overflow: hidden; color: var(--ink);
-      background: #13151d; opacity: 0; transition: opacity .16s ease-out;
+      --window-gutter: clamp(12px, 5vw, 58px);
+      position: fixed; inset: 0; margin: auto;
+      width: min(820px, calc(100% - 2 * var(--window-gutter)));
+      height: min(500px, calc(100dvh - 2 * var(--window-gutter)));
+      max-width: none; max-height: none; padding: 0; overflow: hidden;
+      border: 1px solid #ffffff25; border-radius: 15px; color: var(--ink); background: #13151d;
+      box-shadow: 0 22px 65px #080a10a0; opacity: 0; transition: opacity .16s ease-out;
     }
     .replay-screen[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) }
     .replay-screen[data-visible] { opacity: 1 }
-    .replay-screen::backdrop { background: #13151d }
+    .replay-screen::backdrop { background: #090b1375 }
     .screen-header {
       display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center;
       min-height: 65px; gap: 12px; padding: 12px var(--screen-edge); border-bottom: 1px solid var(--line); background: #171922;
@@ -196,7 +200,7 @@
       margin: 0; padding: 11px 15px; border: 1px solid var(--line); border-radius: 9px;
       background: var(--shell); color: var(--ink); box-shadow: 0 12px 30px #080a1070;
     }
-    .replay-status { color: var(--good); right: var(--screen-edge); bottom: 20px; pointer-events: none }
+    .replay-status { position: absolute; color: var(--good); right: var(--screen-edge); bottom: 20px; pointer-events: none }
     .replay-status:empty { display: none }
     @media (max-width: 620px) {
       .screen-header { min-height: 58px; gap: 7px }
@@ -210,6 +214,9 @@
     }
     @media (max-width: 379px) {
       .pause { --menu-gap: 7px; --menu-row: 34px; padding-inline: 13px }
+      .screen-header { grid-template-columns: minmax(0, 1fr) auto }
+      .screen-header .tabs { grid-column: 1 / -1; grid-row: 2; justify-self: center }
+      .back { grid-column: 2; grid-row: 1 }
       .screen-title .icon, .back kbd { display: none }
       .row { gap: 7px }
       .row > label { font-size: 12px }
@@ -584,6 +591,12 @@
       opener.addEventListener('click', () => openReplays());
       byId('close-replay').addEventListener('click', back);
       screen.addEventListener('cancel', event => { event.preventDefault(); back(); });
+      screen.addEventListener('click', event => {
+        if (event.target !== screen) return;
+        const bounds = screen.getBoundingClientRect();
+        if (event.clientX < bounds.left || event.clientX > bounds.right ||
+            event.clientY < bounds.top || event.clientY > bounds.bottom) closeReplays();
+      });
       filters.forEach((filter, index) => filter.addEventListener('click', () => {
         favoritesOnly = index === 1;
         filters.forEach((button, position) => button.setAttribute('aria-pressed', String(position === index)));
