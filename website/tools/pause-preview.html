@@ -138,32 +138,67 @@
     .favorite:hover { background: #242a3d }
     .favorite .icon { width: 15px; height: 15px }
     .favorite[aria-pressed="true"] .icon { fill: var(--accent); color: var(--accent) }
-    .edit-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px }
-    .edit-header h3 { margin: 0; font-size: 14px; overflow-wrap: anywhere }
+    .edit-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px }
+    .edit-header h3 { margin: 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere }
     .edit-back, .plain-action, .key-button {
       border: 1px solid var(--line); border-radius: 5px; background: var(--surface);
       color: var(--ink); font-size: 12px; padding: 5px 8px; min-height: 29px;
     }
     .edit-back:hover, .plain-action:hover, .key-button:hover { background: #ffffff12 }
-    .edit-back { display: inline-flex; gap: 6px; align-items: center; white-space: nowrap }
+    .edit-back {
+      display: inline-flex; gap: 6px; align-items: center; white-space: nowrap;
+      border-color: transparent; background: transparent; color: var(--muted); padding-inline: 5px; font-size: 11.5px;
+    }
     .edit-back .icon { width: 13px; height: 13px }
-    .edit-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 25%); gap: 18px; align-items: start }
-    .edit-frame { position: relative; margin: 0; overflow: hidden; border-radius: 6px; border: 1px solid var(--line); background: #0b0d13 }
+    .edit-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(215px, 24%); gap: 17px; align-items: start }
+    .edit-player { min-width: 0 }
+    .edit-frame { position: relative; margin: 0; overflow: hidden; border-radius: 5px; border: 1px solid var(--line); background: #0b0d13 }
     .edit-frame img { object-fit: contain }
-    .edit-frame figcaption { position: absolute; right: 8px; bottom: 8px; color: #fff; background: #0b0d16df; border-radius: 4px; padding: 3px 6px; font-size: 11px }
-    .timeline { margin-top: 10px }
-    .timeline input { display: block; width: 100%; margin: 0; accent-color: var(--accent) }
-    .timeline-track { height: 4px; margin-bottom: 6px; border-radius: 3px; background: #232734; position: relative }
-    .timeline-track::after { content: ""; position: absolute; inset-block: 0; left: var(--trim-start, 0%); right: var(--trim-end, 0%); border-radius: inherit; background: #8c9bef }
-    .timeline-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 5px }
-    .timeline-controls output { margin-right: auto; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px }
+    .edit-frame figcaption { position: absolute; right: 8px; bottom: 8px; color: #fff; background: #0b0d16df; border-radius: 3px; padding: 3px 6px; font-size: 10px }
+    .timeline { margin-top: 8px }
+    .timeline-track { position: relative; height: 23px; --thumb: 12px }
+    .timeline-rail { position: absolute; inset: 9px calc(var(--thumb) / 2) auto; height: 5px; border-radius: 3px; background: #2b2d3b; pointer-events: none }
+    .timeline-rail::after {
+      content: ""; position: absolute; inset-block: 0; left: var(--trim-start, 0%); right: var(--trim-end, 0%);
+      border-radius: inherit; background: #8995df;
+    }
+    .timeline-track input {
+      position: absolute; inset: 0; width: 100%; height: 23px; margin: 0;
+      appearance: none; background: transparent; cursor: ew-resize;
+    }
+    .timeline-track .trim-handle { pointer-events: none }
+    .timeline-track input::-webkit-slider-runnable-track { height: 20px; background: transparent }
+    .timeline-track input::-moz-range-track { height: 20px; background: transparent }
+    .timeline-track input::-webkit-slider-thumb {
+      appearance: none; width: var(--thumb); height: var(--thumb); margin-top: 4px; border-radius: 50%;
+      background: #f0f3ff; border: 2px solid #161926; cursor: ew-resize;
+    }
+    .timeline-track input::-moz-range-thumb {
+      box-sizing: border-box; width: var(--thumb); height: var(--thumb); border: 2px solid #161926;
+      border-radius: 50%; background: #f0f3ff; cursor: ew-resize;
+    }
+    .timeline-track .trim-handle::-webkit-slider-thumb {
+      pointer-events: auto; height: 18px; margin-top: 1px; border-radius: 3px; background: #c2ccff;
+      border: 2px solid #1b2032;
+    }
+    .timeline-track .trim-handle::-moz-range-thumb {
+      pointer-events: auto; height: 18px; border-radius: 3px; background: #c2ccff; border: 2px solid #1b2032;
+    }
+    .timeline-track input:focus-visible { outline-offset: 0; z-index: 1 }
+    .timeline output { display: block; margin-top: 3px; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 11.5px }
     .editor-tools { min-width: 0; border-left: 1px solid var(--line); padding-left: 15px }
-    .editor-tools h4 { margin: 0 0 8px; font-size: 12.5px }
-    .editor-tools p { margin: 0 0 15px; color: var(--muted); font-size: 11.5px; line-height: 1.45 }
-    .editor-tools .row { min-height: 36px }
+    .editor-tools h4 { margin: 0 0 6px; font-size: 12.5px }
+    .edit-metadata { display: grid; gap: 5px; margin: 0 0 13px; padding: 0 0 11px; border-bottom: 1px solid var(--line) }
+    .edit-metadata div { display: flex; align-items: baseline; justify-content: space-between; gap: 9px; font-size: 11px }
+    .edit-metadata dt { color: var(--muted) }
+    .edit-metadata dd { margin: 0; text-align: right }
+    .editor-tools .row { min-height: 34px }
+    .editor-tools .row > label { font-size: 12px }
+    .editor-tools p { margin: 7px 0 10px; color: var(--muted); font-size: 11.5px }
     .trim-value { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px }
-    .trim-value input { width: 69px }
-    .edit-actions { display: grid; gap: 6px; margin-top: 10px }
+    .trim-value input { width: 69px; min-height: 27px }
+    .edit-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px }
+    .edit-actions button { min-width: 0 }
     .plain-action.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600 }
     .plain-action.primary:hover:enabled { background: #d7ddff }
     .settings-group + .settings-group { margin-top: 22px }
@@ -333,21 +368,25 @@
             <h3 id="edit-title" tabindex="-1"></h3>
           </header>
           <div class="edit-layout">
-            <div>
+            <div class="edit-player">
               <figure class="edit-frame"><img src="../assets/gameplay-orion.webp" alt="Кадр из Minecraft"><figcaption>Демонстрационный кадр</figcaption></figure>
               <section class="timeline" aria-label="Таймлайн">
-                <div class="timeline-track" id="trim-track" aria-hidden="true"></div>
-                <input id="edit-position" type="range" min="0" step=".1" value="0" aria-label="Позиция на таймлайне">
-                <div class="timeline-controls">
-                  <output id="edit-clock"></output>
-                  <button class="plain-action" id="mark-start" type="button">Начало здесь</button>
-                  <button class="plain-action" id="mark-end" type="button">Конец здесь</button>
+                <div class="timeline-track" id="trim-track">
+                  <div class="timeline-rail" aria-hidden="true"></div>
+                  <input id="edit-position" type="range" min="0" step=".1" value="0" aria-label="Позиция на таймлайне">
+                  <input id="start-handle" class="trim-handle" type="range" min="0" step=".1" value="0" aria-label="Начало обрезки">
+                  <input id="end-handle" class="trim-handle" type="range" min="0" step=".1" aria-label="Конец обрезки">
                 </div>
+                <output id="edit-clock"></output>
               </section>
             </div>
             <aside class="editor-tools" aria-label="Обрезка клипа">
-              <h4>Клип</h4>
-              <p id="edit-meta"></p>
+              <h4>О клипе</h4>
+              <dl class="edit-metadata">
+                <div><dt>Дата</dt><dd id="edit-meta"></dd></div>
+                <div><dt>Видео</dt><dd id="edit-format"></dd></div>
+                <div><dt>Длительность</dt><dd id="edit-duration"></dd></div>
+              </dl>
               <h4>Обрезка</h4>
               <div class="row"><label for="trim-start">Начало</label><span class="trim-value"><input id="trim-start" class="rate-input" type="number" min="0" step=".1"> с</span></div>
               <div class="row"><label for="trim-end">Конец</label><span class="trim-value"><input id="trim-end" class="rate-input" type="number" min=".1" step=".1"> с</span></div>

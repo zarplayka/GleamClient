@@ -18,6 +18,8 @@
   const editorPosition = byId('edit-position');
   const startInput = byId('trim-start');
   const endInput = byId('trim-end');
+  const startHandle = byId('start-handle');
+  const endHandle = byId('end-handle');
   const trimTrack = byId('trim-track');
   const trimSave = byId('trim-save');
   const tabs = [byId('tab-clips'), byId('tab-settings')];
@@ -227,7 +229,10 @@
     edit = {clip, start: 0, end: clip.seconds};
     clipFocus = opener;
     byId('edit-title').textContent = clip.title;
-    byId('edit-meta').textContent = date.format(clip.at) + ' · ' + clip.format + ' · ' + time(clip.seconds);
+    byId('edit-meta').textContent = date.format(clip.at);
+    byId('edit-format').textContent = clip.format;
+    byId('edit-duration').textContent = time(clip.seconds);
+    startHandle.max = endHandle.max = clip.seconds;
     editorPosition.max = clip.seconds;
     editorPosition.value = '0';
     clipList.hidden = true;
@@ -253,6 +258,11 @@
     endInput.max = edit.clip.seconds;
     startInput.value = edit.start;
     endInput.value = edit.end;
+    startHandle.value = edit.start;
+    endHandle.value = edit.end;
+    startHandle.setAttribute('aria-valuetext', time(edit.start));
+    endHandle.setAttribute('aria-valuetext', time(edit.end));
+    editorPosition.setAttribute('aria-valuetext', time(Number(editorPosition.value)));
     trimTrack.style.setProperty('--trim-start', (edit.start / edit.clip.seconds * 100) + '%');
     trimTrack.style.setProperty('--trim-end', ((1 - edit.end / edit.clip.seconds) * 100) + '%');
     byId('edit-clock').textContent = time(Number(editorPosition.value)) + ' / ' + time(edit.clip.seconds);
@@ -370,8 +380,8 @@
   editorPosition.addEventListener('input', renderTrim);
   startInput.addEventListener('change', () => setTrim('start', startInput.valueAsNumber));
   endInput.addEventListener('change', () => setTrim('end', endInput.valueAsNumber));
-  byId('mark-start').addEventListener('click', () => setTrim('start', Number(editorPosition.value)));
-  byId('mark-end').addEventListener('click', () => setTrim('end', Number(editorPosition.value)));
+  startHandle.addEventListener('input', () => setTrim('start', startHandle.valueAsNumber));
+  endHandle.addEventListener('input', () => setTrim('end', endHandle.valueAsNumber));
   byId('trim-reset').addEventListener('click', () => { edit.start = 0; edit.end = edit.clip.seconds; renderTrim(); });
   trimSave.addEventListener('click', () => {
     const original = edit.clip;
