@@ -12,6 +12,7 @@
     "OrionTitleScreenMixin",
     "GleamReplayPauseMixin",
     "GleamReplayKeyboardMixin",
+    "OrionPerformanceMixin",
     "OrionWorldBrowserMixin",
     "OrionWorldBrowserTextMixin",
     "OrionMinecraftSessionMixin",

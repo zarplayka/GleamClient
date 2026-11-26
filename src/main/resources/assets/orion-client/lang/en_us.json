@@ -25,6 +25,7 @@
   "key.orion-client.football.rotate_left": "Rotate goal left",
   "key.orion-client.football.rotate_right": "Rotate goal right",
   "key.orion-client.football.penalty": "Toggle penalty mode",
+  "key.orion-client.performance": "Performance monitor",
   "gleam.replay.title": "Replays",
   "gleam.replay.windowFailed": "Could not open Replays. Check that Microsoft Edge WebView2 Runtime is installed"
 }

@@ -15,6 +15,7 @@ import ru.orion.client.config.OrionConfigManager;
 import ru.orion.client.gui.OrionClickGuiScreen;
 import ru.orion.client.gui.OrionEmoteWheelScreen;
 import ru.orion.client.effect.OrionEmotes;
+import ru.orion.client.hud.OrionPerformanceHud;
 
 import java.util.Locale;
 
@@ -26,6 +27,7 @@ public final class OrionKeybinds {
 
     private final OrionConfigManager configManager;
     private KeyMapping openClickGuiKey;
+    private KeyMapping performanceKey;
     private static KeyMapping lockSlotKey;
     private static KeyMapping zoomKey;
     private static KeyMapping freeLookKey;
@@ -86,6 +88,14 @@ public final class OrionKeybinds {
                 //?} else {
                                 /*"key.orion-client.emotes", InputConstants.Type.KEYSYM, InputConstants.KEY_V, CATEGORY));
                 *///?}
+        performanceKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.orion-client.performance",
+                //? if >=26.3 {
+                InputConstants.Type.KEYBOARD,
+                //?} else {
+                /*InputConstants.Type.KEYSYM,
+                *///?}
+                InputConstants.KEY_F6, CATEGORY));
         ClientTickEvents.END_CLIENT_TICK.register(this::handleClientTick);
     }
 
@@ -130,6 +140,7 @@ public final class OrionKeybinds {
     }
 
     private void handleClientTick(Minecraft client) {
+        while (performanceKey.consumeClick()) OrionPerformanceHud.toggle(client);
         while (freeLookKey.consumeClick()) { /* FreeLook reads the held state. */ }
         while (emoteKey.consumeClick()) {
             if (configManager.getConfig().isEmotesEnabled() && GleamMinecraft.screen(client) == null
