@@ -37,9 +37,10 @@ bool valid_id(std::string_view id, std::string_view prefix) {
 }
 
 void capture(HWND window, DWORD pid, const std::filesystem::path& directory, VideoSettings settings,
-             unsigned duration, unsigned audio_mode, bool mic) {
+             unsigned duration, unsigned audio_mode, bool mic, std::wstring_view token) {
     DWORD owner{};
     if (!GetWindowThreadProcessId(window, &owner) || owner != pid) throw std::runtime_error("Invalid capture window");
+    FrameChannel frames(token, false);
     std::filesystem::create_directories(directory);
     auto queue = commands();
     RollingBuffer buffer(duration * second);
@@ -115,10 +116,9 @@ void capture(HWND window, DWORD pid, const std::filesystem::path& directory, Vid
         const bool streaming = buffering || !requested_recording.empty() ||
             (recording && (stop_at < 0 || now - stop_at < second / 5));
         if (streaming && !video) {
-            auto opened_video = std::make_unique<Video>(window, settings);
+            auto opened_video = std::make_unique<Video>(frames, settings);
             auto opened_audio = std::make_unique<Audio>(pid, audio_mode, mic);
             origin = qpc_time();
-            opened_video->start();
             video = std::move(opened_video);
             audio = std::move(opened_audio);
             report("READY", winrt::to_string(video->name()));
@@ -131,7 +131,7 @@ void capture(HWND window, DWORD pid, const std::filesystem::path& directory, Vid
             video->pump(consume);
             video->submit(origin);
             audio->pump(origin, consume);
-            HANDLE handles[4]{queue->wake.get(), video->wake()};
+            HANDLE handles[4]{queue->wake.get(), frames.wake.get()};
             DWORD count = 2;
             audio->add_wake(handles, count);
             WaitForMultipleObjects(count, handles, FALSE, 10);
@@ -167,13 +167,13 @@ int wmain(int argc, wchar_t** argv) {
         winrt::init_apartment();
         check_hresult(MFStartup(MF_VERSION, MFSTARTUP_FULL));
         ScopeExit shutdown([] { MFShutdown(); });
-        if (argc == 12 && std::wstring_view(argv[1]) == L"capture") {
+        if (argc == 13 && std::wstring_view(argv[1]) == L"capture") {
             auto window = reinterpret_cast<HWND>(parse<uintptr_t>(argv[2], 1, UINTPTR_MAX));
             auto pid = parse<DWORD>(argv[3], 1, UINT32_MAX);
             VideoSettings settings{parse<unsigned>(argv[5], 144, 2160), parse<unsigned>(argv[6], 15, 60),
                 parse<unsigned>(argv[7], 2'000'000, 60'000'000), parse<unsigned>(argv[8], 0, 100)};
             capture(window, pid, argv[4], settings, parse<unsigned>(argv[9], 5, 300),
-                    parse<unsigned>(argv[10], 0, 2), parse<unsigned>(argv[11], 0, 1) != 0);
+                    parse<unsigned>(argv[10], 0, 2), parse<unsigned>(argv[11], 0, 1) != 0, argv[12]);
             return 0;
         }
         if (argc == 6 && std::wstring_view(argv[1]) == L"trim") {

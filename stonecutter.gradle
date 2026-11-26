@@ -49,12 +49,13 @@ def buildWorldIce = tasks.register('buildWorldIce', Exec) {
 }
 
 def replayExecutable = layout.buildDirectory.file('replay-native/gleam-replay.exe')
+def replayCapture = layout.buildDirectory.file('replay-native/gleam-replay-capture.dll')
 def buildReplay = tasks.register('buildReplay', Exec) {
     onlyIf { System.getProperty('os.name').startsWith('Windows') }
     inputs.files(fileTree('native/replay') { include '*.cpp', '*.h', 'build.ps1' })
-    outputs.file(replayExecutable)
+    outputs.files(replayExecutable, replayCapture)
     commandLine 'powershell.exe', '-NoProfile', '-File', file('native/replay/build.ps1').absolutePath,
-            '-Output', replayExecutable.get().asFile.absolutePath
+            '-Output', replayExecutable.get().asFile.absolutePath, '-JavaHome', System.getProperty('java.home')
 }
 
 def collect = tasks.register('collectArtifacts', Sync) {
@@ -76,6 +77,7 @@ gradle.projectsEvaluated {
                 dependsOn buildWorldIce, buildReplay
                 from(iceExecutable) { into 'assets/orion-client/native' }
                 from(replayExecutable) { into 'assets/orion-client/native' }
+                from(replayCapture) { into 'assets/orion-client/native' }
             }
         }
         def remapped = target.name == '1.21.11'
@@ -120,6 +122,8 @@ tasks.register('verifyArtifacts') {
                     throw new GradleException("Missing direct UDP helper in ${artifact.name}")
                 if (System.getProperty('os.name').startsWith('Windows') && zip.getEntry('assets/orion-client/native/gleam-replay.exe') == null)
                     throw new GradleException("Missing replay helper in ${artifact.name}")
+                if (System.getProperty('os.name').startsWith('Windows') && zip.getEntry('assets/orion-client/native/gleam-replay-capture.dll') == null)
+                    throw new GradleException("Missing render capture in ${artifact.name}")
                 def metadata = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry('fabric.mod.json')))
                 if (metadata.depends.minecraft != mc || metadata.version != mod_version)
                     throw new GradleException("Wrong Minecraft/mod version in ${artifact.name}")

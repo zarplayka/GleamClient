@@ -2,20 +2,15 @@
 
 #include <windows.h>
 #include <d3d11_4.h>
-#include <dxgi1_2.h>
-#include <dwmapi.h>
+#include <dxgi1_4.h>
+#include "frame_share.h"
+#include <array>
 #include <mfapi.h>
 #include <mferror.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
 #include <codecapi.h>
 #include <icodecapi.h>
-#include <windows.graphics.capture.interop.h>
-#include <windows.graphics.directx.direct3d11.interop.h>
-#include <winrt/Windows.Graphics.Capture.h>
-#include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
-#include <winrt/Windows.Foundation.Metadata.h>
-#include <winrt/Windows.Security.Authorization.AppCapabilityAccess.h>
 #include <algorithm>
 #include <cstdint>
 #include <limits>
@@ -34,18 +29,10 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "strmiids.lib")
 #pragma comment(lib, "user32.lib")
-#pragma comment(lib, "dwmapi.lib")
 
 namespace replay {
 using winrt::check_hresult;
 using winrt::com_ptr;
-using namespace winrt::Windows::Graphics;
-using namespace winrt::Windows::Graphics::Capture;
-using namespace winrt::Windows::Graphics::DirectX;
-using namespace winrt::Windows::Graphics::DirectX::Direct3D11;
-
-constexpr LONGLONG second = 10'000'000;
-
 template <typename Cleanup>
 struct ScopeExit {
     Cleanup cleanup;
@@ -53,13 +40,6 @@ struct ScopeExit {
     ScopeExit(const ScopeExit&) = delete;
     ~ScopeExit() { cleanup(); }
 };
-
-inline LONGLONG qpc_time() {
-    static const LONGLONG frequency = [] { LARGE_INTEGER value; QueryPerformanceFrequency(&value); return value.QuadPart; }();
-    LARGE_INTEGER current;
-    QueryPerformanceCounter(&current);
-    return current.QuadPart / frequency * second + current.QuadPart % frequency * second / frequency;
-}
 
 inline auto media_type() {
     com_ptr<IMFMediaType> type;
@@ -125,14 +105,15 @@ struct VideoSettings {
 };
 
 class Video {
-    HWND window_;
-    winrt::handle wake_;
-    GraphicsCaptureItem item_{nullptr};
-    Direct3D11CaptureFramePool frame_pool_{nullptr};
-    GraphicsCaptureSession capture_{nullptr};
-    Direct3D11CaptureFramePool::FrameArrived_revoker arrived_;
-    IDirect3DDevice projected_{nullptr};
-    SizeInt32 capture_size_{};
+    struct InputSlot {
+        com_ptr<ID3D11Texture2D> texture;
+        com_ptr<ID3D11VideoProcessorInputView> view;
+        com_ptr<ID3D11Query> complete;
+        bool reading{};
+    };
+
+    FrameChannel& channel_;
+    std::array<InputSlot, frame_slot_count> inputs_;
     com_ptr<ID3D11Device> device_;
     com_ptr<ID3D11DeviceContext> context_;
     com_ptr<ID3D11VideoDevice> video_device_;
@@ -153,49 +134,46 @@ class Video {
     bool force_key_ = false;
     std::wstring name_;
 
-    RECT content_rect(SizeInt32 size) const {
-        RECT full{0, 0, size.Width, size.Height}, client{}, window{}, extended{};
-        if (!GetClientRect(window_, &client)) return full;
-        POINT corner{client.left, client.top}, other{client.right, client.bottom};
-        if (!ClientToScreen(window_, &corner) || !ClientToScreen(window_, &other)) return full;
-        GetWindowRect(window_, &window);
-        DwmGetWindowAttribute(window_, DWMWA_EXTENDED_FRAME_BOUNDS, &extended, sizeof(extended));
-        for (const RECT& bounds : {extended, window}) {
-            if (bounds.right - bounds.left != size.Width || bounds.bottom - bounds.top != size.Height) continue;
-            if (corner.x < bounds.left || corner.y < bounds.top || other.x > bounds.right || other.y > bounds.bottom) continue;
-            if (other.x - corner.x < 2 || other.y - corner.y < 2) continue;
-            return {corner.x - bounds.left, corner.y - bounds.top, other.x - bounds.left, other.y - bounds.top};
-        }
-        return full;
-    }
-
-    void geometry(SizeInt32 size) {
-        processor_ = nullptr;
-        processor_format_ = nullptr;
+    void open_video_processor() {
         D3D11_VIDEO_PROCESSOR_CONTENT_DESC description{};
         description.InputFrameFormat = D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
-        description.InputWidth = static_cast<UINT>(size.Width);
-        description.InputHeight = static_cast<UINT>(size.Height);
-        description.OutputWidth = width_;
-        description.OutputHeight = height_;
+        description.InputWidth = description.OutputWidth = width_;
+        description.InputHeight = description.OutputHeight = height_;
         description.InputFrameRate = description.OutputFrameRate = {settings_.fps, 1};
         description.Usage = D3D11_VIDEO_USAGE_OPTIMAL_SPEED;
         check_hresult(video_device_->CreateVideoProcessorEnumerator(&description, processor_format_.put()));
         check_hresult(video_device_->CreateVideoProcessor(processor_format_.get(), 0, processor_.put()));
-
-        RECT src = content_rect(size);
-        LONG content_width = src.right - src.left, content_height = src.bottom - src.top;
-        double scale = std::min(double(width_) / content_width, double(height_) / content_height);
-        LONG w = static_cast<LONG>(content_width * scale) & ~1L;
-        LONG h = static_cast<LONG>(content_height * scale) & ~1L;
-        LONG x = (static_cast<LONG>(width_) - w) / 2;
-        LONG y = (static_cast<LONG>(height_) - h) / 2;
-        RECT dst{x, y, x + w, y + h};
-        RECT full{0, 0, static_cast<LONG>(width_), static_cast<LONG>(height_)};
-        video_context_->VideoProcessorSetStreamSourceRect(processor_.get(), 0, TRUE, &src);
-        video_context_->VideoProcessorSetStreamDestRect(processor_.get(), 0, TRUE, &dst);
-        video_context_->VideoProcessorSetOutputTargetRect(processor_.get(), TRUE, &full);
         video_context_->VideoProcessorSetStreamAutoProcessingMode(processor_.get(), 0, FALSE);
+
+        for (size_t i = 0; i < inputs_.size(); ++i) {
+            auto& input = inputs_[i];
+            const auto handle = reinterpret_cast<HANDLE>(channel_.frames->slots[i].texture);
+            check_hresult(device_->OpenSharedResource(handle, __uuidof(ID3D11Texture2D), input.texture.put_void()));
+            D3D11_TEXTURE2D_DESC texture_desc{};
+            input.texture->GetDesc(&texture_desc);
+            if (texture_desc.Width != width_ || texture_desc.Height != height_ ||
+                texture_desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM)
+                throw std::runtime_error("Invalid shared game texture");
+            D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC input_desc{};
+            input_desc.ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D;
+            check_hresult(video_device_->CreateVideoProcessorInputView(input.texture.get(), processor_format_.get(),
+                &input_desc, input.view.put()));
+            D3D11_QUERY_DESC query{D3D11_QUERY_EVENT, 0};
+            check_hresult(device_->CreateQuery(&query, input.complete.put()));
+        }
+    }
+
+    void release_gpu_inputs() {
+        for (size_t i = 0; i < inputs_.size(); ++i) {
+            auto& input = inputs_[i];
+            if (!input.reading) continue;
+            HRESULT completed = context_->GetData(input.complete.get(), nullptr, 0, D3D11_ASYNC_GETDATA_DONOTFLUSH);
+            check_hresult(completed);
+            if (completed == S_OK) {
+                input.reading = false;
+                InterlockedExchange(&channel_.frames->slots[i].state, frame_free);
+            }
+        }
     }
 
     auto video_type(GUID subtype) const {
@@ -293,79 +271,34 @@ class Video {
     }
 
 public:
-    Video(HWND window, VideoSettings settings)
-        : window_(window), wake_(CreateEventW(nullptr, FALSE, FALSE, nullptr)), settings_(settings) {
-        if (!wake_) winrt::throw_last_error();
-        if (!GraphicsCaptureSession::IsSupported()) throw std::runtime_error("Windows Graphics Capture unavailable");
-        auto factory = winrt::get_activation_factory<GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
-        check_hresult(factory->CreateForWindow(window, winrt::guid_of<GraphicsCaptureItem>(), winrt::put_abi(item_)));
-        capture_size_ = item_.Size();
-        if (capture_size_.Width < 2 || capture_size_.Height < 2) throw std::runtime_error("Window has no capturable content");
-        auto source = content_rect(capture_size_);
-        auto content_width = source.right - source.left, content_height = source.bottom - source.top;
-        double factor = std::min({1.0, double(settings.height) / content_height, 3840.0 / content_width});
-        width_ = std::max(2u, static_cast<unsigned>(content_width * factor) & ~1u);
-        height_ = std::max(2u, static_cast<unsigned>(content_height * factor) & ~1u);
-        if (width_ < 64 || height_ < 64) throw std::runtime_error("The capture window is too small");
+    Video(FrameChannel& channel, VideoSettings settings)
+        : channel_(channel), settings_(settings), width_(channel.frames->width), height_(channel.frames->height) {
+        if (InterlockedCompareExchange(&channel.frames->version, 0, 0) != shared_frames_version ||
+            width_ < 64 || width_ > 3840 || height_ < 64 || height_ > settings.height ||
+            (width_ & 1) || (height_ & 1)) throw std::runtime_error("Invalid game frame format");
 
-        check_hresult(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+        com_ptr<IDXGIFactory4> factory;
+        check_hresult(CreateDXGIFactory1(__uuidof(IDXGIFactory4), factory.put_void()));
+        com_ptr<IDXGIAdapter> adapter;
+        check_hresult(factory->EnumAdapterByLuid(channel.frames->adapter, __uuidof(IDXGIAdapter), adapter.put_void()));
+        check_hresult(D3D11CreateDevice(adapter.get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr,
             D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_VIDEO_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
             device_.put(), nullptr, context_.put()));
         context_.as<ID3D11Multithread>()->SetMultithreadProtected(TRUE);
         video_device_ = device_.as<ID3D11VideoDevice>();
         video_context_ = context_.as<ID3D11VideoContext>();
-        auto dxgi = device_.as<IDXGIDevice>();
-        winrt::com_ptr<IInspectable> inspectable;
-        check_hresult(CreateDirect3D11DeviceFromDXGIDevice(dxgi.get(), inspectable.put()));
-        projected_ = inspectable.as<IDirect3DDevice>();
-        geometry(capture_size_);
+        open_video_processor();
         open_encoder();
-        frame_pool_ = Direct3D11CaptureFramePool::CreateFreeThreaded(projected_, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, capture_size_);
-        winrt::handle event;
-        if (!DuplicateHandle(GetCurrentProcess(), wake_.get(), GetCurrentProcess(), event.put(), 0, FALSE, DUPLICATE_SAME_ACCESS))
-            winrt::throw_last_error();
-        auto shared_wake = std::make_shared<winrt::handle>(std::move(event));
-        arrived_ = frame_pool_.FrameArrived(winrt::auto_revoke, [shared_wake](auto const&, auto const&) { SetEvent(shared_wake->get()); });
-        capture_ = frame_pool_.CreateCaptureSession(item_);
-        auto supports = [](const wchar_t* name) {
-            return winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(
-                L"Windows.Graphics.Capture.GraphicsCaptureSession", name);
-        };
-        if (supports(L"IsCursorCaptureEnabled")) capture_.IsCursorCaptureEnabled(false);
-        if (supports(L"IncludeSecondaryWindows")) capture_.IncludeSecondaryWindows(false);
-        if (supports(L"MinUpdateInterval")) capture_.MinUpdateInterval(winrt::Windows::Foundation::TimeSpan(second / settings_.fps));
-        if (supports(L"IsBorderRequired")) {
-            // Packaged apps can be prompted. Desktop apps can also have consent managed by Windows.
-            static const bool request_borderless = [] {
-                using Access = winrt::Windows::Security::Authorization::AppCapabilityAccess::AppCapabilityAccessStatus;
-                try {
-                    return GraphicsCaptureAccess::RequestAccessAsync(GraphicsCaptureAccessKind::Borderless).get() == Access::Allowed;
-                } catch (const winrt::hresult_error&) {
-                    // Some unpackaged systems expose only the session property.
-                    return true;
-                }
-            }();
-            if (request_borderless) {
-                try { capture_.IsBorderRequired(false); }
-                catch (const winrt::hresult_error&) { /* Windows keeps its capture indicator. */ }
-            }
-        }
     }
 
     ~Video() {
-        arrived_.revoke();
-        try {
-            if (capture_) capture_.Close();
-            if (frame_pool_) frame_pool_.Close();
-        } catch (...) {}
         if (encoder_) {
             encoder_->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
             encoder_->ProcessMessage(MFT_MESSAGE_NOTIFY_END_STREAMING, 0);
         }
+        try { release_gpu_inputs(); } catch (...) {}
     }
 
-    void start() { capture_.StartCapture(); }
-    HANDLE wake() const { return wake_.get(); }
     const std::wstring& name() const { return name_; }
     void request_key() { force_key_ = true; }
     IMFMediaType* type() const { return output_type_.get(); }
@@ -421,21 +354,26 @@ public:
     }
 
     void submit(LONGLONG origin) {
-        auto frame = frame_pool_.TryGetNextFrame();
-        if (!frame) return;
-        if (auto latest = frame_pool_.TryGetNextFrame()) frame = std::move(latest);
-        SizeInt32 size = frame.ContentSize();
-        if (size.Width < 2 || size.Height < 2) return;
-        if (size.Width != capture_size_.Width || size.Height != capture_size_.Height) {
-            frame.Close();
-            capture_size_ = size;
-            frame_pool_.Recreate(projected_, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
-            geometry(size);
+        release_gpu_inputs();
+        if (!requests_) return;
+        auto& frames = *channel_.frames;
+        size_t latest = inputs_.size();
+        LONGLONG time = -1;
+        for (size_t i = 0; i < inputs_.size(); ++i) {
+            auto& slot = frames.slots[i];
+            if (InterlockedCompareExchange(&slot.state, frame_ready, frame_ready) != frame_ready) continue;
+            if (slot.time > time) {
+                time = slot.time;
+                latest = i;
+            }
+        }
+        if (latest == inputs_.size()) return;
+        const LONGLONG interval = second / settings_.fps;
+        const LONGLONG timestamp = std::max<LONGLONG>(0, time - origin);
+        if (timestamp + interval / 6 < next_frame_ || timestamp <= last_input_) {
+            InterlockedExchange(&frames.slots[latest].state, frame_free);
             return;
         }
-        LONGLONG interval = second / settings_.fps;
-        LONGLONG timestamp = std::max<LONGLONG>(0, frame.SystemRelativeTime().count() - origin);
-        if (!requests_ || timestamp + interval / 6 < next_frame_ || timestamp <= last_input_) return;
         com_ptr<IMFSample> sample;
         HRESULT allocated = allocator_->AllocateSample(sample.put());
         if (allocated == MF_E_SAMPLEALLOCATOR_EMPTY) return;
@@ -443,17 +381,11 @@ public:
         com_ptr<IMFMediaBuffer> buffer;
         check_hresult(sample->GetBufferByIndex(0, buffer.put()));
         auto target_buffer = buffer.as<IMFDXGIBuffer>();
-        com_ptr<ID3D11Texture2D> target, source;
+        com_ptr<ID3D11Texture2D> target;
         check_hresult(target_buffer->GetResource(__uuidof(ID3D11Texture2D), target.put_void()));
-        check_hresult(frame.Surface().as<::Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess>()
-            ->GetInterface(__uuidof(ID3D11Texture2D), source.put_void()));
         UINT subresource{};
         check_hresult(target_buffer->GetSubresourceIndex(&subresource));
 
-        com_ptr<ID3D11VideoProcessorInputView> input;
-        D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC input_desc{};
-        input_desc.ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D;
-        check_hresult(video_device_->CreateVideoProcessorInputView(source.get(), processor_format_.get(), &input_desc, input.put()));
         com_ptr<ID3D11VideoProcessorOutputView> output;
         D3D11_TEXTURE2D_DESC texture_desc{};
         target->GetDesc(&texture_desc);
@@ -466,8 +398,18 @@ public:
         check_hresult(video_device_->CreateVideoProcessorOutputView(target.get(), processor_format_.get(), &output_desc, output.put()));
         D3D11_VIDEO_PROCESSOR_STREAM stream{};
         stream.Enable = TRUE;
-        stream.pInputSurface = input.get();
+        auto& source = inputs_[latest];
+        InterlockedExchange(&frames.slots[latest].state, frame_reading);
+        source.reading = true;
+        for (size_t i = 0; i < inputs_.size(); ++i) {
+            auto& slot = frames.slots[i];
+            if (InterlockedCompareExchange(&slot.state, frame_ready, frame_ready) == frame_ready && slot.time <= time)
+                InterlockedExchange(&slot.state, frame_free);
+        }
+        stream.pInputSurface = source.view.get();
         check_hresult(video_context_->VideoProcessorBlt(processor_.get(), output.get(), 0, 1, &stream));
+        context_->End(source.complete.get());
+        context_->Flush();
         check_hresult(sample->SetSampleTime(timestamp));
         check_hresult(sample->SetSampleDuration(interval));
         if (force_key_ || last_input_ < 0 || timestamp / second != last_input_ / second) {
@@ -481,7 +423,6 @@ public:
     }
 
     void begin_drain() {
-        capture_.Close();
         check_hresult(encoder_->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0));
         check_hresult(encoder_->ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0));
     }
