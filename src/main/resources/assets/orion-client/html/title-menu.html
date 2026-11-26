@@ -77,6 +77,10 @@ html[data-light]{--accent:#4257b2;--accent-ink:#fff;--surface:#f6f7fb;--hover:#e
       <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>
       <span class="label" id="modules"></span><svg class="arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
     </button>
+    <button class="item" data-action="replays" id="replays-button" hidden>
+      <svg class="icon" viewBox="0 0 24 24"><path d="M4 13a8 8 0 1 0 1.8-6L3 10m0-5v5h5m4-2v4l3 2"/></svg>
+      <span class="label" id="replays"></span><svg class="arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
+    </button>
     <button class="item" data-action="settings">
       <svg class="icon" viewBox="0 0 24 24"><path d="m10 4-.6 2.2-1.6.9-2.2-.6-2 3.5 1.6 1.6v1.8l-1.6 1.5 2 3.5 2.2-.6 1.6.9.6 2.3h4l.6-2.3 1.6-.9 2.2.6 2-3.5-1.6-1.5v-1.8l1.6-1.6-2-3.5-2.2.6-1.6-.9L14 4z"/><circle cx="12" cy="12.5" r="2.5"/></svg>
       <span class="label" id="settings"></span><svg class="arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
@@ -125,7 +129,7 @@ html[data-light]{--accent:#4257b2;--accent-ink:#fff;--surface:#f6f7fb;--hover:#e
 <script>
 const $ = id => document.getElementById(id);
 const scene = $('scene'), menu = $('menu'), brand = $('brand'), cover = $('cover'), panorama = $('panorama');
-const labels = ['single','multi','modules','settings','account','accountType','version','minecraftAccounts','addMicrosoft','addOffline','gleamProfile'];
+const labels = ['single','multi','modules','settings','replays','account','accountType','version','minecraftAccounts','addMicrosoft','addOffline','gleamProfile'];
 const rows = Array.from(menu.querySelectorAll('button'));
 const accountButton = $('account-button'), accountList = $('account-list'), toolbar = $('toolbar');
 const accountOptions = Array.from(accountList.querySelectorAll('button'));
@@ -186,6 +190,7 @@ window.paradox = {update(state) {
   for (const name of labels) $(name).textContent = state[name];
   $('multi-button').disabled = !!state.multiReason;
   $('multi-button').title = state.multiReason;
+  $('replays-button').hidden = !state.hasReplays;
   $('account-initial').textContent = (state.account || '?').slice(0,1).toUpperCase();
   [state.themeAction,state.clientSettings,state.quit].forEach((label,i) => {
     tools[i].title = label;
@@ -198,16 +203,17 @@ window.paradox = {update(state) {
   if (state.avatar && avatar.getAttribute('src') !== 'assets/' + state.avatar + '.png') avatar.src = 'assets/' + state.avatar + '.png';
   $('account-icon').hidden = !!state.avatar;
   const menuWidth = Math.min(302,width - 44);
-  const menuHeight = rows.length * 41 + (rows.length - 1) * 6;
+  const visibleRows = rows.filter(row => !row.hidden);
+  const menuHeight = visibleRows.length * 41 + (visibleRows.length - 1) * 6;
   const brandGap = 80;
   const offset = Math.max(60,height * .43 - (menuHeight + brandGap) / 2);
   menu.style.width = menuWidth + 'px';
   translate(menu,(width-menuWidth)/2,offset+brandGap);
   translate(brand,mix(centerX,(width-270)/2,progress),mix(centerY,offset,progress),mix(splashScale,1,progress));
-  for (let i=0; i<rows.length; i++) {
+  for (let i=0; i<visibleRows.length; i++) {
     const p = ease(Math.max(0,Math.min(1,entering * 1.6 - .2 - i * .10)));
-    rows[i].style.opacity = String(p);
-    rows[i].style.transform = 'translateY(' + ((1 - p) * 8) + 'px)';
+    visibleRows[i].style.opacity = String(p);
+    visibleRows[i].style.transform = 'translateY(' + ((1 - p) * 8) + 'px)';
   }
   revealed = entering >= .65;
 }};

@@ -89,6 +89,14 @@
     .replay-screen[data-visible] { opacity: 1; transform: none }
     .replay-screen::backdrop { background: #090a116b; opacity: 0; transition: opacity .22s ease-out }
     .replay-screen[data-visible]::backdrop { opacity: 1 }
+    body[data-client] :is(.world, .shade, .pause, .title-menu) { display: none }
+    body[data-client] .replay-screen { width: 100%; height: 100dvh; border-radius: 0; box-shadow: none }
+    body[data-client] .replay-screen::backdrop { background: #14151c }
+    body[data-client] .clip-thumb { display: grid; place-items: center }
+    body[data-client] .clip-thumb img { position: absolute; inset: 0; height: 100% }
+    .clip-placeholder { color: var(--muted) }
+    .folder-action { display: grid; place-items: center; min-width: 29px; min-height: 29px; padding: 3px }
+    .folder-action .icon { width: 15px; height: 15px }
     .screen-header {
       display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch;
       min-height: 57px; gap: 12px; padding-inline: var(--screen-edge); border-bottom: 1px solid var(--line); background: #171820;
@@ -449,6 +457,7 @@
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 4H6a2 2 0 0 0-2 2v10"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16m-3 0-1 13H8L7 7m3 0V4h4v3"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 19V5h7l3 3h8v11z"/></symbol>
   </svg>
 
   <div class="world" aria-hidden="true"></div>
@@ -509,6 +518,9 @@
             </div>
             <div class="library-actions">
               <span class="clip-count" id="clip-count"></span>
+              <button class="plain-action folder-action" id="clip-folder" type="button" aria-label="Открыть папку клипов" title="Открыть папку клипов" hidden>
+                <svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>
+              </button>
               <button class="record-action" id="record-action" type="button">
                 <svg class="icon" aria-hidden="true"><use href="#i-record"/></svg>
                 <span id="record-label">Начать запись</span>
@@ -635,7 +647,7 @@
           </section>
           <section class="settings-group" id="settings-audio" role="tabpanel" aria-labelledby="settings-audio-tab" hidden>
             <h3>Звук</h3>
-            <div class="row"><label for="audio">Источник звука</label><span class="select-wrap"><select id="audio"><option value="game">Minecraft</option><option value="system">Вся система</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
+            <div class="row"><label for="audio">Источник звука</label><span class="select-wrap"><select id="audio"><option value="game">Minecraft</option><option value="system">Вся система</option><option value="none">Без звука игры и системы</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
             <div class="row"><label for="mic">Микрофон</label><input class="switch" id="mic" type="checkbox" role="switch"></div>
           </section>
           <section class="settings-group" id="settings-keys" role="tabpanel" aria-labelledby="settings-keys-tab" hidden>
@@ -655,7 +667,7 @@
   <template id="clip-template">
     <li class="clip-card">
       <button class="clip-open" type="button">
-        <span class="clip-thumb"><img alt=""><span class="clip-length"></span></span>
+        <span class="clip-thumb"><svg class="icon clip-placeholder" aria-hidden="true" hidden><use href="#i-video"/></svg><img alt=""><span class="clip-length"></span></span>
         <span><strong class="clip-name"></strong><small class="clip-meta"></small></span>
       </button>
       <button class="favorite" type="button"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg></button>

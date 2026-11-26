@@ -83,6 +83,10 @@ abstract class OrionTitleScreenMixin extends Screen {
             }
             return;
         }
+        if ("replays".equals(action)) {
+            ru.orion.client.replay.GleamReplay.INSTANCE.open(minecraft);
+            return;
+        }
         if ("modules".equals(action) || "account".equals(action) || "client-settings".equals(action)) {
             var client = OrionClient.getInstance();
             var page = switch (action) {

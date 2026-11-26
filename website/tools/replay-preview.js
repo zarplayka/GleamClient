@@ -1,6 +1,7 @@
 (() => {
   const byId = id => document.getElementById(id);
   const query = new URLSearchParams(location.search);
+  const live = query.get('client') === '1' && typeof window.ipc?.postMessage === 'function';
   const titleMenu = byId('title-menu');
   const pause = byId('pause');
   const screen = byId('replay');
@@ -58,7 +59,7 @@
   const number = new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 1});
   const plurals = new Intl.PluralRules('ru');
   const clipImage = '../assets/gameplay-orion.webp';
-  const clips = [{kind: 'replay', title: 'Откат из мира', at: new Date('2026-11-25T18:24:00'), seconds: 24, favorite: false}];
+  const clips = live ? [] : [{kind: 'replay', title: 'Откат из мира', at: new Date('2026-11-25T18:24:00'), seconds: 24, favorite: false}];
   const clipNumbers = {replay: 1, recording: 0};
   const clipTypes = {replay: 'Откат', recording: 'Запись'};
   const defaultBindings = {
@@ -83,6 +84,8 @@
   let previewTimer, replayTimer, closingTimer, replayOpener;
   let bindingAction, bindings = readBindings();
   let activeBitrate = rate();
+  let liveState, liveMessage = 0, liveClips = '', postingSettings = false;
+  let liveCommands = Promise.resolve();
 
   if (multiplayer) byId('exit').querySelector('span').textContent = 'Отключиться';
   if (major >= 26) {
@@ -112,6 +115,7 @@
   }
 
   function readBindings() {
+    if (live) return {...defaultBindings};
     try {
       const stored = JSON.parse(localStorage.getItem(bindingKey));
       const valid = value => value && typeof value.code === 'string' && /^[A-Z][A-Za-z0-9]{0,30}$/.test(value.code) &&
@@ -126,6 +130,7 @@
   }
 
   function writeBindings() {
+    if (live) { post('bindings', bindings); return; }
     try { localStorage.setItem(bindingKey, JSON.stringify(bindings)); } catch {}
   }
 
@@ -166,6 +171,10 @@
       return;
     }
     if (!event.code || /^(Alt|Shift|Control|Meta)(Left|Right)$/.test(event.code)) return;
+    if (live && !/^(?:Key[A-Z]|Digit[0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Insert|Delete|Home|End|PageUp|PageDown|Arrow(?:Up|Down|Left|Right)|Space|Enter|NumpadEnter)$/.test(event.code)) {
+      syncBindings('Эта клавиша недоступна в Minecraft');
+      return;
+    }
     const candidate = getBinding(event);
     if (bindingIds.some(action => action !== bindingAction && bindings[action] && sameBinding(candidate, bindings[action]))) {
       syncBindings('Это сочетание уже назначено другому действию');
@@ -206,7 +215,11 @@
     bitrate.hidden = bitrateMode.value !== 'manual';
     if (bitrate.hidden) bitrate.value = rate();
     const size = Math.round(length() * rate() / 8);
-    byId('estimate').textContent = 'Около ' + size + ' МБ за ' + length() + ' с записи при ' + rate() + ' Мбит/с';
+    const audio = byId('audio').value !== 'none' || byId('mic').checked;
+    const bufferSeconds = Math.floor(256 * 1024 * 1024 * 8 / (rate() * 1_000_000 + (audio ? 1_536_000 : 0)));
+    byId('estimate').textContent = live && bufferSeconds < length()
+      ? 'Лимит буфера 256 МиБ. При этих настройках поместится около ' + bufferSeconds + ' с'
+      : 'Около ' + size + ' МБ за ' + length() + ' с записи при ' + rate() + ' Мбит/с';
   }
   function setEnabled(on, initialSeconds = 0) {
     enabled.checked = on;
@@ -222,6 +235,89 @@
     byId('shade').hidden = next === 'playing';
     byId('show-pause').hidden = next !== 'playing';
     syncManualRecording();
+  }
+
+  function post(action, values = {}) {
+    const body = JSON.stringify({action, values});
+    liveCommands = liveCommands.then(async () => {
+      try {
+        const request = await fetch('api/action', {method: 'POST', headers: {'Content-Type': 'application/json'}, body});
+        if (!request.ok) throw Error(request.statusText);
+      } catch { toast('Нет связи с Minecraft'); }
+    });
+  }
+
+  function publishSettings() {
+    if (!live || !liveState || postingSettings) return;
+    post('settings', {
+      duration: duration.value, customSeconds, resolution: byId('resolution').value,
+      fps: Number(byId('fps').value), quality: byId('quality').value, bitrateMode: bitrateMode.value,
+      bitrate: Number(bitrate.value), audio: byId('audio').value, mic: byId('mic').checked
+    });
+  }
+
+  function loadLiveSettings(values) {
+    postingSettings = true;
+    customSeconds = values.customSeconds;
+    customDuration.value = customSeconds;
+    bitrate.value = values.bitrate;
+    byId('mic').checked = values.mic;
+    for (const [id, value] of Object.entries({
+      duration: values.duration, resolution: values.resolution, fps: values.fps, quality: values.quality,
+      'bitrate-mode': values.bitrateMode, audio: values.audio
+    })) {
+      const control = byId(id);
+      control.value = value;
+      control.dispatchEvent(new Event('change'));
+    }
+    for (const [action, stored] of Object.entries(values.keys)) {
+      const [mask, code] = stored.split(':');
+      bindings[action] = {code, modifiers: Number(mask)};
+    }
+    syncBindings();
+    postingSettings = false;
+  }
+
+  async function refreshLive() {
+    try {
+      const response = await fetch('api/state');
+      if (!response.ok) throw Error(response.statusText);
+      const snapshot = await response.json();
+      if (!liveState) {
+        loadLiveSettings(snapshot.settings);
+        editor.querySelector('.trim-help').textContent = 'Границы на таймлайне или I / O. Начало при сохранении привязывается к ключевому кадру.';
+      }
+      liveState = snapshot;
+      enabled.checked = snapshot.buffer;
+      recordAction.hidden = !snapshot.inWorld;
+      recordAction.disabled = snapshot.pending;
+      recordAction.toggleAttribute('data-recording', snapshot.recording);
+      recordAction.querySelector('use').setAttribute('href', snapshot.recording ? '#i-stop' : '#i-record');
+      byId('record-label').textContent = snapshot.pending ? 'Подождите…' : snapshot.recording ? 'Остановить запись' : 'Начать запись';
+      recordTime.hidden = !snapshot.recording || snapshot.pending;
+      if (snapshot.recording) recordTime.textContent = time(Math.max(0, Math.floor((Date.now() - snapshot.recordedAt) / 1000)));
+      const identity = JSON.stringify(snapshot.clips);
+      if (liveClips !== identity) {
+        liveClips = identity;
+        clips.splice(0, clips.length, ...snapshot.clips);
+        const selected = edit && clips.find(clip => clip.id === edit.clip.id);
+        if (edit && !selected) returnToClips(true);
+        else if (selected) {
+          if (selected.revision !== edit.clip.revision) openEditor(selected, clipFocus);
+          else {
+            edit.clip = selected;
+            editFavorite.setAttribute('aria-pressed', String(selected.favorite));
+          }
+        }
+        renderClips();
+      }
+      if (snapshot.version > liveMessage) {
+        liveMessage = snapshot.version;
+        toast(snapshot.message);
+      }
+    } catch {
+      if (!liveState) toast('Нет связи с Minecraft');
+    } finally { setTimeout(refreshLive, document.hidden ? 1600 : 450); }
   }
   function resume() {
     const newWorld = view === 'title';
@@ -262,7 +358,13 @@
       const card = byId('clip-template').content.firstElementChild.cloneNode(true);
       const open = card.querySelector('.clip-open');
       const star = card.querySelector('.favorite');
-      card.querySelector('img').src = clipImage;
+      const image = card.querySelector('img');
+      if (live) {
+        card.querySelector('.clip-placeholder').hidden = false;
+        image.addEventListener('error', () => { image.hidden = true; }, {once: true});
+        image.loading = 'lazy';
+        image.src = 'media/' + clip.id + '.jpg?v=' + clip.revision;
+      } else image.src = clipImage;
       card.querySelector('.clip-length').textContent = time(clip.seconds);
       card.querySelector('.clip-name').textContent = clip.title;
       card.querySelector('.clip-meta').textContent = clipTypes[clip.kind] + ' · ' + date.format(clip.at);
@@ -275,6 +377,7 @@
       }
       describeFavorite();
       star.addEventListener('click', () => {
+        if (live) { post('favorite', {id: clip.id, favorite: !clip.favorite}); return; }
         clip.favorite = !clip.favorite;
         if (activeFilter === 'favorites' && !clip.favorite) {
           renderClips();
@@ -307,7 +410,9 @@
   function seekPreview(position) {
     if (!edit) return;
     editorPosition.value = Math.max(0, Math.min(edit.clip.seconds, position));
-    if (Number.isFinite(editVideo.duration) && editVideo.duration > 0) {
+    if (live && Number.isFinite(editVideo.duration)) {
+      editVideo.currentTime = Math.min(editVideo.duration, Number(editorPosition.value));
+    } else if (Number.isFinite(editVideo.duration) && editVideo.duration > 0) {
       const position = Number(editorPosition.value);
       const target = (edit.clip.sampleStart ?? 0) + position;
       edit.sampleCycle = Math.floor(target / editVideo.duration);
@@ -322,6 +427,7 @@
   }
 
   function loadPreview() {
+    if (live) return Promise.resolve();
     if (!previewLoad) {
       previewLoad = fetch('replay-demo.json').then(response => {
         if (!response.ok) throw Error('Replay example is unavailable');
@@ -357,13 +463,13 @@
       if (Number(editorPosition.value) >= edit.clip.seconds) seekPreview(0);
       await editVideo.play();
     } catch (error) {
-      if (current === edit && error.name !== 'AbortError') toast('Демонстрационное видео не загрузилось');
+      if (current === edit && error.name !== 'AbortError') toast(live ? 'Не удалось открыть клип' : 'Демонстрационное видео не загрузилось');
     }
   }
 
   function syncVideoClock() {
     if (!edit || !Number.isFinite(editVideo.duration)) return;
-    const sourceTime = edit.sampleCycle * editVideo.duration + editVideo.currentTime;
+    const sourceTime = live ? editVideo.currentTime : edit.sampleCycle * editVideo.duration + editVideo.currentTime;
     const position = Math.max(0, Math.min(edit.clip.seconds, sourceTime - (edit.clip.sampleStart ?? 0)));
     if (position >= edit.clip.seconds && !editVideo.paused) editVideo.pause();
     editorPosition.value = position;
@@ -397,11 +503,16 @@
     byId('edit-title').textContent = clip.title;
     byId('edit-type').textContent = clipTypes[clip.kind];
     byId('edit-meta').textContent = date.format(clip.at);
-    byId('edit-source').textContent = clip.source ?? 'Демонстрация';
+    byId('edit-source').textContent = live ? 'Minecraft' : clip.source ?? 'Демонстрация';
+    byId('edit-format').textContent = live ? 'H.264 · MP4' : 'WebM';
     byId('edit-duration').textContent = time(clip.seconds);
     startHandle.max = endHandle.max = clip.seconds;
     editorPosition.max = clip.seconds;
     editorPosition.value = '0';
+    if (live) {
+      editVideo.preload = 'metadata';
+      editVideo.src = 'media/' + clip.id + '.mp4?v=' + clip.revision;
+    }
     clipList.hidden = true;
     editor.hidden = false;
     screen.dataset.editor = '';
@@ -421,6 +532,10 @@
     showRemoveConfirm(false);
     if (edit) {
       editVideo.pause();
+      if (live) {
+        editVideo.removeAttribute('src');
+        editVideo.load();
+      }
       if (document.fullscreenElement === editFrame) document.exitFullscreen().catch(() => {});
     }
     delete screen.dataset.editor;
@@ -726,6 +841,14 @@
   }
   function closeReplays() {
     if (!screen.open || replayOpener.getAttribute('aria-expanded') === 'false') return;
+    if (live) {
+      editVideo.pause();
+      replayOpener.setAttribute('aria-expanded', 'false');
+      delete screen.dataset.visible;
+      if (motion.matches) window.ipc.postMessage('close');
+      else setTimeout(() => window.ipc.postMessage('close'), 180);
+      return;
+    }
     const opener = replayOpener;
     closeOptions(false, false);
     bindingAction = null;
@@ -784,6 +907,7 @@
   }
 
   function toggleRecording() {
+    if (live) { post('record'); return; }
     if (manualRecording) {
       stopRecording();
       return;
@@ -799,6 +923,7 @@
   }
 
   function saveClip() {
+    if (live) { post('save'); return; }
     const buffered = Math.floor(seconds());
     if (savePending) return;
     if (buffered < 1) {
@@ -817,7 +942,7 @@
 
   for (const opener of [pauseOpener, titleOpener]) opener.addEventListener('click', () => openReplays(opener));
   recordAction.addEventListener('click', () => {
-    const stopping = Boolean(manualRecording);
+    const stopping = live ? liveState?.recording : Boolean(manualRecording);
     toggleRecording();
     if (stopping && activeFilter !== 'all' && activeFilter !== 'recording') selectClipFilter('recording');
   });
@@ -855,6 +980,7 @@
   editVideo.addEventListener('click', togglePreview);
   for (const event of ['play', 'pause']) editVideo.addEventListener(event, syncPlayer);
   editVideo.addEventListener('ended', () => {
+    if (live) { syncVideoClock(); syncPlayer(); return; }
     syncVideoClock();
     if (edit && Number(editorPosition.value) < edit.clip.seconds) {
       seekPreview((edit.sampleCycle + 1) * editVideo.duration - (edit.clip.sampleStart ?? 0));
@@ -895,6 +1021,7 @@
   });
   editFavorite.addEventListener('click', () => {
     if (!edit) return;
+    if (live) { post('favorite', {id: edit.clip.id, favorite: !edit.clip.favorite}); return; }
     edit.clip.favorite = !edit.clip.favorite;
     editFavorite.setAttribute('aria-pressed', String(edit.clip.favorite));
     renderClips();
@@ -909,6 +1036,12 @@
   removeAction.addEventListener('click', () => showRemoveConfirm(removeConfirm.hidden));
   byId('remove-cancel').addEventListener('click', back);
   byId('remove-clip').addEventListener('click', () => {
+    if (live) {
+      const {id} = edit.clip;
+      returnToClips(true);
+      post('remove', {id});
+      return;
+    }
     clips.splice(clips.indexOf(edit.clip), 1);
     renderClips();
     returnToClips(true);
@@ -921,6 +1054,7 @@
   endHandle.addEventListener('input', () => setTrim('end', endHandle.valueAsNumber));
   trimReset.addEventListener('click', () => { edit.start = 0; edit.end = edit.clip.seconds; renderTrim(); });
   trimApply.addEventListener('click', () => {
+    if (live) { requestTrim(true); return; }
     const clip = edit.clip;
     Object.assign(clip, trimmedRange());
     renderClips();
@@ -928,12 +1062,21 @@
     toast('Клип обрезан');
   });
   trimSave.addEventListener('click', () => {
+    if (live) { requestTrim(false); return; }
     const original = edit.clip;
     clips.unshift({...original, ...trimmedRange(), title: original.title + ' — обрезка', at: new Date(), favorite: false});
     renderClips();
     toast('Копия сохранена');
   });
-  enabled.addEventListener('change', () => setEnabled(enabled.checked));
+  function requestTrim(replace) {
+    editVideo.pause();
+    post('trim', {id: edit.clip.id, start: Math.round(edit.start * 1000), end: Math.round(edit.end * 1000), replace});
+  }
+  enabled.addEventListener('change', () => {
+    if (live) post('buffer', {enabled: enabled.checked});
+    else setEnabled(enabled.checked);
+  });
+  byId('clip-folder').addEventListener('click', () => post('folder'));
   byId('resume').addEventListener('click', resume);
   byId('show-pause').addEventListener('click', showPause);
   byId('exit').addEventListener('click', showTitle);
@@ -943,7 +1086,7 @@
     const custom = duration.value === 'custom';
     customDurationField.hidden = !custom;
     updateDuration();
-    if (custom) queueMicrotask(() => {
+    if (custom && !postingSettings) queueMicrotask(() => {
       if (!customDurationField.hidden && screen.open && !settings.hidden) {
         customDuration.focus({preventScroll: true});
         customDuration.select();
@@ -963,11 +1106,14 @@
   });
   for (const id of videoSettings) byId(id).addEventListener('change', () => {
     const next = rate();
-    if (id !== 'bitrate-mode' || next !== activeBitrate) setEnabled(enabled.checked);
+    if (!live && (id !== 'bitrate-mode' || next !== activeBitrate)) setEnabled(enabled.checked);
     activeBitrate = next;
     if (id === 'bitrate') bitrate.value = next;
     syncRecording();
   });
+  for (const id of [...videoSettings, 'duration', 'custom-duration', 'audio', 'mic'])
+    byId(id).addEventListener('change', publishSettings);
+  for (const id of ['audio','mic']) byId(id).addEventListener('change', syncRecording);
   for (const button of bindingButtons) button.addEventListener('click', () => {
     bindingAction = button.dataset.bind;
     syncBindings('Esc отменяет назначение');
@@ -989,6 +1135,7 @@
         if (event.repeat) return;
         if (action === 'save') saveClip();
         else if (action === 'record') toggleRecording();
+        else if (live) post('buffer', {enabled: !enabled.checked});
         else {
           setEnabled(!enabled.checked);
           toast(enabled.checked ? 'Откаты включены' : 'Откаты выключены');
@@ -1030,6 +1177,14 @@
 
   const directReplays = query.get('panel') === 'replays';
   setView(query.get('view') === 'title' ? 'title' : 'pause');
+  if (live) {
+    document.body.dataset.client = '';
+    editVideo.removeAttribute('poster');
+    editVideo.setAttribute('aria-label', 'Видео Minecraft');
+    byId('clip-folder').hidden = false;
+    recordAction.hidden = true;
+    refreshLive();
+  }
   const state = query.get('state');
   setEnabled(state === 'ready' || state === 'buffering', state === 'buffering' ? 24 : state === 'ready' ? length() : 0);
   syncRecording();
@@ -1037,7 +1192,7 @@
   renderClips();
   if (directReplays) {
     const showSettings = query.get('tab') === 'settings';
-    openReplays(view === 'title' ? titleOpener : pauseOpener, showSettings ? 1 : 0);
+    openReplays(live || view === 'title' ? titleOpener : pauseOpener, showSettings ? 1 : 0);
     if (!showSettings && query.get('editor') === '1') byId('clip-grid').querySelector('.clip-open')?.click();
   }
 })();

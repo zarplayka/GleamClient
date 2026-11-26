@@ -24,5 +24,7 @@
   "key.orion-client.football.remove": "Удалить ворота",
   "key.orion-client.football.rotate_left": "Повернуть ворота влево",
   "key.orion-client.football.rotate_right": "Повернуть ворота вправо",
-  "key.orion-client.football.penalty": "Режим пенальти"
+  "key.orion-client.football.penalty": "Режим пенальти",
+  "gleam.replay.title": "Откаты",
+  "gleam.replay.windowFailed": "Не удалось открыть «Откаты». Проверь установку Microsoft Edge WebView2 Runtime"
 }

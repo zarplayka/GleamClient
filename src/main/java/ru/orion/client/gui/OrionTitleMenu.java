@@ -22,6 +22,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
@@ -158,6 +159,8 @@ public final class OrionTitleMenu {
         state.addProperty("multi", OrionGuiLanguage.translate("Сетевая игра"));
         state.addProperty("multiReason", multiplayerReason);
         state.addProperty("modules", OrionGuiLanguage.translate("Модули"));
+        state.addProperty("hasReplays", ru.orion.client.replay.GleamReplay.available());
+        state.addProperty("replays", Component.translatable(ru.orion.client.replay.GleamReplay.LABEL).getString());
         state.addProperty("settings", OrionGuiLanguage.translate("Настройки Minecraft"));
         state.addProperty("clientSettings", OrionGuiLanguage.translate("Настройки GleamClient"));
         state.addProperty("quit", OrionGuiLanguage.translate("Выйти из игры"));

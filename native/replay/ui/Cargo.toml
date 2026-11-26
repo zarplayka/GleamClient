@@ -1,0 +1,8 @@
+[package]
+name = "gleam-replay-window"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tao = { version = "=0.37.2", default-features = false, features = ["rwh_06"] }
+wry = { version = "=0.57.1", default-features = false }

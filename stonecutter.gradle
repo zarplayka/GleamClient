@@ -48,6 +48,24 @@ def buildWorldIce = tasks.register('buildWorldIce', Exec) {
             file('native/world-ice/Cargo.toml').absolutePath, '--target-dir', layout.buildDirectory.dir('world-ice').get().asFile.absolutePath
 }
 
+def replayExecutable = layout.buildDirectory.file('replay-native/gleam-replay.exe')
+def replayWindow = layout.buildDirectory.file('replay-window/release/gleam-replay-window.exe')
+def buildReplay = tasks.register('buildReplay', Exec) {
+    onlyIf { System.getProperty('os.name').startsWith('Windows') }
+    inputs.files(fileTree('native/replay') { include '*.cpp', '*.h', 'build.ps1' })
+    outputs.file(replayExecutable)
+    commandLine 'powershell.exe', '-NoProfile', '-File', file('native/replay/build.ps1').absolutePath,
+            '-Output', replayExecutable.get().asFile.absolutePath
+}
+def buildReplayWindow = tasks.register('buildReplayWindow', Exec) {
+    onlyIf { System.getProperty('os.name').startsWith('Windows') }
+    mustRunAfter buildReplay
+    inputs.files(fileTree('native/replay/ui') { exclude 'target/**' })
+    outputs.file(replayWindow)
+    commandLine 'cargo', 'build', '--locked', '--release', '--jobs', '1', '--manifest-path',
+            file('native/replay/ui/Cargo.toml').absolutePath, '--target-dir', layout.buildDirectory.dir('replay-window').get().asFile.absolutePath
+}
+
 def collect = tasks.register('collectArtifacts', Sync) {
     into layout.buildDirectory.dir('libs')
     // Стабильное имя для существующих потребителей всегда указывает на 26.3.
@@ -64,8 +82,9 @@ gradle.projectsEvaluated {
     subprojects.each { target ->
         if (System.getProperty('os.name').startsWith('Windows')) {
             target.tasks.named('processResources') {
-                dependsOn buildWorldIce
+                dependsOn buildWorldIce, buildReplay, buildReplayWindow
                 from(iceExecutable) { into 'assets/orion-client/native' }
+                from([replayExecutable, replayWindow]) { into 'assets/orion-client/native' }
             }
         }
         def remapped = target.name == '1.21.11'
@@ -108,6 +127,12 @@ tasks.register('verifyArtifacts') {
             new java.util.zip.ZipFile(artifact).withCloseable { zip ->
                 if (System.getProperty('os.name').startsWith('Windows') && zip.getEntry('assets/orion-client/native/gleam-world-ice.exe') == null)
                     throw new GradleException("Missing direct UDP helper in ${artifact.name}")
+                if (System.getProperty('os.name').startsWith('Windows')) {
+                    ['gleam-replay.exe', 'gleam-replay-window.exe'].each { helper ->
+                        if (zip.getEntry('assets/orion-client/native/' + helper) == null)
+                            throw new GradleException("Missing replay helper ${helper} in ${artifact.name}")
+                    }
+                }
                 def metadata = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry('fabric.mod.json')))
                 if (metadata.depends.minecraft != mc || metadata.version != mod_version)
                     throw new GradleException("Wrong Minecraft/mod version in ${artifact.name}")
@@ -117,7 +142,7 @@ tasks.register('verifyArtifacts') {
                     if (zip.getEntry(classPath) == null) throw new GradleException("Missing registered mixin ${classPath}")
                 }
                 ['cosmetics/pets/ember_fox.json', 'cosmetics/pets/moon_moth.json', 'cosmetics/pets/moss_turtle.json',
-                 'html/hud-widgets.html',
+                 'html/hud-widgets.html', 'replay/pause-preview.html', 'replay/replay-preview.js',
                  'html/menu/index.html', 'html/hud-island/island.js', 'fonts/poppins/Poppins-Bold.ttf'].each { asset ->
                     if (zip.getEntry('assets/orion-client/' + asset) == null) throw new GradleException("Missing ${asset}")
                 }
