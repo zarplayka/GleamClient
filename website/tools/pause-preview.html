@@ -121,8 +121,6 @@
     .title-menu .item { font-size: 13px }
     .title-menu .item:first-child { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700 }
     .title-menu .item:first-child:hover { background: #d7ddff }
-    .pause-switch { justify-content: center; position: relative; padding-inline: 46px; cursor: pointer }
-    .pause-switch .switch { position: absolute; right: 12px }
     .screen-tools { display: flex; justify-content: flex-end; align-items: center; gap: 10px; min-width: 0 }
     .capture-toggle { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted); white-space: nowrap }
     .screen-tools .back { border-left: 1px solid var(--line); padding-left: 9px }
@@ -274,7 +272,7 @@
     <nav aria-label="Главное меню">
       <button class="item" type="button" data-start>Сетевая игра</button>
       <button class="item" type="button" data-start>Одиночная игра</button>
-      <button class="item" id="open-replay" type="button" aria-controls="replay" aria-haspopup="dialog" aria-expanded="false">Откаты</button>
+      <button class="item" id="title-open-replay" type="button" aria-controls="replay" aria-haspopup="dialog" aria-expanded="false">Откаты</button>
       <button class="item" type="button" data-preview="В игре откроются модули GleamClient">Модули</button>
       <button class="item" type="button" data-preview="В игре откроются настройки Minecraft">Настройки Minecraft</button>
     </nav>
@@ -288,7 +286,7 @@
         <button class="item" type="button" data-preview="В игре откроется статистика">Статистика</button>
         <button class="item" type="button" data-preview="В игре откроются настройки Minecraft">Настройки</button>
         <button class="item" type="button" data-preview="В игре откроется кейбинд менеджер">Кейбинд менеджер</button>
-        <label class="item wide pause-switch" for="pause-enabled">Откаты<input class="switch" id="pause-enabled" type="checkbox" role="switch"></label>
+        <button class="item wide" id="open-replay" type="button" aria-controls="replay" aria-haspopup="dialog" aria-expanded="false">Откаты</button>
         <button class="item wide" id="exit" type="button"><svg class="icon" aria-hidden="true"><use href="#i-exit"/></svg><span>Сохранить и выйти</span></button>
       </nav>
       <nav class="utilities" aria-label="Дополнительные действия">

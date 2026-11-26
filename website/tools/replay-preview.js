@@ -4,9 +4,9 @@
   const titleMenu = byId('title-menu');
   const pause = byId('pause');
   const screen = byId('replay');
-  const opener = byId('open-replay');
+  const pauseOpener = byId('open-replay');
+  const titleOpener = byId('title-open-replay');
   const enabled = byId('enabled');
-  const pauseEnabled = byId('pause-enabled');
   const duration = byId('duration');
   const bitrateMode = byId('bitrate-mode');
   const bitrate = byId('bitrate');
@@ -40,7 +40,7 @@
 
   let view, playingSince = null, available = 0, savePending = false;
   let favoritesOnly = false, clipFocus, edit;
-  let previewTimer, replayTimer, closingTimer;
+  let previewTimer, replayTimer, closingTimer, replayOpener;
   let bindingAction, bindings = readBindings();
   let activeBitrate = rate();
 
@@ -159,7 +159,7 @@
     byId('estimate').textContent = format() + ' · ' + rate() + ' Мбит/с';
   }
   function setEnabled(on, initialSeconds = 0) {
-    enabled.checked = pauseEnabled.checked = on;
+    enabled.checked = on;
     available = on ? initialSeconds : 0;
     playingSince = on && view === 'playing' ? performance.now() : null;
   }
@@ -189,7 +189,7 @@
     available = 0;
     playingSince = null;
     setView('title');
-    opener.focus();
+    titleOpener.focus();
   }
 
   function renderClips() {
@@ -297,8 +297,9 @@
     previewTimer = setTimeout(() => { status.hidden = true; }, 2500);
   }
 
-  function openReplays(tab = 0) {
+  function openReplays(opener, tab = 0) {
     clearTimeout(closingTimer);
+    replayOpener = opener;
     if (!screen.open) { selectTab(tab); screen.showModal(); }
     opener.setAttribute('aria-expanded', 'true');
     if (motion.matches) screen.dataset.visible = '';
@@ -307,7 +308,8 @@
     }));
   }
   function closeReplays() {
-    if (!screen.open || opener.getAttribute('aria-expanded') === 'false') return;
+    if (!screen.open || replayOpener.getAttribute('aria-expanded') === 'false') return;
+    const opener = replayOpener;
     bindingAction = null;
     delete screen.dataset.visible;
     opener.setAttribute('aria-expanded', 'false');
@@ -342,7 +344,7 @@
     }, 330);
   }
 
-  opener.addEventListener('click', () => openReplays());
+  for (const opener of [pauseOpener, titleOpener]) opener.addEventListener('click', () => openReplays(opener));
   byId('close-replay').addEventListener('click', back);
   byId('editor-back').addEventListener('click', () => returnToClips(true));
   screen.addEventListener('cancel', event => { event.preventDefault(); back(); });
@@ -377,7 +379,7 @@
     renderClips();
     toast('Копия сохранена');
   });
-  for (const input of [enabled, pauseEnabled]) input.addEventListener('change', () => setEnabled(input.checked));
+  enabled.addEventListener('change', () => setEnabled(enabled.checked));
   byId('resume').addEventListener('click', resume);
   byId('show-pause').addEventListener('click', showPause);
   byId('exit').addEventListener('click', showTitle);
@@ -433,11 +435,11 @@
   }, true);
 
   const directReplays = query.get('panel') === 'replays';
-  setView(!directReplays && query.get('view') === 'pause' ? 'pause' : 'title');
+  setView(query.get('view') === 'title' ? 'title' : 'pause');
   const state = query.get('state');
   setEnabled(state === 'ready' || state === 'buffering', state === 'buffering' ? 24 : state === 'ready' ? length() : 0);
   syncRecording();
   syncBindings();
   renderClips();
-  if (directReplays) openReplays(query.get('tab') === 'settings' ? 1 : 0);
+  if (directReplays) openReplays(view === 'title' ? titleOpener : pauseOpener, query.get('tab') === 'settings' ? 1 : 0);
 })();
