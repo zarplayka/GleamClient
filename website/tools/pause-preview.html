@@ -271,6 +271,9 @@
     .rate-input { width: 62px; padding-right: 5px; font-variant-numeric: tabular-nums }
     .control-group { display: flex; gap: 6px; align-items: center }
     .control-group select { min-width: 74px; max-width: 125px }
+    .duration-custom { display: flex; gap: 4px; align-items: center; flex: none; color: var(--muted); font-size: 11px }
+    .duration-custom .rate-input { width: 46px; padding: 4px 5px; appearance: textfield }
+    .duration-custom input::-webkit-inner-spin-button, .duration-custom input::-webkit-outer-spin-button { appearance: none; margin: 0 }
     .replay-select {
       display: flex; align-items: center; justify-content: space-between; gap: 7px; min-width: 0;
       min-height: 31px; border: 1px solid var(--line); border-radius: 6px; background: #20222d;
@@ -472,7 +475,16 @@
         <div class="settings-pages">
           <section class="settings-group" id="settings-video" role="tabpanel" aria-labelledby="settings-video-tab">
             <h3>Запись</h3>
-            <div class="row"><label for="duration">Длительность</label><span class="select-wrap"><select id="duration"><option value="30">30 секунд</option><option value="60" selected>60 секунд</option><option value="120">120 секунд</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
+            <div class="row">
+              <label for="duration">Длительность</label>
+              <div class="control-group">
+                <span class="select-wrap"><select id="duration"><option value="30">30 секунд</option><option value="60" selected>60 секунд</option><option value="120">120 секунд</option><option value="custom">Своя</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span>
+                <span class="duration-custom" id="custom-duration-field" hidden>
+                  <input class="rate-input" id="custom-duration" type="number" min="5" max="300" step="1" value="60" aria-label="Своя длительность в секундах" title="От 5 до 300 секунд">
+                  <span aria-hidden="true">с</span>
+                </span>
+              </div>
+            </div>
             <div class="row"><label for="resolution">Разрешение</label><span class="select-wrap"><select id="resolution"><option value="720">720p</option><option value="1080" selected>1080p</option><option value="1440">1440p</option><option value="source">Исходное</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
             <div class="row"><label for="fps">FPS записи</label><span class="select-wrap"><select id="fps"><option value="30">30 FPS</option><option value="60" selected>60 FPS</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
             <div class="row"><label for="quality">Качество</label><span class="select-wrap"><select id="quality"><option value="performance">Производительность</option><option value="balanced" selected>Баланс</option><option value="quality">Качество</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>

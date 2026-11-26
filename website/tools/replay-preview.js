@@ -8,6 +8,9 @@
   const titleOpener = byId('title-open-replay');
   const enabled = byId('enabled');
   const duration = byId('duration');
+  const customDurationField = byId('custom-duration-field');
+  const customDuration = byId('custom-duration');
+  let customSeconds = Number(customDuration.value);
   const bitrateMode = byId('bitrate-mode');
   const bitrate = byId('bitrate');
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -139,7 +142,11 @@
     syncBindings('Сочетание сохранено');
   }
 
-  function length() { return Number(duration.value); }
+  function length() { return duration.value === 'custom' ? customSeconds : Number(duration.value); }
+  function updateDuration() {
+    available = Math.min(available, length());
+    syncRecording();
+  }
   function seconds() {
     if (!enabled.checked) return 0;
     const elapsed = playingSince === null ? 0 : (performance.now() - playingSince) / 1000;
@@ -630,7 +637,28 @@
   byId('exit').addEventListener('click', showTitle);
   for (const button of titleMenu.querySelectorAll('[data-start]')) button.addEventListener('click', resume);
   for (const button of document.querySelectorAll('[data-preview]')) button.addEventListener('click', () => toast(button.dataset.preview));
-  duration.addEventListener('change', () => { available = Math.min(available, length()); syncRecording(); });
+  duration.addEventListener('change', () => {
+    const custom = duration.value === 'custom';
+    customDurationField.hidden = !custom;
+    updateDuration();
+    if (custom) queueMicrotask(() => {
+      if (!customDurationField.hidden && screen.open && !settings.hidden) {
+        customDuration.focus({preventScroll: true});
+        customDuration.select();
+      }
+    });
+  });
+  customDuration.addEventListener('change', () => {
+    const value = customDuration.valueAsNumber;
+    if (Number.isFinite(value)) {
+      customSeconds = Math.max(Number(customDuration.min), Math.min(Number(customDuration.max), Math.round(value)));
+    }
+    customDuration.value = String(customSeconds);
+    updateDuration();
+  });
+  customDuration.addEventListener('keydown', event => {
+    if (event.key === 'Enter') { event.preventDefault(); customDuration.blur(); }
+  });
   for (const id of recording) byId(id).addEventListener('change', () => {
     const next = rate();
     if (id !== 'bitrate-mode' || next !== activeBitrate) setEnabled(enabled.checked);
