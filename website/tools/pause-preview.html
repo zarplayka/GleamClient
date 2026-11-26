@@ -140,7 +140,7 @@
     .favorite:hover { background: #242a3d }
     .favorite .icon { width: 15px; height: 15px }
     .favorite[aria-pressed="true"] .icon { fill: var(--accent); color: var(--accent) }
-    .edit-header { display: flex; align-items: center; gap: 12px; margin-bottom: 7px }
+    .edit-header { display: flex; align-items: center; gap: 10px; margin-bottom: 9px }
     .edit-header h3 { margin: 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere }
     .edit-back, .plain-action, .key-button {
       border: 1px solid var(--line); border-radius: 5px; background: var(--surface);
@@ -149,56 +149,75 @@
     .edit-back:hover, .plain-action:hover, .key-button:hover { background: #ffffff12 }
     .edit-back {
       display: inline-flex; gap: 6px; align-items: center; white-space: nowrap;
-      border-color: transparent; background: transparent; color: var(--muted); padding-inline: 5px; font-size: 11.5px;
+      border-color: transparent; background: var(--surface); color: var(--muted); padding-inline: 7px; font-size: 11.5px;
     }
     .edit-back .icon { width: 13px; height: 13px }
-    .edit-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(205px, 24%); gap: 12px; align-items: start }
+    #clip-editor { --edit-accent: #725bdd; --edit-progress: #947fff }
+    .edit-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 25%); gap: 13px; align-items: start }
     .edit-player { min-width: 0 }
-    .edit-frame { position: relative; margin: 0; overflow: hidden; border-radius: 5px; border: 1px solid var(--line); background: #0b0d13 }
-    .timeline { margin-top: 8px }
-    .timeline-track { position: relative; height: 23px; --thumb: 12px }
-    .timeline-rail { position: absolute; inset: 9px calc(var(--thumb) / 2) auto; height: 5px; border-radius: 3px; background: #2b2d3b; pointer-events: none }
+    .edit-frame { position: relative; margin: 0; overflow: hidden; border-radius: 6px; background: #0b0d13 }
+    .timeline { margin-top: 5px }
+    .timeline-track { position: relative; height: 22px; --thumb: 12px }
+    .timeline-rail {
+      position: absolute; inset: 9px calc(var(--thumb) / 2) auto; height: 4px; border-radius: 2px;
+      background: #2a2935; pointer-events: none;
+    }
     .timeline-rail::after {
       content: ""; position: absolute; inset-block: 0; left: var(--trim-start, 0%); right: var(--trim-end, 0%);
-      border-radius: inherit; background: #8995df;
+      border-radius: inherit; background: #55458d;
+    }
+    .timeline-progress {
+      position: absolute; inset: 0 auto 0 0; width: var(--play-position, 0%); z-index: 1;
+      border-radius: inherit; background: var(--edit-progress); opacity: .8;
     }
     .timeline-track input {
-      position: absolute; inset: 0; width: 100%; height: 23px; margin: 0;
+      position: absolute; inset: 0; width: 100%; height: 22px; margin: 0;
       appearance: none; background: transparent; cursor: ew-resize;
     }
     .timeline-track .trim-handle { pointer-events: none }
     .timeline-track input::-webkit-slider-runnable-track { height: 20px; background: transparent }
     .timeline-track input::-moz-range-track { height: 20px; background: transparent }
     .timeline-track input::-webkit-slider-thumb {
-      appearance: none; width: var(--thumb); height: var(--thumb); margin-top: 4px; border-radius: 50%;
-      background: #f0f3ff; border: 2px solid #161926; cursor: ew-resize;
+      appearance: none; width: var(--thumb); height: var(--thumb); margin-top: 4px;
+      background: radial-gradient(circle, #f8f6ff 3.4px, #14151c 3.6px 4.5px, transparent 4.7px); cursor: ew-resize;
     }
     .timeline-track input::-moz-range-thumb {
-      box-sizing: border-box; width: var(--thumb); height: var(--thumb); border: 2px solid #161926;
-      border-radius: 50%; background: #f0f3ff; cursor: ew-resize;
+      box-sizing: border-box; width: var(--thumb); height: var(--thumb); border: 0;
+      background: radial-gradient(circle, #f8f6ff 3.4px, #14151c 3.6px 4.5px, transparent 4.7px); cursor: ew-resize;
     }
     .timeline-track .trim-handle::-webkit-slider-thumb {
-      pointer-events: auto; height: 18px; margin-top: 1px; border-radius: 3px; background: #c2ccff;
-      border: 2px solid #1b2032;
+      pointer-events: auto; height: 18px; margin-top: 1px; border-radius: 0;
+      background: linear-gradient(var(--edit-progress), var(--edit-progress)) center / 3px 14px no-repeat;
     }
     .timeline-track .trim-handle::-moz-range-thumb {
-      pointer-events: auto; height: 18px; border-radius: 3px; background: #c2ccff; border: 2px solid #1b2032;
+      pointer-events: auto; height: 18px;
+      background: linear-gradient(var(--edit-progress), var(--edit-progress)) center / 3px 14px no-repeat;
     }
     .timeline-track input:focus-visible { outline-offset: 0; z-index: 1 }
     .timeline output { display: block; margin-top: 3px; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 11.5px }
-    .editor-tools { min-width: 0; border-left: 1px solid var(--line); padding-left: 15px }
-    .editor-tools h4 { margin: 0 0 6px; font-size: 12.5px }
-    .edit-metadata { display: grid; gap: 5px; margin: 0 0 13px; padding: 0 0 11px; border-bottom: 1px solid var(--line) }
-    .edit-metadata div { display: flex; align-items: baseline; justify-content: space-between; gap: 9px; font-size: 11px }
+    .editor-tools { min-width: 0; display: grid; gap: 13px }
+    .editor-tools h4 { margin: 0 0 6px; color: var(--muted); font-size: 11.5px; font-weight: 600 }
+    .edit-metadata { display: grid; gap: 3px; margin: 0 }
+    .edit-metadata div { display: flex; align-items: baseline; justify-content: space-between; gap: 9px; font-size: 11.5px }
     .edit-metadata dt { color: var(--muted) }
-    .edit-metadata dd { margin: 0; text-align: right }
-    .editor-tools .row { min-height: 34px }
-    .editor-tools .row > label { font-size: 12px }
-    .editor-tools p { margin: 7px 0 10px; color: var(--muted); font-size: 11.5px }
-    .trim-value { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px }
-    .trim-value input { width: 69px; min-height: 27px }
-    .edit-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px }
+    .edit-metadata dd { margin: 0; text-align: right; overflow-wrap: anywhere }
+    .trim-range { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 11px; color: var(--muted) }
+    .trim-range .rate-input {
+      width: 44px; min-height: 22px; padding: 2px 4px; border-color: transparent; background: var(--surface);
+      text-align: center; color: var(--ink); appearance: textfield;
+    }
+    .trim-range input::-webkit-inner-spin-button, .trim-range input::-webkit-outer-spin-button { appearance: none; margin: 0 }
+    .trim-range .rate-input:focus { outline: none; border-color: #9da8df }
+    #trim-result { margin-inline-start: auto; white-space: nowrap; font-variant-numeric: tabular-nums }
+    .trim-help { margin: 5px 0 7px; color: var(--muted); font-size: 11px; line-height: 1.4 }
+    .edit-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px }
     .edit-actions button { min-width: 0 }
+    .edit-actions .plain-action.primary {
+      grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 6px;
+      color: #fff; background: var(--edit-accent); border-color: transparent;
+    }
+    .edit-actions .plain-action.primary:hover:enabled { background: #806be8 }
+    .edit-actions .icon { width: 13px; height: 13px }
     .plain-action.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600 }
     .plain-action.primary:hover:enabled { background: #d7ddff }
     .key-button { min-width: 104px; font-variant-numeric: tabular-nums }
@@ -207,8 +226,7 @@
     .settings-reset { justify-self: start }
     @media (max-width: 760px) {
       .edit-layout { grid-template-columns: minmax(0, 1fr) }
-      .editor-tools { padding: 12px 0 0; border-left: 0; border-top: 1px solid var(--line) }
-      .edit-actions { grid-template-columns: minmax(0, 1fr) auto }
+      .editor-tools { padding-top: 10px; border-top: 1px solid var(--line) }
     }
     .empty { display: grid; justify-items: center; text-align: center; gap: 9px; max-width: 340px; margin: clamp(34px, 10vh, 105px) auto 0 }
     .empty-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; background: var(--surface); color: var(--muted) }
@@ -248,12 +266,12 @@
     .edit-frame:fullscreen { border: 0; border-radius: 0; width: 100%; height: 100% }
     .preview-play {
       position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
-      width: 43px; height: 43px; display: grid; place-items: center;
-      border: 1px solid #b6c0ff70; border-radius: 50%; color: #141831; background: var(--accent);
+      width: 38px; height: 38px; display: grid; place-items: center;
+      border: 0; border-radius: 50%; color: #fff; background: var(--edit-accent);
       transition: background-color .16s, opacity .16s;
     }
-    .preview-play:hover { background: #d7ddff }
-    .preview-play .icon { width: 19px; height: 19px }
+    .preview-play:hover { background: #806be8 }
+    .preview-play .icon { width: 17px; height: 17px }
     .transport { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-top: 2px }
     .transport-group { display: flex; align-items: center; gap: 5px }
     .transport button {
@@ -262,12 +280,19 @@
     }
     .transport button:hover, .transport button[aria-pressed="true"] { background: #ffffff13; color: var(--ink) }
     .transport button .icon { width: 13px; height: 13px }
-    .transport .play-toggle { background: #a9b5ff40; color: var(--ink) }
+    .transport .play-toggle { background: var(--edit-accent); color: #fff }
+    .transport .play-toggle:hover { background: #806be8 }
     .transport output { margin: 0 2px; white-space: nowrap }
     .transport-speed { display: flex; gap: 2px; padding-right: 5px; border-right: 1px solid var(--line) }
-    .transport input { width: clamp(42px, 6vw, 75px); margin: 0 2px; accent-color: var(--accent) }
-    .editor-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 0 0 12px }
-    .editor-actions .plain-action { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 11px; min-width: 0; padding-inline: 5px }
+    .transport input { width: clamp(42px, 6vw, 75px); margin: 0 2px; accent-color: var(--edit-progress) }
+    .editor-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px }
+    .editor-actions .plain-action, .edit-actions .plain-action {
+      min-width: 0; min-height: 24px; padding: 3px 5px; border-color: transparent; font-size: 11px;
+    }
+    .editor-actions .plain-action { display: flex; align-items: center; justify-content: center; gap: 5px }
+    .editor-actions .remove-action { color: var(--danger) }
+    .remove-confirm { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 4px; font-size: 11px }
+    .remove-confirm button:first-of-type { margin-inline-start: auto }
     .editor-actions .icon { width: 13px; height: 13px }
     #edit-favorite[aria-pressed="true"] .icon { fill: var(--accent); color: var(--accent) }
     .estimate { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums }
@@ -400,6 +425,8 @@
     <symbol id="i-report" viewBox="0 0 24 24"><path d="M5 21V4m0 1h13l-2.5 4 2.5 4H5"/></symbol>
     <symbol id="i-links" viewBox="0 0 24 24"><path d="m10 8 3-3a4 4 0 0 1 6 6l-3 3m-2 2-3 3a4 4 0 0 1-6-6l3-3m1 5 6-6"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 4H6a2 2 0 0 0-2 2v10"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16m-3 0-1 13H8L7 7m3 0V4h4v3"/></symbol>
   </svg>
 
   <div class="world" aria-hidden="true"></div>
@@ -466,7 +493,7 @@
         </div>
         <section id="clip-editor" aria-labelledby="edit-title" hidden>
           <header class="edit-header">
-            <button type="button" class="edit-back" id="editor-back"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>К клипам</button>
+            <button type="button" class="edit-back" id="editor-back" aria-label="Назад к клипам"><svg class="icon" aria-hidden="true"><use href="#i-step-back"/></svg>Назад</button>
             <h3 id="edit-title" tabindex="-1"></h3>
           </header>
           <div class="edit-layout">
@@ -477,7 +504,7 @@
               </figure>
               <section class="timeline" aria-label="Таймлайн">
                 <div class="timeline-track" id="trim-track">
-                  <div class="timeline-rail" aria-hidden="true"></div>
+                  <div class="timeline-rail" aria-hidden="true"><span class="timeline-progress"></span></div>
                   <input id="edit-position" type="range" min="0" step=".1" value="0" aria-label="Позиция на таймлайне">
                   <input id="start-handle" class="trim-handle" type="range" min="0" step=".1" value="0" aria-label="Начало обрезки">
                   <input id="end-handle" class="trim-handle" type="range" min="0" step=".1" aria-label="Конец обрезки">
@@ -503,26 +530,46 @@
                 </div>
               </section>
             </div>
-            <aside class="editor-tools" aria-label="Обрезка клипа">
-              <h4>О клипе</h4>
-              <dl class="edit-metadata">
-                <div><dt>Дата</dt><dd id="edit-meta"></dd></div>
-                <div><dt>Видео</dt><dd id="edit-format"></dd></div>
-                <div><dt>Длительность</dt><dd id="edit-duration"></dd></div>
-              </dl>
-              <h4>Действия</h4>
-              <div class="editor-actions">
-                <button class="plain-action" type="button" id="edit-favorite" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>В избранное</button>
-                <button class="plain-action" type="button" id="edit-still"><svg class="icon" aria-hidden="true"><use href="#i-still"/></svg>Сохранить кадр</button>
-              </div>
-              <h4>Обрезка</h4>
-              <div class="row"><label for="trim-start">Начало</label><span class="trim-value"><input id="trim-start" class="rate-input" type="number" min="0" step=".1"> с</span></div>
-              <div class="row"><label for="trim-end">Конец</label><span class="trim-value"><input id="trim-end" class="rate-input" type="number" min=".1" step=".1"> с</span></div>
-              <p id="trim-result"></p>
-              <div class="edit-actions">
-                <button type="button" class="plain-action primary" id="trim-save">Сохранить копию</button>
-                <button type="button" class="plain-action" id="trim-reset">Сбросить</button>
-              </div>
+            <aside class="editor-tools" aria-label="Сведения и управление клипом">
+              <section aria-labelledby="edit-info">
+                <h4 id="edit-info">О клипе</h4>
+                <dl class="edit-metadata">
+                  <div><dt>Источник</dt><dd id="edit-source"></dd></div>
+                  <div><dt>Дата</dt><dd id="edit-meta"></dd></div>
+                  <div><dt>Формат видео</dt><dd id="edit-format">WebM</dd></div>
+                  <div><dt>Длительность</dt><dd id="edit-duration"></dd></div>
+                </dl>
+              </section>
+              <section aria-labelledby="edit-actions-title">
+                <h4 id="edit-actions-title">Действия</h4>
+                <div class="editor-actions">
+                  <button class="plain-action" type="button" id="edit-favorite" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>В избранное</button>
+                  <button class="plain-action" type="button" id="edit-copy"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>Копировать имя</button>
+                  <button class="plain-action" type="button" id="edit-still" aria-label="Сохранить кадр"><svg class="icon" aria-hidden="true"><use href="#i-still"/></svg>Кадр</button>
+                  <button class="plain-action remove-action" type="button" id="edit-remove" aria-controls="remove-confirm" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>Удалить</button>
+                  <div class="remove-confirm" id="remove-confirm" hidden>
+                    <span>Удалить клип?</span>
+                    <button class="plain-action" type="button" id="remove-cancel">Отмена</button>
+                    <button class="plain-action remove-action" type="button" id="remove-clip">Удалить</button>
+                  </div>
+                </div>
+              </section>
+              <section aria-labelledby="edit-trim-title">
+                <h4 id="edit-trim-title">Обрезка</h4>
+                <div class="trim-range">
+                  <input id="trim-start" class="rate-input" aria-label="Начало обрезки в секундах" type="number" min="0" step=".1">
+                  <span aria-hidden="true">–</span>
+                  <input id="trim-end" class="rate-input" aria-label="Конец обрезки в секундах" type="number" min=".1" step=".1">
+                  <span aria-hidden="true">с</span>
+                  <output id="trim-result" aria-label="Длина отрезка"></output>
+                </div>
+                <p class="trim-help">Перетащи границы на таймлайне или поставь их клавишами I и O.</p>
+                <div class="edit-actions">
+                  <button type="button" class="plain-action primary" id="trim-save"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>Сохранить копию</button>
+                  <button type="button" class="plain-action" id="trim-apply">Обрезать клип</button>
+                  <button type="button" class="plain-action" id="trim-reset">Сбросить</button>
+                </div>
+              </section>
             </aside>
           </div>
         </section>

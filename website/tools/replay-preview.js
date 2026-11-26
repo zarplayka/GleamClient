@@ -29,6 +29,8 @@
   const previewPlay = byId('preview-play');
   const editPlay = byId('edit-play');
   const editFavorite = byId('edit-favorite');
+  const removeAction = byId('edit-remove');
+  const removeConfirm = byId('remove-confirm');
   let previewLoad;
   const editorPosition = byId('edit-position');
   const startInput = byId('trim-start');
@@ -37,13 +39,15 @@
   const endHandle = byId('end-handle');
   const trimTrack = byId('trim-track');
   const trimSave = byId('trim-save');
+  const trimApply = byId('trim-apply');
+  const trimReset = byId('trim-reset');
   const tabs = [byId('tab-clips'), byId('tab-settings')];
   const filters = [byId('filter-all'), byId('filter-favorites')];
   const date = new Intl.DateTimeFormat('ru-RU', {dateStyle: 'medium', timeStyle: 'short'});
   const number = new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 1});
   const plurals = new Intl.PluralRules('ru');
   const clipImage = '../assets/gameplay-orion.webp';
-  const clips = [{title: 'Откат из мира', at: new Date('2026-11-25T18:24:00'), seconds: 24, format: '1080p · 60 FPS', favorite: false}];
+  const clips = [{title: 'Откат из мира', at: new Date('2026-11-25T18:24:00'), seconds: 24, favorite: false}];
   const defaultBindings = {save: {code: 'F10', modifiers: 2}, toggle: {code: 'F9', modifiers: 2}};
   const bindingKey = 'gleam.replay-preview.bindings';
   const bindingButtons = [...document.querySelectorAll('[data-bind]')];
@@ -170,10 +174,6 @@
     const frameRate = byId('fps').value === '60' ? 1 : .65;
     return Math.round(rateBase[byId('resolution').value] * profile * frameRate);
   }
-  function format() {
-    const source = byId('resolution').value;
-    return (source === 'source' ? 'Исходное' : source + 'p') + ' · ' + byId('fps').value + ' FPS';
-  }
   function syncRecording() {
     bitrate.hidden = bitrateMode.value !== 'manual';
     if (bitrate.hidden) bitrate.value = rate();
@@ -219,7 +219,13 @@
     const visible = favoritesOnly ? clips.filter(clip => clip.favorite) : clips;
     const label = {one: 'клип', few: 'клипа', many: 'клипов'}[plurals.select(visible.length)];
     byId('clip-count').textContent = visible.length + ' ' + label;
-    byId('clip-empty').hidden = visible.length > 0;
+    const empty = byId('clip-empty');
+    empty.hidden = visible.length > 0;
+    empty.querySelector('strong').textContent = favoritesOnly ? 'Пока нет избранных клипов' : 'Пока нет клипов';
+    empty.querySelector('p').textContent = favoritesOnly ?
+      'Нажми на звезду рядом с клипом, чтобы он появился здесь.' :
+      'Включи буфер и сохрани откат горячей клавишей из настроек.';
+    empty.querySelector('use').setAttribute('href', favoritesOnly ? '#i-star' : '#i-replay');
     grid.replaceChildren(...visible.map(clip => {
       const card = byId('clip-template').content.firstElementChild.cloneNode(true);
       const open = card.querySelector('.clip-open');
@@ -229,6 +235,7 @@
       card.querySelector('.clip-name').textContent = clip.title;
       card.querySelector('.clip-meta').textContent = date.format(clip.at);
       open.setAttribute('aria-label', 'Открыть редактор · ' + clip.title);
+      if (clip === edit?.clip) clipFocus = open;
       function describeFavorite() {
         star.setAttribute('aria-pressed', String(clip.favorite));
         star.title = clip.favorite ? 'Убрать из избранного' : 'В избранное';
@@ -253,6 +260,7 @@
   function clock() {
     const position = Number(editorPosition.value);
     editorPosition.setAttribute('aria-valuetext', time(position));
+    trimTrack.style.setProperty('--play-position', (position / edit.clip.seconds * 100) + '%');
     byId('edit-clock').textContent = time(position) + ' / ' + time(edit.clip.seconds);
   }
 
@@ -337,11 +345,13 @@
     });
   }
   function openEditor(clip, opener) {
+    editVideo.pause();
+    showRemoveConfirm(false);
     edit = {clip, start: 0, end: clip.seconds};
     clipFocus = opener;
     byId('edit-title').textContent = clip.title;
     byId('edit-meta').textContent = date.format(clip.at);
-    byId('edit-format').textContent = clip.format;
+    byId('edit-source').textContent = clip.source ?? 'Демонстрация';
     byId('edit-duration').textContent = time(clip.seconds);
     startHandle.max = endHandle.max = clip.seconds;
     editorPosition.max = clip.seconds;
@@ -349,6 +359,7 @@
     clipList.hidden = true;
     editor.hidden = false;
     screen.dataset.editor = '';
+    screen.setAttribute('aria-labelledby', 'edit-title');
     editFavorite.setAttribute('aria-pressed', String(clip.favorite));
     syncPlayer();
     const current = edit;
@@ -361,11 +372,13 @@
   }
 
   function returnToClips(restoreFocus = false) {
+    showRemoveConfirm(false);
     if (edit) {
       editVideo.pause();
       if (document.fullscreenElement === editFrame) document.exitFullscreen().catch(() => {});
     }
     delete screen.dataset.editor;
+    screen.setAttribute('aria-labelledby', 'replay-title');
     editor.hidden = true;
     clipList.hidden = false;
     edit = null;
@@ -391,8 +404,8 @@
     trimTrack.style.setProperty('--trim-start', (edit.start / edit.clip.seconds * 100) + '%');
     trimTrack.style.setProperty('--trim-end', ((1 - edit.end / edit.clip.seconds) * 100) + '%');
     clock();
-    byId('trim-result').textContent = 'Длина отрезка · ' + number.format(decimal(edit.end - edit.start)) + ' с';
-    trimSave.disabled = edit.start === 0 && edit.end === edit.clip.seconds;
+    byId('trim-result').textContent = number.format(decimal(edit.end - edit.start)) + ' с';
+    trimSave.disabled = trimApply.disabled = trimReset.disabled = edit.start === 0 && edit.end === edit.clip.seconds;
   }
 
   function setTrim(edge, value) {
@@ -401,6 +414,22 @@
       else edit.end = decimal(Math.max(edit.start + .1, Math.min(edit.clip.seconds, value)));
     }
     renderTrim();
+  }
+
+  function trimmedRange() {
+    const [from, to] = sourceRange(edit.clip);
+    const span = (to - from) / edit.clip.seconds;
+    return {
+      seconds: decimal(edit.end - edit.start),
+      sampleFrom: from + span * edit.start,
+      sampleTo: from + span * edit.end
+    };
+  }
+
+  function showRemoveConfirm(open) {
+    removeConfirm.hidden = !open;
+    removeAction.setAttribute('aria-expanded', String(open));
+    if (open) byId('remove-cancel').focus({preventScroll: true});
   }
 
   function animatePanel(panel, offset) {
@@ -670,7 +699,10 @@
   }
   function back() {
     if (activePicker) closeOptions(true);
-    else if (edit) returnToClips(true);
+    else if (!removeConfirm.hidden) {
+      showRemoveConfirm(false);
+      removeAction.focus();
+    } else if (edit) returnToClips(true);
     else closeReplays();
   }
 
@@ -681,7 +713,8 @@
       toast(enabled.checked ? 'Буфер пока пуст' : 'Откаты выключены');
       return;
     }
-    const clip = {title: 'Откат ' + (clips.length + 1), at: new Date(), seconds: buffered, format: format(), favorite: false};
+    const clip = {title: 'Откат ' + (clips.length + 1), at: new Date(), seconds: buffered,
+      source: multiplayer ? 'Сетевая игра' : 'Одиночная игра', favorite: false};
     savePending = true;
     setTimeout(() => {
       savePending = false;
@@ -768,19 +801,36 @@
     renderClips();
   });
   byId('edit-still').addEventListener('click', saveStill);
+  byId('edit-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(edit.clip.title);
+      if (edit) toast('Имя скопировано');
+    } catch { if (edit) toast('Не удалось скопировать имя'); }
+  });
+  removeAction.addEventListener('click', () => showRemoveConfirm(removeConfirm.hidden));
+  byId('remove-cancel').addEventListener('click', back);
+  byId('remove-clip').addEventListener('click', () => {
+    clips.splice(clips.indexOf(edit.clip), 1);
+    renderClips();
+    returnToClips(true);
+    toast('Клип удалён');
+  });
   editorPosition.addEventListener('input', () => seekPreview(Number(editorPosition.value)));
   startInput.addEventListener('change', () => setTrim('start', startInput.valueAsNumber));
   endInput.addEventListener('change', () => setTrim('end', endInput.valueAsNumber));
   startHandle.addEventListener('input', () => setTrim('start', startHandle.valueAsNumber));
   endHandle.addEventListener('input', () => setTrim('end', endHandle.valueAsNumber));
-  byId('trim-reset').addEventListener('click', () => { edit.start = 0; edit.end = edit.clip.seconds; renderTrim(); });
+  trimReset.addEventListener('click', () => { edit.start = 0; edit.end = edit.clip.seconds; renderTrim(); });
+  trimApply.addEventListener('click', () => {
+    const clip = edit.clip;
+    Object.assign(clip, trimmedRange());
+    renderClips();
+    openEditor(clip, clipFocus);
+    toast('Клип обрезан');
+  });
   trimSave.addEventListener('click', () => {
     const original = edit.clip;
-    const [from, to] = sourceRange(original);
-    const span = (to - from) / original.seconds;
-    clips.unshift({...original, title: original.title + ' — обрезка', at: new Date(),
-      seconds: decimal(edit.end - edit.start), favorite: false,
-      sampleFrom: from + span * edit.start, sampleTo: from + span * edit.end});
+    clips.unshift({...original, ...trimmedRange(), title: original.title + ' — обрезка', at: new Date(), favorite: false});
     renderClips();
     toast('Копия сохранена');
   });
@@ -845,6 +895,13 @@
         return;
       }
     }
+    if (edit && removeConfirm.hidden && (!field || field.type === 'range') && !event.repeat &&
+        !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey &&
+        (event.code === 'KeyI' || event.code === 'KeyO')) {
+      event.preventDefault();
+      setTrim(event.code === 'KeyI' ? 'start' : 'end', Number(editorPosition.value));
+      return;
+    }
     if (screen.open) return;
     if (event.key === 'Escape' && view !== 'title') {
       event.preventDefault();
@@ -877,5 +934,9 @@
   syncRecording();
   syncBindings();
   renderClips();
-  if (directReplays) openReplays(view === 'title' ? titleOpener : pauseOpener, query.get('tab') === 'settings' ? 1 : 0);
+  if (directReplays) {
+    const showSettings = query.get('tab') === 'settings';
+    openReplays(view === 'title' ? titleOpener : pauseOpener, showSettings ? 1 : 0);
+    if (!showSettings && query.get('editor') === '1') byId('clip-grid').querySelector('.clip-open')?.click();
+  }
 })();
