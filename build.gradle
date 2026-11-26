@@ -55,9 +55,6 @@ processResources {
     from(rootProject.file('website/tools/launcher-default-skin.png')) {
         into 'assets/orion-client/textures/gui/worlds'
     }
-    from(rootProject.files('website/tools/pause-preview.html', 'website/tools/replay-preview.js')) {
-        into 'assets/orion-client/replay'
-    }
     doFirst {
         ['OrionThumbnail.exe', 'OrionVolume.exe', 'SHA256SUMS'].each { name ->
             if (!mediaHelpersResources.get().file("assets/orion-client/media/${name}").asFile.isFile()) {

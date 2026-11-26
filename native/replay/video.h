@@ -15,6 +15,7 @@
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
 #include <winrt/Windows.Foundation.Metadata.h>
+#include <winrt/Windows.Security.Authorization.AppCapabilityAccess.h>
 #include <algorithm>
 #include <cstdint>
 #include <limits>
@@ -333,6 +334,22 @@ public:
         if (supports(L"IsCursorCaptureEnabled")) capture_.IsCursorCaptureEnabled(false);
         if (supports(L"IncludeSecondaryWindows")) capture_.IncludeSecondaryWindows(false);
         if (supports(L"MinUpdateInterval")) capture_.MinUpdateInterval(winrt::Windows::Foundation::TimeSpan(second / settings_.fps));
+        if (supports(L"IsBorderRequired")) {
+            // Packaged apps can be prompted. Desktop apps can also have consent managed by Windows.
+            static const bool request_borderless = [] {
+                using Access = winrt::Windows::Security::Authorization::AppCapabilityAccess::AppCapabilityAccessStatus;
+                try {
+                    return GraphicsCaptureAccess::RequestAccessAsync(GraphicsCaptureAccessKind::Borderless).get() == Access::Allowed;
+                } catch (const winrt::hresult_error&) {
+                    // Some unpackaged systems expose only the session property.
+                    return true;
+                }
+            }();
+            if (request_borderless) {
+                try { capture_.IsBorderRequired(false); }
+                catch (const winrt::hresult_error&) { /* Windows keeps its capture indicator. */ }
+            }
+        }
     }
 
     ~Video() {

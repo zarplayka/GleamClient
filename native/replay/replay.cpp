@@ -2,7 +2,7 @@
 #define NOMINMAX
 #include "audio.h"
 #include "storage.h"
-#include <cstddef>
+#include "preview.h"
 #include <sstream>
 
 namespace replay {
@@ -34,58 +34,6 @@ bool valid_id(std::string_view id, std::string_view prefix) {
         std::all_of(id.begin() + prefix.size(), id.end(), [](char c) {
             return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || c == '-';
         });
-}
-
-// Keep WebView audio outside the Minecraft process tree captured by WASAPI.
-int view_window(wchar_t** argv) {
-    DWORD desktop{};
-    if (!GetWindowThreadProcessId(GetShellWindow(), &desktop)) winrt::throw_last_error();
-    winrt::handle parent(OpenProcess(PROCESS_CREATE_PROCESS, FALSE, desktop));
-    if (!parent) winrt::throw_last_error();
-
-    SIZE_T length{};
-    InitializeProcThreadAttributeList(nullptr, 1, 0, &length);
-    std::vector<std::byte> memory(length);
-    auto attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(memory.data());
-    if (!InitializeProcThreadAttributeList(attributes, 1, 0, &length)) winrt::throw_last_error();
-    ScopeExit release([&] { DeleteProcThreadAttributeList(attributes); });
-    HANDLE shell = parent.get();
-    if (!UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, &shell, sizeof(shell), nullptr, nullptr))
-        winrt::throw_last_error();
-
-    winrt::handle job(CreateJobObjectW(nullptr, nullptr));
-    if (!job) winrt::throw_last_error();
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
-    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-    if (!SetInformationJobObject(job.get(), JobObjectExtendedLimitInformation, &limits, sizeof(limits)))
-        winrt::throw_last_error();
-
-    std::wstring command;
-    for (int i = 2; i < 9; ++i) {
-        std::wstring_view argument(argv[i]);
-        if (argument.find(L'"') != std::wstring_view::npos || argument.ends_with(L'\\'))
-            throw std::invalid_argument("Invalid replay window argument");
-        command.append(L"\"").append(argument).append(L"\" ");
-    }
-    STARTUPINFOEXW startup{};
-    startup.StartupInfo.cb = sizeof(startup);
-    startup.lpAttributeList = attributes;
-    PROCESS_INFORMATION process{};
-    if (!CreateProcessW(argv[2], command.data(), nullptr, nullptr, FALSE,
-                       CREATE_SUSPENDED | CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT,
-                       nullptr, nullptr, &startup.StartupInfo, &process))
-        winrt::throw_last_error();
-    winrt::handle child(process.hProcess), thread(process.hThread);
-    if (!AssignProcessToJobObject(job.get(), child.get())) {
-        DWORD reason = GetLastError();
-        TerminateProcess(child.get(), 1);
-        winrt::throw_hresult(HRESULT_FROM_WIN32(reason));
-    }
-    if (ResumeThread(thread.get()) == static_cast<DWORD>(-1)) winrt::throw_last_error();
-    WaitForSingleObject(child.get(), INFINITE);
-    DWORD result{};
-    if (!GetExitCodeProcess(child.get(), &result)) winrt::throw_last_error();
-    return static_cast<int>(result);
 }
 
 void capture(HWND window, DWORD pid, const std::filesystem::path& directory, VideoSettings settings,
@@ -216,7 +164,6 @@ int wmain(int argc, wchar_t** argv) {
     using namespace replay;
     try {
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-        if (argc == 9 && std::wstring_view(argv[1]) == L"view") return view_window(argv);
         winrt::init_apartment();
         check_hresult(MFStartup(MF_VERSION, MFSTARTUP_FULL));
         ScopeExit shutdown([] { MFShutdown(); });
@@ -233,6 +180,11 @@ int wmain(int argc, wchar_t** argv) {
             auto from = parse<ULONGLONG>(argv[4], 0, INT64_MAX / 10'000);
             auto to = parse<ULONGLONG>(argv[5], from + 1, INT64_MAX / 10'000);
             remux(argv[2], argv[3], from * 10'000, to * 10'000);
+            return 0;
+        }
+        if (argc == 5 && std::wstring_view(argv[1]) == L"preview") {
+            auto from = parse<ULONGLONG>(argv[3], 0, INT64_MAX / 10'000);
+            preview(argv[2], static_cast<LONGLONG>(from * 10'000), parse<unsigned>(argv[4], 0, 1) != 0);
             return 0;
         }
         throw std::invalid_argument("Unknown recorder command");

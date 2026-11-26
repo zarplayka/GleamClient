@@ -63,17 +63,16 @@ public final class GleamReplay {
     private volatile boolean buffer, recording, recordingPending, stoppingRecording;
     private volatile long recordedAt;
     private volatile List<Clip> clips = List.of();
+    private volatile Path helper;
     private volatile String encoder = "", message = "";
     private volatile long messageVersion;
-    private ReplayWindow web;
-    private Process windowProcess, recorder, export;
+    private Process recorder, export;
     private String trimTarget;
     private BufferedWriter input;
     private boolean worldOpen, shuttingDown;
     private volatile boolean failed;
 
     record World(long hwnd, boolean multiplayer) {}
-    private record Bounds(int x, int y, int width, int height) {}
     record Clip(String id, String title, String kind, long at, double seconds, boolean favorite, long revision) {}
     record Preferences(String duration, int customSeconds, String resolution, int fps, String quality, String bitrateMode,
                        int bitrate, String audio, boolean mic, Map<String, String> keys) {
@@ -106,8 +105,7 @@ public final class GleamReplay {
     private GleamReplay() { worker.allowCoreThreadTimeOut(true); }
 
     public static boolean available() {
-        return Platform.get() == Platform.WINDOWS && GleamReplay.class.getResource(RESOURCE + "gleam-replay.exe") != null
-                && GleamReplay.class.getResource(RESOURCE + "gleam-replay-window.exe") != null;
+        return Platform.get() == Platform.WINDOWS && GleamReplay.class.getResource(RESOURCE + "gleam-replay.exe") != null;
     }
 
     public void register() {
@@ -146,33 +144,20 @@ public final class GleamReplay {
 
     public void open(Minecraft client) {
         if (!available()) return;
-        long owner = hwnd(client);
-        var window = client.getWindow();
-        int width = window.getScreenWidth(), height = window.getScreenHeight();
-        int w = Math.max(280, Math.min(1480, Math.round(width * .74f)));
-        int h = Math.max(210, Math.min(960, Math.round(height * .75f)));
-        var bounds = new Bounds(window.getX() + (width - w) / 2, window.getY() + (height - h) / 2, w, h);
-        enqueue(() -> openWindow(client, owner, bounds));
+        enqueue(this::scan);
+        GleamMinecraft.setScreen(client, new GleamReplayScreen(GleamMinecraft.screen(client), this));
     }
 
     void submit(String command, JsonObject parameters) { enqueue(() -> action(command, parameters)); }
-
-    JsonObject snapshot() {
-        var data = new JsonObject();
-        var current = world;
-        data.addProperty("inWorld", current != null);
-        data.addProperty("multiplayer", current != null && current.multiplayer());
-        data.addProperty("buffer", buffer && !failed);
-        data.addProperty("recording", recording);
-        data.addProperty("pending", recordingPending || stoppingRecording);
-        data.addProperty("recordedAt", recordedAt);
-        data.addProperty("encoder", encoder);
-        data.addProperty("message", message);
-        data.addProperty("version", messageVersion);
-        data.add("clips", JSON.toJsonTree(clips));
-        data.add("settings", JSON.toJsonTree(preferences));
-        return data;
-    }
+    List<Clip> clips() { return clips; }
+    Preferences preferences() { return preferences; }
+    boolean inWorld() { return world != null; }
+    boolean buffered() { return buffer && !failed; }
+    boolean recording() { return recording; }
+    boolean pending() { return recordingPending || stoppingRecording; }
+    long recordingSeconds() { return Math.max(0, (System.currentTimeMillis() - recordedAt) / 1000); }
+    String message() { return message; }
+    long messageVersion() { return messageVersion; }
 
     Path media(String id) { return owns(id) ? folder.resolve(id + ".mp4") : null; }
     Path thumbnail(String id) { return owns(id) ? folder.resolve(id + ".jpg") : null; }
@@ -244,7 +229,6 @@ public final class GleamReplay {
                 try { Files.createDirectories(folder); Desktop.getDesktop().open(folder.toFile()); }
                 catch (IOException | RuntimeException error) { notice("Не удалось открыть папку"); }
             }
-            case "close" -> closeWindow();
             default -> { }
         }
     }
@@ -490,50 +474,14 @@ public final class GleamReplay {
         finally { scan(); }
     }
 
-    private void openWindow(Minecraft client, long owner, Bounds bounds) {
-        if (windowProcess != null && windowProcess.isAlive()) return;
-        closeWindow();
-        try {
-            scan();
-            var server = new ReplayWindow(this);
-            web = server;
-            var process = new ProcessBuilder(binary("gleam-replay.exe").toString(), "view",
-                    binary("gleam-replay-window.exe").toString(), server.url(),
-                    Long.toString(owner), Integer.toString(bounds.x()), Integer.toString(bounds.y()),
-                    Integer.toString(bounds.width()), Integer.toString(bounds.height())).redirectErrorStream(true).start();
-            windowProcess = process;
-            Thread.startVirtualThread(() -> {
-                try {
-                    byte[] output = process.getInputStream().readNBytes(4096);
-                    if (process.waitFor() != 0) {
-                        LOG.warn("Replay window: {}", new String(output, StandardCharsets.UTF_8));
-                        client.execute(() -> GleamMinecraft.setOverlayMessage(client,
-                                Component.translatable("gleam.replay.windowFailed"), false));
-                    }
-                } catch (IOException | InterruptedException error) { LOG.debug("Replay window closed", error); }
-                finally { enqueue(() -> { if (windowProcess == process) closeWindow(); }); }
-            });
-        } catch (IOException error) {
-            LOG.warn("Could not open Replay window", error);
-            closeWindow();
-        }
-    }
-
-    private void closeWindow() {
-        if (windowProcess != null && windowProcess.isAlive()) windowProcess.destroy();
-        windowProcess = null;
-        if (web != null) web.close();
-        web = null;
-    }
-
     private void shutdown() {
         shuttingDown = true;
-        closeWindow();
         stopSession();
         if (export != null && export.isAlive()) export.destroy();
     }
 
-    private Path binary(String name) throws IOException {
+    synchronized Path binary(String name) throws IOException {
+        if (helper != null && "gleam-replay.exe".equals(name)) return helper;
         try (var source = GleamReplay.class.getResourceAsStream(RESOURCE + name)) {
             if (source == null) throw new IOException("Missing " + name);
             byte[] binary = source.readAllBytes();
@@ -550,6 +498,7 @@ public final class GleamReplay {
                     }
                 } finally { Files.deleteIfExists(temp); }
             }
+            if ("gleam-replay.exe".equals(name)) helper = path;
             return path;
         } catch (java.security.NoSuchAlgorithmException error) { throw new IOException(error); }
     }
@@ -557,7 +506,7 @@ public final class GleamReplay {
     private void notice(String value) {
         message = value;
         messageVersion++;
-        if (web != null || world == null || shuttingDown) return;
+        if (world == null || shuttingDown) return;
         Minecraft client = Minecraft.getInstance();
         if (client != null) client.execute(() -> {
             if (client.player != null) GleamMinecraft.setOverlayMessage(client, Component.literal(value), false);
@@ -574,7 +523,7 @@ public final class GleamReplay {
     }
     private static String id(boolean recording) { return (recording ? "Recording-" : "Replay-") + UUID.randomUUID(); }
 
-    private static String browserKey(int key) {
+    static String browserKey(int key) {
         if (key >= InputConstants.KEY_A && key <= InputConstants.KEY_Z) return "Key" + (char) ('A' + key - InputConstants.KEY_A);
         if (key == InputConstants.KEY_0) return "Digit0";
         if (key >= InputConstants.KEY_1 && key <= InputConstants.KEY_9) return "Digit" + (key - InputConstants.KEY_1 + 1);
