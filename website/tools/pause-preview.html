@@ -272,7 +272,8 @@
     .control-group { display: flex; gap: 6px; align-items: center }
     .control-group select { min-width: 74px; max-width: 125px }
     .duration-custom { display: flex; gap: 4px; align-items: center; flex: none; color: var(--muted); font-size: 11px }
-    .duration-custom .rate-input { width: 46px; padding: 4px 5px; appearance: textfield }
+    .duration-custom .rate-input { width: 46px; padding: 4px 5px; appearance: textfield; transition: border-color .14s }
+    .duration-custom .rate-input:focus { outline: none; border-color: #9da8df }
     .duration-custom input::-webkit-inner-spin-button, .duration-custom input::-webkit-outer-spin-button { appearance: none; margin: 0 }
     .replay-select {
       display: flex; align-items: center; justify-content: space-between; gap: 7px; min-width: 0;
