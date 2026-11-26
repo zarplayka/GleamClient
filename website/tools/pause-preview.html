@@ -29,11 +29,7 @@
     [hidden] { display: none !important }
     .world, .shade { position: fixed; inset: 0; pointer-events: none }
     .world { background: url("../assets/gameplay-baseline.webp") center / cover no-repeat }
-    .shade {
-      background:
-        linear-gradient(90deg, #0b0e16f5, #0b0e16b2 30%, #0b0e162a 64%, #0b0e160a),
-        linear-gradient(0deg,#0b0e167a,transparent 25%);
-    }
+    .shade { background: #0c0f1c38; backdrop-filter: blur(4px) }
     button, select, input { font: inherit; color: inherit }
     button, select { cursor: pointer }
     button:disabled, select:disabled, input:disabled { cursor: default; opacity: .46 }
@@ -49,39 +45,35 @@
       stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round;
     }
     .pause {
-      position: relative; display: grid; grid-template-rows: auto 1fr auto;
-      align-items: start; min-height: 100dvh; width: min(100%, 560px);
-      padding: clamp(20px, 4.5vh, 48px) 28px clamp(18px, 4vh, 44px) var(--edge);
+      --menu-row: 38px;
+      --menu-gap: 10px;
+      position: relative; display: grid; justify-items: center; align-items: center;
+      min-height: 100dvh; padding: 14px 18px 64px;
     }
-    .brand { display: flex; align-items: center; gap: 11px; font-size: 15px; font-weight: 700 }
-    .brand img { width: 30px; height: 30px; object-fit: contain }
-    .pause-content { align-self: center; padding-block: 36px; width: min(100%, 390px) }
-    h1 { margin: 0 0 23px; font-size: clamp(45px, 6vw, 85px); font-weight: 700; letter-spacing: -.055em; line-height: .96 }
-    .menu { display: grid; gap: 7px }
-    .item {
-      display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 14px;
-      align-items: center; width: 100%; min-height: 51px; padding: 0 14px;
-      border: 1px solid transparent; border-radius: 11px; text-align: left;
-      background: transparent; font-size: 15px; font-weight: 600;
-      transition: background-color .16s, color .16s, border-color .16s;
+    .pause-content { position: relative; width: min(100%, 484px) }
+    h1 { margin: 0 0 clamp(26px, 9.7vh, 52px); text-align: center; font-size: 26px; font-weight: 600; line-height: 1.15 }
+    .menu { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--menu-gap) }
+    .item, .utility {
+      display: flex; justify-content: center; align-items: center; gap: 8px;
+      min-width: 0; min-height: var(--menu-row); padding: 3px 8px;
+      border: 1px solid #06071185; border-radius: 7px; color: #e2e3ed;
+      background: #1b1a24; text-align: center; font-size: 13px; font-weight: 400;
+      transition: background-color .15s, border-color .15s;
     }
-    .item:hover, .item[aria-expanded="true"] { border-color: var(--line); background: #ffffff12 }
-    .item .icon { color: var(--muted) }
-    .item.primary { min-height: 55px; border-color: transparent; background: var(--accent); color: var(--accent-ink) }
-    .item.primary:hover, .save:hover:enabled { background: #d7ddff }
-    .item.primary .icon { color: inherit }
-    .item.primary kbd, .save kbd { border-color: #1c245032; background: #1c245014 }
-    .item.replay { min-height: 59px; background: #a9b4ff12; border-color: #a9b4ff2b }
-    .item.replay:hover, .item.replay[aria-expanded="true"] { background: #a9b4ff26; border-color: #a9b4ff75 }
-    .item.replay > .icon { color: var(--accent) }
-    .item.replay .trailing { display: flex; gap: 10px; align-items: center }
-    .item.replay .trailing .icon { width: 15px; height: 15px }
-    .status { font-size: 11.5px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums }
-    .replay[data-ready] .status { color: var(--good) }
-    .menu-separator { height: 1px; margin: 5px 13px; background: var(--line) }
-    .item.exit { color: var(--danger) }
-    .item.exit .icon { color: inherit }
-    .pause-hint { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px }
+    .item.wide { grid-column: 1 / -1 }
+    .item:hover, .item[aria-expanded="true"], .utility:hover { border-color: #b7c1ff70; background: #292b3c }
+    .item .icon { width: 14px; height: 14px; color: #a3a8ba }
+    .utilities {
+      position: absolute; top: calc(100% + clamp(17px, 10.1vh, 52px)); inset-inline: 0;
+      display: grid; grid-template-columns: minmax(0, 1fr) var(--menu-row) minmax(0, 1fr);
+      gap: var(--menu-gap); align-items: center;
+    }
+    .utility-group { display: flex; gap: var(--menu-gap); min-width: 0 }
+    .utility-group:first-child { justify-content: flex-end }
+    .utility { flex: 0 0 var(--menu-row); width: var(--menu-row); padding: 0 }
+    .utility .icon { width: 16px; height: 16px; color: #a3a8ba }
+    .save:hover:enabled { background: #d7ddff }
+    .save kbd { border-color: #1c245032; background: #1c245014 }
     .resume-preview {
       position: fixed; left: var(--edge); bottom: 30px; display: flex; gap: 9px; align-items: center;
       padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--shell);
@@ -196,66 +188,67 @@
     .drawer-status { color: var(--good); min-height: 0 }
     .drawer-status:empty { display: none }
     @media (max-width: 620px) {
-      .pause { width: min(100%, 455px); padding-right: var(--edge) }
-      .shade { background: linear-gradient(90deg,#0b0e16e8,#0b0e1652) }
       .drawer-header, .drawer-footer { margin-inline: 15px }
       .drawer-body { padding-inline: 15px }
     }
     @media (max-width: 379px) {
-      .item { gap: 9px; padding-inline: 9px }
-      .item.replay .trailing { gap: 3px }
+      .pause { --menu-gap: 7px; --menu-row: 34px; padding-inline: 13px }
       .save { font-size: 12px }
       .row { gap: 7px }
       .row > label { font-size: 12px }
       select { min-width: 100px }
     }
     @media (max-height: 630px) {
-      .pause-content { padding-block: 18px }
-      h1 { font-size: clamp(45px, 5.7vw, 64px); margin-bottom: 15px }
-      .item, .item.primary, .item.replay { min-height: 44px }
-      .menu { gap: 4px }
       .drawer { --drawer-edge: 12px }
       .drawer-header { padding-block: 11px }
       .drawer-body { padding-block: 11px }
+    }
+    @media (max-height: 430px) {
+      .pause { --menu-row: 34px; --menu-gap: 7px; padding-bottom: 85px }
+      h1 { margin-bottom: 22px }
+      .utilities { top: calc(100% + 15px) }
     }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important } }
   </style>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5 19 12 8 18.5z" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-replay" viewBox="0 0 24 24"><path d="M4 13a8 8 0 1 0 1.8-6L3 10m0-5v5h5m4-2v4l3 2"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><path d="M10 4h4l.7 2.4 2 .9 2.3-.9 2 3.4-1.6 1.8v2l1.6 1.8-2 3.4-2.3-.9-2 .9L14 21h-4l-.7-2.2-2-.9-2.3.9-2-3.4 1.6-1.8v-2L3 9.8l2-3.4 2.3.9 2-.9z"/><circle cx="12" cy="12.5" r="2.8"/></symbol>
-    <symbol id="i-modules" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
     <symbol id="i-exit" viewBox="0 0 24 24"><path d="M10 4H5v16h5m4-12 4 4-4 4m-5-4h10"/></symbol>
-    <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
     <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-language" viewBox="0 0 24 24"><path d="M3 5h11m-5-2v2m3 0c-.8 4.1-3.8 7.3-8 9m2-6c1 2.6 3.1 4.5 5.3 5.7M13 21l4-9 4 9m-6.5-2.8h5"/></symbol>
+    <symbol id="i-world" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5a12 12 0 0 1 0 17 12 12 0 0 1 0-17Z"/></symbol>
+    <symbol id="i-friends" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1a6 6 0 0 1 12 0v1m2-14a3 3 0 0 1 0 6m4 8v-1a6 6 0 0 0-4-5"/></symbol>
+    <symbol id="i-players" viewBox="0 0 24 24"><circle cx="7" cy="8" r="2.5"/><path d="M3 19v-1a4 4 0 0 1 8 0v1m3-12h7m-7 5h7m-7 5h7"/></symbol>
+    <symbol id="i-feedback" viewBox="0 0 24 24"><path d="M4 5h16v12h-9l-5 3v-3H4ZM8 9h8m-8 4h6"/></symbol>
+    <symbol id="i-bug" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="13" rx="5"/><path d="m8 4 2 3m6-3-2 3M4 9l3 2m10 0 3-2M4 16h3m10 0h3m-8-4v8"/></symbol>
+    <symbol id="i-report" viewBox="0 0 24 24"><path d="M5 21V4m0 1h13l-2.5 4 2.5 4H5"/></symbol>
+    <symbol id="i-links" viewBox="0 0 24 24"><path d="m10 8 3-3a4 4 0 0 1 6 6l-3 3m-2 2-3 3a4 4 0 0 1-6-6l3-3m1 5 6-6"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></symbol>
   </svg>
 
   <div class="world" aria-hidden="true"></div>
   <div class="shade" id="shade" aria-hidden="true"></div>
   <main class="pause" id="pause" aria-labelledby="pause-title">
-    <header class="brand">
-      <img src="/src/main/resources/assets/orion-client/textures/cosmetics/orion_badge.png" alt="">
-      <span>GleamClient</span>
-    </header>
     <div class="pause-content">
-      <h1 id="pause-title">Пауза</h1>
+      <h1 id="pause-title">Меню</h1>
       <nav class="menu" aria-label="Меню паузы">
-        <button class="item primary" id="resume" type="button"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Продолжить игру</span><kbd>Esc</kbd></button>
-        <button class="item replay" id="open-replay" type="button" aria-controls="replay" aria-haspopup="dialog" aria-expanded="false">
-          <svg class="icon" aria-hidden="true"><use href="#i-replay"/></svg><span>Откаты</span>
-          <span class="trailing"><span class="status" id="menu-status"></span><svg class="icon" aria-hidden="true"><use href="#i-right"/></svg></span>
-        </button>
-        <button class="item" type="button" data-preview="В игре откроются настройки Minecraft"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg><span>Настройки</span></button>
-        <button class="item" type="button" data-preview="В игре откроется ClickGUI"><svg class="icon" aria-hidden="true"><use href="#i-modules"/></svg><span>Модули</span></button>
-        <div class="menu-separator" aria-hidden="true"></div>
-        <button class="item exit" type="button" data-preview="В игре эта кнопка выходит из мира"><svg class="icon" aria-hidden="true"><use href="#i-exit"/></svg><span>Выйти из мира</span></button>
+        <button class="item wide" id="resume" type="button">Вернуться к игре</button>
+        <button class="item" type="button" data-preview="В игре откроются достижения">Достижения</button>
+        <button class="item" type="button" data-preview="В игре откроется статистика">Статистика</button>
+        <button class="item" type="button" data-preview="В игре откроются настройки Minecraft">Настройки</button>
+        <button class="item" type="button" data-preview="В игре откроется кейбинд менеджер">Кейбинд менеджер</button>
+        <button class="item wide" id="open-replay" type="button" aria-controls="replay" aria-haspopup="dialog" aria-expanded="false">Откаты</button>
+        <button class="item wide" id="exit" type="button" data-preview="В игре эта кнопка выходит из мира"><svg class="icon" aria-hidden="true"><use href="#i-exit"/></svg><span>Сохранить и выйти</span></button>
+      </nav>
+      <nav class="utilities" aria-label="Дополнительные действия">
+        <div class="utility-group" id="utility-left"></div>
+        <button class="utility" type="button" title="Язык" aria-label="Язык" data-preview="В игре откроется выбор языка"><svg class="icon" aria-hidden="true"><use href="#i-language"/></svg></button>
+        <div class="utility-group" id="utility-right"></div>
       </nav>
     </div>
-    <footer class="pause-hint"><kbd>↑</kbd><kbd>↓</kbd><span>Выбрать</span><kbd>Enter</kbd><span>Открыть</span></footer>
   </main>
   <button class="resume-preview" id="show-pause" type="button" hidden><kbd>Esc</kbd> Открыть паузу</button>
 
@@ -320,9 +313,42 @@
       let savePending = false;
       let closingTimer;
       let settingBitrate = null;
+      const version = /^(\d+)(?:\.(\d+))?/.exec(query.get('version') || '26.3');
+      const major = Number(version?.[1]);
+      const minor = major > 26 ? Infinity : Number(version?.[2] ?? 3);
+      const multiplayer = query.get('world') === 'multi';
+
+      if (multiplayer) {
+        byId('exit').querySelector('span').textContent = 'Отключиться';
+        byId('exit').dataset.preview = 'В игре эта кнопка отключает от сервера';
+      }
+      if (major >= 26) {
+        const left = byId('utility-left');
+        const right = byId('utility-right');
+        if (multiplayer && query.get('links') === '1') addUtility(left, 'links', 'Ссылки сервера');
+        if (minor >= 3 || !multiplayer) {
+          const label = minor >= 3 ? 'Настройки мира' : minor >= 2 ? 'Настройки сетевой игры' : 'Открыть для сети';
+          addUtility(left, 'world', label);
+        }
+        if (minor >= 2) addUtility(left, 'friends', 'Друзья');
+        addUtility(right, 'feedback', 'Обратная связь');
+        addUtility(right, 'bug', 'Сообщить об ошибке');
+        addUtility(right, minor >= 4 ? 'players' : 'report', minor >= 4 ? 'Другие игроки' : 'Жалоба на игрока', !multiplayer);
+      }
       enabled.checked = query.get('state') !== 'off';
       if (!enabled.checked) available = 0;
 
+      function addUtility(group, icon, label, disabled = false) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'utility';
+        button.title = disabled ? label + ' · доступно в сетевой игре' : label;
+        button.setAttribute('aria-label', label);
+        button.dataset.preview = label + ' · действие в Minecraft';
+        button.disabled = disabled;
+        button.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-' + icon + '"/></svg>';
+        group.append(button);
+      }
       function length() { return Number(duration.value); }
       function seconds() {
         const playing = playingSince === null ? 0 : (performance.now() - playingSince) / 1000;
@@ -343,9 +369,6 @@
         const target = length();
         const buffered = seconds();
         const ready = buffered === target;
-        opener.toggleAttribute('data-ready', ready);
-        byId('menu-status').textContent = ready ? 'Готово · ' + target + ' с'
-          : enabled.checked ? (buffered ? buffered + ' из ' + target + ' с' : 'Накопление…') : 'Выключено';
         byId('buffer').dataset.state = ready ? 'ready' : enabled.checked ? 'buffering' : 'off';
         byId('buffer-label').textContent = ready ? 'Буфер готов' : enabled.checked ? 'Буфер заполняется' : 'Буфер выключен';
         byId('buffer-time').textContent = time(buffered);
@@ -470,7 +493,7 @@
         }
         if (pause.hidden || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
         event.preventDefault();
-        const items = [...pause.querySelectorAll('.item')];
+        const items = [...pause.querySelectorAll('.item, .utility:enabled')];
         const index = items.indexOf(document.activeElement);
         const step = event.key === 'ArrowDown' ? 1 : -1;
         items[index < 0 ? 0 : (index + step + items.length) % items.length].focus();
