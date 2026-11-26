@@ -13,6 +13,8 @@
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
   const library = byId('replay-library');
   const settings = byId('replay-settings');
+  const optionsMenu = byId('replay-options');
+  let activePicker, highlightedOption, optionsMotion, optionTerm = '', optionTypedAt = 0;
   const preferenceTabs = [...settings.querySelectorAll('.settings-nav [role=tab]')];
   const preferencePanels = preferenceTabs.map(tab => byId(tab.getAttribute('aria-controls')));
   const panelAnimations = new WeakMap();
@@ -297,8 +299,189 @@
     panelAnimations.set(panel, transition);
   }
 
+
+  function positionOptions(button) {
+    const rect = button.getBoundingClientRect();
+    const frame = screen.getBoundingClientRect();
+    const scaleX = frame.width / screen.offsetWidth;
+    const scaleY = frame.height / screen.offsetHeight;
+    const localRight = (rect.right - frame.left) / scaleX - screen.clientLeft;
+    const localTop = (rect.top - frame.top) / scaleY - screen.clientTop;
+    const localBottom = (rect.bottom - frame.top) / scaleY - screen.clientTop;
+    optionsMenu.style.width = 'max-content';
+    const menuWidth = Math.min(screen.clientWidth - 16, Math.max(rect.width / scaleX, optionsMenu.offsetWidth, 155));
+    const above = localTop - 14;
+    const below = screen.clientHeight - localBottom - 14;
+    const ideal = Math.min(196, 10 + optionsMenu.childElementCount * 32);
+    const upward = below < ideal && above > below;
+    const room = Math.max(26, Math.min(ideal, upward ? above : below));
+    optionsMenu.style.width = menuWidth + 'px';
+    optionsMenu.style.left = Math.max(8, Math.min(localRight - menuWidth, screen.clientWidth - menuWidth - 8)) + 'px';
+    optionsMenu.style.maxHeight = room + 'px';
+    optionsMenu.style.top = upward ? 'auto' : localBottom + 5 + 'px';
+    optionsMenu.style.bottom = upward ? screen.clientHeight - localTop + 5 + 'px' : 'auto';
+    optionsMenu.style.transformOrigin = upward ? 'bottom right' : 'top right';
+    return upward ? 5 : -5;
+  }
+
+  function highlightOption(row, scroll = false) {
+    if (!row || row.getAttribute('aria-disabled') === 'true') return;
+    highlightedOption?.removeAttribute('data-highlighted');
+    highlightedOption = row;
+    row.dataset.highlighted = '';
+    activePicker.button.setAttribute('aria-activedescendant', row.id);
+    if (scroll) {
+      if (row.offsetTop < optionsMenu.scrollTop) optionsMenu.scrollTop = row.offsetTop;
+      const bottom = row.offsetTop + row.offsetHeight;
+      if (bottom > optionsMenu.scrollTop + optionsMenu.clientHeight) optionsMenu.scrollTop = bottom - optionsMenu.clientHeight;
+    }
+  }
+
+  function closeOptions(restoreFocus = false, animate = true) {
+    if (!activePicker) return;
+    const {button} = activePicker;
+    activePicker = null;
+    highlightedOption = null;
+    button.setAttribute('aria-expanded', 'false');
+    button.removeAttribute('aria-activedescendant');
+    if (restoreFocus) button.focus({preventScroll: true});
+    optionsMenu.setAttribute('aria-hidden', 'true');
+    optionsMenu.dataset.closing = '';
+    const style = getComputedStyle(optionsMenu);
+    const from = {opacity: style.opacity, transform: style.transform};
+    optionsMotion?.cancel();
+    if (!animate || motion.matches) {
+      optionsMenu.hidden = true;
+      return;
+    }
+    const transition = optionsMenu.animate([from, {opacity: 0, transform: 'scale(.98)'}], {duration: 110, fill: 'forwards'});
+    optionsMotion = transition;
+    transition.finished.then(() => {
+      if (optionsMotion === transition) optionsMenu.hidden = true;
+    }).catch(() => {});
+  }
+
+  function openOptions(picker) {
+    if (activePicker === picker) return;
+    closeOptions(false, false);
+    const {select, button, label} = picker;
+    let from;
+    if (optionsMenu.hasAttribute('data-closing') && !optionsMenu.hidden && optionsMenu.getAttribute('aria-labelledby') === label.id) {
+      const style = getComputedStyle(optionsMenu);
+      from = {opacity: style.opacity, transform: style.transform};
+    }
+    optionsMotion?.cancel();
+    activePicker = picker;
+    optionTerm = '';
+    const rows = [...select.options].map((option, index) => {
+      const row = document.createElement('div');
+      row.className = 'replay-option';
+      row.id = 'replay-option-' + index;
+      row.dataset.index = index;
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', String(option.selected));
+      row.setAttribute('aria-disabled', String(option.disabled));
+      const text = document.createElement('span');
+      text.textContent = option.textContent;
+      row.append(text);
+      row.insertAdjacentHTML('beforeend', '<svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>');
+      return row;
+    });
+    optionsMenu.setAttribute('aria-labelledby', label.id);
+    optionsMenu.replaceChildren(...rows);
+    optionsMenu.hidden = false;
+    optionsMenu.removeAttribute('aria-hidden');
+    optionsMenu.removeAttribute('data-closing');
+    const offset = positionOptions(button);
+    optionsMenu.scrollTop = 0;
+    button.setAttribute('aria-expanded', 'true');
+    highlightOption(rows[select.selectedIndex], true);
+    if (motion.matches) return;
+    optionsMotion = optionsMenu.animate([
+      from ?? {opacity: 0, transform: 'translateY(' + offset + 'px) scale(.98)'},
+      {opacity: 1, transform: 'none'}
+    ], {duration: 175, easing: 'cubic-bezier(.22,.75,.19,1)'});
+  }
+
+  function chooseOption(row) {
+    if (!activePicker || !row || row.getAttribute('aria-disabled') === 'true') return;
+    const {select} = activePicker;
+    const next = Number(row.dataset.index);
+    if (select.selectedIndex !== next) {
+      select.selectedIndex = next;
+      select.dispatchEvent(new Event('input', {bubbles: true}));
+      select.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+    closeOptions(true);
+  }
+
+  function settingSelect(select) {
+    const label = select.labels[0];
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = select.id + '-picker';
+    button.className = 'replay-select';
+    button.setAttribute('role', 'combobox');
+    button.setAttribute('aria-controls', optionsMenu.id);
+    button.setAttribute('aria-expanded', 'false');
+    label.id ||= select.id + '-label';
+    label.htmlFor = button.id;
+    const caption = document.createElement('span');
+    caption.id = select.id + '-selected';
+    button.setAttribute('aria-labelledby', label.id + ' ' + caption.id);
+    button.append(caption, select.parentElement.querySelector('.icon'));
+    select.after(button);
+    select.hidden = true;
+    const picker = {select, button, label};
+    const sync = () => { caption.textContent = select.selectedOptions[0]?.textContent || ''; };
+    select.addEventListener('change', sync);
+    sync();
+    button.addEventListener('click', () => {
+      if (activePicker === picker) closeOptions();
+      else openOptions(picker);
+    });
+    button.addEventListener('keydown', event => {
+      if (activePicker === picker && event.key === 'Escape') {
+        event.preventDefault();
+        closeOptions(true);
+        return;
+      }
+      if (event.key === 'Tab') {
+        if (activePicker === picker) closeOptions();
+        return;
+      }
+      const moves = ['ArrowUp', 'ArrowDown', 'Home', 'End'];
+      if (['Enter', ' '].includes(event.key) && activePicker === picker) {
+        event.preventDefault();
+        chooseOption(highlightedOption);
+        return;
+      }
+      const letter = event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey;
+      if (!moves.includes(event.key) && (!letter || event.key === ' ')) return;
+      event.preventDefault();
+      const wasOpen = activePicker === picker;
+      if (!wasOpen) openOptions(picker);
+      const rows = [...optionsMenu.children].filter(row => row.getAttribute('aria-disabled') !== 'true');
+      const index = rows.indexOf(highlightedOption);
+      const last = rows.length - 1;
+      if (event.key === 'Home') highlightOption(rows[0], true);
+      else if (event.key === 'End') highlightOption(rows[last], true);
+      else if (moves.includes(event.key)) {
+        if (wasOpen) {
+          const step = event.key === 'ArrowUp' ? -1 : 1;
+          highlightOption(rows[Math.min(last, Math.max(0, index + step))], true);
+        }
+      } else {
+        const now = performance.now();
+        optionTerm = (now - optionTypedAt > 650 ? '' : optionTerm) + event.key.toLocaleLowerCase();
+        optionTypedAt = now;
+        highlightOption(rows.find(row => row.textContent.toLocaleLowerCase().startsWith(optionTerm)), true);
+      }
+    });
+  }
   function selectPreference(index) {
     if (activePreference === index) return;
+    closeOptions(false, false);
     bindingAction = null;
     syncBindings();
     const offset = index > activePreference ? 8 : -8;
@@ -315,6 +498,7 @@
 
   function selectTab(index, focus = false) {
     const changed = library.hidden !== (index !== 0);
+    closeOptions(false, false);
     bindingAction = null;
     syncBindings();
     returnToClips();
@@ -357,6 +541,7 @@
   function closeReplays() {
     if (!screen.open || replayOpener.getAttribute('aria-expanded') === 'false') return;
     const opener = replayOpener;
+    closeOptions(false, false);
     bindingAction = null;
     delete screen.dataset.visible;
     opener.setAttribute('aria-expanded', 'false');
@@ -370,7 +555,8 @@
     else closingTimer = setTimeout(finish, 240);
   }
   function back() {
-    if (edit) returnToClips(true);
+    if (activePicker) closeOptions(true);
+    else if (edit) returnToClips(true);
     else closeReplays();
   }
 
@@ -464,7 +650,7 @@
   });
   document.addEventListener('keydown', event => {
     if (bindingAction) { pickBinding(event); return; }
-    const field = event.target.closest?.('input:not([type=checkbox]), select, textarea');
+    const field = event.target.closest?.('input:not([type=checkbox]), select, textarea, [role=combobox]');
     if (!field) {
       const pressed = getBinding(event);
       if (sameBinding(pressed, bindings.save) || sameBinding(pressed, bindings.toggle)) {
@@ -492,6 +678,16 @@
     const step = event.key === 'ArrowDown' ? 1 : -1;
     items[index < 0 ? 0 : (index + step + items.length) % items.length].focus();
   }, true);
+
+  for (const select of settings.querySelectorAll('select')) settingSelect(select);
+  optionsMenu.addEventListener('pointerdown', event => { if (event.target.closest('[role=option]')) event.preventDefault(); });
+  optionsMenu.addEventListener('pointermove', event => { if (activePicker) highlightOption(event.target.closest('[role=option]')); });
+  optionsMenu.addEventListener('click', event => chooseOption(event.target.closest('[role=option]')));
+  document.addEventListener('pointerdown', event => {
+    if (activePicker && !activePicker.button.contains(event.target) && !optionsMenu.contains(event.target)) closeOptions();
+  }, true);
+  byId('replay-body').addEventListener('scroll', () => closeOptions(false, false));
+  window.addEventListener('resize', () => closeOptions(false, false));
 
   const directReplays = query.get('panel') === 'replays';
   setView(query.get('view') === 'title' ? 'title' : 'pause');
