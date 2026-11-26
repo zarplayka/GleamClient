@@ -72,6 +72,10 @@ def collect = tasks.register('collectArtifacts', Sync) {
 
 gradle.projectsEvaluated {
     subprojects.each { target ->
+        target.tasks.named('processResources') {
+            from(rootProject.file('website/tools/pause-preview.html')) { into 'assets/orion-client/html/replay' }
+            from(rootProject.file('website/tools/replay-preview.js')) { into 'assets/orion-client/html/replay' }
+        }
         if (System.getProperty('os.name').startsWith('Windows')) {
             target.tasks.named('processResources') {
                 dependsOn buildWorldIce, buildReplay
@@ -134,6 +138,7 @@ tasks.register('verifyArtifacts') {
                 }
                 ['cosmetics/pets/ember_fox.json', 'cosmetics/pets/moon_moth.json', 'cosmetics/pets/moss_turtle.json',
                  'html/hud-widgets.html',
+                 'html/replay/pause-preview.html', 'html/replay/replay-preview.js',
                  'html/menu/index.html', 'html/hud-island/island.js', 'fonts/poppins/Poppins-Bold.ttf'].each { asset ->
                     if (zip.getEntry('assets/orion-client/' + asset) == null) throw new GradleException("Missing ${asset}")
                 }

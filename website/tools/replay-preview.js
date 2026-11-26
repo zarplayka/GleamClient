@@ -1,7 +1,8 @@
 (() => {
   const byId = id => document.getElementById(id);
-  const query = new URLSearchParams(location.search);
-  const live = query.get('client') === '1' && typeof window.ipc?.postMessage === 'function';
+  const game = !!window.gleamReplayInGame;
+  const query = game ? {get: key => key === 'panel' ? 'replays' : null} : new URLSearchParams(location.search);
+  const live = game || query.get('client') === '1' && typeof window.ipc?.postMessage === 'function';
   const titleMenu = byId('title-menu');
   const pause = byId('pause');
   const screen = byId('replay');
@@ -14,7 +15,7 @@
   let customSeconds = Number(customDuration.value);
   const bitrateMode = byId('bitrate-mode');
   const bitrate = byId('bitrate');
-  const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  const motion = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : {matches: false};
   const library = byId('replay-library');
   const settings = byId('replay-settings');
   const optionsMenu = byId('replay-options');
@@ -25,7 +26,33 @@
   let activePreference = 0;
   const clipList = byId('clip-list');
   const editor = byId('clip-editor');
-  const editVideo = byId('edit-video');
+  const media = byId('edit-video');
+  let player = {};
+  let playPending = false;
+  let playing = false;
+  let seekTimer;
+  const editVideo = game ? {
+    get duration() { return edit?.clip.seconds; },
+    get currentTime() { return player.position || 0; },
+    set currentTime(value) {
+      clearTimeout(seekTimer);
+      seekTimer = setTimeout(() => { seekTimer = undefined; post('seek', {position: value}); }, 75);
+    },
+    get paused() { return !playing; },
+    get ended() { return !!player.ended; },
+    get muted() { return this.silent || this.volume === 0; },
+    set muted(value) { this.silent = value; post('audio-preview', {volume: this.volume, muted: value}); },
+    volume: 1,
+    silent: false,
+    get playbackRate() { return this.speed || 1; },
+    set playbackRate(value) { this.speed = value; post('speed', {value}); },
+    pause() { if (playing || playPending) post('pause-preview'); playing = playPending = false; },
+    play() { playPending = playing = true; post('play-preview'); syncPlayer(); },
+    addEventListener(name, fn) { if (name === 'click') media.addEventListener(name, fn); },
+    removeAttribute(name) { media.removeAttribute(name); },
+    setAttribute(name, value) { media.setAttribute(name, value); },
+    load() { clearTimeout(seekTimer); seekTimer = undefined; post('unload-preview'); }
+  } : media;
   const editFrame = byId('edit-frame');
   const previewPlay = byId('preview-play');
   const editPlay = byId('edit-play');
@@ -42,6 +69,19 @@
   const trimSave = byId('trim-save');
   const trimApply = byId('trim-apply');
   const trimReset = byId('trim-reset');
+  if (game) for (const field of [customDuration, bitrate, startInput, endInput]) {
+    field.setAttribute('type', 'text');
+    field.setAttribute('inputmode', field === startInput || field === endInput ? 'decimal' : 'numeric');
+    field.addEventListener('keydown', event => {
+      if ((event.ctrlKey || event.metaKey) && event.code === 'KeyA') {
+        event.preventDefault();
+        field.setSelectionRange(0, field.value.length);
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        field.blur();
+      }
+    });
+  }
   const tabs = [byId('tab-clips'), byId('tab-settings')];
   const filters = [...clipList.querySelectorAll('[data-filter]')];
   const recordAction = byId('record-action');
@@ -55,9 +95,10 @@
     replay: ['i-replay', 'Пока нет откатов', 'Включи буфер и сохрани откат горячей клавишей из настроек.'],
     recording: ['i-video', 'Пока нет записей', 'Начни запись в мире. После остановки она появится здесь.']
   };
-  const date = new Intl.DateTimeFormat('ru-RU', {dateStyle: 'medium', timeStyle: 'short'});
-  const number = new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 1});
-  const plurals = new Intl.PluralRules('ru');
+  const date = game ? {format: value => value} : new Intl.DateTimeFormat('ru-RU', {dateStyle: 'medium', timeStyle: 'short'});
+  const number = game ? {format: value => String(value).replace('.', ',')} : new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 1});
+  const plurals = game ? {select: value => value % 100 >= 11 && value % 100 <= 14 ? 'many'
+    : value % 10 === 1 ? 'one' : value % 10 >= 2 && value % 10 <= 4 ? 'few' : 'many'} : new Intl.PluralRules('ru');
   const clipImage = '../assets/gameplay-orion.webp';
   const clips = live ? [] : [{kind: 'replay', title: 'Откат из мира', at: new Date('2026-11-25T18:24:00'), seconds: 24, favorite: false}];
   const clipNumbers = {replay: 1, recording: 0};
@@ -238,6 +279,10 @@
   }
 
   function post(action, values = {}) {
+    if (game) {
+      window.webkit.messageHandlers.paradox.postMessage(JSON.stringify({action, values}));
+      return;
+    }
     const body = JSON.stringify({action, values});
     liveCommands = liveCommands.then(async () => {
       try {
@@ -282,8 +327,25 @@
     try {
       const response = await fetch('api/state');
       if (!response.ok) throw Error(response.statusText);
-      const snapshot = await response.json();
-      if (!liveState) {
+      applyLive(await response.json());
+    } catch {
+      if (!liveState) toast('Нет связи с Minecraft');
+    } finally { setTimeout(refreshLive, document.hidden ? 1600 : 450); }
+  }
+
+  function applyLive(snapshot) {
+      if (game && (snapshot.width !== liveState?.width || snapshot.height !== liveState?.height)) {
+        const w = Math.min(1480, Math.max(910, snapshot.width * .74), snapshot.width - (snapshot.width <= 620 ? 30 : 72));
+        const h = Math.min(Math.max(550, snapshot.height * .75), snapshot.height - (snapshot.width <= 620 ? 32 : 60));
+        screen.style.inset = 'auto';
+        screen.style.margin = '0';
+        screen.style.left = (snapshot.width - w) / 2 + 'px';
+        screen.style.top = (snapshot.height - h) / 2 + 'px';
+        screen.style.width = w + 'px';
+        screen.style.height = h + 'px';
+        screen.toggleAttribute('data-compact', w < 700);
+      }
+      if (snapshot.settings) {
         loadLiveSettings(snapshot.settings);
         editor.querySelector('.trim-help').textContent = 'Границы на таймлайне или I / O. Начало при сохранении привязывается к ключевому кадру.';
       }
@@ -295,9 +357,9 @@
       recordAction.querySelector('use').setAttribute('href', snapshot.recording ? '#i-stop' : '#i-record');
       byId('record-label').textContent = snapshot.pending ? 'Подождите…' : snapshot.recording ? 'Остановить запись' : 'Начать запись';
       recordTime.hidden = !snapshot.recording || snapshot.pending;
-      if (snapshot.recording) recordTime.textContent = time(Math.max(0, Math.floor((Date.now() - snapshot.recordedAt) / 1000)));
-      const identity = JSON.stringify(snapshot.clips);
-      if (liveClips !== identity) {
+      if (snapshot.recording) recordTime.textContent = time(game ? snapshot.recordSeconds : Math.max(0, Math.floor((Date.now() - snapshot.recordedAt) / 1000)));
+      const identity = snapshot.clips && JSON.stringify(snapshot.clips);
+      if (identity && liveClips !== identity) {
         liveClips = identity;
         clips.splice(0, clips.length, ...snapshot.clips);
         const selected = edit && clips.find(clip => clip.id === edit.clip.id);
@@ -315,9 +377,6 @@
         liveMessage = snapshot.version;
         toast(snapshot.message);
       }
-    } catch {
-      if (!liveState) toast('Нет связи с Minecraft');
-    } finally { setTimeout(refreshLive, document.hidden ? 1600 : 450); }
   }
   function resume() {
     const newWorld = view === 'title';
@@ -355,11 +414,17 @@
     empty.querySelector('p').textContent = help;
     empty.querySelector('use').setAttribute('href', '#' + icon);
     grid.replaceChildren(...visible.map(clip => {
-      const card = byId('clip-template').content.firstElementChild.cloneNode(true);
+      const template = byId('clip-template');
+      const card = (game ? template.firstElementChild : template.content.firstElementChild).cloneNode(true);
       const open = card.querySelector('.clip-open');
       const star = card.querySelector('.favorite');
       const image = card.querySelector('img');
-      if (live) {
+      if (game) {
+        card.querySelector('.clip-placeholder').hidden = !!clip.thumbnail;
+        image.hidden = !clip.thumbnail;
+        if (clip.thumbnail) image.src = clip.thumbnail;
+        card.setAttribute('data-clip-id', clip.id);
+      } else if (live) {
         card.querySelector('.clip-placeholder').hidden = false;
         image.addEventListener('error', () => { image.hidden = true; }, {once: true});
         image.loading = 'lazy';
@@ -388,6 +453,19 @@
       open.addEventListener('click', () => openEditor(clip, open));
       return card;
     }));
+    if (game) requestAnimationFrame(requestThumbnails);
+  }
+
+  function requestThumbnails() {
+    if (clipList.hidden || library.hidden) return;
+    const viewport = byId('replay-body').getBoundingClientRect();
+    for (const card of byId('clip-grid').children) {
+      const bounds = card.getBoundingClientRect();
+      if (bounds.bottom < viewport.top || bounds.top > viewport.bottom + 170 || !bounds.width) continue;
+      if (card.hasAttribute('data-thumbnail-requested')) continue;
+      card.setAttribute('data-thumbnail-requested', '');
+      if (card.querySelector('img').hidden) post('thumbnail', {id: card.getAttribute('data-clip-id')});
+    }
   }
 
   function clipFilterButton() {
@@ -404,6 +482,7 @@
     const position = Number(editorPosition.value);
     editorPosition.setAttribute('aria-valuetext', time(position));
     trimTrack.style.setProperty('--play-position', (position / edit.clip.seconds * 100) + '%');
+    if (game) byId('game-timeline').children[2].style.left = (position / edit.clip.seconds * 100) + '%';
     byId('edit-clock').textContent = time(position) + ' / ' + time(edit.clip.seconds);
   }
 
@@ -477,6 +556,7 @@
   }
 
   function saveStill() {
+    if (game) { post('still'); return; }
     if (!edit || !editVideo.videoWidth || editVideo.readyState < 2) {
       toast('Кадр ещё загружается');
       return;
@@ -509,7 +589,12 @@
     startHandle.max = endHandle.max = clip.seconds;
     editorPosition.max = clip.seconds;
     editorPosition.value = '0';
-    if (live) {
+    if (game) {
+      player = {};
+      clearTimeout(seekTimer);
+      seekTimer = undefined;
+      post('load-preview', {id: clip.id, rate: editVideo.playbackRate, volume: editVideo.volume, muted: editVideo.muted});
+    } else if (live) {
       editVideo.preload = 'metadata';
       editVideo.src = 'media/' + clip.id + '.mp4?v=' + clip.revision;
     }
@@ -520,7 +605,7 @@
     editFavorite.setAttribute('aria-pressed', String(clip.favorite));
     syncPlayer();
     const current = edit;
-    loadPreview().then(() => { if (current === edit) seekPreview(Number(editorPosition.value)); })
+    if (!game) loadPreview().then(() => { if (current === edit) seekPreview(Number(editorPosition.value)); })
       .catch(() => { if (current === edit) toast('Демонстрационное видео не загрузилось'); });
     renderTrim();
     byId('replay-body').scrollTop = 0;
@@ -539,6 +624,7 @@
       if (document.fullscreenElement === editFrame) document.exitFullscreen().catch(() => {});
     }
     delete screen.dataset.editor;
+    editFrame.removeAttribute('data-expanded');
     screen.setAttribute('aria-labelledby', 'replay-title');
     editor.hidden = true;
     clipList.hidden = false;
@@ -551,6 +637,10 @@
   }
 
   function decimal(value) { return Math.round(value * 10) / 10; }
+  function numberField(field) {
+    if (!game) return field.valueAsNumber;
+    return field.value.trim() ? Number(field.value.replace(',', '.')) : NaN;
+  }
 
   function renderTrim() {
     startInput.max = decimal(edit.end - .1);
@@ -564,6 +654,11 @@
     endHandle.setAttribute('aria-valuetext', time(edit.end));
     trimTrack.style.setProperty('--trim-start', (edit.start / edit.clip.seconds * 100) + '%');
     trimTrack.style.setProperty('--trim-end', ((1 - edit.end / edit.clip.seconds) * 100) + '%');
+    if (game) {
+      const handles = byId('game-timeline').children;
+      handles[0].style.left = (edit.start / edit.clip.seconds * 100) + '%';
+      handles[1].style.left = 'calc(' + (edit.end / edit.clip.seconds * 100) + '% - 3px)';
+    }
     clock();
     byId('trim-result').textContent = number.format(decimal(edit.end - edit.start)) + ' с';
     trimSave.disabled = trimApply.disabled = trimReset.disabled = edit.start === 0 && edit.end === edit.clip.seconds;
@@ -592,7 +687,7 @@
 
   function animatePanel(panel, offset) {
     panelAnimations.get(panel)?.cancel();
-    if (motion.matches || !screen.open) return;
+    if (motion.matches || !isOpen() || typeof panel.animate !== 'function') return;
     const transition = panel.animate([
       {opacity: .3, transform: 'translateX(' + offset + 'px)'},
       {opacity: 1, transform: 'none'}
@@ -651,7 +746,7 @@
     const style = getComputedStyle(optionsMenu);
     const from = {opacity: style.opacity, transform: style.transform};
     optionsMotion?.cancel();
-    if (!animate || motion.matches) {
+    if (!animate || motion.matches || typeof optionsMenu.animate !== 'function') {
       optionsMenu.hidden = true;
       return;
     }
@@ -697,7 +792,7 @@
     optionsMenu.scrollTop = 0;
     button.setAttribute('aria-expanded', 'true');
     highlightOption(rows[select.selectedIndex], true);
-    if (motion.matches) return;
+    if (motion.matches || typeof optionsMenu.animate !== 'function') return;
     optionsMotion = optionsMenu.animate([
       from ?? {opacity: 0, transform: 'translateY(' + offset + 'px) scale(.98)'},
       {opacity: 1, transform: 'none'}
@@ -717,7 +812,7 @@
   }
 
   function settingSelect(select) {
-    const label = select.labels[0];
+    const label = select.labels?.[0] || settings.querySelector('label[for="' + select.id + '"]');
     const button = document.createElement('button');
     button.type = 'button';
     button.id = select.id + '-picker';
@@ -734,7 +829,7 @@
     select.after(button);
     select.hidden = true;
     const picker = {select, button, label};
-    const sync = () => { caption.textContent = select.selectedOptions[0]?.textContent || ''; };
+    const sync = () => { caption.textContent = select.options[select.selectedIndex]?.textContent || ''; };
     select.addEventListener('change', sync);
     sync();
     button.addEventListener('click', () => {
@@ -814,8 +909,10 @@
     if (changed) animatePanel(index === 0 ? library : settings, index === 0 ? -9 : 9);
   }
 
+  function isOpen() { return game ? screen.hasAttribute('open') : screen.open; }
+
   function toast(message) {
-    if (screen.open) {
+    if (isOpen()) {
       const status = byId('replay-status');
       clearTimeout(replayTimer);
       status.textContent = message;
@@ -832,16 +929,25 @@
   function openReplays(opener, tab = 0) {
     clearTimeout(closingTimer);
     replayOpener = opener;
-    if (!screen.open) { selectTab(tab); screen.showModal(); }
+    if (!isOpen()) {
+      selectTab(tab);
+      if (game) screen.setAttribute('open', ''); else screen.showModal();
+    }
     opener.setAttribute('aria-expanded', 'true');
     if (motion.matches) screen.dataset.visible = '';
     else requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (screen.open && opener.getAttribute('aria-expanded') === 'true') screen.dataset.visible = '';
+      if (isOpen() && opener.getAttribute('aria-expanded') === 'true') screen.dataset.visible = '';
     }));
   }
   function closeReplays() {
-    if (!screen.open || replayOpener.getAttribute('aria-expanded') === 'false') return;
-    if (live) {
+    if (!isOpen() || replayOpener.getAttribute('aria-expanded') === 'false') return;
+    if (game) {
+      editVideo.pause();
+      replayOpener.setAttribute('aria-expanded', 'false');
+      delete screen.dataset.visible;
+      closingTimer = setTimeout(() => post('close'), 180);
+      return;
+    } else if (live) {
       editVideo.pause();
       replayOpener.setAttribute('aria-expanded', 'false');
       delete screen.dataset.visible;
@@ -864,7 +970,8 @@
     else closingTimer = setTimeout(finish, 240);
   }
   function back() {
-    if (activePicker) closeOptions(true);
+    if (editFrame.hasAttribute('data-expanded')) editFrame.removeAttribute('data-expanded');
+    else if (activePicker) closeOptions(true);
     else if (!removeConfirm.hidden) {
       showRemoveConfirm(false);
       removeAction.focus();
@@ -1014,6 +1121,7 @@
     syncVolume();
   });
   byId('edit-fullscreen').addEventListener('click', async () => {
+    if (game) { editFrame.toggleAttribute('data-expanded'); return; }
     try {
       if (document.fullscreenElement === editFrame) await document.exitFullscreen();
       else await editFrame.requestFullscreen();
@@ -1028,6 +1136,7 @@
   });
   byId('edit-still').addEventListener('click', saveStill);
   byId('edit-copy').addEventListener('click', async () => {
+    if (game) { post('copy-title'); return; }
     try {
       await navigator.clipboard.writeText(edit.clip.title);
       if (edit) toast('Имя скопировано');
@@ -1048,8 +1157,31 @@
     toast('Клип удалён');
   });
   editorPosition.addEventListener('input', () => seekPreview(Number(editorPosition.value)));
-  startInput.addEventListener('change', () => setTrim('start', startInput.valueAsNumber));
-  endInput.addEventListener('change', () => setTrim('end', endInput.valueAsNumber));
+  if (game) {
+    const timeline = byId('game-timeline');
+    let drag = null;
+    const updateDrag = event => {
+      if (!edit || !drag) return;
+      const rect = timeline.getBoundingClientRect();
+      const point = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * edit.clip.seconds;
+      if (drag === 'position') seekPreview(point);
+      else setTrim(drag, point);
+    };
+    timeline.hidden = false;
+    timeline.addEventListener('pointerdown', event => {
+      if (!edit) return;
+      const rect = timeline.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      drag = Math.abs(x - rect.width * edit.start / edit.clip.seconds) < 6 ? 'start'
+        : Math.abs(x - rect.width * edit.end / edit.clip.seconds) < 6 ? 'end' : 'position';
+      updateDrag(event);
+    });
+    document.addEventListener('pointermove', updateDrag);
+    document.addEventListener('pointerup', event => { updateDrag(event); drag = null; });
+    document.addEventListener('pointercancel', () => { drag = null; });
+  }
+  startInput.addEventListener(game ? 'blur' : 'change', () => { if (edit) setTrim('start', numberField(startInput)); });
+  endInput.addEventListener(game ? 'blur' : 'change', () => { if (edit) setTrim('end', numberField(endInput)); });
   startHandle.addEventListener('input', () => setTrim('start', startHandle.valueAsNumber));
   endHandle.addEventListener('input', () => setTrim('end', endHandle.valueAsNumber));
   trimReset.addEventListener('click', () => { edit.start = 0; edit.end = edit.clip.seconds; renderTrim(); });
@@ -1087,32 +1219,35 @@
     customDurationField.hidden = !custom;
     updateDuration();
     if (custom && !postingSettings) queueMicrotask(() => {
-      if (!customDurationField.hidden && screen.open && !settings.hidden) {
+      if (!customDurationField.hidden && isOpen() && !settings.hidden) {
         customDuration.focus({preventScroll: true});
         customDuration.select();
       }
     });
   });
-  customDuration.addEventListener('change', () => {
-    const value = customDuration.valueAsNumber;
+  function commitDuration() {
+    const value = numberField(customDuration);
     if (Number.isFinite(value)) {
-      customSeconds = Math.max(Number(customDuration.min), Math.min(Number(customDuration.max), Math.round(value)));
+      customSeconds = Math.max(Number(customDuration.getAttribute('min')), Math.min(Number(customDuration.getAttribute('max')), Math.round(value)));
     }
     customDuration.value = String(customSeconds);
     updateDuration();
-  });
-  customDuration.addEventListener('keydown', event => {
+    publishSettings();
+  }
+  customDuration.addEventListener(game ? 'blur' : 'change', commitDuration);
+  if (!game) customDuration.addEventListener('keydown', event => {
     if (event.key === 'Enter') { event.preventDefault(); customDuration.blur(); }
   });
-  for (const id of videoSettings) byId(id).addEventListener('change', () => {
+  const settingEvent = id => game && id === 'bitrate' ? 'blur' : 'change';
+  for (const id of videoSettings) byId(id).addEventListener(settingEvent(id), () => {
     const next = rate();
     if (!live && (id !== 'bitrate-mode' || next !== activeBitrate)) setEnabled(enabled.checked);
     activeBitrate = next;
     if (id === 'bitrate') bitrate.value = next;
     syncRecording();
   });
-  for (const id of [...videoSettings, 'duration', 'custom-duration', 'audio', 'mic'])
-    byId(id).addEventListener('change', publishSettings);
+  for (const id of [...videoSettings, 'duration', 'audio', 'mic'])
+    byId(id).addEventListener(settingEvent(id), publishSettings);
   for (const id of ['audio','mic']) byId(id).addEventListener('change', syncRecording);
   for (const button of bindingButtons) button.addEventListener('click', () => {
     bindingAction = button.dataset.bind;
@@ -1150,7 +1285,12 @@
       setTrim(event.code === 'KeyI' ? 'start' : 'end', Number(editorPosition.value));
       return;
     }
-    if (screen.open) return;
+    if (game && event.key === 'Escape' && !event.defaultPrevented) {
+      event.preventDefault();
+      back();
+      return;
+    }
+    if (isOpen()) return;
     if (event.key === 'Escape' && view !== 'title') {
       event.preventDefault();
       if (view === 'playing') showPause(); else resume();
@@ -1172,18 +1312,63 @@
   document.addEventListener('pointerdown', event => {
     if (activePicker && !activePicker.button.contains(event.target) && !optionsMenu.contains(event.target)) closeOptions();
   }, true);
-  byId('replay-body').addEventListener('scroll', () => closeOptions(false, false));
+  byId('replay-body').addEventListener('scroll', () => {
+    closeOptions(false, false);
+    if (game) requestThumbnails();
+  });
   window.addEventListener('resize', () => closeOptions(false, false));
 
   const directReplays = query.get('panel') === 'replays';
   setView(query.get('view') === 'title' ? 'title' : 'pause');
   if (live) {
-    document.body.dataset.client = '';
+    if (game) document.body.dataset.game = '';
+    else document.body.dataset.client = '';
     editVideo.removeAttribute('poster');
     editVideo.setAttribute('aria-label', 'Видео Minecraft');
     byId('clip-folder').hidden = false;
     recordAction.hidden = true;
-    refreshLive();
+    if (game) {
+      window.paradox = {editShortcut({command, text}) {
+        const field = document.activeElement;
+        if (field !== customDuration && field !== bitrate && field !== startInput && field !== endInput) return;
+        if (command === 'select') {
+          field.setSelectionRange(0, field.value.length);
+          return;
+        }
+        const inserted = text.replace(/[^0-9.,]/g, '');
+        if (!inserted) return;
+        const start = field.selectionStart ?? field.value.length;
+        const end = field.selectionEnd ?? start;
+        const value = field.value.slice(0, start) + inserted + field.value.slice(end);
+        if (value.length > 12) return;
+        field.value = value;
+        field.setSelectionRange(start + inserted.length, start + inserted.length);
+      }, update(snapshot) {
+        if (snapshot.player) {
+          if (!edit || snapshot.player.id !== edit.clip.id) return;
+          player = snapshot.player;
+          playing = player.playing;
+          playPending = false;
+          if (seekTimer === undefined) {
+            editorPosition.value = player.position;
+            clock();
+          }
+          syncPlayer();
+        } else if (snapshot.thumbnailId) {
+          const clip = clips.find(item => item.id === snapshot.thumbnailId && item.revision === snapshot.revision);
+          if (!clip) return;
+          clip.thumbnail = snapshot.thumbnail;
+          const card = byId('clip-grid').querySelector('[data-clip-id="' + clip.id + '"]');
+          if (card) {
+            card.querySelector('.clip-placeholder').hidden = true;
+            const image = card.querySelector('img');
+            image.src = clip.thumbnail;
+            image.hidden = false;
+          }
+        } else if (snapshot.toast) toast(snapshot.toast);
+        else applyLive(snapshot);
+      }};
+    } else refreshLive();
   }
   const state = query.get('state');
   setEnabled(state === 'ready' || state === 'buffering', state === 'buffering' ? 24 : state === 'ready' ? length() : 0);

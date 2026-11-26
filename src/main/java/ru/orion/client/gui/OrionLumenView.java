@@ -85,6 +85,8 @@ public final class OrionLumenView {
     private int viewportWidth = 160, viewportHeight = 104, atlasRevision = -1;
     private float pixelRatio = 1F;
     private boolean unavailable;
+    private int liveImageId = -1;
+    private DynamicTexture liveImage;
 
     public OrionLumenView(String resource, String texturePrefix, String fontResource) {
         this(resource,texturePrefix,fontResource,null);
@@ -191,6 +193,8 @@ public final class OrionLumenView {
         if (page != 0) LumenNative.pageClose(page);
         if (engine != 0) LumenNative.destroy(engine);
         page = engine = 0;
+        liveImageId = -1;
+        liveImage = null;
         displayLength = 0;
         themeReveal = null;
         atlasRevision = -1;
@@ -229,7 +233,12 @@ public final class OrionLumenView {
         images.clear();
     }
 
-    void editShortcut(JsonObject shortcut) {
+    public void liveImage(int id, DynamicTexture texture) {
+        liveImageId = id;
+        liveImage = texture;
+    }
+
+    public void editShortcut(JsonObject shortcut) {
         LumenNative.pageCall(page, engine, bytes("editShortcut"), bytes(shortcut.toString()));
     }
 
@@ -267,8 +276,8 @@ public final class OrionLumenView {
     public void release(float x, float y, int button) { LumenNative.pageUp(page, engine, button, x, y); }
     public byte[] messages() { return LumenNative.pageMessages(page); }
     byte[] logs() { return LumenNative.pageLogs(page); }
-    boolean wheel(float x,float y,float h,float v) { return LumenNative.pageWheel(page,engine,x,y,h,v); }
-    boolean key(String key,String code,int modifiers,boolean pressed) {
+    public boolean wheel(float x,float y,float h,float v) { return LumenNative.pageWheel(page,engine,x,y,h,v); }
+    public boolean key(String key,String code,int modifiers,boolean pressed) {
         return LumenNative.pageKey(page,engine,bytes(key),bytes(code),modifiers,pressed);
     }
     boolean text(String text) { return LumenNative.pageText(page,engine,bytes(text)); }
@@ -510,6 +519,7 @@ public final class OrionLumenView {
     }
 
     private DynamicTexture imageTexture(int id) {
+        if (id == liveImageId && liveImage != null) return liveImage;
         DynamicTexture texture = images.get(id);
         if (texture != null) return texture;
         long dimensions = LumenNative.imageSize(id);

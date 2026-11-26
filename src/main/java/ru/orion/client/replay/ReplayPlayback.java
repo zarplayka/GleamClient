@@ -26,16 +26,23 @@ final class ReplayPlayback implements AutoCloseable {
     private final Thread thread;
     private volatile Process process;
     private volatile boolean closed, finished, failed;
+    private volatile int gain;
 
     ReplayPlayback(GleamReplay replay, Path file, double position, boolean still, double rate, boolean muted) {
-        thread = Thread.ofPlatform().daemon().name("gleam-replay-player").start(() -> decode(replay, file, position, still, rate, muted));
+        this(replay, file, position, still, rate, muted ? 0 : 1.0);
     }
 
+    ReplayPlayback(GleamReplay replay, Path file, double position, boolean still, double rate, double volume) {
+        volume(volume);
+        thread = Thread.ofPlatform().daemon().name("gleam-replay-player").start(() -> decode(replay, file, position, still, rate));
+    }
+
+    void volume(double volume) { gain = (int) Math.round(volume * 256); }
     Frame frame() { return ready.get() == null ? null : ready.getAndSet(null); }
     boolean finished() { return finished; }
     boolean failed() { return failed; }
 
-    private void decode(GleamReplay replay, Path file, double from, boolean still, double rate, boolean muted) {
+    private void decode(GleamReplay replay, Path file, double from, boolean still, double rate) {
         try {
             Path helper = replay.binary("gleam-replay.exe");
             if (closed) return;
@@ -50,7 +57,7 @@ final class ReplayPlayback implements AutoCloseable {
                 if (width < 2 || width > 640 || height < 2 || height > 360) throw new IOException("Invalid preview dimensions");
                 var frameData = new byte[width * height * 4];
                 var audioData = new byte[64 * 1024];
-                try (SourceDataLine output = hasAudio && !muted ? audio(rate) : null) {
+                try (SourceDataLine output = hasAudio && !still ? audio(rate) : null) {
                     long origin = 0;
                     boolean videoFrame = false;
                     while (!closed) {
@@ -69,7 +76,16 @@ final class ReplayPlayback implements AutoCloseable {
                             }
                         } else if (kind == 2 && size > 0 && size <= audioData.length && size % 4 == 0) {
                             input.readFully(audioData, 0, size);
-                            if (output != null && await(origin, pts - .045, from, rate)) output.write(audioData, 0, size);
+                            if (output != null && await(origin, pts - .045, from, rate)) {
+                                int volume = gain;
+                                if (volume == 0) java.util.Arrays.fill(audioData, 0, size, (byte) 0);
+                                else if (volume < 256) for (int i = 0; i < size; i += 2) {
+                                    int sample = ((audioData[i] & 255) | audioData[i + 1] << 8) * volume / 256;
+                                    audioData[i] = (byte) sample;
+                                    audioData[i + 1] = (byte) (sample >> 8);
+                                }
+                                output.write(audioData, 0, size);
+                            }
                         } else throw new IOException("Invalid replay preview packet");
                         if (origin == 0) origin = System.nanoTime() - (long) ((pts - from) / rate * 1e9);
                     }

@@ -92,6 +92,33 @@
     body[data-client] :is(.world, .shade, .pause, .title-menu) { display: none }
     body[data-client] .replay-screen { width: 100%; height: 100dvh; border-radius: 0; box-shadow: none }
     body[data-client] .replay-screen::backdrop { background: #14151c }
+    body[data-game] { background: transparent }
+    body[data-game] .shade { background: #090a116b; backdrop-filter: none }
+    body[data-game] .world, body[data-game] .pause, body[data-game] .title-menu { display: none }
+    body[data-game] .replay-screen { display: none }
+    body[data-game] .replay-screen[open] { display: grid }
+    body[data-game] .screen-header { padding-left: var(--screen-edge); padding-right: var(--screen-edge) }
+    body[data-game] .screen-body { overflow-x: hidden; overflow-y: auto }
+    body[data-game] .settings-panel { display: flex; gap: 20px }
+    body[data-game] .settings-nav { flex: 0 0 174px }
+    body[data-game] .settings-pages { flex: 1 1 0; width: auto; max-width: 688px; min-width: 0 }
+    body[data-game] .clip-grid { display: flex; flex-wrap: wrap }
+    body[data-game] .clip-card { width: 212px }
+    body[data-game] .clip-thumb { display: flex; align-items: center; justify-content: center }
+    body[data-game] .clip-thumb img { position: absolute; inset: 0; height: 100% }
+    body[data-game] .edit-layout { display: flex }
+    body[data-game] .edit-player { flex: 1 1 0; min-width: 0 }
+    body[data-game] .editor-tools { flex: 0 0 25%; min-width: 220px }
+    body[data-game] .replay-screen[data-compact] .edit-layout,
+    body[data-game] .replay-screen[data-compact] .settings-panel { flex-direction: column }
+    body[data-game] .replay-screen[data-compact] .settings-nav { flex: 0 0 auto }
+    body[data-game] #edit-title:focus { outline: none }
+    body[data-game] .timeline-track input { display: none }
+    .game-timeline { position: absolute; inset: 0 6px; cursor: ew-resize; touch-action: none }
+    .game-timeline b { position: absolute; width: 3px; height: 15px; top: 3px; border-radius: 2px; background: var(--edit-progress); pointer-events: none }
+    .game-timeline .position { width: 7px; height: 7px; top: 7px; margin-left: -3px; background: #e7e2ff }
+    body[data-game] #edit-video { display: block; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain }
+    body[data-game] .edit-frame[data-expanded] { position: fixed; inset: 12px; width: auto; height: auto; z-index: 10 }
     body[data-client] .clip-thumb { display: grid; place-items: center }
     body[data-client] .clip-thumb img { position: absolute; inset: 0; height: 100% }
     .clip-placeholder { color: var(--muted) }
@@ -550,6 +577,7 @@
               <section class="timeline" aria-label="Таймлайн">
                 <div class="timeline-track" id="trim-track">
                   <div class="timeline-rail" aria-hidden="true"><span class="timeline-progress"></span></div>
+                  <div class="game-timeline" id="game-timeline" hidden aria-hidden="true"><b></b><b></b><b class="position"></b></div>
                   <input id="edit-position" type="range" min="0" step=".1" value="0" aria-label="Позиция на таймлайне">
                   <input id="start-handle" class="trim-handle" type="range" min="0" step=".1" value="0" aria-label="Начало обрезки">
                   <input id="end-handle" class="trim-handle" type="range" min="0" step=".1" aria-label="Конец обрезки">

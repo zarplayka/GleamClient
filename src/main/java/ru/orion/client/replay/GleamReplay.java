@@ -189,6 +189,25 @@ public final class GleamReplay {
     Path media(String id) { return owns(id) ? folder.resolve(id + ".mp4") : null; }
     Path thumbnail(String id) { return owns(id) ? folder.resolve(id + ".jpg") : null; }
 
+    void readThumbnail(Clip clip, java.util.function.Consumer<byte[]> complete) {
+        enqueue(() -> {
+            byte[] image = null;
+            Path file = thumbnail(clip.id());
+            try {
+                if (file != null && Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) && Files.size(file) <= 1_048_576) {
+                    try (var input = Files.newInputStream(file)) {
+                        var pixels = javax.imageio.ImageIO.read(input);
+                        if (pixels != null) {
+                            var output = new java.io.ByteArrayOutputStream();
+                            if (javax.imageio.ImageIO.write(pixels, "png", output)) image = output.toByteArray();
+                        }
+                    }
+                }
+            } catch (IOException error) { LOG.debug("Could not read replay thumbnail", error); }
+            complete.accept(image);
+        });
+    }
+
     private void enqueue(Runnable task) {
         try {
             worker.execute(() -> {
