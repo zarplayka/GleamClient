@@ -42,16 +42,34 @@
   const trimApply = byId('trim-apply');
   const trimReset = byId('trim-reset');
   const tabs = [byId('tab-clips'), byId('tab-settings')];
-  const filters = [byId('filter-all'), byId('filter-favorites')];
+  const filters = [...clipList.querySelectorAll('[data-filter]')];
+  const recordAction = byId('record-action');
+  const recordTime = byId('record-time');
+  const recordHud = byId('record-hud');
+  const recordHudTime = byId('record-hud-time');
+  const recordShortcut = byId('record-shortcut');
+  const emptyFilters = {
+    all: ['i-video', 'Пока нет клипов', 'Начни запись или сохрани откат, чтобы открыть его здесь.'],
+    favorites: ['i-star', 'Пока нет избранных клипов', 'Нажми на звезду рядом с клипом, чтобы он появился здесь.'],
+    replay: ['i-replay', 'Пока нет откатов', 'Включи буфер и сохрани откат горячей клавишей из настроек.'],
+    recording: ['i-video', 'Пока нет записей', 'Начни запись в мире. После остановки она появится здесь.']
+  };
   const date = new Intl.DateTimeFormat('ru-RU', {dateStyle: 'medium', timeStyle: 'short'});
   const number = new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 1});
   const plurals = new Intl.PluralRules('ru');
   const clipImage = '../assets/gameplay-orion.webp';
-  const clips = [{title: 'Откат из мира', at: new Date('2026-11-25T18:24:00'), seconds: 24, favorite: false}];
-  const defaultBindings = {save: {code: 'F10', modifiers: 2}, toggle: {code: 'F9', modifiers: 2}};
+  const clips = [{kind: 'replay', title: 'Откат из мира', at: new Date('2026-11-25T18:24:00'), seconds: 24, favorite: false}];
+  const clipNumbers = {replay: 1, recording: 0};
+  const clipTypes = {replay: 'Откат', recording: 'Запись'};
+  const defaultBindings = {
+    save: {code: 'F10', modifiers: 2},
+    toggle: {code: 'F9', modifiers: 2},
+    record: {code: 'F8', modifiers: 2}
+  };
+  const bindingIds = Object.keys(defaultBindings);
   const bindingKey = 'gleam.replay-preview.bindings';
   const bindingButtons = [...document.querySelectorAll('[data-bind]')];
-  const recording = ['resolution', 'fps', 'quality', 'bitrate-mode', 'bitrate'];
+  const videoSettings = ['resolution', 'fps', 'quality', 'bitrate-mode', 'bitrate'];
   const rateBase = {720: 9, 1080: 16, 1440: 25, source: 16};
   const rateFactors = {performance: .75, balanced: 1, quality: 1.25};
   const version = /^(\d+)(?:\.(\d+))?/.exec(query.get('version') || '26.3');
@@ -60,7 +78,8 @@
   const multiplayer = query.get('world') === 'multi';
 
   let view, playingSince = null, available = 0, savePending = false;
-  let favoritesOnly = false, clipFocus, edit;
+  let activeFilter = 'all', clipFocus, edit;
+  let manualRecording, recordingTimer;
   let previewTimer, replayTimer, closingTimer, replayOpener;
   let bindingAction, bindings = readBindings();
   let activeBitrate = rate();
@@ -97,7 +116,11 @@
       const stored = JSON.parse(localStorage.getItem(bindingKey));
       const valid = value => value && typeof value.code === 'string' && /^[A-Z][A-Za-z0-9]{0,30}$/.test(value.code) &&
         Number.isInteger(value.modifiers) && value.modifiers >= 0 && value.modifiers <= 15;
-      if (valid(stored?.save) && valid(stored?.toggle) && !sameBinding(stored.save, stored.toggle)) return stored;
+      if (valid(stored?.save) && valid(stored?.toggle) && !sameBinding(stored.save, stored.toggle)) {
+        const record = valid(stored.record) ? stored.record : stored.record === null ? null : defaultBindings.record;
+        const conflict = record && [stored.save, stored.toggle].some(binding => sameBinding(binding, record));
+        return {save: stored.save, toggle: stored.toggle, record: conflict ? null : record};
+      }
     } catch {}
     return {...defaultBindings};
   }
@@ -117,6 +140,7 @@
   }
 
   function bindingLabel(binding) {
+    if (!binding) return 'Не назначено';
     const keys = ['Ctrl', 'Alt', 'Shift', 'Meta'].filter((_, bit) => binding.modifiers & (1 << bit));
     return [...keys, binding.code.replace(/^(Key|Digit)(?=[A-Z0-9]$)/, '')].join(' + ');
   }
@@ -128,6 +152,8 @@
       button.toggleAttribute('data-listening', listening);
       byId(action + '-binding').textContent = listening ? 'Нажми клавишу' : bindingLabel(bindings[action]);
     }
+    recordShortcut.textContent = bindings.record ? bindingLabel(bindings.record) : '';
+    recordShortcut.hidden = !bindings.record;
     byId('binding-note').textContent = message;
   }
 
@@ -141,8 +167,7 @@
     }
     if (!event.code || /^(Alt|Shift|Control|Meta)(Left|Right)$/.test(event.code)) return;
     const candidate = getBinding(event);
-    const other = bindingAction === 'save' ? 'toggle' : 'save';
-    if (sameBinding(candidate, bindings[other])) {
+    if (bindingIds.some(action => action !== bindingAction && bindings[action] && sameBinding(candidate, bindings[action]))) {
       syncBindings('Это сочетание уже назначено другому действию');
       return;
     }
@@ -164,7 +189,10 @@
   }
   function time(value) {
     const whole = Math.floor(value + .00001);
-    const clock = String(Math.floor(whole / 60)).padStart(2, '0') + ':' + String(whole % 60).padStart(2, '0');
+    const hours = Math.floor(whole / 3600);
+    const parts = [Math.floor(whole / 60) % 60, whole % 60];
+    if (hours) parts.unshift(hours);
+    const clock = parts.map(part => String(part).padStart(2, '0')).join(':');
     const tenth = Math.round((value - whole) * 10);
     return tenth > 0 && tenth < 10 ? clock + ',' + tenth : clock;
   }
@@ -193,6 +221,7 @@
     pause.hidden = next !== 'pause';
     byId('shade').hidden = next === 'playing';
     byId('show-pause').hidden = next !== 'playing';
+    syncManualRecording();
   }
   function resume() {
     const newWorld = view === 'title';
@@ -208,6 +237,7 @@
     byId('resume').focus();
   }
   function showTitle() {
+    if (manualRecording) stopRecording();
     available = 0;
     playingSince = null;
     setView('title');
@@ -216,16 +246,18 @@
 
   function renderClips() {
     const grid = byId('clip-grid');
-    const visible = favoritesOnly ? clips.filter(clip => clip.favorite) : clips;
-    const label = {one: 'клип', few: 'клипа', many: 'клипов'}[plurals.select(visible.length)];
+    const visible = clips.filter(clip => activeFilter === 'all' ||
+      (activeFilter === 'favorites' ? clip.favorite : clip.kind === activeFilter));
+    const labels = activeFilter === 'recording' ? ['запись', 'записи', 'записей'] :
+      activeFilter === 'replay' ? ['откат', 'отката', 'откатов'] : ['клип', 'клипа', 'клипов'];
+    const label = labels[{one: 0, few: 1, many: 2}[plurals.select(visible.length)]];
     byId('clip-count').textContent = visible.length + ' ' + label;
     const empty = byId('clip-empty');
     empty.hidden = visible.length > 0;
-    empty.querySelector('strong').textContent = favoritesOnly ? 'Пока нет избранных клипов' : 'Пока нет клипов';
-    empty.querySelector('p').textContent = favoritesOnly ?
-      'Нажми на звезду рядом с клипом, чтобы он появился здесь.' :
-      'Включи буфер и сохрани откат горячей клавишей из настроек.';
-    empty.querySelector('use').setAttribute('href', favoritesOnly ? '#i-star' : '#i-replay');
+    const [icon, heading, help] = emptyFilters[activeFilter];
+    empty.querySelector('strong').textContent = heading;
+    empty.querySelector('p').textContent = help;
+    empty.querySelector('use').setAttribute('href', '#' + icon);
     grid.replaceChildren(...visible.map(clip => {
       const card = byId('clip-template').content.firstElementChild.cloneNode(true);
       const open = card.querySelector('.clip-open');
@@ -233,7 +265,7 @@
       card.querySelector('img').src = clipImage;
       card.querySelector('.clip-length').textContent = time(clip.seconds);
       card.querySelector('.clip-name').textContent = clip.title;
-      card.querySelector('.clip-meta').textContent = date.format(clip.at);
+      card.querySelector('.clip-meta').textContent = clipTypes[clip.kind] + ' · ' + date.format(clip.at);
       open.setAttribute('aria-label', 'Открыть редактор · ' + clip.title);
       if (clip === edit?.clip) clipFocus = open;
       function describeFavorite() {
@@ -244,7 +276,10 @@
       describeFavorite();
       star.addEventListener('click', () => {
         clip.favorite = !clip.favorite;
-        if (favoritesOnly && !clip.favorite) { renderClips(); filters[1].focus(); }
+        if (activeFilter === 'favorites' && !clip.favorite) {
+          renderClips();
+          clipFilterButton().focus();
+        }
         else describeFavorite();
       });
       open.addEventListener('click', () => openEditor(clip, open));
@@ -252,9 +287,14 @@
     }));
   }
 
+  function clipFilterButton() {
+    return filters.find(button => button.dataset.filter === activeFilter);
+  }
 
-  function sourceRange(clip) {
-    return [clip.sampleFrom ?? 0, clip.sampleTo ?? 1];
+  function selectClipFilter(filter) {
+    activeFilter = filter;
+    for (const button of filters) button.setAttribute('aria-pressed', String(button.dataset.filter === filter));
+    renderClips();
   }
 
   function clock() {
@@ -267,10 +307,16 @@
   function seekPreview(position) {
     if (!edit) return;
     editorPosition.value = Math.max(0, Math.min(edit.clip.seconds, position));
-    if (Number.isFinite(editVideo.duration)) {
-      const [from, to] = sourceRange(edit.clip);
-      const fraction = from + (to - from) * Number(editorPosition.value) / edit.clip.seconds;
-      editVideo.currentTime = fraction * editVideo.duration;
+    if (Number.isFinite(editVideo.duration) && editVideo.duration > 0) {
+      const position = Number(editorPosition.value);
+      const target = (edit.clip.sampleStart ?? 0) + position;
+      edit.sampleCycle = Math.floor(target / editVideo.duration);
+      let sampleTime = target % editVideo.duration;
+      if (sampleTime === 0 && position === edit.clip.seconds && edit.sampleCycle > 0) {
+        edit.sampleCycle--;
+        sampleTime = editVideo.duration;
+      }
+      editVideo.currentTime = sampleTime;
     }
     clock();
   }
@@ -317,9 +363,8 @@
 
   function syncVideoClock() {
     if (!edit || !Number.isFinite(editVideo.duration)) return;
-    const [from, to] = sourceRange(edit.clip);
-    const fraction = (editVideo.currentTime / editVideo.duration - from) / (to - from);
-    const position = Math.max(0, Math.min(edit.clip.seconds, fraction * edit.clip.seconds));
+    const sourceTime = edit.sampleCycle * editVideo.duration + editVideo.currentTime;
+    const position = Math.max(0, Math.min(edit.clip.seconds, sourceTime - (edit.clip.sampleStart ?? 0)));
     if (position >= edit.clip.seconds && !editVideo.paused) editVideo.pause();
     editorPosition.value = position;
     clock();
@@ -347,9 +392,10 @@
   function openEditor(clip, opener) {
     editVideo.pause();
     showRemoveConfirm(false);
-    edit = {clip, start: 0, end: clip.seconds};
+    edit = {clip, start: 0, end: clip.seconds, sampleCycle: 0};
     clipFocus = opener;
     byId('edit-title').textContent = clip.title;
+    byId('edit-type').textContent = clipTypes[clip.kind];
     byId('edit-meta').textContent = date.format(clip.at);
     byId('edit-source').textContent = clip.source ?? 'Демонстрация';
     byId('edit-duration').textContent = time(clip.seconds);
@@ -383,7 +429,7 @@
     clipList.hidden = false;
     edit = null;
     if (restoreFocus) {
-      (clipFocus?.isConnected ? clipFocus : filters[Number(favoritesOnly)]).focus({preventScroll: true});
+      (clipFocus?.isConnected ? clipFocus : clipFilterButton()).focus({preventScroll: true});
       animatePanel(clipList, -7);
     }
     clipFocus = null;
@@ -417,12 +463,9 @@
   }
 
   function trimmedRange() {
-    const [from, to] = sourceRange(edit.clip);
-    const span = (to - from) / edit.clip.seconds;
     return {
       seconds: decimal(edit.end - edit.start),
-      sampleFrom: from + span * edit.start,
-      sampleTo: from + span * edit.end
+      sampleStart: (edit.clip.sampleStart ?? 0) + edit.start
     };
   }
 
@@ -706,6 +749,55 @@
     else closeReplays();
   }
 
+  function makeClip(kind, seconds, at = new Date()) {
+    return {
+      kind, seconds, at, title: clipTypes[kind] + ' ' + ++clipNumbers[kind],
+      source: multiplayer ? 'Сетевая игра' : 'Одиночная игра', favorite: false
+    };
+  }
+
+  function updateRecordClock() {
+    const elapsed = time(Math.floor((performance.now() - manualRecording.started) / 1000));
+    recordTime.textContent = recordHudTime.textContent = elapsed;
+  }
+
+  function syncManualRecording() {
+    const active = Boolean(manualRecording);
+    recordAction.hidden = view === 'title';
+    recordAction.toggleAttribute('data-recording', active);
+    recordAction.querySelector('use').setAttribute('href', active ? '#i-stop' : '#i-record');
+    byId('record-label').textContent = active ? 'Остановить запись' : 'Начать запись';
+    recordTime.hidden = !active;
+    recordHud.hidden = !active || view !== 'playing';
+    if (active) updateRecordClock();
+  }
+
+  function stopRecording() {
+    const recorded = Math.max(.1, decimal((performance.now() - manualRecording.started) / 1000));
+    const clip = makeClip('recording', recorded, manualRecording.at);
+    clearInterval(recordingTimer);
+    manualRecording = null;
+    syncManualRecording();
+    clips.unshift(clip);
+    renderClips();
+    toast('Запись сохранена · ' + time(recorded));
+  }
+
+  function toggleRecording() {
+    if (manualRecording) {
+      stopRecording();
+      return;
+    }
+    if (view === 'title') {
+      toast('Открой мир, чтобы начать запись');
+      return;
+    }
+    manualRecording = {started: performance.now(), at: new Date()};
+    syncManualRecording();
+    recordingTimer = setInterval(updateRecordClock, 1000);
+    toast('Запись началась');
+  }
+
   function saveClip() {
     const buffered = Math.floor(seconds());
     if (savePending) return;
@@ -713,8 +805,7 @@
       toast(enabled.checked ? 'Буфер пока пуст' : 'Откаты выключены');
       return;
     }
-    const clip = {title: 'Откат ' + (clips.length + 1), at: new Date(), seconds: buffered,
-      source: multiplayer ? 'Сетевая игра' : 'Одиночная игра', favorite: false};
+    const clip = makeClip('replay', buffered);
     savePending = true;
     setTimeout(() => {
       savePending = false;
@@ -725,6 +816,11 @@
   }
 
   for (const opener of [pauseOpener, titleOpener]) opener.addEventListener('click', () => openReplays(opener));
+  recordAction.addEventListener('click', () => {
+    const stopping = Boolean(manualRecording);
+    toggleRecording();
+    if (stopping && activeFilter !== 'all' && activeFilter !== 'recording') selectClipFilter('recording');
+  });
   byId('close-replay').addEventListener('click', back);
   byId('editor-back').addEventListener('click', () => returnToClips(true));
   screen.addEventListener('cancel', event => { event.preventDefault(); back(); });
@@ -734,11 +830,7 @@
     if (event.clientX < bounds.left || event.clientX > bounds.right ||
         event.clientY < bounds.top || event.clientY > bounds.bottom) closeReplays();
   });
-  filters.forEach((filter, index) => filter.addEventListener('click', () => {
-    favoritesOnly = index === 1;
-    filters.forEach((button, position) => button.setAttribute('aria-pressed', String(position === index)));
-    renderClips();
-  }));
+  for (const filter of filters) filter.addEventListener('click', () => selectClipFilter(filter.dataset.filter));
   tabs.forEach((tab, index) => {
     tab.addEventListener('click', () => selectTab(index, true));
     tab.addEventListener('keydown', event => {
@@ -761,7 +853,14 @@
   });
   for (const button of [previewPlay, editPlay]) button.addEventListener('click', togglePreview);
   editVideo.addEventListener('click', togglePreview);
-  for (const event of ['play', 'pause', 'ended']) editVideo.addEventListener(event, syncPlayer);
+  for (const event of ['play', 'pause']) editVideo.addEventListener(event, syncPlayer);
+  editVideo.addEventListener('ended', () => {
+    syncVideoClock();
+    if (edit && Number(editorPosition.value) < edit.clip.seconds) {
+      seekPreview((edit.sampleCycle + 1) * editVideo.duration - (edit.clip.sampleStart ?? 0));
+      togglePreview();
+    } else syncPlayer();
+  });
   editVideo.addEventListener('loadedmetadata', () => seekPreview(Number(editorPosition.value)));
   editVideo.addEventListener('timeupdate', syncVideoClock);
   for (const button of editor.querySelectorAll('[data-seek]')) {
@@ -862,7 +961,7 @@
   customDuration.addEventListener('keydown', event => {
     if (event.key === 'Enter') { event.preventDefault(); customDuration.blur(); }
   });
-  for (const id of recording) byId(id).addEventListener('change', () => {
+  for (const id of videoSettings) byId(id).addEventListener('change', () => {
     const next = rate();
     if (id !== 'bitrate-mode' || next !== activeBitrate) setEnabled(enabled.checked);
     activeBitrate = next;
@@ -884,10 +983,12 @@
     const field = event.target.closest?.('input:not([type=checkbox]), select, textarea, [role=combobox]');
     if (!field) {
       const pressed = getBinding(event);
-      if (sameBinding(pressed, bindings.save) || sameBinding(pressed, bindings.toggle)) {
+      const action = bindingIds.find(id => bindings[id] && sameBinding(pressed, bindings[id]));
+      if (action) {
         event.preventDefault();
         if (event.repeat) return;
-        if (sameBinding(pressed, bindings.save)) saveClip();
+        if (action === 'save') saveClip();
+        else if (action === 'record') toggleRecording();
         else {
           setEnabled(!enabled.checked);
           toast(enabled.checked ? 'Откаты включены' : 'Откаты выключены');
