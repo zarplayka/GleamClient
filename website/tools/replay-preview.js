@@ -13,6 +13,10 @@
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
   const library = byId('replay-library');
   const settings = byId('replay-settings');
+  const preferenceTabs = [...settings.querySelectorAll('.settings-nav [role=tab]')];
+  const preferencePanels = preferenceTabs.map(tab => byId(tab.getAttribute('aria-controls')));
+  const panelAnimations = new WeakMap();
+  let activePreference = 0;
   const clipList = byId('clip-list');
   const editor = byId('clip-editor');
   const editorPosition = byId('edit-position');
@@ -158,7 +162,8 @@
   function syncRecording() {
     bitrate.hidden = bitrateMode.value !== 'manual';
     if (bitrate.hidden) bitrate.value = rate();
-    byId('estimate').textContent = format() + ' · ' + rate() + ' Мбит/с';
+    const size = Math.round(length() * rate() / 8);
+    byId('estimate').textContent = 'Около ' + size + ' МБ за ' + length() + ' с записи при ' + rate() + ' Мбит/с';
   }
   function setEnabled(on, initialSeconds = 0) {
     enabled.checked = on;
@@ -239,14 +244,18 @@
     editor.hidden = false;
     renderTrim();
     byId('replay-body').scrollTop = 0;
-    byId('edit-title').focus();
+    byId('edit-title').focus({preventScroll: true});
+    animatePanel(editor, 9);
   }
 
   function returnToClips(restoreFocus = false) {
     editor.hidden = true;
     clipList.hidden = false;
     edit = null;
-    if (restoreFocus) (clipFocus?.isConnected ? clipFocus : filters[Number(favoritesOnly)]).focus();
+    if (restoreFocus) {
+      (clipFocus?.isConnected ? clipFocus : filters[Number(favoritesOnly)]).focus({preventScroll: true});
+      animatePanel(clipList, -7);
+    }
     clipFocus = null;
   }
 
@@ -278,7 +287,34 @@
     renderTrim();
   }
 
+  function animatePanel(panel, offset) {
+    panelAnimations.get(panel)?.cancel();
+    if (motion.matches || !screen.open) return;
+    const transition = panel.animate([
+      {opacity: .3, transform: 'translateX(' + offset + 'px)'},
+      {opacity: 1, transform: 'none'}
+    ], {duration: 210, easing: 'cubic-bezier(.22,.75,.19,1)'});
+    panelAnimations.set(panel, transition);
+  }
+
+  function selectPreference(index) {
+    if (activePreference === index) return;
+    bindingAction = null;
+    syncBindings();
+    const offset = index > activePreference ? 8 : -8;
+    activePreference = index;
+    preferenceTabs.forEach((tab, position) => {
+      const active = position === index;
+      tab.setAttribute('aria-selected', String(active));
+      tab.tabIndex = active ? 0 : -1;
+      preferencePanels[position].hidden = !active;
+    });
+    byId('replay-body').scrollTop = 0;
+    animatePanel(preferencePanels[index], offset);
+  }
+
   function selectTab(index, focus = false) {
+    const changed = library.hidden !== (index !== 0);
     bindingAction = null;
     syncBindings();
     returnToClips();
@@ -289,7 +325,8 @@
     library.hidden = index !== 0;
     settings.hidden = index !== 1;
     byId('replay-body').scrollTop = 0;
-    if (focus) tabs[index].focus();
+    if (focus) tabs[index].focus({preventScroll: true});
+    if (changed) animatePanel(index === 0 ? library : settings, index === 0 ? -9 : 9);
   }
 
   function toast(message) {
@@ -330,7 +367,7 @@
       opener.focus();
     };
     if (motion.matches) finish();
-    else closingTimer = setTimeout(finish, 175);
+    else closingTimer = setTimeout(finish, 240);
   }
   function back() {
     if (edit) returnToClips(true);
@@ -377,6 +414,18 @@
       selectTab(event.key === 'Home' ? 0 : event.key === 'End' ? 1 : 1 - index, true);
     });
   });
+  preferenceTabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => selectPreference(index));
+    tab.addEventListener('keydown', event => {
+      if (bindingAction || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const direction = ['ArrowUp', 'ArrowLeft'].includes(event.key) ? -1 : 1;
+      const last = preferenceTabs.length - 1;
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? last : (index + direction + last + 1) % (last + 1);
+      selectPreference(next);
+      preferenceTabs[next].focus({preventScroll: true});
+    });
+  });
   editorPosition.addEventListener('input', renderTrim);
   startInput.addEventListener('change', () => setTrim('start', startInput.valueAsNumber));
   endInput.addEventListener('change', () => setTrim('end', endInput.valueAsNumber));
@@ -395,7 +444,7 @@
   byId('exit').addEventListener('click', showTitle);
   for (const button of titleMenu.querySelectorAll('[data-start]')) button.addEventListener('click', resume);
   for (const button of document.querySelectorAll('[data-preview]')) button.addEventListener('click', () => toast(button.dataset.preview));
-  duration.addEventListener('change', () => { available = Math.min(available, length()); });
+  duration.addEventListener('change', () => { available = Math.min(available, length()); syncRecording(); });
   for (const id of recording) byId(id).addEventListener('change', () => {
     const next = rate();
     if (id !== 'bitrate-mode' || next !== activeBitrate) setEnabled(enabled.checked);
