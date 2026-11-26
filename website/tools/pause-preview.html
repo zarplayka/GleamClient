@@ -131,7 +131,7 @@
     .clip-open { display: block; width: 100%; padding: 0; border: 0; border-radius: 5px; background: transparent; text-align: left }
     .clip-open:hover .clip-thumb { border-color: #b6c0ff7a }
     .clip-thumb { display: block; position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--line); border-radius: 5px; background: #202432 }
-    .clip-thumb img, .edit-frame img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover }
+    .clip-thumb img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover }
     .clip-length { position: absolute; right: 6px; bottom: 6px; padding: 3px 5px; border-radius: 4px; background: #0b0d16e8; color: #fff; font: 600 11px Paradox, sans-serif; font-variant-numeric: tabular-nums }
     .clip-name, .clip-meta { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
     .clip-name { margin-top: 6px; font-size: 13px; font-weight: 600 }
@@ -140,7 +140,7 @@
     .favorite:hover { background: #242a3d }
     .favorite .icon { width: 15px; height: 15px }
     .favorite[aria-pressed="true"] .icon { fill: var(--accent); color: var(--accent) }
-    .edit-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px }
+    .edit-header { display: flex; align-items: center; gap: 12px; margin-bottom: 7px }
     .edit-header h3 { margin: 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere }
     .edit-back, .plain-action, .key-button {
       border: 1px solid var(--line); border-radius: 5px; background: var(--surface);
@@ -152,11 +152,9 @@
       border-color: transparent; background: transparent; color: var(--muted); padding-inline: 5px; font-size: 11.5px;
     }
     .edit-back .icon { width: 13px; height: 13px }
-    .edit-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(215px, 24%); gap: 17px; align-items: start }
+    .edit-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(205px, 24%); gap: 12px; align-items: start }
     .edit-player { min-width: 0 }
     .edit-frame { position: relative; margin: 0; overflow: hidden; border-radius: 5px; border: 1px solid var(--line); background: #0b0d13 }
-    .edit-frame img { object-fit: contain }
-    .edit-frame figcaption { position: absolute; right: 8px; bottom: 8px; color: #fff; background: #0b0d16df; border-radius: 3px; padding: 3px 6px; font-size: 10px }
     .timeline { margin-top: 8px }
     .timeline-track { position: relative; height: 23px; --thumb: 12px }
     .timeline-rail { position: absolute; inset: 9px calc(var(--thumb) / 2) auto; height: 5px; border-radius: 3px; background: #2b2d3b; pointer-events: none }
@@ -242,6 +240,36 @@
     .settings-group .control-group .select-wrap { flex: 1; min-width: 0 }
     .settings-group .control-group :is(select, .replay-select) { width: 100%; min-width: 0; max-width: none }
     .settings-group .binding-note { margin: 9px 0 }
+    .replay-screen[data-editor][open] { grid-template-rows: minmax(0, 1fr) }
+    .replay-screen[data-editor] .screen-header { display: none }
+    .replay-screen[data-editor] .screen-body { padding: 8px 12px 17px }
+    .edit-frame { aspect-ratio: 16 / 9 }
+    .edit-frame video { display: block; width: 100%; height: 100%; object-fit: contain; background: #0b0d13 }
+    .edit-frame:fullscreen { border: 0; border-radius: 0; width: 100%; height: 100% }
+    .preview-play {
+      position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
+      width: 43px; height: 43px; display: grid; place-items: center;
+      border: 1px solid #b6c0ff70; border-radius: 50%; color: #141831; background: var(--accent);
+      transition: background-color .16s, opacity .16s;
+    }
+    .preview-play:hover { background: #d7ddff }
+    .preview-play .icon { width: 19px; height: 19px }
+    .transport { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-top: 2px }
+    .transport-group { display: flex; align-items: center; gap: 5px }
+    .transport button {
+      display: grid; place-items: center; min-width: 24px; min-height: 23px; padding: 3px 4px;
+      border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 11px;
+    }
+    .transport button:hover, .transport button[aria-pressed="true"] { background: #ffffff13; color: var(--ink) }
+    .transport button .icon { width: 13px; height: 13px }
+    .transport .play-toggle { background: #a9b5ff40; color: var(--ink) }
+    .transport output { margin: 0 2px; white-space: nowrap }
+    .transport-speed { display: flex; gap: 2px; padding-right: 5px; border-right: 1px solid var(--line) }
+    .transport input { width: clamp(42px, 6vw, 75px); margin: 0 2px; accent-color: var(--accent) }
+    .editor-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 0 0 12px }
+    .editor-actions .plain-action { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 11px; min-width: 0; padding-inline: 5px }
+    .editor-actions .icon { width: 13px; height: 13px }
+    #edit-favorite[aria-pressed="true"] .icon { fill: var(--accent); color: var(--accent) }
     .estimate { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums }
     @media (max-width: 620px) {
       .settings-panel { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 15px }
@@ -348,6 +376,12 @@
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <symbol id="i-replay" viewBox="0 0 24 24"><path d="M4 13a8 8 0 1 0 1.8-6L3 10m0-5v5h5m4-2v4l3 2"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5 18.5 12 8 18.5z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 5v14m6-14v14"/></symbol>
+    <symbol id="i-step-back" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+    <symbol id="i-step-forward" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5"/></symbol>
+    <symbol id="i-still" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="10" r="1.5"/><path d="m4 17 4-4 3 2 4-5 5 6"/></symbol>
     <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3"/></symbol>
     <symbol id="i-audio" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6m2-8a7 7 0 0 1 0 10"/></symbol>
     <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M7 10h.1m3.3 0h.1m3.3 0h.1m3.3 0h.1M7 14h.1m3 0h7"/></symbol>
@@ -437,7 +471,10 @@
           </header>
           <div class="edit-layout">
             <div class="edit-player">
-              <figure class="edit-frame"><img src="../assets/gameplay-orion.webp" alt="Кадр из Minecraft"><figcaption>Демонстрационный кадр</figcaption></figure>
+              <figure class="edit-frame" id="edit-frame">
+                <video id="edit-video" preload="none" playsinline poster="../assets/gameplay-baseline.webp" aria-label="Демонстрационное видео из кадров Minecraft"></video>
+                <button class="preview-play" id="preview-play" type="button" aria-label="Воспроизвести"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg></button>
+              </figure>
               <section class="timeline" aria-label="Таймлайн">
                 <div class="timeline-track" id="trim-track">
                   <div class="timeline-rail" aria-hidden="true"></div>
@@ -445,7 +482,25 @@
                   <input id="start-handle" class="trim-handle" type="range" min="0" step=".1" value="0" aria-label="Начало обрезки">
                   <input id="end-handle" class="trim-handle" type="range" min="0" step=".1" aria-label="Конец обрезки">
                 </div>
-                <output id="edit-clock"></output>
+                <div class="transport">
+                  <div class="transport-group">
+                    <button class="play-toggle" type="button" id="edit-play" aria-label="Воспроизвести"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg></button>
+                    <button type="button" data-seek="-1" aria-label="На секунду назад" title="На секунду назад"><svg class="icon" aria-hidden="true"><use href="#i-step-back"/></svg></button>
+                    <button type="button" data-seek="1" aria-label="На секунду вперёд" title="На секунду вперёд"><svg class="icon" aria-hidden="true"><use href="#i-step-forward"/></svg></button>
+                    <output id="edit-clock"></output>
+                  </div>
+                  <div class="transport-group">
+                    <div class="transport-speed" role="group" aria-label="Скорость воспроизведения">
+                      <button type="button" data-speed=".25" aria-pressed="false">0,25×</button>
+                      <button type="button" data-speed=".5" aria-pressed="false">0,5×</button>
+                      <button type="button" data-speed="1" aria-pressed="true">1×</button>
+                      <button type="button" data-speed="2" aria-pressed="false">2×</button>
+                    </div>
+                    <button type="button" id="edit-mute" aria-label="Выключить звук" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-audio"/></svg></button>
+                    <input id="edit-volume" type="range" min="0" max="1" step=".05" value="1" aria-label="Громкость">
+                    <button type="button" id="edit-fullscreen" aria-label="На весь экран" title="На весь экран"><svg class="icon" aria-hidden="true"><use href="#i-expand"/></svg></button>
+                  </div>
+                </div>
               </section>
             </div>
             <aside class="editor-tools" aria-label="Обрезка клипа">
@@ -455,6 +510,11 @@
                 <div><dt>Видео</dt><dd id="edit-format"></dd></div>
                 <div><dt>Длительность</dt><dd id="edit-duration"></dd></div>
               </dl>
+              <h4>Действия</h4>
+              <div class="editor-actions">
+                <button class="plain-action" type="button" id="edit-favorite" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>В избранное</button>
+                <button class="plain-action" type="button" id="edit-still"><svg class="icon" aria-hidden="true"><use href="#i-still"/></svg>Сохранить кадр</button>
+              </div>
               <h4>Обрезка</h4>
               <div class="row"><label for="trim-start">Начало</label><span class="trim-value"><input id="trim-start" class="rate-input" type="number" min="0" step=".1"> с</span></div>
               <div class="row"><label for="trim-end">Конец</label><span class="trim-value"><input id="trim-end" class="rate-input" type="number" min=".1" step=".1"> с</span></div>

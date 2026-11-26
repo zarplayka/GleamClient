@@ -24,6 +24,12 @@
   let activePreference = 0;
   const clipList = byId('clip-list');
   const editor = byId('clip-editor');
+  const editVideo = byId('edit-video');
+  const editFrame = byId('edit-frame');
+  const previewPlay = byId('preview-play');
+  const editPlay = byId('edit-play');
+  const editFavorite = byId('edit-favorite');
+  let previewLoad;
   const editorPosition = byId('edit-position');
   const startInput = byId('trim-start');
   const endInput = byId('trim-end');
@@ -239,6 +245,97 @@
     }));
   }
 
+
+  function sourceRange(clip) {
+    return [clip.sampleFrom ?? 0, clip.sampleTo ?? 1];
+  }
+
+  function clock() {
+    const position = Number(editorPosition.value);
+    editorPosition.setAttribute('aria-valuetext', time(position));
+    byId('edit-clock').textContent = time(position) + ' / ' + time(edit.clip.seconds);
+  }
+
+  function seekPreview(position) {
+    if (!edit) return;
+    editorPosition.value = Math.max(0, Math.min(edit.clip.seconds, position));
+    if (Number.isFinite(editVideo.duration)) {
+      const [from, to] = sourceRange(edit.clip);
+      const fraction = from + (to - from) * Number(editorPosition.value) / edit.clip.seconds;
+      editVideo.currentTime = fraction * editVideo.duration;
+    }
+    clock();
+  }
+
+  function loadPreview() {
+    if (!previewLoad) {
+      previewLoad = fetch('replay-demo.json').then(response => {
+        if (!response.ok) throw Error('Replay example is unavailable');
+        return response.json();
+      }).then(({type, data}) => {
+        const bytes = Uint8Array.from(atob(data), byte => byte.charCodeAt(0));
+        editVideo.preload = 'auto';
+        const url = URL.createObjectURL(new Blob([bytes], {type}));
+        editVideo.src = url;
+        window.addEventListener('pagehide', event => { if (!event.persisted) URL.revokeObjectURL(url); }, {once: true});
+      }).catch(error => {
+        previewLoad = null;
+        throw error;
+      });
+    }
+    return previewLoad;
+  }
+
+  function syncPlayer() {
+    const playing = !editVideo.paused && !editVideo.ended;
+    previewPlay.hidden = playing;
+    editPlay.setAttribute('aria-label', playing ? 'Пауза' : 'Воспроизвести');
+    editPlay.querySelector('use').setAttribute('href', playing ? '#i-pause' : '#i-play');
+  }
+
+  async function togglePreview() {
+    if (!edit) return;
+    if (!editVideo.paused) { editVideo.pause(); return; }
+    const current = edit;
+    try {
+      await loadPreview();
+      if (current !== edit) return;
+      if (Number(editorPosition.value) >= edit.clip.seconds) seekPreview(0);
+      await editVideo.play();
+    } catch (error) {
+      if (current === edit && error.name !== 'AbortError') toast('Демонстрационное видео не загрузилось');
+    }
+  }
+
+  function syncVideoClock() {
+    if (!edit || !Number.isFinite(editVideo.duration)) return;
+    const [from, to] = sourceRange(edit.clip);
+    const fraction = (editVideo.currentTime / editVideo.duration - from) / (to - from);
+    const position = Math.max(0, Math.min(edit.clip.seconds, fraction * edit.clip.seconds));
+    if (position >= edit.clip.seconds && !editVideo.paused) editVideo.pause();
+    editorPosition.value = position;
+    clock();
+  }
+
+  function saveStill() {
+    if (!edit || !editVideo.videoWidth || editVideo.readyState < 2) {
+      toast('Кадр ещё загружается');
+      return;
+    }
+    const title = edit.clip.title;
+    const canvas = document.createElement('canvas');
+    canvas.width = editVideo.videoWidth;
+    canvas.height = editVideo.videoHeight;
+    canvas.getContext('2d').drawImage(editVideo, 0, 0);
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = title.replace(/[\\/:*?"<>|]/g, '_') + '.png';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+    });
+  }
   function openEditor(clip, opener) {
     edit = {clip, start: 0, end: clip.seconds};
     clipFocus = opener;
@@ -251,6 +348,12 @@
     editorPosition.value = '0';
     clipList.hidden = true;
     editor.hidden = false;
+    screen.dataset.editor = '';
+    editFavorite.setAttribute('aria-pressed', String(clip.favorite));
+    syncPlayer();
+    const current = edit;
+    loadPreview().then(() => { if (current === edit) seekPreview(Number(editorPosition.value)); })
+      .catch(() => { if (current === edit) toast('Демонстрационное видео не загрузилось'); });
     renderTrim();
     byId('replay-body').scrollTop = 0;
     byId('edit-title').focus({preventScroll: true});
@@ -258,6 +361,11 @@
   }
 
   function returnToClips(restoreFocus = false) {
+    if (edit) {
+      editVideo.pause();
+      if (document.fullscreenElement === editFrame) document.exitFullscreen().catch(() => {});
+    }
+    delete screen.dataset.editor;
     editor.hidden = true;
     clipList.hidden = false;
     edit = null;
@@ -280,10 +388,9 @@
     endHandle.value = edit.end;
     startHandle.setAttribute('aria-valuetext', time(edit.start));
     endHandle.setAttribute('aria-valuetext', time(edit.end));
-    editorPosition.setAttribute('aria-valuetext', time(Number(editorPosition.value)));
     trimTrack.style.setProperty('--trim-start', (edit.start / edit.clip.seconds * 100) + '%');
     trimTrack.style.setProperty('--trim-end', ((1 - edit.end / edit.clip.seconds) * 100) + '%');
-    byId('edit-clock').textContent = time(Number(editorPosition.value)) + ' / ' + time(edit.clip.seconds);
+    clock();
     byId('trim-result').textContent = 'Длина отрезка · ' + number.format(decimal(edit.end - edit.start)) + ' с';
     trimSave.disabled = edit.start === 0 && edit.end === edit.clip.seconds;
   }
@@ -619,7 +726,49 @@
       preferenceTabs[next].focus({preventScroll: true});
     });
   });
-  editorPosition.addEventListener('input', renderTrim);
+  for (const button of [previewPlay, editPlay]) button.addEventListener('click', togglePreview);
+  editVideo.addEventListener('click', togglePreview);
+  for (const event of ['play', 'pause', 'ended']) editVideo.addEventListener(event, syncPlayer);
+  editVideo.addEventListener('loadedmetadata', () => seekPreview(Number(editorPosition.value)));
+  editVideo.addEventListener('timeupdate', syncVideoClock);
+  for (const button of editor.querySelectorAll('[data-seek]')) {
+    button.addEventListener('click', () => seekPreview(Number(editorPosition.value) + Number(button.dataset.seek)));
+  }
+  const speedButtons = [...editor.querySelectorAll('[data-speed]')];
+  for (const button of speedButtons) button.addEventListener('click', () => {
+    editVideo.playbackRate = Number(button.dataset.speed);
+    speedButtons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+  });
+  const volume = byId('edit-volume');
+  const mute = byId('edit-mute');
+  const syncVolume = () => {
+    mute.setAttribute('aria-pressed', String(editVideo.muted));
+    mute.setAttribute('aria-label', editVideo.muted ? 'Включить звук' : 'Выключить звук');
+  };
+  volume.addEventListener('input', () => {
+    editVideo.volume = Number(volume.value);
+    editVideo.muted = editVideo.volume === 0;
+    syncVolume();
+  });
+  mute.addEventListener('click', () => {
+    if (editVideo.muted && editVideo.volume === 0) { editVideo.volume = 1; volume.value = '1'; }
+    editVideo.muted = !editVideo.muted;
+    syncVolume();
+  });
+  byId('edit-fullscreen').addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement === editFrame) await document.exitFullscreen();
+      else await editFrame.requestFullscreen();
+    } catch { toast('Полноэкранный режим недоступен'); }
+  });
+  editFavorite.addEventListener('click', () => {
+    if (!edit) return;
+    edit.clip.favorite = !edit.clip.favorite;
+    editFavorite.setAttribute('aria-pressed', String(edit.clip.favorite));
+    renderClips();
+  });
+  byId('edit-still').addEventListener('click', saveStill);
+  editorPosition.addEventListener('input', () => seekPreview(Number(editorPosition.value)));
   startInput.addEventListener('change', () => setTrim('start', startInput.valueAsNumber));
   endInput.addEventListener('change', () => setTrim('end', endInput.valueAsNumber));
   startHandle.addEventListener('input', () => setTrim('start', startHandle.valueAsNumber));
@@ -627,7 +776,11 @@
   byId('trim-reset').addEventListener('click', () => { edit.start = 0; edit.end = edit.clip.seconds; renderTrim(); });
   trimSave.addEventListener('click', () => {
     const original = edit.clip;
-    clips.unshift({...original, title: original.title + ' — обрезка', at: new Date(), seconds: decimal(edit.end - edit.start), favorite: false});
+    const [from, to] = sourceRange(original);
+    const span = (to - from) / original.seconds;
+    clips.unshift({...original, title: original.title + ' — обрезка', at: new Date(),
+      seconds: decimal(edit.end - edit.start), favorite: false,
+      sampleFrom: from + span * edit.start, sampleTo: from + span * edit.end});
     renderClips();
     toast('Копия сохранена');
   });
