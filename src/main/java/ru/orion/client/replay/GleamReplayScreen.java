@@ -40,6 +40,7 @@ final class GleamReplayScreen extends Screen {
     private static final String MARKER = "assets/gleam-replay-video.png";
     private static final Gson JSON = new Gson();
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault());
+    private static final int[] PREVIEW_WIDTHS = {640, 960, 1920, 2560, ReplayPlayback.MAX_WIDTH};
     private final Screen parent;
     private final GleamReplay replay;
     private final OrionLumenView view = new OrionLumenView("replay/pause-preview.html", "replay_screen", FONTS + "Regular.ttf", this::document);
@@ -53,6 +54,7 @@ final class GleamReplayScreen extends Screen {
     private int videoId;
     private float scale = 1;
     private int layoutWidth, layoutHeight;
+    private int previewWidth;
     private double position, rate = 1, volume = 1;
     private boolean playing, ended, muted, ready;
 
@@ -211,7 +213,12 @@ final class GleamReplayScreen extends Screen {
                 position = 0;
                 rate = speed(values.get("rate").getAsDouble());
                 setAudio(values);
+                resizePreview(values);
                 startPlayback(false);
+            }
+            case "resize-preview" -> {
+                if (clip == null || !clip.id().equals(values.get("id").getAsString())) return;
+                if (resizePreview(values)) startPlayback(playing, ended);
             }
             case "unload-preview" -> closeVideo();
             case "play-preview" -> {
@@ -254,13 +261,31 @@ final class GleamReplayScreen extends Screen {
     }
 
     private void startPlayback(boolean play) {
+        startPlayback(play, false);
+    }
+
+    private void startPlayback(boolean play, boolean atEnd) {
         stopPlayback();
         var file = clip == null ? null : replay.media(clip.id());
         if (file == null) return;
-        ended = false;
-        playback = new ReplayPlayback(replay, file, Math.min(position, Math.max(0, clip.seconds() - .04)), !play, rate, muted ? 0 : volume);
+        ended = atEnd;
+        playback = new ReplayPlayback(replay, file, Math.min(position, Math.max(0, clip.seconds() - .04)),
+                !play, rate, muted ? 0 : volume, previewWidth, previewWidth * 9 / 16);
         playing = play;
         playerState();
+    }
+
+    private boolean resizePreview(JsonObject bounds) {
+        int nextWidth = Math.clamp(bounds.get("width").getAsInt(), 2, Math.min(layoutWidth, ReplayPlayback.MAX_WIDTH));
+        int nextHeight = Math.clamp(bounds.get("height").getAsInt(), 2, Math.min(layoutHeight, ReplayPlayback.MAX_HEIGHT));
+        // Let the GPU do small resizes. Keeping common recording resolutions also avoids restarting on every window resize.
+        for (int width : PREVIEW_WIDTHS) {
+            if (nextWidth > width || nextHeight > width * 9 / 16) continue;
+            if (previewWidth == width) return false;
+            previewWidth = width;
+            return true;
+        }
+        return false;
     }
 
     private void stopPlayback() {

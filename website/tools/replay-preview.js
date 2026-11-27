@@ -31,7 +31,7 @@
   let player = {};
   let playPending = false;
   let playing = false;
-  let seekTimer;
+  let seekTimer, previewResizeTimer;
   const editVideo = game ? {
     get duration() { return edit?.clip.seconds; },
     get currentTime() { return player.position || 0; },
@@ -348,6 +348,8 @@
         screen.style.width = w + 'px';
         screen.style.height = h + 'px';
         requestAnimationFrame(layoutClipGrid);
+        clearTimeout(previewResizeTimer);
+        if (edit) previewResizeTimer = setTimeout(resizeGamePreview, 150);
       }
       if (snapshot.settings) {
         loadLiveSettings(snapshot.settings);
@@ -537,6 +539,18 @@
     return previewLoad;
   }
 
+  function previewBounds() {
+    const {width, height} = editFrame.getBoundingClientRect();
+    return {width: Math.ceil(width), height: Math.ceil(height)};
+  }
+
+  function resizeGamePreview() {
+    if (!edit) return;
+    const bounds = previewBounds();
+    if (bounds.width > 0 && bounds.height > 0)
+      post('resize-preview', {id: edit.clip.id, ...bounds});
+  }
+
   function syncPlayer() {
     const playing = !editVideo.paused && !editVideo.ended;
     previewPlay.hidden = playing;
@@ -606,7 +620,6 @@
       videoSurface.src = clip.thumbnail || 'assets/gleam-replay-video.png';
       clearTimeout(seekTimer);
       seekTimer = undefined;
-      post('load-preview', {id: clip.id, rate: editVideo.playbackRate, volume: editVideo.volume, muted: editVideo.muted});
     } else if (live) {
       editVideo.preload = 'metadata';
       editVideo.src = 'media/' + clip.id + '.mp4?v=' + clip.revision;
@@ -614,6 +627,9 @@
     clipList.hidden = true;
     editor.hidden = false;
     screen.dataset.editor = '';
+    if (game) post('load-preview', {
+      id: clip.id, rate: editVideo.playbackRate, volume: editVideo.volume, muted: editVideo.muted, ...previewBounds()
+    });
     screen.setAttribute('aria-labelledby', 'edit-title');
     editFavorite.setAttribute('aria-pressed', String(clip.favorite));
     syncPlayer();
@@ -629,6 +645,7 @@
   function returnToClips(restoreFocus = false) {
     showRemoveConfirm(false);
     if (edit) {
+      clearTimeout(previewResizeTimer);
       editVideo.pause();
       if (live) {
         editVideo.removeAttribute('src');
@@ -982,7 +999,10 @@
     else closingTimer = setTimeout(finish, 240);
   }
   function back() {
-    if (editFrame.hasAttribute('data-expanded')) editFrame.removeAttribute('data-expanded');
+    if (editFrame.hasAttribute('data-expanded')) {
+      editFrame.removeAttribute('data-expanded');
+      resizeGamePreview();
+    }
     else if (activePicker) closeOptions(true);
     else if (!removeConfirm.hidden) {
       showRemoveConfirm(false);
@@ -1146,7 +1166,11 @@
     syncVolume();
   });
   byId('edit-fullscreen').addEventListener('click', async () => {
-    if (game) { editFrame.toggleAttribute('data-expanded'); return; }
+    if (game) {
+      editFrame.toggleAttribute('data-expanded');
+      resizeGamePreview();
+      return;
+    }
     try {
       if (document.fullscreenElement === editFrame) await document.exitFullscreen();
       else await editFrame.requestFullscreen();

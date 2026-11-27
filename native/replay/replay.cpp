@@ -182,11 +182,13 @@ int wmain(int argc, wchar_t** argv) {
             remux(argv[2], argv[3], from * 10'000, to * 10'000);
             return 0;
         }
-        if ((argc == 5 || argc == 7) && std::wstring_view(argv[1]) == L"preview") {
+        if ((argc == 5 || argc == 7 || argc == 8 || argc == 9) && std::wstring_view(argv[1]) == L"preview") {
             auto from = parse<ULONGLONG>(argv[3], 0, INT64_MAX / 10'000);
-            const auto width = argc == 7 ? parse<unsigned>(argv[5], 320, 960) : 640;
-            const auto fps = argc == 7 ? parse<unsigned>(argv[6], 12, 60) : 24;
-            preview(argv[2], static_cast<LONGLONG>(from * 10'000), parse<unsigned>(argv[4], 0, 1) != 0, width, fps);
+            const auto width = argc >= 7 ? parse<unsigned>(argv[5], 2, 3840) : 640;
+            const auto height = argc >= 8 ? parse<unsigned>(argv[6], 2, 2160) : width * 9 / 16;
+            const auto fps = argc >= 7 ? parse<unsigned>(argv[argc == 7 ? 6 : 7], 12, 60) : 24;
+            preview(argv[2], static_cast<LONGLONG>(from * 10'000), parse<unsigned>(argv[4], 0, 1) != 0,
+                    width, height, fps, argc == 9 ? std::wstring_view(argv[8]) : std::wstring_view{});
             return 0;
         }
         throw std::invalid_argument("Unknown recorder command");

@@ -3,11 +3,15 @@
 #include "storage.h"
 #include <fcntl.h>
 #include <io.h>
+#include <span>
 
 namespace replay {
-// Fixed stream header, followed by bounded packets of pixels or stereo PCM.
-inline void preview(const std::filesystem::path& path, LONGLONG from, bool still, unsigned width_limit, unsigned fps) {
+// The pipe carries timestamps and PCM. One shared pixel buffer is released by an ACK on stdin.
+inline void preview(const std::filesystem::path& path, LONGLONG from, bool still,
+                    unsigned width_limit, unsigned height_limit, unsigned fps, std::wstring_view token) {
     if (_setmode(_fileno(stdout), _O_BINARY) == -1) throw std::runtime_error("Cannot open preview pipe");
+    if (!token.empty() && (!valid_frame_token(token) || _setmode(_fileno(stdin), _O_BINARY) == -1))
+        throw std::runtime_error("Invalid preview channel");
     auto attributes = replay::attributes(2);
     check_hresult(attributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE));
     check_hresult(attributes->SetUINT32(MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING, TRUE));
@@ -24,7 +28,11 @@ inline void preview(const std::filesystem::path& path, LONGLONG from, bool still
     UINT32 w{}, h{};
     check_hresult(MFGetAttributeSize(original.get(), MF_MT_FRAME_SIZE, &w, &h));
     if (!w || !h) throw std::runtime_error("Invalid preview size");
-    double scale = std::min({1.0, double(width_limit) / w, (width_limit * .5625) / h});
+    UINT32 fps_num{}, fps_den{};
+    const bool limit_fps = !still &&
+        (FAILED(MFGetAttributeRatio(original.get(), MF_MT_FRAME_RATE, &fps_num, &fps_den)) ||
+         !fps_num || !fps_den || fps_num > UINT64(fps) * fps_den);
+    double scale = std::min({1.0, double(width_limit) / w, double(height_limit) / h});
     w = std::max(2u, static_cast<UINT32>(w * scale) & ~1u);
     h = std::max(2u, static_cast<UINT32>(h * scale) & ~1u);
     auto decoded = media_type();
@@ -43,13 +51,26 @@ inline void preview(const std::filesystem::path& path, LONGLONG from, bool still
     position.vt = VT_I8;
     position.hVal.QuadPart = from;
     check_hresult(reader->SetCurrentPosition(GUID_NULL, position));
+    const auto frame_bytes = w * h * static_cast<UINT32>(sizeof(UINT32));
+    std::vector<UINT32> inline_pixels;
+    winrt::handle mapping;
+    UINT32* shared_pixels{};
+    ScopeExit unmap([&] { if (shared_pixels) UnmapViewOfFile(shared_pixels); });
+    if (!token.empty()) {
+        const auto name = L"Local\\GleamReplayPreview-" + std::wstring(token);
+        mapping.attach(CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, frame_bytes, name.c_str()));
+        if (!mapping) winrt::throw_last_error();
+        if (GetLastError() == ERROR_ALREADY_EXISTS) throw std::runtime_error("Preview channel already exists");
+        shared_pixels = static_cast<UINT32*>(MapViewOfFile(mapping.get(), FILE_MAP_WRITE, 0, 0, frame_bytes));
+        if (!shared_pixels) winrt::throw_last_error();
+    } else inline_pixels.resize(static_cast<size_t>(w) * h);
+    auto* pixels = shared_pixels ? shared_pixels : inline_pixels.data();
     const UINT32 header[]{0x47525031, w, h, audio ? 1u : 0u};
     if (fwrite(header, sizeof(header), 1, stdout) != 1) return;
     fflush(stdout);
-    std::vector<unsigned char> pixels(static_cast<size_t>(w) * h * 4);
     DWORD video_index = UINT32_MAX;
     bool video_done = false, audio_done = !audio;
-    LONGLONG last_video_slot = -1;
+    LONGLONG first_video_time = -1, last_video_slot = -1;
     while (!video_done || !audio_done) {
         DWORD stream{}, flags{};
         LONGLONG timestamp{};
@@ -70,20 +91,24 @@ inline void preview(const std::filesystem::path& path, LONGLONG from, bool still
             continue;
         }
         if (!sample || timestamp < from) continue;
-        const auto video_slot = (timestamp - from) * fps / second;
-        if (video && video_slot == last_video_slot) continue;
+        if (video && limit_fps) {
+            if (first_video_time < 0) first_video_time = timestamp;
+            const auto video_slot = ((timestamp - first_video_time) * fps + second / 2) / second;
+            if (video_slot <= last_video_slot) continue;
+            last_video_slot = video_slot;
+        }
         auto emit = [&](UINT32 kind, const BYTE* data, UINT32 length) {
             return fwrite(&kind, sizeof(kind), 1, stdout) == 1 &&
                    fwrite(&timestamp, sizeof(timestamp), 1, stdout) == 1 &&
                    fwrite(&length, sizeof(length), 1, stdout) == 1 &&
-                   fwrite(data, 1, length, stdout) == length && fflush(stdout) == 0;
+                   (!length || fwrite(data, 1, length, stdout) == length) && fflush(stdout) == 0;
         };
         com_ptr<IMFMediaBuffer> buffer;
         check_hresult(sample->ConvertToContiguousBuffer(buffer.put()));
         if (video) {
             auto copy = [&](const BYTE* source, LONG stride) {
                 for (UINT32 y = 0; y < h; ++y)
-                    std::memcpy(pixels.data() + static_cast<size_t>(y) * w * 4,
+                    std::memcpy(pixels + static_cast<size_t>(y) * w,
                                 source + static_cast<ptrdiff_t>(y) * stride, w * 4);
             };
             if (auto surface = buffer.try_as<IMF2DBuffer>()) {
@@ -97,15 +122,15 @@ inline void preview(const std::filesystem::path& path, LONGLONG from, bool still
                 DWORD length{};
                 check_hresult(buffer->Lock(&source, nullptr, &length));
                 ScopeExit unlock([&] { buffer->Unlock(); });
-                if (length != pixels.size()) throw std::runtime_error("Unexpected video stride");
+                if (length != frame_bytes) throw std::runtime_error("Unexpected video stride");
                 copy(source + static_cast<size_t>(h - 1) * w * 4, -static_cast<LONG>(w * 4));
             }
-            for (size_t i = 0; i < pixels.size(); i += 4) {
-                std::swap(pixels[i], pixels[i + 2]);
-                pixels[i + 3] = 255;
-            }
-            if (!emit(1, pixels.data(), static_cast<UINT32>(pixels.size())) || still) return;
-            last_video_slot = video_slot;
+            for (auto& pixel : std::span(pixels, static_cast<size_t>(w) * h))
+                pixel = 0xff000000u | ((pixel & 0x000000ffu) << 16) | (pixel & 0x0000ff00u) | ((pixel & 0x00ff0000u) >> 16);
+            if (shared_pixels) {
+                if (!emit(1, nullptr, 0) || std::getc(stdin) != 1) return;
+            } else if (!emit(1, reinterpret_cast<const BYTE*>(pixels), frame_bytes)) return;
+            if (still) return;
         } else {
             BYTE* data{};
             DWORD length{};
