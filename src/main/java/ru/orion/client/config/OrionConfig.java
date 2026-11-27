@@ -126,6 +126,9 @@ public final class OrionConfig {
     private int zoomInCurve = 12;
     private int zoomOutCurve = 12;
     private boolean chatFilterEnabled;
+    private boolean aresKPHelperEnabled;
+    private boolean aresScreenshotEnabled;
+    private String[] aresCommands = new String[ru.orion.client.ares.GleamAresKPHelper.COMMAND_SLOTS];
     private String chatFilterWords = "";
     private boolean chatHighlightEnabled;
     private String chatHighlightWords = "";
@@ -212,6 +215,15 @@ public final class OrionConfig {
     public void setZoomFactor(float value) { zoomFactor = finiteClamp(value, 1.5F, 12F, 4F); }
     public boolean isChatFilterEnabled() { return chatFilterEnabled; }
     public void setChatFilterEnabled(boolean value) { chatFilterEnabled = value; }
+    public boolean isAresKPHelperEnabled() { return aresKPHelperEnabled; }
+    public void setAresKPHelperEnabled(boolean enabled) { aresKPHelperEnabled = enabled; }
+    public boolean isAresScreenshotEnabled() { return aresScreenshotEnabled; }
+    public void setAresScreenshotEnabled(boolean enabled) { aresScreenshotEnabled = enabled; }
+    public String[] getAresCommands() { return aresCommands.clone(); }
+    public String getAresCommand(int slot) { return aresCommands[slot] == null ? "" : aresCommands[slot]; }
+    public void setAresCommand(int slot, String value) {
+        aresCommands[slot] = ru.orion.client.ares.GleamAresKPHelper.commandInput(value);
+    }
     public String getChatFilterWords() { return chatFilterWords; }
     public void setChatFilterWords(String value) { chatFilterWords = value == null ? "" : value; }
     public boolean isChatHighlightEnabled() { return chatHighlightEnabled; }
@@ -1688,6 +1700,9 @@ public final class OrionConfig {
     }
 
     public void sanitize() {
+        int commandSlots = ru.orion.client.ares.GleamAresKPHelper.COMMAND_SLOTS;
+        aresCommands = aresCommands == null ? new String[commandSlots] : java.util.Arrays.copyOf(aresCommands, commandSlots);
+        for (int slot = 0; slot < commandSlots; slot++) setAresCommand(slot, aresCommands[slot]);
         getAnimatedLyrics().sanitize();
         sanitizeEmoteSlots();
         visualPresetSelection = normalizePreset(visualPresetSelection);

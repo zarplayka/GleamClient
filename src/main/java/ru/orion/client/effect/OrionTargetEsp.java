@@ -123,8 +123,10 @@ public final class OrionTargetEsp {
     private void render(LevelRenderContext context) {
         Minecraft client = Minecraft.getInstance();
         float deltaTime = getDeltaTime();
-        LivingEntity target = resolveTarget(client);
-        if (!configManager.getConfig().isTargetEspEnabled()) {
+        var pinned = ru.orion.client.ares.GleamAresKPHelper.selected(client);
+        LivingEntity target = pinned == null ? resolveTarget(client) : pinned;
+        if ((!configManager.getConfig().isTargetEspEnabled() && pinned == null)
+                || (pinned != null && (pinned.isInvisibleTo(client.player) || !isVisibleThroughBlocks(client, pinned)))) {
             clearTargetState();
             return;
         }
@@ -139,7 +141,7 @@ public final class OrionTargetEsp {
 
         // Геометрия эффектов проходит depth-тест (не видна сквозь модельку и блоки),
         // а рейкаст дополнительно плавно гасит эффект, когда цель скрыта блоками.
-        boolean hasTarget = target != null && isVisibleThroughBlocks(client, target);
+        boolean hasTarget = pinned != null || (target != null && isVisibleThroughBlocks(client, target));
 
         updateAnim(hasTarget, deltaTime);
         if (!hasTarget) {
@@ -166,7 +168,7 @@ public final class OrionTargetEsp {
 
         PoseStack poseStack = context.poseStack();
         Vec3 cameraPosition = camera.position();
-        String selected = textureName(configManager.getConfig().getTargetEspTexture());
+        String selected = pinned == null ? textureName(configManager.getConfig().getTargetEspTexture()) : "marker";
         float hitProgress = getHitProgress(target);
         hitAnimSmoothed = Mth.lerp(Math.min(1.0F, 0.35F * deltaTime), hitAnimSmoothed, hitProgress);
         int baseColor = OrionRainbow.orElse(OrionWorldChanger.parseOpaqueColor(configManager.getConfig().getTargetEspChainColor()));

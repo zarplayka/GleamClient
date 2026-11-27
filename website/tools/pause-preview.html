@@ -319,6 +319,9 @@
       min-width: 0; min-height: 24px; padding: 3px 5px; border-color: transparent; font-size: 11px;
     }
     .editor-actions .plain-action { display: flex; align-items: center; justify-content: center; gap: 5px }
+    #edit-publish { grid-column: 1 / -1 }
+    #youtube-template { width: 100%; min-width: 0; box-sizing: border-box; margin: 5px 0 }
+    .youtube-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px }
     .editor-actions .remove-action { color: var(--danger) }
     .remove-confirm { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 4px; font-size: 11px }
     .remove-confirm button:first-of-type { margin-inline-start: auto }
@@ -597,6 +600,7 @@
               <section aria-labelledby="edit-actions-title">
                 <h4 id="edit-actions-title">Действия</h4>
                 <div class="editor-actions">
+                  <button class="plain-action primary" type="button" id="edit-publish" hidden><span id="edit-publish-label">Опубликовать</span></button>
                   <button class="plain-action" type="button" id="edit-favorite" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>В избранное</button>
                   <button class="plain-action" type="button" id="edit-copy"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>Копировать имя</button>
                   <button class="plain-action" type="button" id="edit-still" aria-label="Сохранить кадр"><svg class="icon" aria-hidden="true"><use href="#i-still"/></svg>Кадр</button>
@@ -633,6 +637,7 @@
           <button type="button" id="settings-video-tab" role="tab" aria-selected="true" aria-controls="settings-video"><svg class="icon" aria-hidden="true"><use href="#i-video"/></svg>Запись</button>
           <button type="button" id="settings-audio-tab" role="tab" aria-selected="false" aria-controls="settings-audio" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#i-audio"/></svg>Звук</button>
           <button type="button" id="settings-keys-tab" role="tab" aria-selected="false" aria-controls="settings-keys" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#i-keyboard"/></svg>Горячие клавиши</button>
+          <button type="button" id="settings-youtube-tab" role="tab" aria-selected="false" aria-controls="settings-youtube" tabindex="-1" data-game-only hidden><svg class="icon" aria-hidden="true"><use href="#i-video"/></svg>YouTube</button>
         </nav>
         <div class="settings-pages">
           <section class="settings-group" id="settings-video" role="tabpanel" aria-labelledby="settings-video-tab">
@@ -663,8 +668,27 @@
             <div class="row"><span id="save-binding-label">Сохранить откат</span><button class="key-button" data-bind="save" type="button" aria-labelledby="save-binding-label save-binding"><span id="save-binding"></span></button></div>
             <div class="row"><span id="toggle-binding-label">Переключить буфер</span><button class="key-button" data-bind="toggle" type="button" aria-labelledby="toggle-binding-label toggle-binding"><span id="toggle-binding"></span></button></div>
             <div class="row"><span id="record-binding-label">Начать или остановить запись</span><button class="key-button" data-bind="record" type="button" aria-labelledby="record-binding-label record-binding"><span id="record-binding"></span></button></div>
+            <div class="row" data-game-only hidden><span id="save-publish-binding-label">Сохранить и опубликовать</span><button class="key-button" data-bind="save-publish" type="button" aria-labelledby="save-publish-binding-label save-publish-binding"><span id="save-publish-binding"></span></button></div>
             <p class="binding-note" id="binding-note" role="status"></p>
             <button class="plain-action settings-reset" id="reset-bindings" type="button">Сбросить клавиши</button>
+          </section>
+          <section class="settings-group" id="settings-youtube" role="tabpanel" aria-labelledby="settings-youtube-tab" hidden>
+            <h3>YouTube</h3>
+            <p class="estimate" id="youtube-status" role="status"></p>
+            <div class="row"><label for="youtube-auto">Публиковать при сохранении отката</label><span class="switch-control"><input class="switch" id="youtube-auto" type="checkbox" role="switch"><i class="switch-thumb" aria-hidden="true"></i></span></div>
+            <div class="row"><label for="youtube-privacy">Доступ к видео</label><span class="select-wrap"><select id="youtube-privacy"><option value="unlisted">По ссылке</option><option value="private">Закрытый</option><option value="public">Открытый</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
+            <label for="youtube-template">Текст для буфера обмена</label>
+            <input id="youtube-template" class="rate-input" type="text" maxlength="240" value="{link}" spellcheck="false">
+            <p class="estimate">{link} — полная ссылка, {short} — короткая, {id} — ID видео.</p>
+            <div class="youtube-actions">
+              <button class="plain-action" id="youtube-save-template" type="button">Сохранить шаблон</button>
+            </div>
+            <div class="youtube-actions">
+              <button class="plain-action primary" id="youtube-connect" type="button">Подключить Google</button>
+              <button class="plain-action" id="youtube-disconnect" type="button" hidden>Отключить</button>
+              <button class="plain-action" id="youtube-config" type="button">Папка OAuth</button>
+            </div>
+            <p class="estimate">Сохрани OAuth JSON типа Desktop App в папку config под именем gleam-youtube-client.json, затем подключи Google.</p>
           </section>
         </div>
       </section>

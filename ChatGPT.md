@@ -325,6 +325,22 @@ Existing project includes HUD, ClickGUI, world effects, media integration and Di
 **Verification:** Minecraft 26.3 checks passed hovering above the floor, stable horizontal idle position, following at altitude, ascent after the owner gains height, and changing wing rotation. Inspected three actual game captures in build/pet-probe/game/screenshots/moth-flying-*.png. Placement bounds still reject a block inside the airborne moth while allowing a ground block underneath. Gradle build and git diff --check passed. Final packaged class files and animation JSON match source outputs.
 **Result:** Updated private-worktree JAR with flight correction. SHA-256 1476171aecdb8974d2f6d575fa953c0b06c4083fe1e4c8b1ef2d64d1caa8e23c.
 
+### 2026-11-27 — Update main, publish replays to YouTube, and add AresKPHelper
+
+**Request:** Pull the latest Git changes and discard the superseded local commits. Add manual and hotkey-assisted YouTube publishing for in-game replays, including a configurable clipboard template. Add F2 screenshot publishing and a configurable moderation wheel with an R-selected player and block-occluded TargetESP.
+
+**Work Completed:** Fetched the rewritten public origin/main at 732b0de and reset the original main to it with user authorization. Removed the temporary branch pointing to the old main. Kept pre-existing uncommitted tracked changes in the Git stash named “OrionClient tracked edits before replacing local main on 2026-11-27”. Moved colliding untracked files, untracked source/tests, and the prior untracked project memory into the sibling OrionClient-local-backup-20261127 directory. Implemented and built the new features in codex/replay-areskp based on 732b0de.
+
+**Files Affected:** replay/GleamReplay.java, replay/GleamReplayScreen.java, replay/GleamReplayYouTube.java and the shared replay assets website/tools/pause-preview.html and replay-preview.js. New Ares classes under ares/, gui/GleamAresCommandWheel.java, and mixin/GleamAresKeyboardMixin.java connect to OrionClient, OrionKeybinds, OrionTargetEsp, OrionConfig and ClickGUI. Updated ClickGUI dictionaries, vanilla bind labels, the icon atlas and the mixin list.
+
+**Technical Details:** Replay has a per-clip Publish action, Alt+F11 by default to save and publish, and an optional auto-publish toggle for ordinary replay saves. Automatic publishing is queued after the native recorder reports SAVED for the requested ID. The separate upload worker uses Google Desktop OAuth with PKCE and a loopback callback, the YouTube upload scope, and resumable uploads. Videos default to unlisted. Successful clip receipts persist video IDs by file revision and retry from the prior upload session when available. The clipboard template accepts {link}, {url}, {short} and {id}. Desktop OAuth credentials are local config/gleam-youtube-client.json, with tokens stored separately in the local game config. AresKPHelper starts disabled. Its optional F2 flow saves a local PNG, uploads it to Freeimage.host and copies /p add id {link} false false with literal id. Freeimage keys are imported from the clipboard and kept in a separate local file. R selects a visible player under the camera ray, with a depth-tested pinned TargetESP marker. The separately bindable wheel has six command slots. Selecting a sector or pressing its number resolves {nick} and sends the command with the client's current server connection and permissions.
+
+**Verification:** Offline Gradle build, artifact verification, and mixin audit passed for Minecraft 1.21.11, 26.1.2, 26.2 and 26.3. Chromium with a mocked game bridge exercised playback editor publication actions, busy and copy states, both key-binding paths, template, auto-publish and Google account controls. Isolated Java checks covered templates, clip receipts and stale revisions, Freeimage URL checks, command templates, and rendered wheel geometry at two sizes in light and dark palettes.
+
+**Issues:** Live Google OAuth, real YouTube and Freeimage uploads, Minecraft screenshot rendering, target selection and command execution on a live server remain unverified. The local build has no release deployment or Git push.
+
+**Result:** Verified local JARs are under the replay-areskp worktree's build/libs directory.
+
 ## Known Issues
 Mirage remains UNRESOLVED in the user's actual game profile: after the isolated fixture passed, the user again reported no effect. They explicitly stopped debugging and requested a handoff commit on private GleamPrivate/main. Do not treat the earlier fixture result as confirmation of the user's fix.
 

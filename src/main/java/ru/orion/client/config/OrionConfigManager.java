@@ -169,6 +169,9 @@ public final class OrionConfigManager {
     }
     public void setZoomFactor(float value) { config.setZoomFactor(value); save(); }
     public void setChatFilterEnabled(boolean value) { config.setChatFilterEnabled(value); save(); }
+    public void setAresKPHelperEnabled(boolean value) { config.setAresKPHelperEnabled(value); save(); }
+    public void setAresScreenshotEnabled(boolean value) { config.setAresScreenshotEnabled(value); save(); }
+    public void setAresCommand(int slot, String value) { config.setAresCommand(slot, value); save(); }
     public void setChatFilterWords(String value) { config.setChatFilterWords(value); save(); }
     public void setChatHighlightEnabled(boolean value) { config.setChatHighlightEnabled(value); save(); }
     public void setChatHighlightWords(String value) { config.setChatHighlightWords(value); save(); }

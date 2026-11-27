@@ -34,6 +34,7 @@ public final class OrionKeybinds {
     private static KeyMapping secondaryZoomKey;
     private static KeyMapping waypointKey;
     private static KeyMapping emoteKey;
+    private static KeyMapping aresWheelKey;
 
     public OrionKeybinds(OrionConfigManager configManager) {
         this.configManager = configManager;
@@ -88,6 +89,13 @@ public final class OrionKeybinds {
                 //?} else {
                                 /*"key.orion-client.emotes", InputConstants.Type.KEYSYM, InputConstants.KEY_V, CATEGORY));
                 *///?}
+        aresWheelKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orion-client.ares_command_wheel",
+                //? if >=26.3 {
+                InputConstants.Type.KEYBOARD,
+                //?} else {
+                /*InputConstants.Type.KEYSYM,
+                *///?}
+                InputConstants.UNKNOWN.getValue(), CATEGORY));
         performanceKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.orion-client.performance",
                 //? if >=26.3 {
@@ -101,6 +109,7 @@ public final class OrionKeybinds {
 
     public static KeyMapping getLockSlotKey() { return lockSlotKey; }
     public static KeyMapping getWaypointKey() { return waypointKey; }
+    public static KeyMapping getAresWheelKey() { return aresWheelKey; }
     public static KeyMapping getEmoteKey() { return emoteKey; }
     public static KeyMapping getZoomKey() { return zoomKey; }
     public static KeyMapping getFreeLookKey() { return freeLookKey; }
@@ -142,6 +151,7 @@ public final class OrionKeybinds {
     private void handleClientTick(Minecraft client) {
         while (performanceKey.consumeClick()) OrionPerformanceHud.toggle(client);
         while (freeLookKey.consumeClick()) { /* FreeLook reads the held state. */ }
+        while (aresWheelKey.consumeClick()) ru.orion.client.ares.GleamAresKPHelper.openWheel(client);
         while (emoteKey.consumeClick()) {
             if (configManager.getConfig().isEmotesEnabled() && GleamMinecraft.screen(client) == null
                     && OrionEmotes.canDance(client.player)) GleamMinecraft.setScreen(client, new OrionEmoteWheelScreen());

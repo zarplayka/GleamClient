@@ -157,6 +157,8 @@ final class GleamReplayScreen extends Screen {
         next.addProperty("recordSeconds", replay.recording() ? replay.recordingSeconds() : 0);
         next.addProperty("version", replay.messageVersion());
         next.addProperty("message", replay.message());
+        next.addProperty("youtubeConnected", replay.youtubeConnected());
+        next.add("publishing", JSON.toJsonTree(replay.publishing()));
         boolean changed = !next.equals(previous);
         previous = next.deepCopy();
         var settings = replay.preferences();
@@ -223,7 +225,8 @@ final class GleamReplayScreen extends Screen {
         var values = event.getAsJsonObject("values");
         switch (action) {
             case "close" -> onClose();
-            case "buffer", "record", "save", "settings", "bindings", "favorite", "trim", "remove", "folder" -> replay.submit(action, values);
+            case "buffer", "record", "save", "save-publish", "settings", "bindings", "favorite", "trim", "remove", "folder",
+                    "publish", "youtube-connect", "youtube-disconnect", "youtube-config", "youtube-settings" -> replay.submit(action, values);
             case "thumbnail" -> loadThumbnail(find(values));
             case "load-preview" -> {
                 closeVideo();
@@ -453,7 +456,7 @@ final class GleamReplayScreen extends Screen {
     private void editInput(String command, String text) {
         var shortcut = new JsonObject();
         shortcut.addProperty("command", command);
-        shortcut.addProperty("text", text.substring(0, Math.min(24, text.length())));
+        shortcut.addProperty("text", text.substring(0, Math.min(240, text.length())));
         view.editShortcut(shortcut);
     }
 

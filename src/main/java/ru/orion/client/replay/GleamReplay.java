@@ -51,13 +51,19 @@ public final class GleamReplay {
     private static final Gson JSON = new Gson();
     private static final String RESOURCE = "/assets/orion-client/native/";
     static final Pattern ID = Pattern.compile("(?:Replay|Recording)-[a-f0-9-]{8,48}");
-    private static final Map<String, String> DEFAULT_KEYS = Map.of("save", "2:F10", "toggle", "2:F9", "record", "2:F8");
+    private static final Map<String, String> DEFAULT_KEYS = Map.of("save", "2:F10", "toggle", "2:F9", "record", "2:F8", "save-publish", "2:F11");
     private static final Pattern KEY_CODE = Pattern.compile("(?:Key[A-Z]|Digit[0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Insert|Delete|Home|End|PageUp|PageDown|Arrow(?:Up|Down|Left|Right)|Space|Enter|NumpadEnter)");
     public static final GleamReplay INSTANCE = new GleamReplay();
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 10, TimeUnit.SECONDS,
             new ArrayBlockingQueue<>(64), Thread.ofPlatform().daemon().name("gleam-replay-control").factory());
     private final Path folder = FabricLoader.getInstance().getGameDir().resolve("gleam/clips");
     private final Path config = FabricLoader.getInstance().getConfigDir().resolve("gleam-replay.json");
+    private final GleamReplayYouTube youtube = new GleamReplayYouTube(config.getParent());
+    private final ThreadPoolExecutor uploads = new ThreadPoolExecutor(0, 1, 30, TimeUnit.SECONDS,
+            new ArrayBlockingQueue<>(8), Thread.ofPlatform().daemon().name("gleam-replay-youtube").factory());
+    private final java.util.LinkedHashSet<String> autoPublish = new java.util.LinkedHashSet<>();
+    private volatile java.util.Set<String> publishing = java.util.Set.of();
+    private boolean youtubeAccountBusy;
     private volatile Preferences preferences = Preferences.defaults();
     private volatile World world;
     private volatile boolean buffer, recording, recordingPending, stoppingRecording;
@@ -78,11 +84,14 @@ public final class GleamReplay {
     private final ReplayFrameCapture frameCapture = new ReplayFrameCapture(this::captureFailed);
 
     record World(long hwnd, boolean multiplayer) {}
-    record Clip(String id, String title, String kind, long at, double seconds, boolean favorite, long revision) {}
+    record Clip(String id, String title, String kind, long at, double seconds, boolean favorite, long revision,
+                boolean published) {}
     record Preferences(String duration, int customSeconds, String resolution, int fps, String quality, String bitrateMode,
-                       int bitrate, String audio, boolean mic, Map<String, String> keys) {
+                       int bitrate, String audio, boolean mic, Map<String, String> keys, boolean youtubeAuto, String youtubeTemplate,
+                       String youtubePrivacy) {
         static Preferences defaults() {
-            return new Preferences("60", 60, "1080", 60, "balanced", "auto", 16, "game", false, DEFAULT_KEYS);
+            return new Preferences("60", 60, "1080", 60, "balanced", "auto", 16, "game", false, DEFAULT_KEYS,
+                    false, GleamReplayYouTube.DEFAULT_TEMPLATE, "unlisted");
         }
 
         static Preferences read(JsonObject values, Map<String, String> keys) {
@@ -92,7 +101,9 @@ public final class GleamReplay {
                     bounded(values, "fps", 60, 30, 60) == 30 ? 30 : 60,
                     choice(values, "quality", "balanced", "performance", "balanced", "quality"),
                     choice(values, "bitrateMode", "auto", "auto", "manual"), bounded(values, "bitrate", 16, 2, 60),
-                    choice(values, "audio", "game", "game", "system", "none"), flag(values, "mic"), keys);
+                    choice(values, "audio", "game", "game", "system", "none"), flag(values, "mic"), keys,
+                    flag(values, "youtubeAuto"), GleamReplayYouTube.template(text(values, "youtubeTemplate")),
+                    choice(values, "youtubePrivacy", "unlisted", "unlisted", "private", "public"));
         }
 
         int height() { return "source".equals(resolution) ? 2160 : Integer.parseInt(resolution); }
@@ -116,7 +127,10 @@ public final class GleamReplay {
 
     public void register() {
         if (!available()) return;
-        enqueue(this::loadPreferences);
+        enqueue(() -> {
+            loadPreferences();
+            youtube.load();
+        });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             boolean present = client.level != null;
             if (present) {
@@ -131,6 +145,7 @@ public final class GleamReplay {
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             enqueue(this::shutdown);
             worker.shutdown();
+            uploads.shutdownNow();
         });
     }
 
@@ -188,6 +203,8 @@ public final class GleamReplay {
     long recordingSeconds() { return Math.max(0, (System.currentTimeMillis() - recordedAt) / 1000); }
     String message() { return message; }
     long messageVersion() { return messageVersion; }
+    boolean youtubeConnected() { return youtube.connected(); }
+    java.util.Set<String> publishing() { return publishing; }
 
     Path media(String id) { return owns(id) ? folder.resolve(id + ".mp4") : null; }
     Path thumbnail(String id) { return owns(id) ? folder.resolve(id + ".jpg") : null; }
@@ -257,13 +274,22 @@ public final class GleamReplay {
         switch (command) {
             case "toggle" -> setBuffer(!buffer || failed);
             case "buffer" -> setBuffer(flag(parameters, "enabled"));
-            case "save" -> {
-                if (world == null || !buffer || failed) notice("Буфер откатов выключен");
-                else send("SAVE " + id(false));
+            case "save", "save-publish" -> save("save-publish".equals(command) || preferences.youtubeAuto());
+            case "publish" -> publish(text(parameters, "id"));
+            case "youtube-connect", "youtube-disconnect", "youtube-config" -> youtubeAccount(command);
+            case "youtube-settings" -> {
+                var stored = JSON.toJsonTree(preferences).getAsJsonObject();
+                for (String key : List.of("youtubeAuto", "youtubePrivacy", "youtubeTemplate"))
+                    if (parameters.has(key)) stored.add(key, parameters.get(key));
+                updateKeys(Preferences.read(stored, preferences.keys()));
             }
             case "record" -> record();
             case "settings" -> {
-                preferences = Preferences.read(parameters, preferences.keys());
+                var stored = JSON.toJsonTree(preferences).getAsJsonObject();
+                for (String key : List.of("duration", "customSeconds", "resolution", "fps", "quality",
+                        "bitrateMode", "bitrate", "audio", "mic"))
+                    if (parameters.has(key)) stored.add(key, parameters.get(key));
+                preferences = Preferences.read(stored, preferences.keys());
                 storePreferences();
                 if (!encoder.isEmpty()) notice("Новые параметры применятся при следующем запуске захвата");
             }
@@ -279,6 +305,112 @@ public final class GleamReplay {
                 catch (IOException | RuntimeException error) { notice("Не удалось открыть папку"); }
             }
             default -> { }
+        }
+    }
+
+    private void save(boolean publish) {
+        if (world == null || !buffer || failed || input == null) {
+            notice("Буфер откатов выключен");
+            return;
+        }
+        String id = id(false);
+        if (publish) {
+            if (autoPublish.size() >= 128) autoPublish.removeFirst();
+            autoPublish.add(id);
+        }
+        send("SAVE " + id);
+    }
+
+    private void publish(String id) {
+        Clip clip = clips.stream().filter(item -> item.id().equals(id)).findFirst().orElse(null);
+        if (clip == null || publishing.contains(id)) return;
+        if (id.equals(trimTarget)) { notice("Дождись завершения обрезки"); return; }
+        Path video = media(id);
+        var existing = GleamReplayYouTube.publication(GleamReplayYouTube.readReceipt(video, clip.revision()));
+        if (existing != null) {
+            copyPublication(existing);
+            return;
+        }
+        if (youtubeAccountBusy) { notice("Дождись завершения подключения YouTube"); return; }
+        if (!youtube.connected()) { notice("Подключи YouTube в настройках реплеев"); return; }
+        String privacy = preferences.youtubePrivacy();
+        markPublishing(id, true);
+        if (!submitYouTube(() -> {
+            try {
+                var publication = youtube.upload(video, clip, privacy);
+                enqueue(() -> {
+                    markPublishing(id, false);
+                    scan();
+                    copyPublication(publication);
+                });
+            } catch (Exception error) {
+                enqueue(() -> {
+                    markPublishing(id, false);
+                    youtubeError("Ошибка загрузки YouTube", error);
+                });
+            }
+        })) markPublishing(id, false);
+        else notice("Загрузка на YouTube · " + clip.title());
+    }
+
+    private void markPublishing(String id, boolean active) {
+        var next = new java.util.HashSet<>(publishing);
+        if (active) next.add(id);
+        else next.remove(id);
+        publishing = java.util.Set.copyOf(next);
+    }
+
+    private void copyPublication(GleamReplayYouTube.Publication publication) {
+        String value = GleamReplayYouTube.format(preferences.youtubeTemplate(), publication.id());
+        var client = Minecraft.getInstance();
+        client.execute(() -> client.keyboardHandler.setClipboard(value));
+        notice("private".equals(publication.privacy())
+                ? "Ссылка скопирована · видео закрыто" : "Ссылка YouTube скопирована");
+    }
+
+    private void youtubeAccount(String action) {
+        if (youtubeAccountBusy) { notice("Дождись завершения подключения YouTube"); return; }
+        if (!"youtube-config".equals(action) && !publishing.isEmpty()) {
+            notice("Дождись завершения загрузок YouTube");
+            return;
+        }
+        youtubeAccountBusy = true;
+        if ("youtube-connect".equals(action)) notice("Войди в Google в браузере");
+        if (!submitYouTube(() -> {
+            try {
+                switch (action) {
+                    case "youtube-connect" -> {
+                        youtube.connect();
+                        enqueue(() -> notice("YouTube подключён"));
+                    }
+                    case "youtube-disconnect" -> {
+                        youtube.disconnect();
+                        enqueue(() -> notice("YouTube отключён на этом устройстве"));
+                    }
+                    case "youtube-config" -> youtube.openConfig();
+                    default -> { }
+                }
+            } catch (Exception error) {
+                enqueue(() -> youtubeError("Ошибка подключения YouTube", error));
+            } finally { enqueue(() -> youtubeAccountBusy = false); }
+        })) youtubeAccountBusy = false;
+    }
+
+    private boolean submitYouTube(Runnable task) {
+        try {
+            uploads.execute(task);
+            return true;
+        } catch (RejectedExecutionException full) {
+            notice("Очередь загрузки YouTube заполнена");
+            return false;
+        }
+    }
+
+    private void youtubeError(String fallback, Exception error) {
+        if (error instanceof GleamReplayYouTube.Failure) notice(error.getMessage());
+        else {
+            LOG.debug("YouTube action failed ({})", error.getClass().getSimpleName());
+            notice(fallback);
         }
     }
 
@@ -368,6 +500,7 @@ public final class GleamReplay {
         if ("SAVED".equals(key) && ID.matcher(value).matches()) {
             scan();
             notice(value.startsWith("Recording-") ? "Запись сохранена" : "Откат сохранён");
+            if (autoPublish.remove(value)) publish(value);
             return;
         }
         if (recorder != process) return;
@@ -466,9 +599,10 @@ public final class GleamReplay {
                     String title = (recording ? "Запись " : "Откат ") +
                             java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
                                     .withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.ofEpochMilli(at));
+                    long revision = times.lastModifiedTime().toMillis();
                     next.add(new Clip(id, title, recording ? "recording" : "replay", at, seconds,
-                            Files.isRegularFile(folder.resolve(id + ".favorite"), LinkOption.NOFOLLOW_LINKS),
-                            times.lastModifiedTime().toMillis()));
+                            Files.isRegularFile(folder.resolve(id + ".favorite"), LinkOption.NOFOLLOW_LINKS), revision,
+                            GleamReplayYouTube.publication(GleamReplayYouTube.readReceipt(path, revision)) != null));
                 } catch (IOException | NumberFormatException ignored) { }
             }
         } catch (IOException error) { LOG.warn("Could not read replay library", error); return; }
@@ -489,8 +623,11 @@ public final class GleamReplay {
     private void remove(String id) {
         if (!owns(id)) return;
         if (id.equals(trimTarget)) { notice("Дождись завершения обрезки"); return; }
+        if (publishing.contains(id)) { notice("Дождись загрузки видео"); return; }
         try {
-            Files.delete(folder.resolve(id + ".mp4"));
+            Path video = folder.resolve(id + ".mp4");
+            Files.delete(video);
+            Files.deleteIfExists(GleamReplayYouTube.receipt(video));
             for (String ext : List.of(".duration", ".jpg", ".favorite")) Files.deleteIfExists(folder.resolve(id + ext));
             scan();
             notice("Клип удалён");
@@ -499,6 +636,7 @@ public final class GleamReplay {
 
     private void trim(JsonObject parameters) {
         String id = text(parameters, "id");
+        if (publishing.contains(id)) { notice("Дождись загрузки видео"); return; }
         var clip = clips.stream().filter(item -> item.id().equals(id)).findFirst().orElse(null);
         if (clip == null) return;
         if (trimTarget != null) { notice("Дождись завершения обрезки"); return; }
@@ -640,7 +778,7 @@ public final class GleamReplay {
     private static Map<String, String> readKeys(JsonObject json, boolean browser) {
         if (json == null) return DEFAULT_KEYS;
         var result = new java.util.LinkedHashMap<String, String>();
-        for (String name : List.of("save", "toggle", "record")) {
+        for (String name : List.of("save", "toggle", "record", "save-publish")) {
             String value;
             if (browser && json.has(name) && json.get(name).isJsonObject()) {
                 JsonObject item = json.getAsJsonObject(name);
@@ -649,7 +787,10 @@ public final class GleamReplay {
             String[] parts = value.split(":", 2);
             if (parts.length != 2 || !parts[0].matches("(?:[0-9]|1[0-5])") || !KEY_CODE.matcher(parts[1]).matches())
                 value = DEFAULT_KEYS.get(name);
-            if (result.containsValue(value)) return DEFAULT_KEYS;
+            if (result.containsValue(value)) {
+                if (!"save-publish".equals(name)) return DEFAULT_KEYS;
+                continue;
+            }
             result.put(name, value);
         }
         return Map.copyOf(result);

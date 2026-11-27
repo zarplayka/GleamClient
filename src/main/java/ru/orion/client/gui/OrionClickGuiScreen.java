@@ -1,6 +1,7 @@
 package ru.orion.client.gui;
 
 import ru.orion.client.GleamMinecraft;
+import ru.orion.client.ares.GleamAresKPHelper;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -3500,12 +3501,31 @@ public final class OrionClickGuiScreen extends Screen {
         return Math.round(153 * sc);
     }
 
+    private Setting[] aresSettings(OrionConfig config) {
+        var rows = new ArrayList<Setting>();
+        rows.add(new ToggleSetting("Публиковать скриншоты по F2",
+                config::isAresScreenshotEnabled, configManager::setAresScreenshotEnabled));
+        rows.add(new ValueSetting("API-ключ Freeimage.host",
+                () -> GleamAresKPHelper.hasKey() ? "Сохранён" : "Отсутствует"));
+        rows.add(new ButtonSetting("API-ключ Freeimage.host", "Вставить из буфера", () -> GleamAresKPHelper.importKey(minecraft)));
+        rows.add(new ButtonSetting("API-ключ Freeimage.host", "Удалить ключ", () -> GleamAresKPHelper.clearKey(minecraft)));
+        rows.add(new KeybindSetting("Клавиша колеса бана", OrionKeybinds::getAresWheelKey));
+        rows.add(new ValueSetting("Выделить игрока", () -> "R"));
+        rows.add(new ValueSetting("Шаблон команды", () -> "/ban {nick} 1.11"));
+        for (int slot = 0; slot < GleamAresKPHelper.COMMAND_SLOTS; slot++) {
+            int index = slot;
+            rows.add(new TextSetting("Команда " + (slot + 1) + " ({nick})", () -> config.getAresCommand(index),
+                    value -> configManager.setAresCommand(index, value), 220));
+        }
+        return rows.toArray(Setting[]::new);
+    }
+
     private boolean hasSettings(Action action) {
         return switch (action) {
             case RAGDOLL, FRESH_ANIMATIONS, NAMETAGS, FREE_LOOK, CLEAN_WATER,
                     POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER -> true;
             case HUD -> Minecraft.getInstance().level != null;
-            case SKIN_LAYERS, ITEM_SCROLLER, EMOTES, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
+            case ARES_KP_HELPER, SKIN_LAYERS, ITEM_SCROLLER, EMOTES, MIRAGE, KILL_EFFECTS, WINGS, WAYPOINTS, ZOOM, CHAT_FILTER, CHAT_HIGHLIGHT, FOOTBALL, BASKETBALL, LOCK_SLOT, ANIMATIONS, ENCHANT_GLINT, PVP_SAFE, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, TARGET_ESP, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, HIT_PARTICLES, NO_PARTICLES, ASPECT, WORLD_PARTICLES, WORLD_CHANGER, MEDIA_PLAYER, PROTECT_NAME,
                  FAKE_PREFIX, HEALTH_TAGS, ARMOR_INDICATOR,
                  HIT_BOX, HIT_COLOR, CROSSHAIR, BETTER_NEAR, RAINBOW -> true;
             default -> false;
@@ -3768,6 +3788,7 @@ public final class OrionClickGuiScreen extends Screen {
                     new SliderSetting("Время второго отдаления", 0F, 5F, config::getSecondaryZoomOutTime, config::setSecondaryZoomOutTime, " с"),
                     new ToggleSetting("Скрывать HUD при втором зуме", config::isSecondaryZoomHideHud, config::setSecondaryZoomHideHud)
             };
+            case ARES_KP_HELPER -> aresSettings(config);
             case CHAT_FILTER -> new Setting[]{ new TextSetting("Слова через запятую", config::getChatFilterWords, configManager::setChatFilterWords, 512) };
             case CHAT_HIGHLIGHT -> new Setting[]{
                     new TextSetting("Слова через запятую", config::getChatHighlightWords, configManager::setChatHighlightWords, 512),
@@ -6640,7 +6661,7 @@ public final class OrionClickGuiScreen extends Screen {
                     icon.draw(new Line2D.Float(-2, 2, 2, -3));
                     icon.draw(new Line2D.Float(0, 3, 3, 0));
                 }
-                case TARGET_ESP -> {
+                case TARGET_ESP, ARES_KP_HELPER -> {
                     Path2D.Float corners = new Path2D.Float();
                     for (int side : new int[]{-1, 1}) {
                         corners.moveTo(side * 2, -6); corners.lineTo(side * 6, -6); corners.lineTo(side * 6, -2);
@@ -7234,6 +7255,7 @@ public final class OrionClickGuiScreen extends Screen {
                 configManager.save();
             }
             case NO_RENDER -> { config.setNoRenderEnabled(!config.isNoRenderEnabled()); configManager.save(); }
+            case ARES_KP_HELPER -> configManager.setAresKPHelperEnabled(!config.isAresKPHelperEnabled());
             case CHAT_FILTER -> configManager.setChatFilterEnabled(!config.isChatFilterEnabled());
             case CHAT_HIGHLIGHT -> configManager.setChatHighlightEnabled(!config.isChatHighlightEnabled());
             case WAYPOINTS -> configManager.setWaypointsEnabled(!config.isWaypointsEnabled());
@@ -7311,6 +7333,7 @@ public final class OrionClickGuiScreen extends Screen {
             case TARGET_HUD -> config.isTargetHudEnabled();
             case SOUND_SETTINGS -> config.isSoundSettingsEnabled();
             case NO_RENDER -> config.isNoRenderEnabled();
+            case ARES_KP_HELPER -> config.isAresKPHelperEnabled();
             case CHAT_FILTER -> config.isChatFilterEnabled();
             case CHAT_ANIMATION -> false; // Retain the existing module-icon atlas indexes.
             case CHAT_HIGHLIGHT -> config.isChatHighlightEnabled();
@@ -7846,7 +7869,7 @@ public final class OrionClickGuiScreen extends Screen {
         MIRAGE, WINGS, HALO, SKIN_LAYERS, ITEM_SCROLLER, EMOTES, ZOOM, CHAT_FILTER, CHAT_ANIMATION, CHAT_HIGHLIGHT, WAYPOINTS, DEATH_POINT, TARGET_ESP, CHINA_HEAD, JUMP_CIRCLE, BREADCRUMBS, PROJECTILE_TRAIL, DAMAGE_INDICATORS, MOTION_BLUR, BLOCK_HIGHLIGHT, ITEM_PHYSICS, HIT_PARTICLES, ASPECT, MEDIA_PLAYER, HUD, DISCORD, FULL_BRIGHT,
         WORLD_PARTICLES, FOOTBALL, BASKETBALL, ANIMATIONS, ENCHANT_GLINT, INVENTORY_HUD, SELF_TAG, ARMOR_INDICATOR, LOCK_SLOT, PVP_SAFE, KEYSTROKES, NO_ANIMATIONS, SATURATION, CHAT_HISTORY, CHAT_TIME, CUSTOM_TIME, ITEM_SCALING, SMALL_SHIELD, VIEW_MODEL, NO_PARTICLES, NO_WEATHER, NO_FIRE, WORLD_CHANGER, HEALTH_TAGS, PROTECT_NAME, FAKE_PREFIX,
         HIT_BOX, HIT_COLOR, CROSSHAIR, BETTER_NEAR, RAINBOW, KILL_EFFECTS, RAGDOLL, FRESH_ANIMATIONS,
-        NAMETAGS, FREE_LOOK, CLEAN_WATER, POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER;
+        NAMETAGS, FREE_LOOK, CLEAN_WATER, POTIONS, TARGET_HUD, SOUND_SETTINGS, NO_RENDER, ARES_KP_HELPER;
 
         private static final Action[] VALUES = values();
     }
@@ -7920,6 +7943,7 @@ public final class OrionClickGuiScreen extends Screen {
         };
         private static final ModuleRow[] MISC = {
                 new ModuleRow("Sound Settings", "Громкость и прослушивание отдельных звуков Minecraft", Icon.MUSIC, Action.SOUND_SETTINGS),
+                new ModuleRow("AresKPHelper", "Публикует скриншоты и открывает колесо команд для выбранного игрока", Icon.CROSSHAIR, Action.ARES_KP_HELPER),
                 new ModuleRow("ChatFilter", "Скрывает сообщения по словам", Icon.CHAT, Action.CHAT_FILTER),
                 new ModuleRow("ChatHighlight", "Подсвечивает слова в чате", Icon.CHAT, Action.CHAT_HIGHLIGHT),
                 new ModuleRow("Basketball", "Клиентский баскетбол", Icon.RINGS, Action.BASKETBALL),

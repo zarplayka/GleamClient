@@ -98,6 +98,7 @@ public final class OrionClient implements ClientModInitializer {
 
         OrionTitleMenu.register();
         ru.orion.client.replay.GleamReplay.INSTANCE.register();
+        ru.orion.client.ares.GleamAresKPHelper.register();
 
         OrionClickGuiScreen.prepareInBackground();
         configManager.load();

@@ -43,9 +43,11 @@
   const motion = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : {matches: false};
   const library = byId('replay-library');
   const settings = byId('replay-settings');
+  const youtubeTemplate = byId('youtube-template');
+  if (game) for (const element of settings.querySelectorAll('[data-game-only]')) element.hidden = false;
   const optionsMenu = byId('replay-options');
   let activePicker, highlightedOption, optionsMotion, optionTerm = '', optionTypedAt = 0;
-  const preferenceTabs = [...settings.querySelectorAll('.settings-nav [role=tab]')];
+  const preferenceTabs = [...settings.querySelectorAll('.settings-nav [role=tab]')].filter(tab => !tab.hidden);
   const preferencePanels = preferenceTabs.map(tab => byId(tab.getAttribute('aria-controls')));
   const panelAnimations = new WeakMap();
   let activePreference = 0;
@@ -164,11 +166,12 @@
   const defaultBindings = {
     save: {code: 'F10', modifiers: 2},
     toggle: {code: 'F9', modifiers: 2},
-    record: {code: 'F8', modifiers: 2}
+    record: {code: 'F8', modifiers: 2},
+    ...(game ? {'save-publish': {code: 'F11', modifiers: 2}} : {})
   };
   const bindingIds = Object.keys(defaultBindings);
   const bindingKey = 'gleam.replay-preview.bindings';
-  const bindingButtons = [...document.querySelectorAll('[data-bind]')];
+  const bindingButtons = [...document.querySelectorAll('[data-bind]')].filter(button => bindingIds.includes(button.dataset.bind));
   const videoSettings = ['resolution', 'fps', 'quality', 'bitrate-mode', 'bitrate'];
   const rateBase = {720: 9, 1080: 16, 1440: 25, source: 16};
   const rateFactors = {performance: .75, balanced: 1, quality: 1.25};
@@ -373,6 +376,13 @@
       control.value = value;
       control.dispatchEvent(new Event('change'));
     }
+    if (game) {
+      byId('youtube-auto').checked = !!values.youtubeAuto;
+      byId('youtube-privacy').value = values.youtubePrivacy || 'unlisted';
+      byId('youtube-privacy').dispatchEvent(new Event('change'));
+      if (document.activeElement !== youtubeTemplate) youtubeTemplate.value = values.youtubeTemplate || '{link}';
+      if (!values.keys['save-publish']) delete bindings['save-publish'];
+    }
     for (const [action, stored] of Object.entries(values.keys)) {
       const [mask, code] = stored.split(':');
       bindings[action] = {code, modifiers: Number(mask)};
@@ -408,6 +418,11 @@
       }
       liveState = snapshot;
       enabled.checked = snapshot.buffer;
+      if (game) {
+        byId('youtube-status').textContent = snapshot.youtubeConnected ? 'Google подключён' : 'Google не подключён';
+        byId('youtube-connect').textContent = snapshot.youtubeConnected ? 'Сменить аккаунт' : 'Подключить Google';
+        byId('youtube-disconnect').hidden = !snapshot.youtubeConnected;
+      }
       recordAction.hidden = !snapshot.inWorld;
       recordAction.disabled = snapshot.pending;
       recordAction.toggleAttribute('data-recording', !!snapshot.recording);
@@ -430,6 +445,7 @@
         }
         renderClips();
       }
+      if (game) syncPublication();
       if (snapshot.version > liveMessage) {
         liveMessage = snapshot.version;
         toast(snapshot.message);
@@ -657,10 +673,20 @@
       setTimeout(() => URL.revokeObjectURL(link.href), 5000);
     });
   }
+  function syncPublication() {
+    if (!edit) return;
+    const button = byId('edit-publish');
+    const uploading = liveState?.publishing?.includes(edit.clip.id);
+    button.disabled = !!uploading;
+    byId('edit-publish-label').textContent = uploading ? 'Загрузка на YouTube…'
+      : edit.clip.published ? 'Копировать ссылку YouTube' : 'Опубликовать';
+  }
+
   function openEditor(clip, opener) {
     editVideo.pause();
     showRemoveConfirm(false);
     edit = {clip, start: 0, end: clip.seconds, sampleCycle: 0};
+    if (game) syncPublication();
     clipFocus = opener;
     byId('edit-title').textContent = clip.title;
     byId('edit-type').textContent = clipTypes[clip.kind];
@@ -1234,6 +1260,36 @@
     editFavorite.setAttribute('aria-pressed', String(edit.clip.favorite));
     renderClips();
   });
+  if (game) {
+    byId('edit-publish').hidden = false;
+    byId('edit-publish').addEventListener('click', () => {
+      if (edit) post('publish', {id: edit.clip.id});
+    });
+    byId('youtube-connect').addEventListener('click', () => post('youtube-connect'));
+    byId('youtube-disconnect').addEventListener('click', () => post('youtube-disconnect'));
+    byId('youtube-config').addEventListener('click', () => post('youtube-config'));
+    const saveYouTubeSettings = () => {
+      if (postingSettings) return;
+      const template = youtubeTemplate.value.trim() || '{link}';
+      if (!/\{(?:link|url|short|id)\}/.test(template)) {
+        toast('Добавь в шаблон {link}, {short} или {id}');
+        return;
+      }
+      youtubeTemplate.value = template;
+      post('youtube-settings', {youtubeAuto: byId('youtube-auto').checked,
+        youtubePrivacy: byId('youtube-privacy').value, youtubeTemplate: template});
+    };
+    byId('youtube-auto').addEventListener('change', saveYouTubeSettings);
+    byId('youtube-privacy').addEventListener('change', saveYouTubeSettings);
+    byId('youtube-save-template').addEventListener('click', saveYouTubeSettings);
+    youtubeTemplate.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        saveYouTubeSettings();
+        youtubeTemplate.blur();
+      }
+    });
+  }
   byId('edit-still').addEventListener('click', saveStill);
   byId('edit-copy').addEventListener('click', async () => {
     if (game) { post('copy-title'); return; }
@@ -1389,6 +1445,7 @@
         event.preventDefault();
         if (event.repeat) return;
         if (action === 'save') saveClip();
+        else if (action === 'save-publish' && game) post('save-publish');
         else if (action === 'record') toggleRecording();
         else if (live) post('buffer', {enabled: !enabled.checked});
         else {
@@ -1452,19 +1509,20 @@
       videoSurface.hidden = false;
       window.paradox = {editShortcut({command, text}) {
         const field = document.activeElement;
-        if (field !== customDuration && field !== bitrate && field !== startInput && field !== endInput) return;
+        if (field !== youtubeTemplate && field !== customDuration && field !== bitrate && field !== startInput && field !== endInput) return;
         if (command === 'select') {
           field.setSelectionRange(0, field.value.length);
           return;
         }
-        const inserted = text.replace(/[^0-9.,]/g, '');
+        const inserted = field === youtubeTemplate ? text.replace(/[\r\n]/g, '') : text.replace(/[^0-9.,]/g, '');
         if (!inserted) return;
         const start = field.selectionStart ?? field.value.length;
         const end = field.selectionEnd ?? start;
         const value = field.value.slice(0, start) + inserted + field.value.slice(end);
-        if (value.length > 12) return;
+        if (value.length > (field === youtubeTemplate ? 240 : 12)) return;
         field.value = value;
         field.setSelectionRange(start + inserted.length, start + inserted.length);
+        if (field === youtubeTemplate) field.dispatchEvent(new Event('input'));
       }, update(snapshot) {
         if (snapshot.player) {
           if (!edit || snapshot.player.id !== edit.clip.id) return;
