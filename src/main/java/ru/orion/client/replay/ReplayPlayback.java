@@ -18,6 +18,7 @@ import java.util.concurrent.locks.LockSupport;
 /** One bounded texture slot. Decoding, audio, scheduling and native memory writes stay off the render thread. */
 final class ReplayPlayback implements AutoCloseable {
     private static final int MAGIC = 0x47525031;
+    private static final int MAX_WIDTH = 960, MAX_HEIGHT = 540, DISPLAY_FPS = 48;
     record Frame(NativeImage pixels, double time) implements AutoCloseable {
         @Override public void close() { pixels.close(); }
     }
@@ -47,14 +48,15 @@ final class ReplayPlayback implements AutoCloseable {
             Path helper = replay.binary("gleam-replay.exe");
             if (closed) return;
             process = new ProcessBuilder(helper.toString(), "preview", file.toString(),
-                    Long.toString(Math.max(0, Math.round(from * 1000))), still ? "1" : "0")
+                    Long.toString(Math.max(0, Math.round(from * 1000))), still ? "1" : "0",
+                    Integer.toString(MAX_WIDTH), Integer.toString(Math.min(60, (int) (DISPLAY_FPS / rate))))
                     .redirectError(ProcessBuilder.Redirect.DISCARD).start();
             if (closed) return;
             try (var input = new DataInputStream(new BufferedInputStream(process.getInputStream(), 128 * 1024))) {
                 if (integer(input) != MAGIC) throw new IOException("Invalid replay preview header");
                 int width = integer(input), height = integer(input);
                 boolean hasAudio = integer(input) != 0;
-                if (width < 2 || width > 640 || height < 2 || height > 360) throw new IOException("Invalid preview dimensions");
+                if (width < 2 || width > MAX_WIDTH || height < 2 || height > MAX_HEIGHT) throw new IOException("Invalid preview dimensions");
                 var frameData = new byte[width * height * 4];
                 var audioData = new byte[64 * 1024];
                 try (SourceDataLine output = hasAudio && !still ? audio(rate) : null) {

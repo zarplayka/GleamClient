@@ -97,28 +97,6 @@
     body[data-game] .world, body[data-game] .pause, body[data-game] .title-menu { display: none }
     body[data-game] .replay-screen { display: none }
     body[data-game] .replay-screen[open] { display: grid }
-    body[data-game] .screen-header { padding-left: var(--screen-edge); padding-right: var(--screen-edge) }
-    body[data-game] .screen-body { overflow-x: hidden; overflow-y: auto }
-    body[data-game] .settings-panel { display: flex; gap: 20px }
-    body[data-game] .settings-nav { flex: 0 0 174px }
-    body[data-game] .settings-pages { flex: 1 1 0; width: auto; max-width: 688px; min-width: 0 }
-    body[data-game] .clip-grid { display: flex; flex-wrap: wrap }
-    body[data-game] .clip-card { width: 212px }
-    body[data-game] .clip-thumb { display: flex; align-items: center; justify-content: center }
-    body[data-game] .clip-thumb img { position: absolute; inset: 0; height: 100% }
-    body[data-game] .edit-layout { display: flex }
-    body[data-game] .edit-player { flex: 1 1 0; min-width: 0 }
-    body[data-game] .editor-tools { flex: 0 0 25%; min-width: 220px }
-    body[data-game] .replay-screen[data-compact] .edit-layout,
-    body[data-game] .replay-screen[data-compact] .settings-panel { flex-direction: column }
-    body[data-game] .replay-screen[data-compact] .settings-nav { flex: 0 0 auto }
-    body[data-game] #edit-title:focus { outline: none }
-    body[data-game] .timeline-track input { display: none }
-    .game-timeline { position: absolute; inset: 0 6px; cursor: ew-resize; touch-action: none }
-    .game-timeline b { position: absolute; width: 3px; height: 15px; top: 3px; border-radius: 2px; background: var(--edit-progress); pointer-events: none }
-    .game-timeline .position { width: 7px; height: 7px; top: 7px; margin-left: -3px; background: #e7e2ff }
-    body[data-game] #edit-video { display: block; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain }
-    body[data-game] .edit-frame[data-expanded] { position: fixed; inset: 12px; width: auto; height: auto; z-index: 10 }
     body[data-client] .clip-thumb { display: grid; place-items: center }
     body[data-client] .clip-thumb img { position: absolute; inset: 0; height: 100% }
     .clip-placeholder { color: var(--muted) }
@@ -126,7 +104,7 @@
     .folder-action .icon { width: 15px; height: 15px }
     .screen-header {
       display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch;
-      min-height: 57px; gap: 12px; padding-inline: var(--screen-edge); border-bottom: 1px solid var(--line); background: #171820;
+      min-height: 57px; gap: 12px; padding-left: var(--screen-edge); padding-right: var(--screen-edge); border-bottom: 1px solid var(--line); background: #171820;
     }
     .screen-title { display: flex; align-items: center; gap: 9px }
     .screen-title .icon { width: 18px; height: 18px; color: var(--accent) }
@@ -141,7 +119,8 @@
     .tab[aria-selected="true"] { color: var(--ink) }
     .tab[aria-selected="true"]::after { content: ""; position: absolute; inset: auto 5px 0; height: 2px; background: var(--accent) }
     .tab:focus-visible { outline-offset: -3px }
-    .screen-body { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 15px var(--screen-edge) 30px }
+    .screen-body { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 15px var(--screen-edge) 30px }
+    body[data-game] .screen-body { scrollbar-width: none; scrollbar-color: transparent transparent }
     .library-tools { display: flex; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 10px }
     .filters { display: flex; flex-wrap: wrap; gap: 5px }
     .filter { padding: 3px 8px; border-radius: 4px }
@@ -181,11 +160,12 @@
     .capture-toggle { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted); white-space: nowrap }
     .screen-tools .back { border-left: 1px solid var(--line); padding-left: 9px }
     .clip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 212px), 1fr)); gap: 18px 14px; margin: 0; padding: 0; list-style: none }
+    body[data-game] .clip-grid { display: flex; flex-wrap: wrap }
     .clip-card { position: relative; min-width: 0; max-width: 295px }
     .clip-open { display: block; width: 100%; padding: 0; border: 0; border-radius: 5px; background: transparent; text-align: left }
     .clip-open:hover .clip-thumb { border-color: #b6c0ff7a }
-    .clip-thumb { display: block; position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--line); border-radius: 5px; background: #202432 }
-    .clip-thumb img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover }
+    .clip-thumb { display: flex; align-items: center; justify-content: center; position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--line); border-radius: 5px; background: #202432 }
+    .clip-thumb img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover }
     .clip-length { position: absolute; right: 6px; bottom: 6px; padding: 3px 5px; border-radius: 4px; background: #0b0d16e8; color: #fff; font: 600 11px Paradox, sans-serif; font-variant-numeric: tabular-nums }
     .clip-name, .clip-meta { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
     .clip-name { margin-top: 6px; font-size: 13px; font-weight: 600 }
@@ -196,6 +176,7 @@
     .favorite[aria-pressed="true"] .icon { fill: var(--accent); color: var(--accent) }
     .edit-header { display: flex; align-items: center; gap: 10px; margin-bottom: 9px }
     .edit-header h3 { margin: 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere }
+    .edit-header h3:focus { outline: none }
     .edit-back, .plain-action, .key-button {
       border: 1px solid var(--line); border-radius: 5px; background: var(--surface);
       color: var(--ink); font-size: 12px; padding: 5px 8px; min-height: 29px;
@@ -207,8 +188,8 @@
     }
     .edit-back .icon { width: 13px; height: 13px }
     #clip-editor { --edit-accent: #725bdd; --edit-progress: #947fff }
-    .edit-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 25%); gap: 13px; align-items: start }
-    .edit-player { min-width: 0 }
+    .edit-layout { display: flex; gap: 13px; align-items: flex-start }
+    .edit-player { flex: 1 1 0; min-width: 0; width: 100% }
     .edit-frame { position: relative; margin: 0; overflow: hidden; border-radius: 6px; background: #0b0d13 }
     .timeline { margin-top: 5px }
     .timeline-track { position: relative; height: 22px; --thumb: 12px }
@@ -216,40 +197,21 @@
       position: absolute; inset: 9px calc(var(--thumb) / 2) auto; height: 4px; border-radius: 2px;
       background: #2a2935; pointer-events: none;
     }
-    .timeline-rail::after {
-      content: ""; position: absolute; inset-block: 0; left: var(--trim-start, 0%); right: var(--trim-end, 0%);
+    .timeline-selection {
+      position: absolute; top: 0; bottom: 0; left: 0; right: 0;
       border-radius: inherit; background: #55458d;
     }
     .timeline-progress {
-      position: absolute; inset: 0 auto 0 0; width: var(--play-position, 0%); z-index: 1;
+      position: absolute; top: 0; bottom: 0; left: 0; width: 0; z-index: 1;
       border-radius: inherit; background: var(--edit-progress); opacity: .8;
     }
-    .timeline-track input {
-      position: absolute; inset: 0; width: 100%; height: 22px; margin: 0;
-      appearance: none; background: transparent; cursor: ew-resize;
-    }
-    .timeline-track .trim-handle { pointer-events: none }
-    .timeline-track input::-webkit-slider-runnable-track { height: 20px; background: transparent }
-    .timeline-track input::-moz-range-track { height: 20px; background: transparent }
-    .timeline-track input::-webkit-slider-thumb {
-      appearance: none; width: var(--thumb); height: var(--thumb); margin-top: 4px;
-      background: radial-gradient(circle, #f8f6ff 3.4px, #14151c 3.6px 4.5px, transparent 4.7px); cursor: ew-resize;
-    }
-    .timeline-track input::-moz-range-thumb {
-      box-sizing: border-box; width: var(--thumb); height: var(--thumb); border: 0;
-      background: radial-gradient(circle, #f8f6ff 3.4px, #14151c 3.6px 4.5px, transparent 4.7px); cursor: ew-resize;
-    }
-    .timeline-track .trim-handle::-webkit-slider-thumb {
-      pointer-events: auto; height: 18px; margin-top: 1px; border-radius: 0;
-      background: linear-gradient(var(--edit-progress), var(--edit-progress)) center / 3px 14px no-repeat;
-    }
-    .timeline-track .trim-handle::-moz-range-thumb {
-      pointer-events: auto; height: 18px;
-      background: linear-gradient(var(--edit-progress), var(--edit-progress)) center / 3px 14px no-repeat;
-    }
-    .timeline-track input:focus-visible { outline-offset: 0; z-index: 1 }
+    .timeline-track input, .volume-slider input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; pointer-events: none }
+    .timeline-controls { position: absolute; inset: 0 6px; cursor: ew-resize; touch-action: none }
+    .timeline-controls b { position: absolute; width: 3px; height: 14px; top: 4px; background: var(--edit-progress); pointer-events: none }
+    .timeline-controls .position { width: 9px; height: 9px; top: 6.5px; margin-left: -4.5px; border: 1px solid #14151c; border-radius: 50%; background: #f8f6ff }
+    .timeline-track:focus-within .timeline-controls, .volume-slider:focus-within { outline: 1px solid var(--accent) }
     .timeline output { display: block; margin-top: 3px; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 11.5px }
-    .editor-tools { min-width: 0; display: grid; gap: 13px }
+    .editor-tools { flex: 0 0 25%; min-width: 220px; display: grid; gap: 13px }
     .editor-tools h4 { margin: 0 0 6px; color: var(--muted); font-size: 11.5px; font-weight: 600 }
     .edit-metadata { display: grid; gap: 3px; margin: 0 }
     .edit-metadata div { display: flex; align-items: baseline; justify-content: space-between; gap: 9px; font-size: 11.5px }
@@ -262,7 +224,7 @@
     }
     .trim-range input::-webkit-inner-spin-button, .trim-range input::-webkit-outer-spin-button { appearance: none; margin: 0 }
     .trim-range .rate-input:focus { outline: none; border-color: #9da8df }
-    #trim-result { margin-inline-start: auto; white-space: nowrap; font-variant-numeric: tabular-nums }
+    #trim-result { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums }
     .trim-help { margin: 5px 0 7px; color: var(--muted); font-size: 11px; line-height: 1.4 }
     .edit-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px }
     .edit-actions button { min-width: 0 }
@@ -279,18 +241,18 @@
     .binding-note { min-height: 17px; margin-block: 8px; color: var(--muted); font-size: 11.5px }
     .settings-reset { justify-self: start }
     @media (max-width: 760px) {
-      .edit-layout { grid-template-columns: minmax(0, 1fr) }
+      .edit-layout { flex-direction: column; align-items: stretch }
       .editor-tools { padding-top: 10px; border-top: 1px solid var(--line) }
     }
     .empty { display: grid; justify-items: center; text-align: center; gap: 9px; max-width: 340px; margin: clamp(34px, 10vh, 105px) auto 0 }
     .empty-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; background: var(--surface); color: var(--muted) }
     .empty p { margin: 0; color: var(--muted); line-height: 1.5 }
     .settings-panel {
-      display: grid; grid-template-columns: 174px minmax(0, 1fr);
+      display: flex;
       gap: clamp(20px, 3.5vw, 46px); min-height: 100%; padding: 5px 0 0;
     }
     .settings-nav {
-      align-self: start; display: grid; gap: 4px; border-right: 1px solid var(--line);
+      flex: 0 0 174px; align-self: flex-start; display: grid; gap: 4px; border-right: 1px solid var(--line);
       padding: 2px 13px 10px 0;
     }
     .settings-nav button {
@@ -303,7 +265,7 @@
     .settings-nav button:hover { color: var(--ink); background: #ffffff09 }
     .settings-nav button[aria-selected="true"] { color: var(--ink); background: #b6c0ff14; border-color: #b6c0ff30 }
     .settings-nav button[aria-selected="true"] .icon { color: var(--accent) }
-    .settings-pages { min-width: 0; width: min(100%, 688px) }
+    .settings-pages { flex: 1 1 0; min-width: 0; max-width: 688px }
     .settings-group h3 { margin: 0 0 12px; font-size: 19px; font-weight: 600 }
     .settings-group .row { min-height: 49px; padding: 7px 0; border-top: 1px solid var(--line) }
     .settings-group .row:last-of-type { border-bottom: 1px solid var(--line) }
@@ -316,8 +278,9 @@
     .replay-screen[data-editor] .screen-header { display: none }
     .replay-screen[data-editor] .screen-body { padding: 8px 12px 17px }
     .edit-frame { aspect-ratio: 16 / 9 }
-    .edit-frame video { display: block; width: 100%; height: 100%; object-fit: contain; background: #0b0d13 }
+    .edit-frame video, .edit-frame .video-surface { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #0b0d13 }
     .edit-frame:fullscreen { border: 0; border-radius: 0; width: 100%; height: 100% }
+    .edit-frame[data-expanded] { position: fixed; inset: 12px; width: auto; height: auto; z-index: 10 }
     .preview-play {
       position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
       width: 38px; height: 38px; display: grid; place-items: center;
@@ -338,7 +301,10 @@
     .transport .play-toggle:hover { background: #806be8 }
     .transport output { margin: 0 2px; white-space: nowrap }
     .transport-speed { display: flex; gap: 2px; padding-right: 5px; border-right: 1px solid var(--line) }
-    .transport input { width: clamp(42px, 6vw, 75px); margin: 0 2px; accent-color: var(--edit-progress) }
+    .volume-slider { position: relative; display: block; width: clamp(42px, 6vw, 75px); height: 18px; margin: 0 2px; cursor: ew-resize; touch-action: none }
+    .volume-rail { position: absolute; inset: 5.5px 7px auto; height: 7px; border-radius: 4px; background: #2a2935; pointer-events: none }
+    .volume-rail i { display: block; height: 7px; border-radius: 4px; background: var(--edit-progress) }
+    .volume-rail b { position: absolute; top: -3.5px; margin-left: -7px; width: 14px; height: 14px; border-radius: 50%; background: var(--edit-progress) }
     .editor-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px }
     .editor-actions .plain-action, .edit-actions .plain-action {
       min-width: 0; min-height: 24px; padding: 3px 5px; border-color: transparent; font-size: 11px;
@@ -351,9 +317,9 @@
     #edit-favorite[aria-pressed="true"] .icon { fill: var(--accent); color: var(--accent) }
     .estimate { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums }
     @media (max-width: 620px) {
-      .settings-panel { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 15px }
+      .settings-panel { flex-direction: column; gap: 15px }
       .settings-nav {
-        display: flex; gap: 5px; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line);
+        flex: 0 0 auto; align-self: stretch; display: flex; gap: 5px; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line);
         padding: 0 0 8px;
       }
       .settings-nav button { min-height: 31px; padding: 4px 6px; gap: 4px; font-size: 11.5px }
@@ -407,17 +373,18 @@
     .replay-option[aria-disabled="true"] { opacity: .45; cursor: default }
     .replay-option .icon { width: 13px; height: 13px; color: var(--accent); visibility: hidden }
     .replay-option[aria-selected="true"] .icon { visibility: visible }
+    .switch-control { position: relative; flex: none; display: block; width: 35px; height: 20px }
     .switch {
-      position: relative; flex: none; appearance: none; display: block; width: 35px; height: 20px;
+      position: absolute; top: 0; left: 0; appearance: none; display: block; width: 35px; height: 20px;
       border: 1px solid #ffffff34; border-radius: 999px;
       margin: 0; background: #2b3140; cursor: pointer; transition: background-color .16s;
     }
-    .switch::after {
-      content: ""; position: absolute; left: 3px; top: 3px; width: 12px; height: 12px;
+    .switch-thumb {
+      position: absolute; left: 4px; top: 4px; width: 12px; height: 12px; pointer-events: none;
       border-radius: 50%; background: #b6bece; transition: transform .16s;
     }
     .switch:checked { background: var(--accent); border-color: var(--accent) }
-    .switch:checked::after { transform: translateX(15px); background: var(--accent-ink) }
+    .switch:checked + .switch-thumb { transform: translateX(15px); background: var(--accent-ink) }
     .toast {
       position: fixed; z-index: 1; right: var(--edge); bottom: 31px; max-width: min(390px, calc(100vw - 40px));
       margin: 0; padding: 11px 15px; border: 1px solid var(--line); border-radius: 9px;
@@ -529,7 +496,7 @@
         <button class="tab" id="tab-settings" type="button" role="tab" aria-selected="false" aria-controls="replay-settings" tabindex="-1">Настройки</button>
       </div>
       <div class="screen-tools">
-        <label class="capture-toggle" title="Запоминать последние секунды игры">Буфер <input class="switch" id="enabled" type="checkbox" role="switch"></label>
+        <label class="capture-toggle" title="Запоминать последние секунды игры">Буфер <span class="switch-control"><input class="switch" id="enabled" type="checkbox" role="switch"><i class="switch-thumb" aria-hidden="true"></i></span></label>
         <button class="back" id="close-replay" type="button" aria-label="Назад" autofocus><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg><span class="label">Назад</span><kbd>Esc</kbd></button>
       </div>
     </header>
@@ -572,12 +539,13 @@
             <div class="edit-player">
               <figure class="edit-frame" id="edit-frame">
                 <video id="edit-video" preload="none" playsinline poster="../assets/gameplay-baseline.webp" aria-label="Демонстрационное видео из кадров Minecraft"></video>
+                <img id="edit-video-surface" class="video-surface" alt="Видео Minecraft" hidden>
                 <button class="preview-play" id="preview-play" type="button" aria-label="Воспроизвести"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg></button>
               </figure>
               <section class="timeline" aria-label="Таймлайн">
                 <div class="timeline-track" id="trim-track">
-                  <div class="timeline-rail" aria-hidden="true"><span class="timeline-progress"></span></div>
-                  <div class="game-timeline" id="game-timeline" hidden aria-hidden="true"><b></b><b></b><b class="position"></b></div>
+                  <div class="timeline-rail" aria-hidden="true"><span class="timeline-selection"></span><span class="timeline-progress"></span></div>
+                  <div class="timeline-controls" id="timeline-controls" aria-hidden="true"><b></b><b></b><b class="position"></b></div>
                   <input id="edit-position" type="range" min="0" step=".1" value="0" aria-label="Позиция на таймлайне">
                   <input id="start-handle" class="trim-handle" type="range" min="0" step=".1" value="0" aria-label="Начало обрезки">
                   <input id="end-handle" class="trim-handle" type="range" min="0" step=".1" aria-label="Конец обрезки">
@@ -597,7 +565,7 @@
                       <button type="button" data-speed="2" aria-pressed="false">2×</button>
                     </div>
                     <button type="button" id="edit-mute" aria-label="Выключить звук" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-audio"/></svg></button>
-                    <input id="edit-volume" type="range" min="0" max="1" step=".05" value="1" aria-label="Громкость">
+                    <span class="volume-slider" id="volume-slider"><span class="volume-rail" aria-hidden="true"><i></i><b></b></span><input id="edit-volume" type="range" min="0" max="1" step=".05" value="1" aria-label="Громкость"></span>
                     <button type="button" id="edit-fullscreen" aria-label="На весь экран" title="На весь экран"><svg class="icon" aria-hidden="true"><use href="#i-expand"/></svg></button>
                   </div>
                 </div>
@@ -676,7 +644,7 @@
           <section class="settings-group" id="settings-audio" role="tabpanel" aria-labelledby="settings-audio-tab" hidden>
             <h3>Звук</h3>
             <div class="row"><label for="audio">Источник звука</label><span class="select-wrap"><select id="audio"><option value="game">Minecraft</option><option value="system">Вся система</option><option value="none">Без звука игры и системы</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></span></div>
-            <div class="row"><label for="mic">Микрофон</label><input class="switch" id="mic" type="checkbox" role="switch"></div>
+            <div class="row"><label for="mic">Микрофон</label><span class="switch-control"><input class="switch" id="mic" type="checkbox" role="switch"><i class="switch-thumb" aria-hidden="true"></i></span></div>
           </section>
           <section class="settings-group" id="settings-keys" role="tabpanel" aria-labelledby="settings-keys-tab" hidden>
             <h3>Горячие клавиши</h3>

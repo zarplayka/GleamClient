@@ -27,6 +27,7 @@
   const clipList = byId('clip-list');
   const editor = byId('clip-editor');
   const media = byId('edit-video');
+  const videoSurface = byId('edit-video-surface');
   let player = {};
   let playPending = false;
   let playing = false;
@@ -36,7 +37,7 @@
     get currentTime() { return player.position || 0; },
     set currentTime(value) {
       clearTimeout(seekTimer);
-      seekTimer = setTimeout(() => { seekTimer = undefined; post('seek', {position: value}); }, 75);
+      seekTimer = setTimeout(() => { seekTimer = undefined; post('seek', {position: value}); }, 45);
     },
     get paused() { return !playing; },
     get ended() { return !!player.ended; },
@@ -48,7 +49,7 @@
     set playbackRate(value) { this.speed = value; post('speed', {value}); },
     pause() { if (playing || playPending) post('pause-preview'); playing = playPending = false; },
     play() { playPending = playing = true; post('play-preview'); syncPlayer(); },
-    addEventListener(name, fn) { if (name === 'click') media.addEventListener(name, fn); },
+    addEventListener(name, fn) { if (name === 'click') videoSurface.addEventListener(name, fn); },
     removeAttribute(name) { media.removeAttribute(name); },
     setAttribute(name, value) { media.setAttribute(name, value); },
     load() { clearTimeout(seekTimer); seekTimer = undefined; post('unload-preview'); }
@@ -66,6 +67,9 @@
   const startHandle = byId('start-handle');
   const endHandle = byId('end-handle');
   const trimTrack = byId('trim-track');
+  const trimSelection = trimTrack.querySelector('.timeline-selection');
+  const trimProgress = trimTrack.querySelector('.timeline-progress');
+  const timeline = byId('timeline-controls');
   const trimSave = byId('trim-save');
   const trimApply = byId('trim-apply');
   const trimReset = byId('trim-reset');
@@ -343,17 +347,16 @@
         screen.style.top = (snapshot.height - h) / 2 + 'px';
         screen.style.width = w + 'px';
         screen.style.height = h + 'px';
-        screen.toggleAttribute('data-compact', w < 700);
+        requestAnimationFrame(layoutClipGrid);
       }
       if (snapshot.settings) {
         loadLiveSettings(snapshot.settings);
-        editor.querySelector('.trim-help').textContent = 'Границы на таймлайне или I / O. Начало при сохранении привязывается к ключевому кадру.';
       }
       liveState = snapshot;
       enabled.checked = snapshot.buffer;
       recordAction.hidden = !snapshot.inWorld;
       recordAction.disabled = snapshot.pending;
-      recordAction.toggleAttribute('data-recording', snapshot.recording);
+      recordAction.toggleAttribute('data-recording', !!snapshot.recording);
       recordAction.querySelector('use').setAttribute('href', snapshot.recording ? '#i-stop' : '#i-record');
       byId('record-label').textContent = snapshot.pending ? 'Подождите…' : snapshot.recording ? 'Остановить запись' : 'Начать запись';
       recordTime.hidden = !snapshot.recording || snapshot.pending;
@@ -453,7 +456,16 @@
       open.addEventListener('click', () => openEditor(clip, open));
       return card;
     }));
-    if (game) requestAnimationFrame(requestThumbnails);
+    if (game) requestAnimationFrame(() => { layoutClipGrid(); requestThumbnails(); });
+  }
+
+  function layoutClipGrid() {
+    const grid = byId('clip-grid');
+    const width = grid.clientWidth;
+    if (width <= 0) return;
+    const columns = Math.max(1, Math.floor((width + 14) / 226));
+    const column = (width - (columns - 1) * 14) / columns;
+    for (const card of grid.children) card.style.width = column + 'px';
   }
 
   function requestThumbnails() {
@@ -481,8 +493,8 @@
   function clock() {
     const position = Number(editorPosition.value);
     editorPosition.setAttribute('aria-valuetext', time(position));
-    trimTrack.style.setProperty('--play-position', (position / edit.clip.seconds * 100) + '%');
-    if (game) byId('game-timeline').children[2].style.left = (position / edit.clip.seconds * 100) + '%';
+    trimProgress.style.width = (position / edit.clip.seconds * 100) + '%';
+    timeline.children[2].style.left = (position / edit.clip.seconds * 100) + '%';
     byId('edit-clock').textContent = time(position) + ' / ' + time(edit.clip.seconds);
   }
 
@@ -539,7 +551,7 @@
     try {
       await loadPreview();
       if (current !== edit) return;
-      if (Number(editorPosition.value) >= edit.clip.seconds) seekPreview(0);
+      if (!game && Number(editorPosition.value) >= edit.clip.seconds) seekPreview(0);
       await editVideo.play();
     } catch (error) {
       if (current === edit && error.name !== 'AbortError') toast(live ? 'Не удалось открыть клип' : 'Демонстрационное видео не загрузилось');
@@ -591,6 +603,7 @@
     editorPosition.value = '0';
     if (game) {
       player = {};
+      videoSurface.src = clip.thumbnail || 'assets/gleam-replay-video.png';
       clearTimeout(seekTimer);
       seekTimer = undefined;
       post('load-preview', {id: clip.id, rate: editVideo.playbackRate, volume: editVideo.volume, muted: editVideo.muted});
@@ -629,6 +642,7 @@
     editor.hidden = true;
     clipList.hidden = false;
     edit = null;
+    if (game) requestAnimationFrame(() => { layoutClipGrid(); requestThumbnails(); });
     if (restoreFocus) {
       (clipFocus?.isConnected ? clipFocus : clipFilterButton()).focus({preventScroll: true});
       animatePanel(clipList, -7);
@@ -652,13 +666,11 @@
     endHandle.value = edit.end;
     startHandle.setAttribute('aria-valuetext', time(edit.start));
     endHandle.setAttribute('aria-valuetext', time(edit.end));
-    trimTrack.style.setProperty('--trim-start', (edit.start / edit.clip.seconds * 100) + '%');
-    trimTrack.style.setProperty('--trim-end', ((1 - edit.end / edit.clip.seconds) * 100) + '%');
-    if (game) {
-      const handles = byId('game-timeline').children;
-      handles[0].style.left = (edit.start / edit.clip.seconds * 100) + '%';
-      handles[1].style.left = 'calc(' + (edit.end / edit.clip.seconds * 100) + '% - 3px)';
-    }
+    trimSelection.style.left = (edit.start / edit.clip.seconds * 100) + '%';
+    trimSelection.style.right = ((1 - edit.end / edit.clip.seconds) * 100) + '%';
+    const handles = timeline.children;
+    handles[0].style.left = (edit.start / edit.clip.seconds * 100) + '%';
+    handles[1].style.left = 'calc(' + (edit.end / edit.clip.seconds * 100) + '% - 3px)';
     clock();
     byId('trim-result').textContent = number.format(decimal(edit.end - edit.start)) + ' с';
     trimSave.disabled = trimApply.disabled = trimReset.disabled = edit.start === 0 && edit.end === edit.clip.seconds;
@@ -1105,8 +1117,13 @@
     speedButtons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
   });
   const volume = byId('edit-volume');
+  const volumeControl = byId('volume-slider');
+  const volumeRail = volumeControl.firstElementChild;
   const mute = byId('edit-mute');
   const syncVolume = () => {
+    const position = (editVideo.muted ? 0 : editVideo.volume) * 100 + '%';
+    volumeRail.children[0].style.width = position;
+    volumeRail.children[1].style.left = position;
     mute.setAttribute('aria-pressed', String(editVideo.muted));
     mute.setAttribute('aria-label', editVideo.muted ? 'Включить звук' : 'Выключить звук');
   };
@@ -1114,6 +1131,14 @@
     editVideo.volume = Number(volume.value);
     editVideo.muted = editVideo.volume === 0;
     syncVolume();
+  });
+  syncVolume();
+  trackPointer(volumeControl, (event, rect) => {
+    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left - 7) / (rect.width - 14)));
+    const next = Math.round(ratio * 20) / 20;
+    if (next === Number(volume.value) && !editVideo.muted) return;
+    volume.value = next;
+    volume.dispatchEvent(new Event('input'));
   });
   mute.addEventListener('click', () => {
     if (editVideo.muted && editVideo.volume === 0) { editVideo.volume = 1; volume.value = '1'; }
@@ -1157,29 +1182,35 @@
     toast('Клип удалён');
   });
   editorPosition.addEventListener('input', () => seekPreview(Number(editorPosition.value)));
-  if (game) {
-    const timeline = byId('game-timeline');
-    let drag = null;
-    const updateDrag = event => {
-      if (!edit || !drag) return;
-      const rect = timeline.getBoundingClientRect();
-      const point = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * edit.clip.seconds;
-      if (drag === 'position') seekPreview(point);
-      else setTrim(drag, point);
-    };
-    timeline.hidden = false;
-    timeline.addEventListener('pointerdown', event => {
-      if (!edit) return;
-      const rect = timeline.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      drag = Math.abs(x - rect.width * edit.start / edit.clip.seconds) < 6 ? 'start'
-        : Math.abs(x - rect.width * edit.end / edit.clip.seconds) < 6 ? 'end' : 'position';
-      updateDrag(event);
+  function trackPointer(control, update) {
+    let active = false;
+    control.addEventListener('pointerdown', event => {
+      active = true;
+      update(event, control.getBoundingClientRect());
     });
-    document.addEventListener('pointermove', updateDrag);
-    document.addEventListener('pointerup', event => { updateDrag(event); drag = null; });
-    document.addEventListener('pointercancel', () => { drag = null; });
+    document.addEventListener('pointermove', event => { if (active) update(event, control.getBoundingClientRect()); });
+    document.addEventListener('pointerup', event => {
+      if (active) update(event, control.getBoundingClientRect());
+      active = false;
+    });
+    document.addEventListener('pointercancel', () => { active = false; });
   }
+  let dragEdge;
+  let scrubbing = false;
+  trackPointer(timeline, (event, rect) => {
+    if (!edit) { scrubbing = false; return; }
+    const x = event.clientX - rect.left;
+    if (event.type === 'pointerdown') {
+      dragEdge = Math.abs(x - rect.width * edit.start / edit.clip.seconds) < 6 ? 'start'
+        : Math.abs(x - rect.width * edit.end / edit.clip.seconds) < 6 ? 'end' : null;
+      scrubbing = !dragEdge;
+    }
+    const point = Math.max(0, Math.min(1, x / rect.width)) * edit.clip.seconds;
+    if (dragEdge) setTrim(dragEdge, point);
+    else if (event.type === 'pointerup') { scrubbing = false; seekPreview(point); }
+    else { editorPosition.value = point; clock(); }
+  });
+  document.addEventListener('pointercancel', () => { scrubbing = false; });
   startInput.addEventListener(game ? 'blur' : 'change', () => { if (edit) setTrim('start', numberField(startInput)); });
   endInput.addEventListener(game ? 'blur' : 'change', () => { if (edit) setTrim('end', numberField(endInput)); });
   startHandle.addEventListener('input', () => setTrim('start', startHandle.valueAsNumber));
@@ -1328,6 +1359,8 @@
     byId('clip-folder').hidden = false;
     recordAction.hidden = true;
     if (game) {
+      media.hidden = true;
+      videoSurface.hidden = false;
       window.paradox = {editShortcut({command, text}) {
         const field = document.activeElement;
         if (field !== customDuration && field !== bitrate && field !== startInput && field !== endInput) return;
@@ -1349,7 +1382,9 @@
           player = snapshot.player;
           playing = player.playing;
           playPending = false;
-          if (seekTimer === undefined) {
+          if (player.hasFrame && videoSurface.getAttribute('src') !== 'assets/gleam-replay-video.png')
+            videoSurface.src = 'assets/gleam-replay-video.png';
+          if (!scrubbing && seekTimer === undefined) {
             editorPosition.value = player.position;
             clock();
           }
@@ -1358,6 +1393,7 @@
           const clip = clips.find(item => item.id === snapshot.thumbnailId && item.revision === snapshot.revision);
           if (!clip) return;
           clip.thumbnail = snapshot.thumbnail;
+          if (edit?.clip === clip && !player.hasFrame) videoSurface.src = clip.thumbnail;
           const card = byId('clip-grid').querySelector('[data-clip-id="' + clip.id + '"]');
           if (card) {
             card.querySelector('.clip-placeholder').hidden = true;

@@ -79,7 +79,6 @@ final class GleamReplayScreen extends Screen {
                     .replace("</dialog>", "</div>")
                     .replace("<template id=\"clip-template\">", "<div id=\"clip-template\" hidden>")
                     .replace("</template>", "</div>")
-                    .replaceFirst("<video id=\"edit-video\"[^>]*></video>", "<img id=\"edit-video\" src=\"" + MARKER + "\" alt=\"\">")
                     .replace("<script src=\"replay-preview.js\"></script>", "<script>window.gleamReplayInGame=true;\n" + script + "</script>");
             return bytes(page);
         } catch (IOException error) {
@@ -115,12 +114,10 @@ final class GleamReplayScreen extends Screen {
             return;
         }
         ready = true;
-        var window = minecraft.getWindow();
-        float ratio = Math.clamp(Math.min(window.getWidth() / 1440F, window.getHeight() / 900F), .6F, 2F);
-        scale = ratio / window.getGuiScale();
+        scale = 1F / minecraft.getWindow().getGuiScale();
         layoutWidth = (int)Math.ceil(width / scale);
         layoutHeight = (int)Math.ceil(height / scale);
-        view.resize(layoutWidth, layoutHeight, ratio);
+        view.resize(layoutWidth, layoutHeight, 1F);
         updateState();
         updateVideo();
         view.frame();
@@ -309,6 +306,7 @@ final class GleamReplayScreen extends Screen {
         player.addProperty("position", position);
         player.addProperty("playing", playing);
         player.addProperty("ended", ended);
+        player.addProperty("hasFrame", video != null);
         var state = new JsonObject();
         state.add("player", player);
         view.update(state);

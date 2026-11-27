@@ -429,6 +429,15 @@ public final class OrionLumenView {
                             if (id < 0) continue;
                             pixels = kind == 12 ? gradientTexture(id, commands.getInt(at + 56)) : imageTexture(id);
                             if (pixels == null) continue;
+                            if (id == liveImageId && pixels == liveImage && pixels.getPixels() != null) {
+                                var image = pixels.getPixels();
+                                float fit = Math.min(w / image.getWidth(), h / image.getHeight());
+                                float fitWidth = image.getWidth() * fit, fitHeight = image.getHeight() * fit;
+                                left += (w - fitWidth) / 2F;
+                                top += (h - fitHeight) / 2F;
+                                w = fitWidth;
+                                h = fitHeight;
+                            }
                             variant = Math.round(parameter);
                             if (kind == 8 && commands.getInt(at + 60) == 0) filter = FilterMode.LINEAR;
                         }

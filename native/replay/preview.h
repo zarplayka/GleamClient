@@ -6,7 +6,7 @@
 
 namespace replay {
 // Fixed stream header, followed by bounded packets of pixels or stereo PCM.
-inline void preview(const std::filesystem::path& path, LONGLONG from, bool still) {
+inline void preview(const std::filesystem::path& path, LONGLONG from, bool still, unsigned width_limit, unsigned fps) {
     if (_setmode(_fileno(stdout), _O_BINARY) == -1) throw std::runtime_error("Cannot open preview pipe");
     auto attributes = replay::attributes(2);
     check_hresult(attributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE));
@@ -24,7 +24,7 @@ inline void preview(const std::filesystem::path& path, LONGLONG from, bool still
     UINT32 w{}, h{};
     check_hresult(MFGetAttributeSize(original.get(), MF_MT_FRAME_SIZE, &w, &h));
     if (!w || !h) throw std::runtime_error("Invalid preview size");
-    double scale = std::min({1.0, 640.0 / w, 360.0 / h});
+    double scale = std::min({1.0, double(width_limit) / w, (width_limit * .5625) / h});
     w = std::max(2u, static_cast<UINT32>(w * scale) & ~1u);
     h = std::max(2u, static_cast<UINT32>(h * scale) & ~1u);
     auto decoded = media_type();
@@ -49,7 +49,7 @@ inline void preview(const std::filesystem::path& path, LONGLONG from, bool still
     std::vector<unsigned char> pixels(static_cast<size_t>(w) * h * 4);
     DWORD video_index = UINT32_MAX;
     bool video_done = false, audio_done = !audio;
-    LONGLONG next_frame = 0;
+    LONGLONG last_video_slot = -1;
     while (!video_done || !audio_done) {
         DWORD stream{}, flags{};
         LONGLONG timestamp{};
@@ -69,7 +69,9 @@ inline void preview(const std::filesystem::path& path, LONGLONG from, bool still
             reader->SetStreamSelection(stream, FALSE);
             continue;
         }
-        if (!sample || timestamp < from || (video && timestamp < next_frame)) continue;
+        if (!sample || timestamp < from) continue;
+        const auto video_slot = (timestamp - from) * fps / second;
+        if (video && video_slot == last_video_slot) continue;
         auto emit = [&](UINT32 kind, const BYTE* data, UINT32 length) {
             return fwrite(&kind, sizeof(kind), 1, stdout) == 1 &&
                    fwrite(&timestamp, sizeof(timestamp), 1, stdout) == 1 &&
@@ -103,7 +105,7 @@ inline void preview(const std::filesystem::path& path, LONGLONG from, bool still
                 pixels[i + 3] = 255;
             }
             if (!emit(1, pixels.data(), static_cast<UINT32>(pixels.size())) || still) return;
-            next_frame = std::max(next_frame + second / 24, timestamp + second / 24 - second / 120);
+            last_video_slot = video_slot;
         } else {
             BYTE* data{};
             DWORD length{};
