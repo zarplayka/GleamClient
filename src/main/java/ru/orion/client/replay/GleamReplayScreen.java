@@ -55,6 +55,7 @@ final class GleamReplayScreen extends Screen {
     private float scale = 1;
     private int layoutWidth, layoutHeight;
     private int previewWidth;
+    private long nextStateUpdate, lastPlayerUpdate;
     private double position, rate = 1, volume = 1;
     private boolean playing, ended, muted, ready;
 
@@ -119,8 +120,11 @@ final class GleamReplayScreen extends Screen {
         scale = 1F / minecraft.getWindow().getGuiScale();
         layoutWidth = (int)Math.ceil(width / scale);
         layoutHeight = (int)Math.ceil(height / scale);
-        view.resize(layoutWidth, layoutHeight, 1F);
-        updateState();
+        long now = System.nanoTime();
+        if (view.resize(layoutWidth, layoutHeight, 1F) || now >= nextStateUpdate) {
+            updateState();
+            nextStateUpdate = now + 100_000_000;
+        }
         updateVideo();
         view.frame();
         receive();
@@ -306,6 +310,7 @@ final class GleamReplayScreen extends Screen {
         if (playback == null) return;
         var frame = playback.frame();
         boolean done = playback.finished();
+        boolean firstFrame = video == null;
         if (done && frame == null) frame = playback.frame();
         if (frame != null) {
             NativeImage pixels = frame.pixels();
@@ -321,11 +326,13 @@ final class GleamReplayScreen extends Screen {
             else if (playing) { ended = true; position = clip.seconds(); }
             stopPlayback();
         }
-        if (frame != null || done) playerState();
+        if (done || frame != null && (!playing || firstFrame || System.nanoTime() - lastPlayerUpdate >= 33_000_000))
+            playerState();
     }
 
     private void playerState() {
         if (clip == null || !ready) return;
+        lastPlayerUpdate = System.nanoTime();
         var player = new JsonObject();
         player.addProperty("id", clip.id());
         player.addProperty("position", position);

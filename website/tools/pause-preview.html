@@ -97,6 +97,8 @@
     body[data-game] .world, body[data-game] .pause, body[data-game] .title-menu { display: none }
     body[data-game] .replay-screen { display: none }
     body[data-game] .replay-screen[open] { display: grid }
+    body[data-game][data-video-expanded] .replay-screen { visibility: hidden }
+    body[data-game][data-video-expanded] .shade { background: #090a11 }
     body[data-client] .clip-thumb { display: grid; place-items: center }
     body[data-client] .clip-thumb img { position: absolute; inset: 0; height: 100% }
     .clip-placeholder { color: var(--muted) }
@@ -109,6 +111,7 @@
     .screen-title { display: flex; align-items: center; gap: 9px }
     .screen-title .icon { width: 18px; height: 18px; color: var(--accent) }
     .screen-title h2 { margin: 0; font-size: 15px; line-height: 1.15; font-weight: 700 }
+    body[data-game] :is(.screen-title, .tabs, .capture-toggle, .filters) { position: relative; z-index: 1 }
     .back, .tab, .filter, .favorite { border: 0; background: transparent }
     .back { display: inline-flex; gap: 7px; align-items: center; align-self: center; justify-self: end; padding: 5px 6px; border-radius: 5px; color: var(--muted); font-size: 12px }
     .back .icon { width: 15px; height: 15px }
@@ -553,7 +556,10 @@
                 </div>
                 <div class="transport">
                   <div class="transport-group">
-                    <button class="play-toggle" type="button" id="edit-play" aria-label="Воспроизвести"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg></button>
+                    <button class="play-toggle" type="button" id="edit-play" aria-label="Воспроизвести">
+                      <svg class="icon" id="edit-play-icon" aria-hidden="true"><use href="#i-play"/></svg>
+                      <svg class="icon" id="edit-pause-icon" aria-hidden="true" hidden><use href="#i-pause"/></svg>
+                    </button>
                     <button type="button" data-seek="-1" aria-label="На секунду назад" title="На секунду назад"><svg class="icon" aria-hidden="true"><use href="#i-step-back"/></svg></button>
                     <button type="button" data-seek="1" aria-label="На секунду вперёд" title="На секунду вперёд"><svg class="icon" aria-hidden="true"><use href="#i-step-forward"/></svg></button>
                     <output id="edit-clock"></output>

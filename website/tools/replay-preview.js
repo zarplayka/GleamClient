@@ -55,13 +55,17 @@
     load() { clearTimeout(seekTimer); seekTimer = undefined; post('unload-preview'); }
   } : media;
   const editFrame = byId('edit-frame');
+  const editViewport = editFrame.parentElement;
   const previewPlay = byId('preview-play');
   const editPlay = byId('edit-play');
+  const editPlayIcon = byId('edit-play-icon');
+  const editPauseIcon = byId('edit-pause-icon');
   const editFavorite = byId('edit-favorite');
   const removeAction = byId('edit-remove');
   const removeConfirm = byId('remove-confirm');
   let previewLoad;
   const editorPosition = byId('edit-position');
+  const editClock = byId('edit-clock');
   const startInput = byId('trim-start');
   const endInput = byId('trim-end');
   const startHandle = byId('start-handle');
@@ -494,10 +498,15 @@
 
   function clock() {
     const position = Number(editorPosition.value);
-    editorPosition.setAttribute('aria-valuetext', time(position));
-    trimProgress.style.width = (position / edit.clip.seconds * 100) + '%';
-    timeline.children[2].style.left = (position / edit.clip.seconds * 100) + '%';
-    byId('edit-clock').textContent = time(position) + ' / ' + time(edit.clip.seconds);
+    const formatted = time(position);
+    const clockText = formatted + ' / ' + time(edit.clip.seconds);
+    if (editClock.textContent !== clockText) {
+      editorPosition.setAttribute('aria-valuetext', formatted);
+      editClock.textContent = clockText;
+    }
+    const progress = (position / edit.clip.seconds * 100) + '%';
+    trimProgress.style.width = progress;
+    timeline.children[2].style.left = progress;
   }
 
   function seekPreview(position) {
@@ -551,11 +560,22 @@
       post('resize-preview', {id: edit.clip.id, ...bounds});
   }
 
+  function expandGamePreview(expanded, notify = true) {
+    if (expanded === editFrame.hasAttribute('data-expanded')) return;
+    editFrame.toggleAttribute('data-expanded', expanded);
+    document.body.toggleAttribute('data-video-expanded', expanded);
+    if (expanded) document.body.appendChild(editFrame);
+    else editViewport.insertBefore(editFrame, editViewport.firstChild);
+    if (notify) resizeGamePreview();
+  }
+
   function syncPlayer() {
     const playing = !editVideo.paused && !editVideo.ended;
-    previewPlay.hidden = playing;
-    editPlay.setAttribute('aria-label', playing ? 'Пауза' : 'Воспроизвести');
-    editPlay.querySelector('use').setAttribute('href', playing ? '#i-pause' : '#i-play');
+    const label = playing ? 'Пауза' : 'Воспроизвести';
+    if (editPlay.getAttribute('aria-label') !== label) editPlay.setAttribute('aria-label', label);
+    if (previewPlay.hidden !== playing) previewPlay.hidden = playing;
+    editPlayIcon.toggleAttribute('hidden', playing);
+    editPauseIcon.toggleAttribute('hidden', !playing);
   }
 
   async function togglePreview() {
@@ -654,7 +674,7 @@
       if (document.fullscreenElement === editFrame) document.exitFullscreen().catch(() => {});
     }
     delete screen.dataset.editor;
-    editFrame.removeAttribute('data-expanded');
+    if (game) expandGamePreview(false, false);
     screen.setAttribute('aria-labelledby', 'replay-title');
     editor.hidden = true;
     clipList.hidden = false;
@@ -999,10 +1019,7 @@
     else closingTimer = setTimeout(finish, 240);
   }
   function back() {
-    if (editFrame.hasAttribute('data-expanded')) {
-      editFrame.removeAttribute('data-expanded');
-      resizeGamePreview();
-    }
+    if (game && editFrame.hasAttribute('data-expanded')) expandGamePreview(false);
     else if (activePicker) closeOptions(true);
     else if (!removeConfirm.hidden) {
       showRemoveConfirm(false);
@@ -1167,8 +1184,7 @@
   });
   byId('edit-fullscreen').addEventListener('click', async () => {
     if (game) {
-      editFrame.toggleAttribute('data-expanded');
-      resizeGamePreview();
+      expandGamePreview(!editFrame.hasAttribute('data-expanded'));
       return;
     }
     try {
