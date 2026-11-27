@@ -1,6 +1,6 @@
 #pragma once
 
-#include "video.h"
+#include "storage.h"
 #include <audioclient.h>
 #include <audioclientactivationparams.h>
 #include <mmdeviceapi.h>
@@ -113,13 +113,23 @@ class Audio {
     std::optional<AudioPort> sound_, mic_;
     std::map<LONGLONG, Block> mixed_;
     LONGLONG next_{};
+    bool track_{};
+
+    template<class Operation>
+    static void endpoint(std::optional<AudioPort>& port, std::string_view name, Operation&& operation) {
+        try { operation(); }
+        catch (const winrt::hresult_error&) { port.reset(); report("WARNING", name); }
+        catch (const std::runtime_error&) { port.reset(); report("WARNING", name); }
+    }
+
 public:
     // 0 = game, 1 = default render endpoint, 2 = silent.
     Audio(DWORD game, unsigned mode, bool mic) {
-        if (mode < 2) sound_.emplace(mode == 0 ? game : 0, false);
-        if (mic) mic_.emplace(0, true);
+        if (mode < 2) endpoint(sound_, "audio", [&] { sound_.emplace(mode == 0 ? game : 0, false); });
+        if (mic) endpoint(mic_, "mic", [&] { mic_.emplace(0, true); });
+        track_ = sound_.has_value() || mic_.has_value();
     }
-    bool enabled() const { return sound_.has_value() || mic_.has_value(); }
+    bool enabled() const { return track_; }
     void add_wake(HANDLE* events, DWORD& count) const {
         if (sound_) events[count++] = sound_->wake();
         if (mic_) events[count++] = mic_->wake();
@@ -150,8 +160,8 @@ public:
                 i += count;
             }
         };
-        if (sound_) sound_->read(mix);
-        if (mic_) mic_->read(mix);
+        if (sound_) endpoint(sound_, "audio", [&] { sound_->read(mix); });
+        if (mic_) endpoint(mic_, "mic", [&] { mic_->read(mix); });
         // Audio endpoints can deliver packets at different times. Leave 100 ms for mixing.
         while (next_ < now / period - 5) {
             auto node = mixed_.extract(next_);

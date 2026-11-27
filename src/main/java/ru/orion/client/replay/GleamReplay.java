@@ -72,9 +72,10 @@ public final class GleamReplay {
     private boolean worldOpen, shuttingDown;
     private volatile boolean failed;
     private boolean captureLibraryLoaded, captureOpen;
-    private volatile long captureGeneration;
-    private long renderGeneration;
-    private boolean renderAttached;
+    private long captureGeneration;
+    private volatile long framebufferSize;
+    private volatile ReplayFrameCapture.Plan capturePlan;
+    private final ReplayFrameCapture frameCapture = new ReplayFrameCapture(this::captureFailed);
 
     record World(long hwnd, boolean multiplayer) {}
     record Clip(String id, String title, String kind, long at, double seconds, boolean favorite, long revision) {}
@@ -118,6 +119,10 @@ public final class GleamReplay {
         enqueue(this::loadPreferences);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             boolean present = client.level != null;
+            if (present) {
+                var window = client.getWindow();
+                framebufferSize = ((long) window.getWidth() << 32) | Integer.toUnsignedLong(window.getHeight());
+            }
             if (present == worldOpen) return;
             worldOpen = present;
             World next = present ? new World(hwnd(client), !client.isLocalServer()) : null;
@@ -153,26 +158,24 @@ public final class GleamReplay {
         GleamMinecraft.setScreen(client, new GleamReplayScreen(GleamMinecraft.screen(client), this));
     }
 
-    public void captureFrame(Minecraft client) {
-        long generation = captureGeneration;
-        if (!renderAttached && generation == renderGeneration) return;
-        renderGeneration = generation;
-        var window = client.getWindow();
-        try {
-            renderAttached = client.level == null ? ReplayFrameCapture.frame(0, 0)
-                    : ReplayFrameCapture.frame(window.getWidth(), window.getHeight());
-        } catch (IOException error) {
-            renderAttached = false;
-            enqueue(() -> {
-                if (captureGeneration != generation || !captureOpen) return;
-                failed = true;
-                stopSession();
-                LOG.warn("Direct game capture failed", error);
-                notice("The game is not using OpenGL".equals(error.getMessage())
-                        ? "Откаты с прямым захватом пока доступны только в OpenGL"
-                        : "Не удалось захватить кадр игры · " + error.getMessage());
-            });
+    public void captureFrame(Minecraft client, boolean beforeGui) {
+        var plan = capturePlan;
+        if (plan == null || client.level == null) {
+            if (!beforeGui) frameCapture.frame(null, null);
+            return;
         }
+        if (beforeGui != (GleamMinecraft.screen(client) instanceof GleamReplayScreen)) return;
+        if (GleamMinecraft.shouldRenderLevel(client)) frameCapture.frame(plan, GleamMinecraft.mainTarget(client));
+    }
+
+    private void captureFailed(long generation, Throwable error) {
+        enqueue(() -> {
+            if (captureGeneration != generation || !captureOpen) return;
+            failed = true;
+            stopSession();
+            LOG.warn("Minecraft frame capture failed", error);
+            notice("Не удалось получить кадр Minecraft");
+        });
     }
 
     void submit(String command, JsonObject parameters) { enqueue(() -> action(command, parameters)); }
@@ -312,7 +315,13 @@ public final class GleamReplay {
             loadCaptureLibrary();
             Files.createDirectories(folder);
             String channel = UUID.randomUUID().toString();
-            ReplayFrameCapture.open(current.hwnd(), options.height(), options.fps(), channel);
+            long framebuffer = framebufferSize;
+            int width = (int) (framebuffer >>> 32), height = (int) framebuffer;
+            if (width < 2 || height < 2) throw new IOException("Minecraft framebuffer is unavailable");
+            double scale = Math.min(1, Math.min(3840.0 / width, options.height() / (double) height));
+            int captureWidth = Math.max(2, (int) (width * scale) & ~1);
+            int captureHeight = Math.max(2, (int) (height * scale) & ~1);
+            ReplayFrameCapture.open(captureWidth, captureHeight, ++captureGeneration, channel);
             captureOpen = true;
             var process = new ProcessBuilder(helper.toString(), "capture", Long.toUnsignedString(current.hwnd()),
                     Long.toString(ProcessHandle.current().pid()), folder.toString(), Integer.toString(options.height()),
@@ -364,10 +373,18 @@ public final class GleamReplay {
         if (recorder != process) return;
         switch (key) {
             case "READY" -> {
-                encoder = value;
-                captureGeneration++;
+                String[] parts = value.split(" ", 5);
+                if (parts.length != 5 || !captureOpen) return;
+                int width = Integer.parseInt(parts[0]), height = Integer.parseInt(parts[1]);
+                int fps = Integer.parseInt(parts[2]);
+                if (width < 2 || width > 3840 || height < 2 || height > 2160 || fps < 15 || fps > 60) return;
+                encoder = parts[4];
+                capturePlan = new ReplayFrameCapture.Plan(captureGeneration, width, height, fps);
+                LOG.info("Replay capture: {}x{}, {} FPS, {}", width, height, fps, encoder);
+                if ("cpu".equals(parts[3])) notice("Включён режим совместимости · до " + height + "p, " + fps + " FPS");
             }
             case "IDLE" -> {
+                capturePlan = null;
                 encoder = "";
                 stopIdle();
             }
@@ -388,6 +405,10 @@ public final class GleamReplay {
                     case "No video frames recorded" -> "Игра ещё не передала кадры";
                     default -> value.contains("hardware encoder") ? "Аппаратный кодировщик H.264 недоступен" : "Ошибка захвата · " + value;
                 });
+            }
+            case "WARNING" -> {
+                if ("audio".equals(value)) notice("Выбранный источник звука недоступен · видео продолжит записываться");
+                else if ("mic".equals(value)) notice("Микрофон недоступен · видео продолжит записываться");
             }
             default -> { }
         }
@@ -412,6 +433,7 @@ public final class GleamReplay {
     }
 
     private void stopCapture() {
+        capturePlan = null;
         if (!captureOpen) return;
         ReplayFrameCapture.stop();
         captureOpen = false;

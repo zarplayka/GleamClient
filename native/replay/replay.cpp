@@ -37,10 +37,10 @@ bool valid_id(std::string_view id, std::string_view prefix) {
 }
 
 void capture(HWND window, DWORD pid, const std::filesystem::path& directory, VideoSettings settings,
-             unsigned duration, unsigned audio_mode, bool mic, std::wstring_view token) {
+             unsigned duration, unsigned audio_mode, bool mic, std::wstring_view token, bool prefer_hardware) {
     DWORD owner{};
     if (!GetWindowThreadProcessId(window, &owner) || owner != pid) throw std::runtime_error("Invalid capture window");
-    FrameChannel frames(token, false);
+    FrameChannel frames(token);
     std::filesystem::create_directories(directory);
     auto queue = commands();
     RollingBuffer buffer(duration * second);
@@ -50,6 +50,8 @@ void capture(HWND window, DWORD pid, const std::filesystem::path& directory, Vid
     bool buffering = false;
     std::string requested_recording;
     LONGLONG origin{}, stop_at{-1};
+    bool restart_after_fallback = false;
+    std::string recording_id;
     auto output_path = [&](const std::string& id) { return directory / (id + ".mp4"); };
     auto open = [&](const std::string& id, const Packet& first) {
         com_ptr<IMFMediaType> type;
@@ -62,6 +64,7 @@ void capture(HWND window, DWORD pid, const std::filesystem::path& directory, Vid
             if (stop_at < 0 || origin + packet.time < stop_at) recording->push(packet);
         } else if (!recording && !requested_recording.empty() && !packet.audio && packet.key) {
             recording = open(requested_recording, packet);
+            recording_id = requested_recording;
             requested_recording.clear();
             recording->push(packet);
             report("RECORDING", "1");
@@ -77,8 +80,10 @@ void capture(HWND window, DWORD pid, const std::filesystem::path& directory, Vid
         if (queue->disconnected.load()) quitting = true;
         if (recording && recording->done()) {
             recording.reset();
+            recording_id.clear();
             stop_at = -1;
-            report("RECORDING", "0");
+            if (!restart_after_fallback) report("RECORDING", "0");
+            restart_after_fallback = false;
         }
         if (saved_replay && saved_replay->done()) saved_replay.reset();
         for (const auto& command : commands) {
@@ -116,20 +121,43 @@ void capture(HWND window, DWORD pid, const std::filesystem::path& directory, Vid
         const bool streaming = buffering || !requested_recording.empty() ||
             (recording && (stop_at < 0 || now - stop_at < second / 5));
         if (streaming && !video) {
-            auto opened_video = std::make_unique<Video>(frames, settings);
+            auto opened_video = std::make_unique<Video>(frames, settings, prefer_hardware);
             auto opened_audio = std::make_unique<Audio>(pid, audio_mode, mic);
             origin = qpc_time();
             video = std::move(opened_video);
             audio = std::move(opened_audio);
-            report("READY", winrt::to_string(video->name()));
+            std::ostringstream format;
+            format << video->width() << ' ' << video->height() << ' ' << video->fps()
+                   << (video->hardware() ? " gpu " : " cpu ") << winrt::to_string(video->name());
+            report("READY", format.str());
         } else if (!streaming && video) {
             audio.reset();
             video.reset();
             report("IDLE");
         }
         if (video) {
-            video->pump(consume);
-            video->submit(origin);
+            auto recover = [&] {
+                if (!video->hardware()) return false;
+                prefer_hardware = false;
+                buffer.clear();
+                if (recording) {
+                    if (stop_at < 0 && !recording_id.empty()) {
+                        requested_recording = recording_id + "-c0";
+                        restart_after_fallback = true;
+                    }
+                    recording->close();
+                }
+                video.reset();
+                audio.reset();
+                return true;
+            };
+            try {
+                video->pump(consume);
+                video->submit(origin);
+            } catch (const winrt::hresult_error&) {
+                if (!recover()) throw;
+                continue;
+            }
             audio->pump(origin, consume);
             HANDLE handles[4]{queue->wake.get(), frames.wake.get()};
             DWORD count = 2;
@@ -167,13 +195,14 @@ int wmain(int argc, wchar_t** argv) {
         winrt::init_apartment();
         check_hresult(MFStartup(MF_VERSION, MFSTARTUP_FULL));
         ScopeExit shutdown([] { MFShutdown(); });
-        if (argc == 13 && std::wstring_view(argv[1]) == L"capture") {
+        if ((argc == 13 || (argc == 14 && std::wstring_view(argv[13]) == L"software"))
+                && std::wstring_view(argv[1]) == L"capture") {
             auto window = reinterpret_cast<HWND>(parse<uintptr_t>(argv[2], 1, UINTPTR_MAX));
             auto pid = parse<DWORD>(argv[3], 1, UINT32_MAX);
             VideoSettings settings{parse<unsigned>(argv[5], 144, 2160), parse<unsigned>(argv[6], 15, 60),
                 parse<unsigned>(argv[7], 2'000'000, 60'000'000), parse<unsigned>(argv[8], 0, 100)};
             capture(window, pid, argv[4], settings, parse<unsigned>(argv[9], 5, 300),
-                    parse<unsigned>(argv[10], 0, 2), parse<unsigned>(argv[11], 0, 1) != 0, argv[12]);
+                    parse<unsigned>(argv[10], 0, 2), parse<unsigned>(argv[11], 0, 1) != 0, argv[12], argc == 13);
             return 0;
         }
         if (argc == 6 && std::wstring_view(argv[1]) == L"trim") {
