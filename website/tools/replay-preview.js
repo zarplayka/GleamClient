@@ -1,6 +1,31 @@
 (() => {
   const byId = id => document.getElementById(id);
   const game = !!window.gleamReplayInGame;
+  if (game) {
+    const root = document.documentElement;
+    root.setAttribute('data-pointer-focus', '');
+    document.addEventListener('pointerdown', () => root.setAttribute('data-pointer-focus', ''), true);
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Tab') root.removeAttribute('data-pointer-focus');
+    }, true);
+  }
+  function iconMarkup(id) {
+    const geometry = window.gleamReplayIcons?.[id];
+    return geometry
+      ? '<svg class="icon" aria-hidden="true" viewBox="0 0 24 24">' + geometry + '</svg>'
+      : '<svg class="icon" aria-hidden="true"><use href="#' + id + '"/></svg>';
+  }
+  function setIcon(container, id) {
+    const svg = container.querySelector('svg');
+    if (svg.getAttribute('data-icon') === id) return;
+    if (game) {
+      svg.insertAdjacentHTML('beforebegin', iconMarkup(id));
+      svg.remove();
+    } else {
+      svg.querySelector('use').setAttribute('href', '#' + id);
+    }
+    container.querySelector('svg').setAttribute('data-icon', id);
+  }
   const query = game ? {get: key => key === 'panel' ? 'replays' : null} : new URLSearchParams(location.search);
   const live = game || query.get('client') === '1' && typeof window.ipc?.postMessage === 'function';
   const titleMenu = byId('title-menu');
@@ -26,34 +51,59 @@
   let activePreference = 0;
   const clipList = byId('clip-list');
   const editor = byId('clip-editor');
-  const media = byId('edit-video');
+  const editVideo = byId('edit-video');
   const videoSurface = byId('edit-video-surface');
   let player = {};
-  let playPending = false;
   let playing = false;
-  let seekTimer, previewResizeTimer;
-  const editVideo = game ? {
-    get duration() { return edit?.clip.seconds; },
-    get currentTime() { return player.position || 0; },
-    set currentTime(value) {
-      clearTimeout(seekTimer);
-      seekTimer = setTimeout(() => { seekTimer = undefined; post('seek', {position: value}); }, 45);
-    },
-    get paused() { return !playing; },
-    get ended() { return !!player.ended; },
-    get muted() { return this.silent || this.volume === 0; },
-    set muted(value) { this.silent = value; post('audio-preview', {volume: this.volume, muted: value}); },
-    volume: 1,
-    silent: false,
-    get playbackRate() { return this.speed || 1; },
-    set playbackRate(value) { this.speed = value; post('speed', {value}); },
-    pause() { if (playing || playPending) post('pause-preview'); playing = playPending = false; },
-    play() { playPending = playing = true; post('play-preview'); syncPlayer(); },
-    addEventListener(name, fn) { if (name === 'click') videoSurface.addEventListener(name, fn); },
-    removeAttribute(name) { media.removeAttribute(name); },
-    setAttribute(name, value) { media.setAttribute(name, value); },
-    load() { clearTimeout(seekTimer); seekTimer = undefined; post('unload-preview'); }
-  } : media;
+  let seekTimer, seekTarget;
+  function flushGameSeek() {
+    clearTimeout(seekTimer);
+    seekTimer = undefined;
+    post('seek', {position: seekTarget});
+  }
+  if (game) {
+    let speed = 1, volume = 1, muted = false;
+    Object.defineProperties(editVideo, {
+      duration: {get: () => edit?.clip.seconds ?? NaN},
+      currentTime: {
+        get: () => seekTimer === undefined ? player.position || 0 : seekTarget,
+        set(value) {
+          seekTarget = value;
+          if (seekTimer === undefined) seekTimer = setTimeout(flushGameSeek, 100);
+        }
+      },
+      paused: {get: () => !playing},
+      ended: {get: () => !!player.ended},
+      seeking: {get: () => seekTimer !== undefined || !!player.seeking},
+      volume: {get: () => volume, set(value) { volume = value; }},
+      muted: {
+        get: () => muted,
+        set(value) { muted = !!value; post('audio-preview', {volume, muted}); }
+      },
+      playbackRate: {
+        get: () => speed,
+        set(value) { speed = value; post('speed', {value}); }
+      },
+      pause: {value() {
+        if (!playing) return;
+        playing = false;
+        post('pause-preview');
+        syncPlayer();
+      }},
+      play: {value() {
+        playing = true;
+        player.ended = false;
+        post('play-preview');
+        syncPlayer();
+        return Promise.resolve();
+      }},
+      load: {value() {
+        clearTimeout(seekTimer);
+        seekTimer = undefined;
+        post('unload-preview');
+      }}
+    });
+  }
   const editFrame = byId('edit-frame');
   const editViewport = editFrame.parentElement;
   const previewPlay = byId('preview-play');
@@ -159,7 +209,7 @@
     button.setAttribute('aria-label', label);
     button.dataset.preview = label + ' · действие в Minecraft';
     button.disabled = disabled;
-    button.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-' + icon + '"/></svg>';
+    button.innerHTML = iconMarkup('i-' + icon);
     group.append(button);
   }
 
@@ -352,8 +402,6 @@
         screen.style.width = w + 'px';
         screen.style.height = h + 'px';
         requestAnimationFrame(layoutClipGrid);
-        clearTimeout(previewResizeTimer);
-        if (edit) previewResizeTimer = setTimeout(resizeGamePreview, 150);
       }
       if (snapshot.settings) {
         loadLiveSettings(snapshot.settings);
@@ -363,7 +411,7 @@
       recordAction.hidden = !snapshot.inWorld;
       recordAction.disabled = snapshot.pending;
       recordAction.toggleAttribute('data-recording', !!snapshot.recording);
-      recordAction.querySelector('use').setAttribute('href', snapshot.recording ? '#i-stop' : '#i-record');
+      setIcon(recordAction, snapshot.recording ? 'i-stop' : 'i-record');
       byId('record-label').textContent = snapshot.pending ? 'Подождите…' : snapshot.recording ? 'Остановить запись' : 'Начать запись';
       recordTime.hidden = !snapshot.recording || snapshot.pending;
       if (snapshot.recording) recordTime.textContent = time(game ? snapshot.recordSeconds : Math.max(0, Math.floor((Date.now() - snapshot.recordedAt) / 1000)));
@@ -421,7 +469,7 @@
     const [icon, heading, help] = emptyFilters[activeFilter];
     empty.querySelector('strong').textContent = heading;
     empty.querySelector('p').textContent = help;
-    empty.querySelector('use').setAttribute('href', '#' + icon);
+    setIcon(empty, icon);
     grid.replaceChildren(...visible.map(clip => {
       const template = byId('clip-template');
       const card = (game ? template.firstElementChild : template.content.firstElementChild).cloneNode(true);
@@ -509,11 +557,12 @@
     timeline.children[2].style.left = progress;
   }
 
-  function seekPreview(position) {
+  function seekPreview(position, previewOnly = false) {
     if (!edit) return;
     editorPosition.value = Math.max(0, Math.min(edit.clip.seconds, position));
     if (live && Number.isFinite(editVideo.duration)) {
       editVideo.currentTime = Math.min(editVideo.duration, Number(editorPosition.value));
+      if (game && !previewOnly) flushGameSeek();
     } else if (Number.isFinite(editVideo.duration) && editVideo.duration > 0) {
       const position = Number(editorPosition.value);
       const target = (edit.clip.sampleStart ?? 0) + position;
@@ -548,25 +597,12 @@
     return previewLoad;
   }
 
-  function previewBounds() {
-    const {width, height} = editFrame.getBoundingClientRect();
-    return {width: Math.ceil(width), height: Math.ceil(height)};
-  }
-
-  function resizeGamePreview() {
-    if (!edit) return;
-    const bounds = previewBounds();
-    if (bounds.width > 0 && bounds.height > 0)
-      post('resize-preview', {id: edit.clip.id, ...bounds});
-  }
-
-  function expandGamePreview(expanded, notify = true) {
+  function expandGamePreview(expanded) {
     if (expanded === editFrame.hasAttribute('data-expanded')) return;
     editFrame.toggleAttribute('data-expanded', expanded);
     document.body.toggleAttribute('data-video-expanded', expanded);
     if (expanded) document.body.appendChild(editFrame);
     else editViewport.insertBefore(editFrame, editViewport.firstChild);
-    if (notify) resizeGamePreview();
   }
 
   function syncPlayer() {
@@ -648,7 +684,7 @@
     editor.hidden = false;
     screen.dataset.editor = '';
     if (game) post('load-preview', {
-      id: clip.id, rate: editVideo.playbackRate, volume: editVideo.volume, muted: editVideo.muted, ...previewBounds()
+      id: clip.id, rate: editVideo.playbackRate, volume: editVideo.volume, muted: editVideo.muted
     });
     screen.setAttribute('aria-labelledby', 'edit-title');
     editFavorite.setAttribute('aria-pressed', String(clip.favorite));
@@ -665,7 +701,6 @@
   function returnToClips(restoreFocus = false) {
     showRemoveConfirm(false);
     if (edit) {
-      clearTimeout(previewResizeTimer);
       editVideo.pause();
       if (live) {
         editVideo.removeAttribute('src');
@@ -674,7 +709,7 @@
       if (document.fullscreenElement === editFrame) document.exitFullscreen().catch(() => {});
     }
     delete screen.dataset.editor;
-    if (game) expandGamePreview(false, false);
+    if (game) expandGamePreview(false);
     screen.setAttribute('aria-labelledby', 'replay-title');
     editor.hidden = true;
     clipList.hidden = false;
@@ -829,7 +864,7 @@
       const text = document.createElement('span');
       text.textContent = option.textContent;
       row.append(text);
-      row.insertAdjacentHTML('beforeend', '<svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>');
+      row.insertAdjacentHTML('beforeend', iconMarkup('i-check'));
       return row;
     });
     optionsMenu.setAttribute('aria-labelledby', label.id);
@@ -1044,7 +1079,7 @@
     const active = Boolean(manualRecording);
     recordAction.hidden = view === 'title';
     recordAction.toggleAttribute('data-recording', active);
-    recordAction.querySelector('use').setAttribute('href', active ? '#i-stop' : '#i-record');
+    setIcon(recordAction, active ? 'i-stop' : 'i-record');
     byId('record-label').textContent = active ? 'Остановить запись' : 'Начать запись';
     recordTime.hidden = !active;
     recordHud.hidden = !active || view !== 'playing';
@@ -1133,7 +1168,7 @@
     });
   });
   for (const button of [previewPlay, editPlay]) button.addEventListener('click', togglePreview);
-  editVideo.addEventListener('click', togglePreview);
+  (game ? videoSurface : editVideo).addEventListener('click', togglePreview);
   for (const event of ['play', 'pause']) editVideo.addEventListener(event, syncPlayer);
   editVideo.addEventListener('ended', () => {
     if (live) { syncVideoClock(); syncPlayer(); return; }
@@ -1237,6 +1272,7 @@
   }
   let dragEdge;
   let scrubbing = false;
+  let scrubResume = false;
   trackPointer(timeline, (event, rect) => {
     if (!edit) { scrubbing = false; return; }
     const x = event.clientX - rect.left;
@@ -1244,13 +1280,26 @@
       dragEdge = Math.abs(x - rect.width * edit.start / edit.clip.seconds) < 6 ? 'start'
         : Math.abs(x - rect.width * edit.end / edit.clip.seconds) < 6 ? 'end' : null;
       scrubbing = !dragEdge;
+      if (game && scrubbing) {
+        scrubResume = !editVideo.paused;
+        if (scrubResume) editVideo.pause();
+      }
     }
     const point = Math.max(0, Math.min(1, x / rect.width)) * edit.clip.seconds;
     if (dragEdge) setTrim(dragEdge, point);
-    else if (event.type === 'pointerup') { scrubbing = false; seekPreview(point); }
+    else if (event.type === 'pointerup') {
+      scrubbing = false;
+      seekPreview(point);
+      if (game && scrubResume && point < edit.clip.seconds) editVideo.play();
+      scrubResume = false;
+    }
+    else if (game) seekPreview(point, true);
     else { editorPosition.value = point; clock(); }
   });
-  document.addEventListener('pointercancel', () => { scrubbing = false; });
+  document.addEventListener('pointercancel', () => {
+    if (scrubbing && game && scrubResume) editVideo.play();
+    scrubbing = scrubResume = false;
+  });
   startInput.addEventListener(game ? 'blur' : 'change', () => { if (edit) setTrim('start', numberField(startInput)); });
   endInput.addEventListener(game ? 'blur' : 'change', () => { if (edit) setTrim('end', numberField(endInput)); });
   startHandle.addEventListener('input', () => setTrim('start', startHandle.valueAsNumber));
@@ -1399,7 +1448,7 @@
     byId('clip-folder').hidden = false;
     recordAction.hidden = true;
     if (game) {
-      media.hidden = true;
+      editVideo.hidden = true;
       videoSurface.hidden = false;
       window.paradox = {editShortcut({command, text}) {
         const field = document.activeElement;
@@ -1421,10 +1470,9 @@
           if (!edit || snapshot.player.id !== edit.clip.id) return;
           player = snapshot.player;
           playing = player.playing;
-          playPending = false;
           if (player.hasFrame && videoSurface.getAttribute('src') !== 'assets/gleam-replay-video.png')
             videoSurface.src = 'assets/gleam-replay-video.png';
-          if (!scrubbing && seekTimer === undefined) {
+          if (!scrubbing && !editVideo.seeking) {
             editorPosition.value = player.position;
             clock();
           }

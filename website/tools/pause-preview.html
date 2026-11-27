@@ -122,6 +122,11 @@
     .tab[aria-selected="true"] { color: var(--ink) }
     .tab[aria-selected="true"]::after { content: ""; position: absolute; inset: auto 5px 0; height: 2px; background: var(--accent) }
     .tab:focus-visible { outline-offset: -3px }
+    html[data-pointer-focus] body[data-game] :focus-visible,
+    html[data-pointer-focus] body[data-game] .timeline-track:focus-within .timeline-controls,
+    html[data-pointer-focus] body[data-game] .volume-slider:focus-within { outline: none }
+    body[data-game] .replay-screen { user-select: none }
+    body[data-game] .replay-screen input { user-select: text }
     .screen-body { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 15px var(--screen-edge) 30px }
     body[data-game] .screen-body { scrollbar-width: none; scrollbar-color: transparent transparent }
     .library-tools { display: flex; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 10px }

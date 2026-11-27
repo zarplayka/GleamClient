@@ -1,5 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+#include <unknwn.h>
 #include "frame_share.h"
 #include <d3d11.h>
 #include <dxgi.h>
@@ -426,3 +427,5 @@ extern "C" JNIEXPORT jboolean JNICALL Java_ru_orion_client_replay_ReplayFrameCap
         return JNI_FALSE;
     }
 }
+
+#include "playback.h"

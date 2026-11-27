@@ -32,6 +32,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Hosts the shared replay HTML in Minecraft's screen stack. */
 final class GleamReplayScreen extends Screen {
@@ -39,8 +41,9 @@ final class GleamReplayScreen extends Screen {
     private static final String FONTS = ROOT + "fonts/paradox/ParadoxSans-";
     private static final String MARKER = "assets/gleam-replay-video.png";
     private static final Gson JSON = new Gson();
+    private static final Pattern SVG_SYMBOL = Pattern.compile("<symbol id=\"(i-[^\"]+)\" viewBox=\"0 0 24 24\">(.*?)</symbol>", Pattern.DOTALL);
+    private static final Pattern SVG_USE = Pattern.compile("<svg([^>]*)><use href=\"#(i-[^\"]+)\"\\s*/></svg>");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault());
-    private static final int[] PREVIEW_WIDTHS = {640, 960, 1920, 2560, ReplayPlayback.MAX_WIDTH};
     private final Screen parent;
     private final GleamReplay replay;
     private final OrionLumenView view = new OrionLumenView("replay/pause-preview.html", "replay_screen", FONTS + "Regular.ttf", this::document);
@@ -54,10 +57,9 @@ final class GleamReplayScreen extends Screen {
     private int videoId;
     private float scale = 1;
     private int layoutWidth, layoutHeight;
-    private int previewWidth;
     private long nextStateUpdate, lastPlayerUpdate;
     private double position, rate = 1, volume = 1;
-    private boolean playing, ended, muted, ready;
+    private boolean playing, ended, seeking, muted, ready;
 
     GleamReplayScreen(Screen parent, GleamReplay replay) {
         super(Component.translatable(GleamReplay.LABEL));
@@ -81,12 +83,25 @@ final class GleamReplayScreen extends Screen {
                     .replace("<dialog class=\"replay-screen\"", "<div class=\"replay-screen\"")
                     .replace("</dialog>", "</div>")
                     .replace("<template id=\"clip-template\">", "<div id=\"clip-template\" hidden>")
-                    .replace("</template>", "</div>")
-                    .replace("<script src=\"replay-preview.js\"></script>", "<script>window.gleamReplayInGame=true;\n" + script + "</script>");
-            return bytes(page);
+                    .replace("</template>", "</div>");
+            return bytes(replayDocument(page, script));
         } catch (IOException error) {
             throw new UncheckedIOException(error);
         }
+    }
+
+    private static String replayDocument(String page, String script) {
+        var icons = new JsonObject();
+        SVG_SYMBOL.matcher(page).results().forEach(symbol -> icons.addProperty(symbol.group(1), symbol.group(2)));
+        // The game renderer can paint inline SVG geometry without resolving a symbol reference.
+        String expanded = SVG_USE.matcher(page).replaceAll(use -> {
+            var geometry = icons.get(use.group(2));
+            if (geometry == null) return Matcher.quoteReplacement(use.group());
+            return Matcher.quoteReplacement("<svg" + use.group(1) + " viewBox=\"0 0 24 24\">" + geometry.getAsString() + "</svg>");
+        });
+        return expanded.replace("<script src=\"replay-preview.js\"></script>",
+                "<script>window.gleamReplayInGame=true;window.gleamReplayIcons=" + JSON.toJson(icons)
+                        + ";\n" + script + "</script>");
     }
 
     private static byte[] resource(String path) throws IOException {
@@ -215,32 +230,44 @@ final class GleamReplayScreen extends Screen {
                 clip = find(values);
                 if (clip == null) return;
                 position = 0;
+                ended = seeking = false;
                 rate = speed(values.get("rate").getAsDouble());
                 setAudio(values);
-                resizePreview(values);
-                startPlayback(false);
-            }
-            case "resize-preview" -> {
-                if (clip == null || !clip.id().equals(values.get("id").getAsString())) return;
-                if (resizePreview(values)) startPlayback(playing, ended);
+                openPlayback();
+                playerState();
             }
             case "unload-preview" -> closeVideo();
             case "play-preview" -> {
-                if (clip == null) return;
-                if (ended || position >= clip.seconds()) position = 0;
-                startPlayback(true);
+                if (playback == null && !openPlayback()) { playerState(); return; }
+                playing = true;
+                if (ended || position >= clip.seconds()) {
+                    position = 0;
+                    seeking = true;
+                    playback.seek(0, true);
+                } else playback.play();
+                ended = false;
+                playerState();
             }
-            case "pause-preview" -> { stopPlayback(); playerState(); }
+            case "pause-preview" -> {
+                if (playback == null) return;
+                playback.pause();
+                playing = false;
+                playerState();
+            }
             case "seek" -> {
-                if (clip == null) return;
+                if (playback == null) return;
                 double next = values.get("position").getAsDouble();
                 if (!Double.isFinite(next)) return;
                 position = Math.clamp(next, 0, clip.seconds());
-                startPlayback(playing && position < clip.seconds());
+                ended = position >= clip.seconds();
+                if (ended) playing = false;
+                seeking = true;
+                playback.seek(Math.min(position, Math.max(0, clip.seconds() - .04)), playing);
+                playerState();
             }
             case "speed" -> {
                 rate = speed(values.get("value").getAsDouble());
-                if (playing) startPlayback(true);
+                if (playback != null) playback.rate(rate);
             }
             case "audio-preview" -> setAudio(values);
             case "copy-title" -> {
@@ -264,38 +291,20 @@ final class GleamReplayScreen extends Screen {
         if (playback != null) playback.volume(muted ? 0 : volume);
     }
 
-    private void startPlayback(boolean play) {
-        startPlayback(play, false);
-    }
-
-    private void startPlayback(boolean play, boolean atEnd) {
-        stopPlayback();
+    private boolean openPlayback() {
         var file = clip == null ? null : replay.media(clip.id());
-        if (file == null) return;
-        ended = atEnd;
-        playback = new ReplayPlayback(replay, file, Math.min(position, Math.max(0, clip.seconds() - .04)),
-                !play, rate, muted ? 0 : volume, previewWidth, previewWidth * 9 / 16);
-        playing = play;
-        playerState();
-    }
-
-    private boolean resizePreview(JsonObject bounds) {
-        int nextWidth = Math.clamp(bounds.get("width").getAsInt(), 2, Math.min(layoutWidth, ReplayPlayback.MAX_WIDTH));
-        int nextHeight = Math.clamp(bounds.get("height").getAsInt(), 2, Math.min(layoutHeight, ReplayPlayback.MAX_HEIGHT));
-        // Let the GPU do small resizes. Keeping common recording resolutions also avoids restarting on every window resize.
-        for (int width : PREVIEW_WIDTHS) {
-            if (nextWidth > width || nextHeight > width * 9 / 16) continue;
-            if (previewWidth == width) return false;
-            previewWidth = width;
-            return true;
-        }
-        return false;
+        if (file == null) { toast("Файл клипа недоступен"); return false; }
+        int width = Math.clamp(layoutWidth, 640, ReplayPlayback.MAX_WIDTH);
+        int height = Math.clamp(layoutHeight, 360, ReplayPlayback.MAX_HEIGHT);
+        playback = new ReplayPlayback(replay, file, rate, muted ? 0 : volume, width, height);
+        if (position > 0 && !ended) playback.seek(position, false);
+        return true;
     }
 
     private void stopPlayback() {
         if (playback != null) playback.close();
         playback = null;
-        playing = false;
+        playing = seeking = false;
     }
 
     private void closeVideo() {
@@ -309,9 +318,7 @@ final class GleamReplayScreen extends Screen {
     private void updateVideo() {
         if (playback == null) return;
         var frame = playback.frame();
-        boolean done = playback.finished();
         boolean firstFrame = video == null;
-        if (done && frame == null) frame = playback.frame();
         if (frame != null) {
             NativeImage pixels = frame.pixels();
             if (video == null || video.getPixels().getWidth() != pixels.getWidth() || video.getPixels().getHeight() != pixels.getHeight()) {
@@ -319,14 +326,26 @@ final class GleamReplayScreen extends Screen {
                 video = new DynamicTexture(() -> "replay video", pixels);
                 view.liveImage(videoId, video);
             } else { video.setPixels(pixels); video.upload(); }
-            if (playing) position = Math.min(frame.time(), clip.seconds());
         }
-        if (done) {
-            if (playback.failed()) toast("Не удалось прочитать кадры клипа");
-            else if (playing) { ended = true; position = clip.seconds(); }
+        if (playback.failed()) {
             stopPlayback();
+            toast("Не удалось воспроизвести клип");
+            playerState();
+            return;
         }
-        if (done || frame != null && (!playing || firstFrame || System.nanoTime() - lastPlayerUpdate >= 33_000_000))
+        var status = playback.status();
+        if (status == null) {
+            if (firstFrame && frame != null) playerState();
+            return;
+        }
+        boolean changed = seeking != status.seeking() || playing != status.playing() || status.ended() && !ended;
+        double previous = position;
+        seeking = status.seeking();
+        playing = status.playing();
+        ended |= status.ended();
+        if (ended) position = clip.seconds();
+        else if (!seeking) position = Math.clamp(status.position(), 0, clip.seconds());
+        if (changed || firstFrame && frame != null || position != previous && System.nanoTime() - lastPlayerUpdate >= 33_000_000)
             playerState();
     }
 
@@ -338,6 +357,7 @@ final class GleamReplayScreen extends Screen {
         player.addProperty("position", position);
         player.addProperty("playing", playing);
         player.addProperty("ended", ended);
+        player.addProperty("seeking", seeking);
         player.addProperty("hasFrame", video != null);
         var state = new JsonObject();
         state.add("player", player);

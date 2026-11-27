@@ -309,10 +309,7 @@ public final class GleamReplay {
         try {
             var options = preferences;
             var helper = binary("gleam-replay.exe");
-            if (!captureLibraryLoaded) {
-                System.load(binary("gleam-replay-capture.dll").toAbsolutePath().toString());
-                captureLibraryLoaded = true;
-            }
+            loadCaptureLibrary();
             Files.createDirectories(folder);
             String channel = UUID.randomUUID().toString();
             ReplayFrameCapture.open(current.hwnd(), options.height(), options.fps(), channel);
@@ -543,6 +540,12 @@ public final class GleamReplay {
         shuttingDown = true;
         stopSession();
         if (export != null && export.isAlive()) export.destroy();
+    }
+
+    synchronized void loadCaptureLibrary() throws IOException {
+        if (captureLibraryLoaded) return;
+        System.load(binary("gleam-replay-capture.dll").toAbsolutePath().toString());
+        captureLibraryLoaded = true;
     }
 
     synchronized Path binary(String name) throws IOException {
