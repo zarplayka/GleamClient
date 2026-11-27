@@ -2588,6 +2588,9 @@ public final class OrionClickGuiScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        int button = event.button();
+        if (editingBind >= 0 && button != InputConstants.MOUSE_BUTTON_LEFT && button != InputConstants.MOUSE_BUTTON_RIGHT
+                && finishKeybind(InputConstants.Type.MOUSE.getOrCreate(button))) return true;
         if (siteActive) {
             if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) siteMenu.press(event.x(),event.y(),0,event.hasShiftDown());
             else if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT && "CHAT".equals(siteSection))
@@ -2923,6 +2926,21 @@ public final class OrionClickGuiScreen extends Screen {
         return new Setting[0];
     }
 
+    private boolean finishKeybind(InputConstants.Key input) {
+        Setting[] rows = editableRows();
+        if (editingBind < 0 || editingBind >= rows.length || !(rows[editingBind] instanceof KeybindSetting bind)) return false;
+        KeyMapping key = bind.get.get();
+        if (key != null && input != null) {
+            key.setKey(input);
+            KeyMapping.resetMapping();
+            minecraft.options.save();
+            bindAcceptedAt = System.nanoTime();
+        }
+        editingBind = -1;
+        lastFingerprint = null;
+        return true;
+    }
+
     private TextSetting editingTextSetting() {
         if (accountsOpen && accountForm) {
             return switch (accountField) {
@@ -3024,19 +3042,13 @@ public final class OrionClickGuiScreen extends Screen {
             }
             if (accountField == 0) return true;
         }
-        Setting[] bindRows = editableRows();
-        if (editingBind >= 0 && editingBind < bindRows.length && bindRows[editingBind] instanceof KeybindSetting bind) {
-            KeyMapping key = bind.get.get();
-            if (key != null && event.key() != InputConstants.KEY_ESCAPE) {
-                key.setKey(event.key() == InputConstants.KEY_DELETE || event.key() == InputConstants.KEY_BACKSPACE
-                        ? InputConstants.UNKNOWN : InputConstants.getKey(event));
-                KeyMapping.resetMapping();
-                minecraft.options.save();
-                bindAcceptedAt = System.nanoTime();
-            }
-            editingBind = -1;
-            lastFingerprint = null;
-            return true;
+        if (editingBind >= 0) {
+            InputConstants.Key input = switch (event.key()) {
+                case InputConstants.KEY_ESCAPE -> null;
+                case InputConstants.KEY_DELETE, InputConstants.KEY_BACKSPACE -> InputConstants.UNKNOWN;
+                default -> InputConstants.getKey(event);
+            };
+            if (finishKeybind(input)) return true;
         }
         TextSetting editing = editingTextSetting();
         if (editing != null) {
@@ -7614,8 +7626,11 @@ public final class OrionClickGuiScreen extends Screen {
     }
 
     private Color htmlOnColor() {
-        String accent = configManager.getConfig().getClickGuiAccent();
-        return accent.isEmpty() ? new Color(0x3C58E8) : parseColor(accent);
+        return clickGuiAccent(configManager.getConfig().getClickGuiAccent());
+    }
+
+    static Color clickGuiAccent(String accent) {
+        return accent == null || accent.isEmpty() ? new Color(0x3C58E8) : parseColor(accent);
     }
 
     private static float luminance(Color color) {

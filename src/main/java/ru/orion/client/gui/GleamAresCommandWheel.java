@@ -72,7 +72,7 @@ public final class GleamAresCommandWheel extends Screen {
         }
         var config = OrionClient.getConfigOrNull();
         boolean light = config.getClickGuiTheme() == 4;
-        Color accent = Color.decode(config.getClickGuiAccent());
+        Color accent = OrionClickGuiScreen.clickGuiAccent(config.getClickGuiAccent());
         int hover = slotAt(mouseX, mouseY);
         int size = size();
         int requiredPixels = size * Math.clamp(minecraft.getWindow().getGuiScale(), 1, 6);

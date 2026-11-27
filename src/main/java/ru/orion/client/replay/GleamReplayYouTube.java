@@ -5,7 +5,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.sun.net.httpserver.HttpServer;
 
-import java.awt.Desktop;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -27,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 final class GleamReplayYouTube {
@@ -64,7 +64,11 @@ final class GleamReplayYouTube {
 
     void openConfig() throws IOException {
         Files.createDirectories(directory);
-        Desktop.getDesktop().open(directory.toFile());
+        //? if >=26.3 {
+        com.mojang.blaze3d.Blaze3D.openPath(directory);
+        //?} else {
+        /*net.minecraft.util.Util.getPlatform().openPath(directory);
+        *///?}
     }
 
     void disconnect() throws IOException {
@@ -80,7 +84,9 @@ final class GleamReplayYouTube {
         String verifier = randomUrlToken();
         String challenge = base64(sha256(verifier));
         var completed = new CompletableFuture<String>();
-        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        HttpServer server;
+        try { server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0); }
+        catch (IOException error) { throw new Failure("Не удалось запустить локальное подключение Google"); }
         String redirect = "http://127.0.0.1:" + server.getAddress().getPort() + "/oauth2callback";
         server.createContext("/oauth2callback", exchange -> {
             String code = null;
@@ -108,11 +114,18 @@ final class GleamReplayYouTube {
         });
         try {
             server.start();
-            Desktop.getDesktop().browse(URI.create("https://accounts.google.com/o/oauth2/v2/auth?" + encode(Map.of(
+            URI authorization = URI.create("https://accounts.google.com/o/oauth2/v2/auth?" + encode(Map.of(
                     "client_id", client.clientId(), "redirect_uri", redirect, "response_type", "code", "scope", SCOPE,
                     "code_challenge", challenge, "code_challenge_method", "S256", "access_type", "offline",
-                    "state", state, "prompt", "consent select_account"))));
-            String code = completed.get(3, TimeUnit.MINUTES);
+                    "state", state, "prompt", "consent select_account")));
+            //? if >=26.3 {
+            com.mojang.blaze3d.Blaze3D.openUri(authorization);
+            //?} else {
+            /*net.minecraft.util.Util.getPlatform().openUri(authorization);
+            *///?}
+            String code;
+            try { code = completed.get(3, TimeUnit.MINUTES); }
+            catch (TimeoutException timeout) { throw new Failure("Google не завершил вход за 3 минуты. Повтори подключение"); }
             if (code.isEmpty()) throw new Failure("Вход в Google отменён");
             JsonObject tokens = tokenRequest(client, Map.of("grant_type", "authorization_code", "code", code,
                     "redirect_uri", redirect, "code_verifier", verifier));

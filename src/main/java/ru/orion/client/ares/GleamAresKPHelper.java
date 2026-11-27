@@ -4,7 +4,6 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.Screenshot;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -22,7 +21,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class GleamAresKPHelper {
@@ -50,15 +48,6 @@ public final class GleamAresKPHelper {
                 || (event.modifiers() & InputConstants.MOD_SUPER) != 0) return false;
         if (event.key() == InputConstants.KEY_R) {
             select(client);
-            return true;
-        }
-        if (event.key() == InputConstants.KEY_F2 && config.isAresScreenshotEnabled()) {
-            String key = freeimageKey;
-            if (key.isEmpty()) {
-                notice(client, "Добавь API-ключ Freeimage.host в AresKPHelper");
-                return false;
-            }
-            capture(client, key);
             return true;
         }
         return false;
@@ -185,39 +174,43 @@ public final class GleamAresKPHelper {
         return stripped.matches("[a-zA-Z0-9_-]{8,512}") ? stripped : "";
     }
 
-    private static void capture(Minecraft client, String key) {
+    public static void screenshotSaved(Path screenshot) {
+        Path folder = FabricLoader.getInstance().getGameDir().resolve("screenshots").toAbsolutePath().normalize();
+        if (!folder.equals(screenshot.toAbsolutePath().normalize().getParent())) return;
+        Minecraft client = Minecraft.getInstance();
+        client.execute(() -> publishScreenshot(client, screenshot));
+    }
+
+    private static void publishScreenshot(Minecraft client, Path screenshot) {
+        var config = OrionClient.getConfigOrNull();
+        if (config == null || !config.isAresKPHelperEnabled() || !config.isAresScreenshotEnabled() || client.level == null) return;
+        String key = freeimageKey;
+        if (key.isEmpty()) {
+            notice(client, "Добавь API-ключ Freeimage.host в AresKPHelper");
+            return;
+        }
         if (!SCREENSHOT_PENDING.compareAndSet(false, true)) {
             notice(client, "Дождись публикации скриншота");
             return;
         }
-        try {
-            Screenshot.takeScreenshot(GleamMinecraft.mainTarget(client), image -> Thread.startVirtualThread(() -> {
-                try {
-                    Path directory = FabricLoader.getInstance().getGameDir().resolve("screenshots");
-                    Path screenshot = directory.resolve("ares-" + java.time.LocalDateTime.now().format(
-                            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss.SSS", Locale.ROOT)) + ".png");
-                    try (image) {
-                        Files.createDirectories(directory);
-                        image.writeToFile(screenshot);
-                    }
-                    client.execute(() -> notice(client, "Скриншот сохранён · загрузка на Freeimage.host"));
-                    String command = "/p add id " + GleamFreeimage.upload(key, screenshot) + " false false";
-                    client.execute(() -> {
-                        client.keyboardHandler.setClipboard(command);
-                        notice(client, "Команда для скриншота скопирована");
-                    });
-                } catch (IOException | RuntimeException error) {
-                    client.execute(() -> notice(client, "Не удалось опубликовать скриншот"));
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                } finally {
-                    SCREENSHOT_PENDING.set(false);
-                }
-            }));
-        } catch (RuntimeException error) {
-            SCREENSHOT_PENDING.set(false);
-            notice(client, "Не удалось сделать скриншот");
-        }
+        notice(client, "Скриншот сохранён · загрузка на Freeimage.host");
+        Thread.startVirtualThread(() -> {
+            try {
+                String command = "/p add id " + GleamFreeimage.upload(key, screenshot) + " false false";
+                client.execute(() -> {
+                    client.keyboardHandler.setClipboard(command);
+                    notice(client, "Команда для скриншота скопирована");
+                });
+            } catch (GleamFreeimage.Failure error) {
+                client.execute(() -> notice(client, error.getMessage()));
+            } catch (IOException | RuntimeException error) {
+                client.execute(() -> notice(client, "Не удалось опубликовать скриншот"));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            } finally {
+                SCREENSHOT_PENDING.set(false);
+            }
+        });
     }
 
     public static void notice(Minecraft client, String text) {

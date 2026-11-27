@@ -17,6 +17,10 @@ final class GleamFreeimage {
 
     private GleamFreeimage() {}
 
+    static final class Failure extends IOException {
+        Failure(String message) { super(message); }
+    }
+
     static URI upload(String key, Path screenshot) throws IOException, InterruptedException {
         String boundary = "Gleam" + UUID.randomUUID();
         String head = field(boundary, "key", key) + field(boundary, "action", "upload")
@@ -29,14 +33,15 @@ final class GleamFreeimage {
         var response = HTTP.send(HttpRequest.newBuilder(ENDPOINT).timeout(Duration.ofMinutes(2))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary).POST(body).build(),
                 HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() / 100 != 2) throw new IOException("Freeimage HTTP " + response.statusCode());
+        if (response.statusCode() / 100 != 2) throw new Failure("Freeimage.host · HTTP " + response.statusCode());
         return imageUrl(response.body());
     }
 
     static URI imageUrl(String body) throws IOException {
         try {
             var data = JsonParser.parseString(body).getAsJsonObject();
-            if (data.get("status_code").getAsInt() != 200) throw new IOException("Freeimage rejected upload");
+            int status = data.get("status_code").getAsInt();
+            if (status != 200) throw new Failure("Freeimage.host · HTTP " + status);
             URI url = URI.create(data.getAsJsonObject("image").get("url").getAsString());
             String host = url.getHost();
             if (("iili.io".equalsIgnoreCase(host) || "freeimage.host".equalsIgnoreCase(host)
@@ -45,8 +50,8 @@ final class GleamFreeimage {
                 if ("http".equals(url.getScheme()) && url.getPort() == -1)
                     return URI.create("https" + url.toASCIIString().substring(4));
             }
-        } catch (RuntimeException invalid) { throw new IOException("Invalid Freeimage response"); }
-        throw new IOException("Invalid Freeimage image URL");
+        } catch (RuntimeException invalid) { throw new Failure("Freeimage.host вернул неожиданный ответ"); }
+        throw new Failure("Freeimage.host не вернул ссылку на скриншот");
     }
 
     private static String field(String boundary, String name, String value) {

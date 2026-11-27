@@ -341,6 +341,20 @@ Existing project includes HUD, ClickGUI, world effects, media integration and Di
 
 **Result:** Verified local JARs are under the replay-areskp worktree's build/libs directory.
 
+### 2026-11-27 — Repair replay sign-in and AresKPHelper in the AW 1.21.11 profile
+
+**Request:** The user reported a generic YouTube connection error, F2 screenshots never uploading, a crash when opening the command wheel, and no way to bind the wheel to mouse side buttons.
+
+**Work Completed:** Diagnosed the actual AW 1.21.11 profile. The game's JVM properties show java.awt.headless=true, which disables the original Desktop.getDesktop() browser launch. Replaced it with Minecraft's version-specific system URL and folder openers and made OAuth loopback startup and timeout errors explicit. F2 was producing normal Minecraft PNG files without passing through the previous keyboard-only capture path. Publishing now attaches to the successful vanilla screenshot file write and uses the same local file, including while an in-world screen is open. Freeimage failures display a provider status or an invalid-response message when available. The crash report identifies a NumberFormatException in Color.decode on an empty ClickGUI accent. The wheel now uses the existing ClickGUI accent fallback. ClickGUI now routes mouse side and middle buttons through the same bind-save logic as keyboard input.
+
+**Files Affected:** replay/GleamReplayYouTube.java, ares/GleamAresKPHelper.java, ares/GleamFreeimage.java, gui/GleamAresCommandWheel.java, gui/OrionClickGuiScreen.java, mixin/GleamAresScreenshotMixin.java, and orion-client.mixins.json.
+
+**Verification:** Reproduced Desktop.getDesktop() throwing HeadlessException with the launcher JVM flag. A Freeimage API POST with no source returned code 130, Empty upload source, with the configured key and code 100, Invalid API v1 key, with a dummy key. No images were sent. A Java check with the AW 1.21.11 runtime verified empty and null accent fallbacks, a custom accent, and both side buttons being saved and matching the expected mouse events. Gradle offline build, mixin audits and artifact verification passed on all four Minecraft versions. Inspected the final remapped 1.21.11 JAR to confirm the screenshot mixin targets the vanilla writer after the file call.
+
+**Issues:** No post-install Minecraft session, live Google consent, or actual image or video upload was performed during verification.
+
+**Result:** Installed the verified fixed JAR into the stopped AW 1.21.11 profile and verified the resulting SHA-256. The previous JAR is backed up in build/aw-1.21.11-gleamclient-before-recovery.jar in the replay-areskp worktree. The build is local.
+
 ## Known Issues
 Mirage remains UNRESOLVED in the user's actual game profile: after the isolated fixture passed, the user again reported no effect. They explicitly stopped debugging and requested a handoff commit on private GleamPrivate/main. Do not treat the earlier fixture result as confirmation of the user's fix.
 
