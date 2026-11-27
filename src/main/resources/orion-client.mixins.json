@@ -14,6 +14,7 @@
     "GleamReplayKeyboardMixin",
     "GleamAresKeyboardMixin",
     "GleamAresScreenshotMixin",
+    "GleamAresMovementMixin",
     "GleamReplayCaptureMixin",
     "OrionPerformanceMixin",
     "OrionWorldBrowserMixin",

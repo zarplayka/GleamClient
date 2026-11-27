@@ -355,6 +355,18 @@ Existing project includes HUD, ClickGUI, world effects, media integration and Di
 
 **Result:** Installed the verified fixed JAR into the stopped AW 1.21.11 profile and verified the resulting SHA-256. The previous JAR is backed up in build/aw-1.21.11-gleamclient-before-recovery.jar in the replay-areskp worktree. The build is local.
 
+### 2026-11-27 — Keep AresKPHelper targets after logout and improve wheel controls
+
+**Request:** Keep the selected nickname and commands available after the target player leaves, allow movement while the wheel is open, and let each sector show a custom name such as 1.11 while executing a separate template such as /ban {nick} 1.11.
+
+**Work Completed:** AresKPHelper keeps a UUID and nickname for the current server connection. Opening the wheel, rendering its nickname and sending a configured command use the saved target. TargetESP looks up the live entity separately by UUID. R over empty space keeps the previous selection. A new connection or disabling the module clears it. The movement mixin reads the physical movement bindings while the wheel is active and focused without changing global key states. The wheel keeps its mouse controls. Added independent sector labels to ClickGUI, with translations and a fallback to the command name for existing configs.
+
+**Files Affected:** ares/GleamAresKPHelper.java, effect/OrionTargetEsp.java, gui/GleamAresCommandWheel.java, gui/OrionClickGuiScreen.java, OrionConfig and OrionConfigManager, ClickGUI translation dictionaries, mixin/GleamAresMovementMixin.java, and orion-client.mixins.json.
+
+**Verification:** All four Minecraft targets passed the offline build, mixin audit, and artifact verification. A headless Java check with the AW 1.21.11 runtime verified legacy settings, label and command round-trip, rendering when the target has no live entity, sending the saved nickname to a test connection, and clearing the selection on connection change. Gameplay movement and live server command execution were not tested.
+
+**Result:** After the user closed Minecraft, installed the verified JAR in the AW 1.21.11 profile. SHA-256 7C482C2573EA045AF93F3784E0E71C17E2AC74AC64AA2A55F8920AA8D77D1F86. The prior JAR is backed up in the replay-areskp worktree's build/aw-1.21.11-gleamclient-before-wheel-update.jar.
+
 ## Known Issues
 Mirage remains UNRESOLVED in the user's actual game profile: after the isolated fixture passed, the user again reported no effect. They explicitly stopped debugging and requested a handoff commit on private GleamPrivate/main. Do not treat the earlier fixture result as confirmation of the user's fix.
 

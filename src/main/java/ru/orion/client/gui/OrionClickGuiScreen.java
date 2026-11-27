@@ -3526,6 +3526,8 @@ public final class OrionClickGuiScreen extends Screen {
         rows.add(new ValueSetting("Шаблон команды", () -> "/ban {nick} 1.11"));
         for (int slot = 0; slot < GleamAresKPHelper.COMMAND_SLOTS; slot++) {
             int index = slot;
+            rows.add(new TextSetting("Название сектора " + (slot + 1), () -> config.getAresCommandLabel(index),
+                    value -> configManager.setAresCommandLabel(index, value), GleamAresKPHelper.COMMAND_LABEL_LENGTH));
             rows.add(new TextSetting("Команда " + (slot + 1) + " ({nick})", () -> config.getAresCommand(index),
                     value -> configManager.setAresCommand(index, value), 220));
         }

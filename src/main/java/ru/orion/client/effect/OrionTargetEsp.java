@@ -123,7 +123,7 @@ public final class OrionTargetEsp {
     private void render(LevelRenderContext context) {
         Minecraft client = Minecraft.getInstance();
         float deltaTime = getDeltaTime();
-        var pinned = ru.orion.client.ares.GleamAresKPHelper.selected(client);
+        var pinned = ru.orion.client.ares.GleamAresKPHelper.markedPlayer(client);
         LivingEntity target = pinned == null ? resolveTarget(client) : pinned;
         if ((!configManager.getConfig().isTargetEspEnabled() && pinned == null)
                 || (pinned != null && (pinned.isInvisibleTo(client.player) || !isVisibleThroughBlocks(client, pinned)))) {

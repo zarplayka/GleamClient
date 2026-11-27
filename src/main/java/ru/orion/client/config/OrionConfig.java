@@ -129,6 +129,7 @@ public final class OrionConfig {
     private boolean aresKPHelperEnabled;
     private boolean aresScreenshotEnabled;
     private String[] aresCommands = new String[ru.orion.client.ares.GleamAresKPHelper.COMMAND_SLOTS];
+    private String[] aresCommandLabels = new String[ru.orion.client.ares.GleamAresKPHelper.COMMAND_SLOTS];
     private String chatFilterWords = "";
     private boolean chatHighlightEnabled;
     private String chatHighlightWords = "";
@@ -223,6 +224,10 @@ public final class OrionConfig {
     public String getAresCommand(int slot) { return aresCommands[slot] == null ? "" : aresCommands[slot]; }
     public void setAresCommand(int slot, String value) {
         aresCommands[slot] = ru.orion.client.ares.GleamAresKPHelper.commandInput(value);
+    }
+    public String getAresCommandLabel(int slot) { return aresCommandLabels[slot] == null ? "" : aresCommandLabels[slot]; }
+    public void setAresCommandLabel(int slot, String value) {
+        aresCommandLabels[slot] = ru.orion.client.ares.GleamAresKPHelper.commandLabelInput(value);
     }
     public String getChatFilterWords() { return chatFilterWords; }
     public void setChatFilterWords(String value) { chatFilterWords = value == null ? "" : value; }
@@ -1702,7 +1707,11 @@ public final class OrionConfig {
     public void sanitize() {
         int commandSlots = ru.orion.client.ares.GleamAresKPHelper.COMMAND_SLOTS;
         aresCommands = aresCommands == null ? new String[commandSlots] : java.util.Arrays.copyOf(aresCommands, commandSlots);
-        for (int slot = 0; slot < commandSlots; slot++) setAresCommand(slot, aresCommands[slot]);
+        aresCommandLabels = aresCommandLabels == null ? new String[commandSlots] : java.util.Arrays.copyOf(aresCommandLabels, commandSlots);
+        for (int slot = 0; slot < commandSlots; slot++) {
+            setAresCommand(slot, aresCommands[slot]);
+            setAresCommandLabel(slot, aresCommandLabels[slot]);
+        }
         getAnimatedLyrics().sanitize();
         sanitizeEmoteSlots();
         visualPresetSelection = normalizePreset(visualPresetSelection);

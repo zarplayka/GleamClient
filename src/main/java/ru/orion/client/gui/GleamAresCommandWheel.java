@@ -6,13 +6,14 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import ru.orion.client.GleamMinecraft;
 import ru.orion.client.OrionClient;
 import ru.orion.client.ares.GleamAresKPHelper;
+import ru.orion.client.ares.GleamAresKPHelper.Target;
+import ru.orion.client.ares.GleamAresKPHelper.WheelAction;
 import ru.orion.client.hud.OrionHudRenderer;
 
 import java.awt.BasicStroke;
@@ -34,21 +35,21 @@ public final class GleamAresCommandWheel extends Screen {
     private static final double INNER = 47, OUTER = 130, HALF_GAP = 2;
     private static final Font LABEL = new Font(Font.SANS_SERIF, Font.PLAIN, 12);
     private static final Font NICK = LABEL.deriveFont(Font.BOLD, 14F);
-    private final AbstractClientPlayer target;
-    private final List<String> commands;
-    private final List<String> labels;
+    private final Target target;
+    private final List<WheelAction> commands;
+    private final List<String> previews;
     private final String name;
     private DynamicTexture texture;
     private int pixels, previousHover = -2;
     private boolean previousLight;
     private Color previousAccent;
 
-    public GleamAresCommandWheel(AbstractClientPlayer target, List<String> commands) {
+    public GleamAresCommandWheel(Target target, List<WheelAction> commands) {
         super(Component.literal("AresKPHelper"));
         this.target = target;
         this.commands = List.copyOf(commands);
-        name = GleamAresKPHelper.name(target);
-        labels = commands.stream().map(command -> command.replace("{nick}", name)).toList();
+        name = target.name();
+        previews = this.commands.stream().map(action -> action.command().replace("{nick}", name)).toList();
     }
 
     @Override public boolean isPauseScreen() { return false; }
@@ -66,7 +67,7 @@ public final class GleamAresCommandWheel extends Screen {
     //?} else {
     /*public void render(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
     *///?}
-        if (GleamAresKPHelper.selected(minecraft) != target) {
+        if (GleamAresKPHelper.selectedTarget(minecraft) != target) {
             onClose();
             return;
         }
@@ -116,7 +117,7 @@ public final class GleamAresCommandWheel extends Screen {
                 float x = CENTER + (float) (Math.sin(radians) * 87);
                 float y = CENTER_Y - (float) (Math.cos(radians) * 87);
                 Color text = hover == slot ? (dark(accent) ? Color.WHITE : new Color(17, 20, 32)) : ink;
-                String label = commands.get(slot).split(" ", 2)[0];
+                String label = commands.get(slot).label();
                 drawCentered(g, NICK, label, x, y + 4, 69, text);
                 drawCentered(g, LABEL, Integer.toString(slot + 1), x, y - 13, 24, text);
             }
@@ -134,7 +135,7 @@ public final class GleamAresCommandWheel extends Screen {
                 g.fill(pill);
                 g.setColor(border);
                 g.draw(pill);
-                drawCentered(g, LABEL, labels.get(hover), CENTER, DESIGN - 20F, DESIGN - 54F, ink);
+                drawCentered(g, LABEL, previews.get(hover), CENTER, DESIGN - 20F, DESIGN - 54F, ink);
             }
         } finally { g.dispose(); }
         return image;
@@ -218,7 +219,7 @@ public final class GleamAresCommandWheel extends Screen {
 
     private void choose(int slot) {
         if (GleamMinecraft.screen(minecraft) != this) return;
-        GleamAresKPHelper.execute(minecraft, target, commands.get(slot));
+        GleamAresKPHelper.execute(minecraft, target, commands.get(slot).command());
         onClose();
     }
 

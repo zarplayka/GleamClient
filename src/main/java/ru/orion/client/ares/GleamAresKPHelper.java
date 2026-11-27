@@ -5,7 +5,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.ClipContext;
@@ -19,16 +19,21 @@ import ru.orion.client.gui.OrionGuiLanguage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class GleamAresKPHelper {
     public static final int COMMAND_SLOTS = 6;
+    public static final int COMMAND_LABEL_LENGTH = 32;
     private static final AtomicBoolean SCREENSHOT_PENDING = new AtomicBoolean();
-    private static AbstractClientPlayer selected;
-    private static ClientLevel selectionLevel;
+    private static Target selected;
+    private static ClientPacketListener selectionConnection;
     private static volatile String freeimageKey = "";
+
+    public record Target(UUID id, String name) {}
+    public record WheelAction(String label, String command) {}
 
     private GleamAresKPHelper() {}
 
@@ -37,7 +42,7 @@ public final class GleamAresKPHelper {
             if (Files.isRegularFile(keyFile()) && Files.size(keyFile()) <= 512)
                 freeimageKey = sanitizeKey(Files.readString(keyFile()));
         } catch (IOException ignored) { }
-        ClientTickEvents.END_CLIENT_TICK.register(client -> selected(client));
+        ClientTickEvents.END_CLIENT_TICK.register(client -> selectedTarget(client));
     }
 
     public static boolean hotkey(Minecraft client, KeyEvent event) {
@@ -57,13 +62,12 @@ public final class GleamAresKPHelper {
         if (GleamMinecraft.screen(client) != null || GleamMinecraft.overlay(client) != null) return;
         var config = OrionClient.getConfigOrNull();
         if (config == null || !config.isAresKPHelperEnabled()) return;
-        var target = selected(client);
+        var target = selectedTarget(client);
         if (target == null) {
             notice(client, "Наведи прицел на игрока и нажми R");
             return;
         }
-        List<String> commands = Arrays.stream(config.getAresCommands()).map(GleamAresKPHelper::sanitizeCommand)
-                .filter(command -> !command.isEmpty()).toList();
+        List<WheelAction> commands = wheelActions(config);
         if (commands.isEmpty()) {
             notice(client, "Добавь команды в настройках AresKPHelper");
             return;
@@ -71,34 +75,52 @@ public final class GleamAresKPHelper {
         GleamMinecraft.setScreen(client, new GleamAresCommandWheel(target, commands));
     }
 
-    public static boolean execute(Minecraft client, AbstractClientPlayer target, String template) {
-        if (target != selected(client) || client.getConnection() == null || template.isEmpty()) {
+    static List<WheelAction> wheelActions(OrionConfig config) {
+        var actions = new ArrayList<WheelAction>(COMMAND_SLOTS);
+        for (int slot = 0; slot < COMMAND_SLOTS; slot++) {
+            String command = sanitizeCommand(config.getAresCommand(slot));
+            if (command.isEmpty()) continue;
+            String label = config.getAresCommandLabel(slot).strip();
+            if (label.isEmpty()) label = command.substring(0, command.indexOf(' '));
+            actions.add(new WheelAction(label, command));
+        }
+        return actions;
+    }
+
+    public static boolean execute(Minecraft client, Target target, String template) {
+        var connection = client.getConnection();
+        if (connection == null || target != selectedTarget(client) || template.isEmpty()) {
             notice(client, "Выбранный игрок больше недоступен");
             return false;
         }
-        String name = name(target);
+        String name = target.name();
         if (!name.matches("[A-Za-z0-9_]{1,16}")) {
             notice(client, "Имя игрока нельзя подставить в команду");
             return false;
         }
         String command = sanitizeCommand(template).replace("{nick}", name);
         if (command.isEmpty()) return false;
-        client.getConnection().sendCommand(command.substring(1));
+        connection.sendCommand(command.substring(1));
         return true;
     }
 
-    public static String name(AbstractClientPlayer player) { return player.getGameProfile().name(); }
-
-    public static AbstractClientPlayer selected(Minecraft client) {
+    public static Target selectedTarget(Minecraft client) {
         if (selected == null) return null;
         OrionConfig config = OrionClient.getConfigOrNull();
-        if (config == null || !config.isAresKPHelperEnabled() || client.player == null || client.level == null
-                || client.level != selectionLevel || !selected.isAlive() || selected.isRemoved()
-                || !client.level.players().contains(selected)) {
+        if (config == null || !config.isAresKPHelperEnabled() || client.getConnection() != selectionConnection) {
             selected = null;
-            selectionLevel = null;
+            selectionConnection = null;
         }
         return selected;
+    }
+
+    public static AbstractClientPlayer markedPlayer(Minecraft client) {
+        var target = selectedTarget(client);
+        if (target == null || client.level == null || client.player == null) return null;
+        for (var player : client.level.players()) {
+            if (player.isAlive() && !player.isRemoved() && target.id().equals(player.getUUID())) return player;
+        }
+        return null;
     }
 
     private static void select(Minecraft client) {
@@ -122,15 +144,25 @@ public final class GleamAresKPHelper {
                 nearest = distance;
             }
         }
-        selected = picked;
-        selectionLevel = picked == null ? null : client.level;
-        if (picked == null) notice(client, "Под прицелом нет игрока");
-        else GleamMinecraft.setOverlayMessage(client, Component.literal(
-                OrionGuiLanguage.translate("Выбран игрок") + " · " + name(picked)), false);
+        if (picked == null) {
+            notice(client, "Под прицелом нет игрока");
+            return;
+        }
+        var connection = client.getConnection();
+        if (connection == null) return;
+        selected = new Target(picked.getUUID(), picked.getGameProfile().name());
+        selectionConnection = connection;
+        GleamMinecraft.setOverlayMessage(client, Component.literal(
+                OrionGuiLanguage.translate("Выбран игрок") + " · " + selected.name()), false);
     }
 
     public static String commandInput(String input) {
         if (input == null || input.length() > 220 || input.codePoints().anyMatch(Character::isISOControl)) return "";
+        return input;
+    }
+
+    public static String commandLabelInput(String input) {
+        if (input == null || input.length() > COMMAND_LABEL_LENGTH || input.codePoints().anyMatch(Character::isISOControl)) return "";
         return input;
     }
 
