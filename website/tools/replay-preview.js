@@ -136,7 +136,7 @@
       if ((event.ctrlKey || event.metaKey) && event.code === 'KeyA') {
         event.preventDefault();
         field.setSelectionRange(0, field.value.length);
-      } else if (event.key === 'Enter') {
+      } else if (event.key === 'Enter' && field !== customDuration) {
         event.preventDefault();
         field.blur();
       }
@@ -365,8 +365,8 @@
   function loadLiveSettings(values) {
     postingSettings = true;
     customSeconds = values.customSeconds;
-    customDuration.value = customSeconds;
-    bitrate.value = values.bitrate;
+    if (!game || document.activeElement !== customDuration) customDuration.value = customSeconds;
+    if (!game || document.activeElement !== bitrate) bitrate.value = values.bitrate;
     byId('mic').checked = values.mic;
     for (const [id, value] of Object.entries({
       duration: values.duration, resolution: values.resolution, fps: values.fps, quality: values.quality,
@@ -1402,17 +1402,22 @@
     });
   });
   function commitDuration() {
+    const previous = customSeconds;
     const value = numberField(customDuration);
     if (Number.isFinite(value)) {
       customSeconds = Math.max(Number(customDuration.getAttribute('min')), Math.min(Number(customDuration.getAttribute('max')), Math.round(value)));
     }
     customDuration.value = String(customSeconds);
     updateDuration();
-    publishSettings();
+    if (customSeconds !== previous) publishSettings();
   }
   customDuration.addEventListener(game ? 'blur' : 'change', commitDuration);
-  if (!game) customDuration.addEventListener('keydown', event => {
-    if (event.key === 'Enter') { event.preventDefault(); customDuration.blur(); }
+  customDuration.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitDuration();
+      customDuration.blur();
+    }
   });
   const settingEvent = id => game && id === 'bitrate' ? 'blur' : 'change';
   for (const id of videoSettings) byId(id).addEventListener(settingEvent(id), () => {

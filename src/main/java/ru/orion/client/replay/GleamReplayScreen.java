@@ -131,6 +131,10 @@ final class GleamReplayScreen extends Screen {
             });
             return;
         }
+        //? if >=26.3 {
+        // Lumen не фокусирует ванильный EditBox, поэтому ввод SDL запрашивает сам экран.
+        if (!ready) minecraft.textInputManager().startTextInput(this);
+        //?}
         ready = true;
         scale = 1F / minecraft.getWindow().getGuiScale();
         layoutWidth = (int)Math.ceil(width / scale);
@@ -463,6 +467,9 @@ final class GleamReplayScreen extends Screen {
     @Override public void onClose() { GleamMinecraft.setScreen(minecraft, parent); }
 
     @Override public void removed() {
+        //? if >=26.3 {
+        if (ready) minecraft.textInputManager().stopTextInput(this);
+        //?}
         ready = false;
         closeVideo();
         view.dispose();

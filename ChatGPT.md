@@ -381,6 +381,18 @@ Existing project includes HUD, ClickGUI, world effects, media integration and Di
 
 **Result:** Gleam Launcher 0.1.99 and GleamClient 0.2.62 are live. Launcher SHA-256 1de80c117c603ad2bb449319d7795cf4594ac8308ed68ff0826eddd0a56d5f95. Setup SHA-256 6d8fb3b8cbbcb0f72899b0bd974811995b77618f810cd343871f81b412bc5610. Local release artifacts are in build/releases/0.1.99 in the replay-areskp worktree. No installed-launcher update or Minecraft game launch was performed.
 
+### 2026-11-27 — Restore typing in replay duration and YouTube template
+
+**Request:** The custom replay duration input could not be typed into. The user reported the same problem in the YouTube clipboard-template input.
+
+**Work Completed:** GleamReplayScreen now acquires SDL text input on its first ready render in Minecraft 26.3 and releases it when removed. The HTML inputs still use the existing typed-character and clipboard bridge. Replay settings responses preserve drafts in the focused custom-duration and bitrate fields. Enter or leaving the custom-duration field commits changes without duplicate publications. Kept the existing 5–300 second bounds and the template placeholder rules. Updated client and launcher release versions.
+
+**Files Affected:** replay/GleamReplayScreen.java, website/tools/replay-preview.js, gradle.properties, Cargo and Tauri version files, and launcher/UPDATES.md.
+
+**Verification:** An isolated Minecraft 26.3 Fabric Client GameTest ran the actual Lumen replay screen. SDL text input became active, Minecraft key events entered and persisted duration 125 and template Replay {short}, and replay text-input ownership was released on screen exit. Browser regression checks covered pending settings responses during editing, Enter and blur, clamping, and the existing replay publication controls. All four client build and mixin checks and all 32 launcher tests passed.
+
+**Result:** Published Gleam Launcher 0.1.100 with GleamClient 0.2.63 on the signed auto-update channel. Verified both PE versions, expected embedded binaries, both manifest signatures, and public HTTPS hashes for the manifest, versioned launcher, and both installer URLs. Default HTTPS returns the new manifest. Rollback backup is /var/backups/gleam-launcher-before-y13iygv0. Release artifacts are in build/releases/0.1.100. The user's installed launcher was not updated manually.
+
 ## Known Issues
 Mirage remains UNRESOLVED in the user's actual game profile: after the isolated fixture passed, the user again reported no effect. They explicitly stopped debugging and requested a handoff commit on private GleamPrivate/main. Do not treat the earlier fixture result as confirmation of the user's fix.
 
