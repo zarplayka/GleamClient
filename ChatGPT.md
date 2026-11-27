@@ -393,6 +393,14 @@ Existing project includes HUD, ClickGUI, world effects, media integration and Di
 
 **Result:** Published Gleam Launcher 0.1.100 with GleamClient 0.2.63 on the signed auto-update channel. Verified both PE versions, expected embedded binaries, both manifest signatures, and public HTTPS hashes for the manifest, versioned launcher, and both installer URLs. Default HTTPS returns the new manifest. Rollback backup is /var/backups/gleam-launcher-before-y13iygv0. Release artifacts are in build/releases/0.1.100. The user's installed launcher was not updated manually.
 
+### 2026-11-27 — Publish replay and AresKPHelper source to GitHub
+
+**Request:** Send the release commits to GitHub.
+
+**Source and destination:** The configured OrionClient remote resolves to the public zarplayka/GleamClient repository. This publication includes the replay, AresKPHelper and launcher commits from 05c7772 through d9618f4 on main, followed by this memory entry.
+
+**Verification:** The public branch started at 732b0de, an ancestor of the local release. The pending source passed git diff --check and a check of added lines for common private-key and token patterns. The launcher release and its verification are recorded in the preceding entry.
+
 ## Known Issues
 Mirage remains UNRESOLVED in the user's actual game profile: after the isolated fixture passed, the user again reported no effect. They explicitly stopped debugging and requested a handoff commit on private GleamPrivate/main. Do not treat the earlier fixture result as confirmation of the user's fix.
 
