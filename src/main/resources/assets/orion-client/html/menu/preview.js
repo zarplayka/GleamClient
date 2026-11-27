@@ -378,6 +378,10 @@ function crosshairEditor(row, module, index) {
     + '<div class="crosshair-preview"><span>' + text(t('Предпросмотр')) + '</span><div>' + crosshairIcon(mode.value === 1 ? row.presets[row.selected].pixels : row.value)
     + '</div></div></div></section>';
 }
+function textSettingInput(row,attrs,value) {
+  return '<input type="text"' + attrs + (row.maxLength ? ' maxlength="' + row.maxLength + '"' : '')
+    + ' value="' + text(value) + '" autocomplete="off">';
+}
 function controlRow(row, module, index, embedded = false) {
   if (row.kind === 'crosshair') return crosshairEditor(row,module,index);
   if (!embedded && module.id === 'CROSSHAIR' && module.settings[0]?.kind === 'crosshair') return '';
@@ -400,9 +404,7 @@ function controlRow(row, module, index, embedded = false) {
       + '<output for="' + id + '">' + saved + text(row.suffix ?? '') + '</output></span>'; break;
     case 'choice': control = choiceControl(row,id,index,saved); break;
     case 'color': return colorRow(row,id,attrs,saved);
-    case 'text': control = '<input type="text"' + attrs + (module.id === 'SOUND_SETTINGS' ? ' data-sound-search' : '')
-      + (row.maxLength ? ' maxlength="' + row.maxLength + '"' : '')
-      + ' value="' + text(saved) + '" autocomplete="off">'; break;
+    case 'text': control = textSettingInput(row,attrs + (module.id === 'SOUND_SETTINGS' ? ' data-sound-search' : ''),saved); break;
     case 'keybind': control = '<button type="button" class="button" id="' + id + '" data-keybind="' + index + '">' + text(saved === '—' ? t('Назначить') : saved) + '</button>'; break;
     case 'button': control = '<button class="button" type="button" data-setting-button="' + index + '"'
       + '>' + text(row.caption) + '</button>'; break;
@@ -484,11 +486,37 @@ function renderSoundSettings(module) {
     + soundLookupOpen + '" aria-controls="sound-lookup-fields">' + icon('search') + ' ' + text(t('Другие звуки'))
     + '</button><div class="sheet" id="sound-lookup-fields"' + (soundLookupOpen ? '' : ' hidden') + '>' + lookup.join('') + '</div></div></div>';
 }
+function renderAresSettings(module) {
+  const sectors = new Map();
+  const other = [];
+  module.settings.forEach((row,index) => {
+    if (!row.wheelSlot) {
+      other.push(controlRow(row,module,index));
+      return;
+    }
+    if (!sectors.has(row.wheelSlot)) sectors.set(row.wheelSlot,[]);
+    sectors.get(row.wheelSlot).push({row,index});
+  });
+  const editor = [...sectors].map(([slot,fields]) => {
+    if (fields.length !== 2) return fields.map(({row,index}) => controlRow(row,module,index)).join('');
+    const inputs = fields.map(({row,index},column) => textSettingInput(row,
+      ' id="field-' + index + '" data-setting="' + index + '" class="ares-wheel-' + (column === 0 ? 'label' : 'command')
+      + '" aria-label="' + text(row.label) + '"',state.values.get(module.id + ':' + index) ?? row.value));
+    return '<div class="setting-row ares-wheel-row"><span class="ares-wheel-index">' + slot + '</span>' + inputs.join('') + '</div>';
+  }).join('');
+  return '<div class="module-settings"><div class="settings-groups"><section class="settings-group">'
+    + '<div class="settings-group-title"><h2>' + text(t('Настройки модуля')) + '</h2></div><div class="sheet">' + other.join('')
+    + '</div></section><section class="settings-group"><div class="settings-group-title"><h2>' + text(t('Команды колеса'))
+    + '</h2></div><div class="sheet"><div class="setting-row ares-wheel-row ares-wheel-head" aria-hidden="true">'
+    + '<span class="ares-wheel-index">#</span><span class="ares-wheel-label">' + text(t('Название'))
+    + '</span><span class="ares-wheel-command">' + text(t('Команда')) + '</span></div>' + editor + '</div></section></div></div>';
+}
 function renderModule() {
   const module = byId.get(state.module);
   const enabled = state.enabled.has(module.id);
   const header = moduleSettingsHeader(module,enabled);
   if (module.id === 'SOUND_SETTINGS') return header + renderSoundSettings(module);
+  if (module.id === 'ARES_KP_HELPER') return header + renderAresSettings(module);
   const groups = (moduleGroups[module.id] || [[0,t('Настройки модуля')]]).map(([start,title],i,all) => ({
     start, title, rows:module.settings.slice(start,all[i+1]?.[0] ?? module.settings.length)
   })).filter(group => group.rows.length);

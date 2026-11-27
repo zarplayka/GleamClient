@@ -1,4 +1,6 @@
 {
+  "Команды колеса": "Wheel commands",
+  "Команда": "Command",
   "Публикует скриншоты и открывает колесо команд для выбранного игрока": "Uploads screenshots and opens a command wheel for the selected player",
   "Публиковать скриншоты по F2": "Upload screenshots with F2",
   "API-ключ Freeimage.host": "Freeimage.host API key",

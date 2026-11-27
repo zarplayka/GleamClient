@@ -237,6 +237,14 @@ button.module-toggle[data-toggle-style="label"][aria-checked="true"]:hover{backg
 #world-preview-art{height:110px;overflow:hidden;border:1px solid var(--rule);border-radius:6px;background:#81afdf}
 #world-preview-art svg{width:100%;height:100%}
 .module-settings .setting-row:hover{background:var(--hover)}
+.module-settings .ares-wheel-row{min-height:38px;flex-wrap:nowrap;justify-content:flex-start;gap:8px;padding:4px 10px}
+.module-settings .ares-wheel-head{min-height:30px;color:var(--muted);font-size:11px}
+.module-settings .ares-wheel-head:hover{background:none}
+.module-settings .setting-row.ares-wheel-row input[type="text"]{width:0;min-width:0;max-width:none}
+.ares-wheel-index{flex:0 0 20px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
+.ares-wheel-label{flex:0 1 28%;min-width:0}
+.ares-wheel-command{flex:1 1 0px;min-width:0}
+.ares-wheel-head .ares-wheel-label,.ares-wheel-head .ares-wheel-command{padding-left:8px}
 .module-settings .range output{min-width:40px;text-align:center;padding:3px 5px;border:1px solid var(--rule);border-radius:3px;background:var(--field);font-variant-numeric:tabular-nums}
 .setting-art{display:block;width:21px;height:21px;object-fit:contain;image-rendering:pixelated;flex:none}
 .setting-toggle-row.has-setting-art{justify-content:flex-start;gap:10px}

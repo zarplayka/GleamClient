@@ -1405,6 +1405,7 @@ public final class OrionClickGuiScreen extends Screen {
                 item.addProperty("kind","text");
                 item.addProperty("value",text.get.get());
                 item.addProperty("maxLength",text.maxLength);
+                if (text.wheelSlot > 0) item.addProperty("wheelSlot", text.wheelSlot);
             }
             case KeybindSetting bind -> {
                 item.addProperty("kind","keybind");
@@ -3527,9 +3528,9 @@ public final class OrionClickGuiScreen extends Screen {
         for (int slot = 0; slot < GleamAresKPHelper.COMMAND_SLOTS; slot++) {
             int index = slot;
             rows.add(new TextSetting("Название сектора " + (slot + 1), () -> config.getAresCommandLabel(index),
-                    value -> configManager.setAresCommandLabel(index, value), GleamAresKPHelper.COMMAND_LABEL_LENGTH));
+                    value -> configManager.setAresCommandLabel(index, value), GleamAresKPHelper.COMMAND_LABEL_LENGTH, slot + 1));
             rows.add(new TextSetting("Команда " + (slot + 1) + " ({nick})", () -> config.getAresCommand(index),
-                    value -> configManager.setAresCommand(index, value), 220));
+                    value -> configManager.setAresCommand(index, value), 220, slot + 1));
         }
         return rows.toArray(Setting[]::new);
     }
@@ -7851,8 +7852,11 @@ public final class OrionClickGuiScreen extends Screen {
 
     private record CrosshairSetting(String label) implements Setting { }
 
-    private record TextSetting(String label, Supplier<String> get, Consumer<String> set, int maxLength)
+    private record TextSetting(String label, Supplier<String> get, Consumer<String> set, int maxLength, int wheelSlot)
             implements Setting {
+        private TextSetting(String label, Supplier<String> get, Consumer<String> set, int maxLength) {
+            this(label, get, set, maxLength, 0);
+        }
     }
 
     private record KeybindSetting(String label, Supplier<KeyMapping> get) implements Setting { }

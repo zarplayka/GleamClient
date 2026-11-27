@@ -367,6 +367,20 @@ Existing project includes HUD, ClickGUI, world effects, media integration and Di
 
 **Result:** After the user closed Minecraft, installed the verified JAR in the AW 1.21.11 profile. SHA-256 7C482C2573EA045AF93F3784E0E71C17E2AC74AC64AA2A55F8920AA8D77D1F86. The prior JAR is backed up in the replay-areskp worktree's build/aw-1.21.11-gleamclient-before-wheel-update.jar.
 
+### 2026-11-27 — Compact Ares wheel settings and release launcher 0.1.99
+
+**Request:** Remove the separate ClickGUI rows for each sector label and command, then publish the updated client through GleamLauncher and enable the new build on the hosting update channel.
+
+**Work Completed:** Grouped AresKPHelper wheel settings into six paired rows in the live Lumen menu. Each row has a sector number, label and command, with column headings shown once and extra width reserved for the command. Exported a wheel-slot number alongside existing TextSetting state. The HTML editor retains the original bridge field indices, persisted config fields and input limits. Built GleamClient 0.2.62 and Gleam Launcher/Setup 0.1.99 on the 732b0de upstream base plus the local replay and Ares work.
+
+**Files Affected:** OrionClickGuiScreen.java, html/menu/preview.js, html/menu/style.css, ClickGUI dictionaries, gradle.properties, launcher Cargo and Tauri metadata, and launcher/UPDATES.md.
+
+**Verification:** Offline Gradle build and all four Minecraft artifact/mixin audits passed. Java checked the real setting export, paired slots and independent persistence through applySiteSetting. Chromium tested the Lumen menu assets with a mocked game bridge at three widths in glass, dark and light themes. It confirmed six paired rows, aligned headers, independent saves and state updates. All 32 launcher tests passed. Both PE files report 0.1.99, the launcher embeds the exact four built JARs, the installer embeds the exact launcher, and the manifest matches its size and SHA-256 under the established public key.
+
+**Deployment:** Confirmed production 0.1.98, staged 0.1.99 on the existing host, verified origin hashes, then atomically switched the stable installer and signed update manifest. Production backup is /var/backups/gleam-launcher-before-03gzzz35. Caddy stayed active. Re-downloaded the signed manifest and both versioned EXEs, plus the stable installer, through public HTTPS and verified their SHA-256. The default HTTPS route also returns the exact signed 0.1.99 manifest.
+
+**Result:** Gleam Launcher 0.1.99 and GleamClient 0.2.62 are live. Launcher SHA-256 1de80c117c603ad2bb449319d7795cf4594ac8308ed68ff0826eddd0a56d5f95. Setup SHA-256 6d8fb3b8cbbcb0f72899b0bd974811995b77618f810cd343871f81b412bc5610. Local release artifacts are in build/releases/0.1.99 in the replay-areskp worktree. No installed-launcher update or Minecraft game launch was performed.
+
 ## Known Issues
 Mirage remains UNRESOLVED in the user's actual game profile: after the isolated fixture passed, the user again reported no effect. They explicitly stopped debugging and requested a handoff commit on private GleamPrivate/main. Do not treat the earlier fixture result as confirmation of the user's fix.
 
