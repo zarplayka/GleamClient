@@ -6,6 +6,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.resources.Identifier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
 import ru.orion.client.gui.OrionLumenView;
 
@@ -17,6 +19,7 @@ import java.util.Set;
 
 /** Lumen display list for the in-game HUD. Positions are in the widget's design units. */
 public final class OrionHudView {
+    private static final Logger LOGGER = LoggerFactory.getLogger("GleamClient HUD");
     private static final Set<OrionHudView> ACTIVE = Collections.newSetFromMap(new IdentityHashMap<>());
     static {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
@@ -32,6 +35,7 @@ public final class OrionHudView {
     private int lastTheme;
     private String lastAccent;
     private long animateUntil;
+    private boolean showingFallback;
 
     public OrionHudView(String id) {
         this.id = Identifier.fromNamespaceAndPath(OrionClient.MOD_ID, id);
@@ -52,6 +56,7 @@ public final class OrionHudView {
         if (width <= 0 || height <= 0) return false;
         boolean gleamHud = !"scoreboard_glass".equals(id.getPath());
         if (!view.ready()) {
+            useFallback("Lumen did not initialize");
             scene.fallback(context, x, y, width, height, gleamHud);
             return true;
         }
@@ -79,9 +84,11 @@ public final class OrionHudView {
             ACTIVE.add(this);
             if (scene.animated) animateUntil = System.nanoTime() + 180_000_000L;
             view.frame();
+            view.reportHudScriptErrors();
         } else if (scene.width != lastWidth || scene.height != lastHeight || width != lastDrawWidth
                 || height != lastDrawHeight || scale != lastScale || System.nanoTime() < animateUntil) {
             view.frame();
+            view.reportHudScriptErrors();
         }
         lastWidth = scene.width;
         lastHeight = scene.height;
@@ -95,9 +102,20 @@ public final class OrionHudView {
         }
         if (!view.draw(context, x, y, width, height, width / (float) scene.width, height / (float) scene.height,
                 OrionHudDrag.opacity())) {
+            useFallback("Lumen did not render the HUD view");
             scene.fallback(context, x, y, width, height, gleamHud);
+        } else if (showingFallback) {
+            LOGGER.info("HUD {} switched back to Lumen rendering", id);
+            showingFallback = false;
         }
         return true;
+    }
+
+    private void useFallback(String reason) {
+        if (!showingFallback) {
+            LOGGER.warn("HUD {} switched to fallback rendering: {}. See the GleamClient Lumen log entries for details.", id, reason);
+            showingFallback = true;
+        }
     }
 
     public static float fit(float scale, int width, int height, int screenWidth, int screenHeight) {

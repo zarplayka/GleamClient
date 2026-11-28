@@ -419,6 +419,20 @@ Existing project includes HUD, ClickGUI, world effects, media integration and Di
 
 **Result:** Add Server hotfix is live. The friend's HUD was diagnosed and the observed fallback reproduced locally. Its exact trigger on the friend's machine is still unconfirmed.
 
+### 2026-11-28 — Log Lumen and HUD fallback causes in launcher 0.1.104
+
+**Request:** Luna reported the simplified HUD on both 1.21.11 and 26.3. The user asked for detailed diagnostics of errors and their causes.
+
+**Work Completed:** `OrionLumenView` writes the native DLL source, verified SHA-256 and runtime environment on success. It distinguishes absent APPDATA, a missing file, an incorrect hash, exceptions while resolving, reading, verifying or loading the DLL, and failures at each page, font, theme and engine initialization stage. It reports invalid or empty paint buffers, incomplete copies, missing shape/textured/glass pipelines, frame exceptions, glyph atlas copy failures, and HUD script error counts. On the older renderer it identifies failed startup Lumen shaders by pipeline. `OrionHudView` logs the affected widget and the transition to and from fallback. Repeated failures are coalesced by cause or view state. The added diagnostics do not dump page state, chat or clipboard contents. The legacy GLSL include bug and the friend's actual machine state remain separate from this diagnostics change.
+
+**Files Affected:** `src/main/java/ru/orion/client/gui/OrionLumenView.java`, `src/main/java/ru/orion/client/hud/OrionHudView.java`, and project memory. Local release, test, and staging evidence is under `build/releases/0.1.104`.
+
+**Verification:** All four Gradle builds and mixin audits passed. Real Minecraft 26.3 Fabric Client GameTests with Iris, Sodium, Lithium, and Mod Menu verified healthy Lumen rendering and distinct missing-DLL and SHA-256-mismatch fallback logs from the release JAR. An isolated JVM exercised repeated warnings 120 times and confirmed one line for each steady failure. The older shader-startup branch was compiled and audited. A separate in-game test of the 1.21.11 shader failure was not performed.
+
+**Deployment:** Rebundled the verified production 0.1.103 executable and installer with the two rebuilt diagnostic class families plus the new 0.2.67 client metadata for all four targets. This retains the previous live client changes. Verified both PE versions, exact embedded JARs, installer contents and P-256 manifest. Host staged binaries were reconstructed from hash-checked deltas and compared with the local binaries before switching the signed channel. Production launcher 0.1.104 and stable installer were verified over HTTPS directly against the public origin. The default route on this workstation resolved to a tunnel address and timed out, while direct origin downloads matched local hashes. Rollback backup is `/var/backups/gleam-launcher-before-6nqgb1ty`. Launcher SHA-256 is `2c7d9900953b514893533c8bfb2fd5892b1307f61c039fe8a768c3255193ed47`, installer SHA-256 is `09cc9c46395fb4d35c32708c1e5828fd5289242962fae4579d1653567a36b7f2`.
+
+**Result:** The new client logs Lumen startup and HUD failures by cause and component. Diagnosis on Luna's machine awaits new `logs/latest.log` captures from each affected profile after opening the HUD.
+
 ## Known Issues
 Mirage remains UNRESOLVED in the user's actual game profile: after the isolated fixture passed, the user again reported no effect. They explicitly stopped debugging and requested a handoff commit on private GleamPrivate/main. Do not treat the earlier fixture result as confirmation of the user's fix.
 

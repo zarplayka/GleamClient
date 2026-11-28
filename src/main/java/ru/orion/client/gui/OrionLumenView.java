@@ -34,6 +34,8 @@ import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.client.renderer.state.gui.GuiElementRenderState;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.orion.client.OrionClient;
 import ru.orion.client.hud.OrionGlassCompositor;
 import ru.orion.client.mixin.RenderPipelinesAccessor;
@@ -45,21 +47,28 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.joml.Matrix3x2f;
 
 /** Локальная страница Lumen и отрисовка её команд в интерфейсе Minecraft. */
 public final class OrionLumenView {
+    private static final Logger LOGGER = LoggerFactory.getLogger("GleamClient Lumen");
     // Paint marker consumed by the Java renderer before it reaches the screen.
     private static final int GLASS_SURFACE = 0xfda443a4;
     private static final String DLL_SHA256 = "3649f329387a11e4870f95cec92fb17d1f9029d0fa5e866c371ceb486b9b73c1";
+    private static final String DLL_RESOURCE = "paradoxclient/artifacts/26.3/ui/b330a04b9612e26f39964139365e2f13921cf30812db3dd2d7e143292d1fedfe/assets/native/windows-x86_64/lumen.dll";
+    private static final Set<String> REPORTED_LIBRARY_FAILURES = new HashSet<>();
+    private static boolean libraryLoadedLogged;
     private static final int ATLAS_SIZE = 1024;
     private static final int COMMAND_SIZE = 64;
     private static final int GRADIENT_DATA_WIDTH = 4112;
@@ -85,6 +94,8 @@ public final class OrionLumenView {
     private int viewportWidth = 160, viewportHeight = 104, atlasRevision = -1;
     private float pixelRatio = 1F;
     private boolean unavailable;
+    private String drawFailure;
+    private boolean glassPipelineUnavailable, scriptErrorLogged, atlasErrorLogged;
     private int liveImageId = -1;
     private DynamicTexture liveImage;
 
@@ -111,52 +122,106 @@ public final class OrionLumenView {
     static void registerPipelines() { Paint.initialize(); }
     //? if <26.3 {
     /*static void preloadPipelines(com.mojang.blaze3d.shaders.ShaderSource source) {
-        RenderSystem.getDevice().precompilePipeline(Paint.SHAPE, source);
-        RenderSystem.getDevice().precompilePipeline(Paint.TEXTURED, source);
-        RenderSystem.getDevice().precompilePipeline(Paint.GLASS, source);
+        for (RenderPipeline pipeline : java.util.List.of(Paint.SHAPE, Paint.TEXTURED, Paint.GLASS)) {
+            if (!RenderSystem.getDevice().precompilePipeline(pipeline, source).isValid()) {
+                LOGGER.warn("Startup shader compilation failed for {}; see the game renderer's shader errors", pipeline.getLocation());
+            }
+        }
     }
     *///?}
 
-
     private boolean initialize() {
+        boolean initialized = false;
+        String stage = "read HTML resource";
         try (var html = OrionLumenView.class.getResourceAsStream(resource)) {
-            String appData = System.getenv("APPDATA");
-            String configured = System.getProperty("orion.lumen.path");
-            if (html == null || configured == null && appData == null) return false;
-            Path dll = configured == null
-                    ? Path.of(appData, "paradoxclient/artifacts/26.3/ui/b330a04b9612e26f39964139365e2f13921cf30812db3dd2d7e143292d1fedfe/assets/native/windows-x86_64/lumen.dll")
-                    : Path.of(configured).toAbsolutePath();
-            if (!Files.isRegularFile(dll)) return false;
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(dll));
-            if (!DLL_SHA256.equals(HexFormat.of().formatHex(digest))) return false;
-            System.load(dll.toString());
+            if (html == null) throw new IOException("Missing embedded resource " + resource);
+            stage = "load native library";
+            if (!loadLibrary()) {
+                LOGGER.debug("View {} cannot start because the native library is unavailable", texturePrefix);
+                return false;
+            }
+            stage = "create native engine";
             engine = LumenNative.create();
-            if (engine == 0) return false;
+            if (engine == 0) throw new IllegalStateException("LumenNative.create returned a null handle");
+            stage = "read font " + (fontResource == null ? "Segoe UI" : fontResource);
             byte[] font;
             if (fontResource == null) {
                 font = Files.readAllBytes(Path.of(System.getenv().getOrDefault("WINDIR", "C:/Windows"), "Fonts/segoeui.ttf"));
             } else {
                 try (var stream = OrionLumenView.class.getResourceAsStream(fontResource)) {
-                    if (stream == null) return false;
+                    if (stream == null) throw new IOException("Missing embedded font " + fontResource);
                     font = stream.readAllBytes();
                 }
             }
-            if (!LumenNative.setFontData(engine, font)) return false;
+            stage = "register font";
+            if (!LumenNative.setFontData(engine, font)) throw new IllegalStateException("Lumen rejected the font bytes");
+            stage = "configure viewport";
             LumenNative.setViewport(engine, viewportWidth, viewportHeight);
+            stage = "assemble page and HUD theme";
             byte[] source = pageSource == null ? html.readAllBytes() : pageSource.get();
-            page = LumenNative.pageOpen(engine, applyHudTheme(source), bytes(""));
-            if (page == 0) return false;
+            source = applyHudTheme(source);
+            stage = "open native page";
+            page = LumenNative.pageOpen(engine, source, bytes(""));
+            if (page == 0) throw new IllegalStateException("LumenNative.pageOpen returned a null handle");
             // Первый тик инициализирует скрипт до вызова window.paradox.update.
+            stage = "run the first page tick";
             LumenNative.pageTick(page, engine, 0F);
+            initialized = true;
+            LOGGER.debug("Initialized view {} from {}", texturePrefix, resource);
             return true;
-        } catch (IOException | NoSuchAlgorithmException | RuntimeException | LinkageError failure) {
+        } catch (IOException | RuntimeException | LinkageError failure) {
+            LOGGER.warn("Lumen view {} ({}) failed to {}", texturePrefix, resource, stage, failure);
             return false;
         } finally {
-            if (page == 0) {
+            if (!initialized) {
                 unavailable = true;
-                dispose();
+                try {
+                    dispose();
+                } catch (RuntimeException | LinkageError failure) {
+                    LOGGER.warn("Could not clean up failed Lumen view {}", texturePrefix, failure);
+                }
             }
         }
+    }
+
+    private static boolean loadLibrary() {
+        String appData = System.getenv("APPDATA");
+        String configured = System.getProperty("orion.lumen.path");
+        String location = configured == null ? "%APPDATA%/" + DLL_RESOURCE : "the orion.lumen.path override";
+        if (configured == null && appData == null) {
+            return libraryFailure("APPDATA is unset and orion.lumen.path is absent", location, null);
+        }
+        String stage = "resolve the DLL path";
+        try {
+            Path dll = configured == null ? Path.of(appData, DLL_RESOURCE) : Path.of(configured).toAbsolutePath();
+            stage = "read the DLL file";
+            byte[] contents = Files.readAllBytes(dll);
+            stage = "verify the DLL SHA-256";
+            String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(contents));
+            if (!DLL_SHA256.equals(hash)) {
+                return libraryFailure("SHA-256 mismatch, expected " + DLL_SHA256 + ", found " + hash, location, null);
+            }
+            stage = "load the DLL in the JVM";
+            System.load(dll.toString());
+            if (!libraryLoadedLogged) {
+                LOGGER.info("Loaded native Lumen from {} (SHA-256 {}, {}, Java {}, {} {})", location, hash,
+                        OrionClient.VERSION_TEXT, Runtime.version(), System.getProperty("os.name"), System.getProperty("os.arch"));
+                libraryLoadedLogged = true;
+            }
+            return true;
+        } catch (NoSuchFileException missing) {
+            return libraryFailure("DLL file not found", location, null);
+        } catch (IOException | NoSuchAlgorithmException | RuntimeException | LinkageError failure) {
+            return libraryFailure("failed to " + stage, location, failure);
+        }
+    }
+
+    private static boolean libraryFailure(String reason, String location, Throwable failure) {
+        if (REPORTED_LIBRARY_FAILURES.add(location + reason)) {
+            LOGGER.warn("Lumen unavailable at {}: {} ({} {}, Java {})", location, reason,
+                    System.getProperty("os.name"), System.getProperty("os.arch"), Runtime.version(), failure);
+        }
+        return false;
     }
 
     private static byte[] applyHudTheme(byte[] source) throws IOException {
@@ -200,6 +265,8 @@ public final class OrionLumenView {
         atlasRevision = -1;
         pixelRatio = 1F;
         frameAt = 0;
+        drawFailure = null;
+        glassPipelineUnavailable = scriptErrorLogged = atlasErrorLogged = false;
     }
 
     public boolean resize(int width, int height, float ratio) {
@@ -264,9 +331,26 @@ public final class OrionLumenView {
         long now = System.nanoTime();
         float dt = Math.clamp((now - frameAt) / 1_000_000_000F, 0F, .05F);
         frameAt = now;
-        LumenNative.pageTick(page, engine, dt);
-        LumenNative.frame(engine, dt);
-        LumenNative.pageAfterFrame(page, engine);
+        try {
+            LumenNative.pageTick(page, engine, dt);
+            LumenNative.frame(engine, dt);
+            LumenNative.pageAfterFrame(page, engine);
+        } catch (RuntimeException | LinkageError failure) {
+            LOGGER.error("Lumen frame processing failed in {} ({})", texturePrefix, resource, failure);
+            throw failure;
+        }
+    }
+
+    public void reportHudScriptErrors() {
+        if (scriptErrorLogged) return;
+        byte[] messages = logs();
+        if (messages == null || messages.length == 0) return;
+        long errors = new String(messages, 0, Math.min(messages.length, 16_384), StandardCharsets.UTF_8)
+                .lines().filter(line -> line.startsWith("2\t")).count();
+        if (errors > 0) {
+            LOGGER.warn("Lumen reported {} script error(s) in HUD view {} ({})", errors, texturePrefix, resource);
+            scriptErrorLogged = true;
+        }
     }
 
     public void move(float x, float y) { LumenNative.pageMove(page, engine, x, y); }
@@ -317,17 +401,25 @@ public final class OrionLumenView {
         if (opacity <= 0F) return true;
         displayLength = 0;
         int size = LumenNative.displaySize(engine);
-        if (size < 16 || size > 1_048_576) return false;
+        if (size < 16 || size > 1_048_576) return drawUnavailable("invalid display size", size + " bytes");
         if (display == null || display.capacity() < size)
             display = ByteBuffer.allocateDirect(Math.max(8192, Integer.highestOneBit(size - 1) << 1)).order(ByteOrder.LITTLE_ENDIAN);
         display.clear();
-        if (LumenNative.copyDisplay(engine, display) != size) return false;
+        int copied = LumenNative.copyDisplay(engine, display);
+        if (copied != size) return drawUnavailable("incomplete display copy", "expected " + size + ", copied " + copied);
         int count = display.getInt(0);
         int clips = display.getInt(4);
         long clipBase = 16L + COMMAND_SIZE * (long) count;
-        if (count <= 0 || clips < 0 || clipBase + 16L * clips > size) return false;
-        if (ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.SHAPE) == null
-                || ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.TEXTURED) == null) return false;
+        if (count == 0 && clips >= 0) return drawUnavailable("empty display list", "no paint commands");
+        if (count < 0 || clips < 0 || clipBase + 16L * clips > size) {
+            return drawUnavailable("malformed display list", count + " commands, " + clips + " clips, " + size + " bytes");
+        }
+        if (ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.SHAPE) == null) {
+            return drawUnavailable("missing render pipeline", "lumen_shape (lumen_paint shader)");
+        }
+        if (ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.TEXTURED) == null) {
+            return drawUnavailable("missing textured render pipeline", "lumen_texture (lumen_paint shader)");
+        }
         while (gradients.size() > GRADIENT_CACHE_LIMIT) {
             Minecraft.getInstance().getTextureManager().release(gradientId(gradients.pollFirstEntry().getKey()));
         }
@@ -351,7 +443,19 @@ public final class OrionLumenView {
             drawDisplay(graphics, display, x, y, width, height, sx, sy,
                     new CircleClip(centerX, centerY, signedRadius), opacity, glassSurface, screenGlass, titleBackdrop);
         }
+        if (drawFailure != null) {
+            LOGGER.info("Lumen rendering recovered in {} after {}", texturePrefix, drawFailure);
+            drawFailure = null;
+        }
         return true;
+    }
+
+    private boolean drawUnavailable(String reason, String detail) {
+        if (!reason.equals(drawFailure)) {
+            LOGGER.warn("Lumen cannot render {} ({}): {} ({})", texturePrefix, resource, reason, detail);
+            drawFailure = reason;
+        }
+        return false;
     }
 
     private void drawDisplay(GuiGraphicsExtractor graphics, ByteBuffer commands, int x, int y, int width, int height,
@@ -491,9 +595,15 @@ public final class OrionLumenView {
                 if (glass) {
                     var compositor = OrionGlassCompositor.INSTANCE;
                     TextureSetup backdrop = null;
-                    if (ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.GLASS) != null) {
+                    boolean glassReady = ru.orion.client.render.GleamGpu.pipelineOrNull(Paint.GLASS) != null;
+                    if (glassReady) {
                         backdrop = titleBackdrop ? OrionTitleMenu.blurredBackdropTexture()
                                 : compositor.captureSurface(graphics, glassSurface, screenGlass);
+                    }
+                    if (glassPipelineUnavailable != !glassReady) {
+                        if (glassReady) LOGGER.info("Lumen glass pipeline recovered in {}", texturePrefix);
+                        else LOGGER.warn("Lumen glass pipeline unavailable in {}; using a tinted surface", texturePrefix);
+                        glassPipelineUnavailable = !glassReady;
                     }
                     if (backdrop != null) {
                         pipeline = Paint.GLASS;
@@ -715,7 +825,15 @@ public final class OrionLumenView {
     private boolean uploadAtlas(int index) {
         if (alpha == null) alpha = ByteBuffer.allocateDirect(ATLAS_SIZE * ATLAS_SIZE);
         alpha.clear();
-        if (LumenNative.copyAtlas(engine, index, alpha) != alpha.capacity()) return false;
+        int copied = LumenNative.copyAtlas(engine, index, alpha);
+        if (copied != alpha.capacity()) {
+            if (!atlasErrorLogged) {
+                LOGGER.warn("Lumen glyph atlas {} copy failed in {}: expected {} bytes, received {}",
+                        index, texturePrefix, alpha.capacity(), copied);
+                atlasErrorLogged = true;
+            }
+            return false;
+        }
         DynamicTexture texture = atlases.get(index);
         NativeImage pixels = texture == null ? new NativeImage(ATLAS_SIZE, ATLAS_SIZE, false) : texture.getPixels();
         for (int i = 0; i < alpha.capacity(); i++)
