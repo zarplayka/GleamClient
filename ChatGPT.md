@@ -401,6 +401,24 @@ Existing project includes HUD, ClickGUI, world effects, media integration and Di
 
 **Verification:** The public branch started at 732b0de, an ancestor of the local release. The pending source passed git diff --check and a check of added lines for common private-key and token patterns. The launcher release and its verification are recorded in the preceding entry.
 
+### 2026-11-28 — Restore Add Server typing and publish launcher 0.1.103
+
+**Request:** Fix the address field in the in-game Add Server dialog and publish it through the launcher update channel. Separately, identify why the friend's HUD looks different with Iris, Sodium, Lithium, and Mod Menu installed.
+
+**Work Completed:** `OrionWorldBrowser` now owns SDL text input while its Lumen view is active in Minecraft 26.3. Text input is released when the browser is disposed or its Lumen view falls back to vanilla. Existing Minecraft character events continue through the same Java-to-Lumen bridge. The Stonecutter condition excludes the SDL calls from 1.21.11, 26.1.2, and 26.2.
+
+**Files Affected:** `src/main/java/ru/orion/client/gui/OrionWorldBrowser.java` and project memory. Release artifacts, reproducible rebundling script, verification logs, and isolated Fabric Client GameTest fixtures are under `build/releases/0.1.103`.
+
+**Release Base:** Production was already on signed launcher 0.1.102 with client 0.2.65 while checked public main remained at 685e832 and launcher 0.1.100. Inspected the actual 0.1.102 launcher, installer, and embedded JARs. The 0.2.65 browser class and its companions matched the pre-fix source build. To retain production's later changes, the release rebundled the verified production binaries in place, preserving their file sizes and replacing only the embedded clients and fixed-width launcher version metadata. The client JAR entries preserve production 0.2.65 content except the corrected 26.3 browser class and 0.2.66 version metadata and license entry names. Source version files in this checkout still describe the 0.1.100/0.2.63 source base and should not be mistaken for the published release. Reconcile the newer production source with Git before a full launcher rebuild is used to supersede 0.1.103.
+
+**Verification:** All four source builds and mixin audits passed. On the real published Minecraft 26.3 JAR, the Add Server modal reproduced inactive SDL input. On the release 0.2.66 JAR the Fabric Client GameTest typed an IPv4 address with port and a name, saved them through Add Server, read the actual saved servers.dat through Minecraft, and verified SDL ownership was released when leaving the browser. Both PE versions and the signed update manifest were verified along with exact nested launcher and JAR bytes. The new launcher process returned its isolated Minecraft account list. The desktop installer and update action were not run against the installed user profile.
+
+**Deployment:** Published launcher 0.1.103 with GleamClient 0.2.66 via the signed auto-update channel. Origin verification and public HTTPS checks matched the manifest, both versioned Windows executables, and stable installer. Caddy remained active. Rollback backup is `/var/backups/gleam-launcher-before-yrwsv9c7`. Launcher SHA-256 is `090e7f8e0402c5c86612f9567603dc8c836e9cdf746434f915a6574222e71491`. Setup SHA-256 is `2bc2918a018300291ce00594d462cdc31fc84e1dfeaf8c412b7e2781a3f6c56b`.
+
+**Separate HUD diagnosis:** On isolated 26.3 with the production 0.2.65 JAR, Iris 1.11.7, Sodium 0.9.2, Lithium 0.26.3, and Mod Menu 21.0.1 all loaded and rendered the Lumen HUD with no shaderpack selected. An explicit missing `orion.lumen.path` with the same mods reproduced the pixel-font editor fallback seen in the screenshot. The client verifies the DLL's digest and looks for it in the Paradox artifacts tree by default. No Lumen DLL was added to the release. The user's supplied friend log came from Minecraft 1.21.11, with shaders disabled. It shows an independent startup error in `lumen_glass`: the startup preprocessor in `OrionTitleMenu.startupShaders` expands only the `minecraft:` imports, leaving the `orion-client:` liquid-glass import in the fragment shader presented to the driver. That log cannot establish the cause on the friend's 26.3 installation. The correct 26.3 log and DLL availability are still needed. The user identified the black hand as part of the skin.
+
+**Result:** Add Server hotfix is live. The friend's HUD was diagnosed and the observed fallback reproduced locally. Its exact trigger on the friend's machine is still unconfirmed.
+
 ## Known Issues
 Mirage remains UNRESOLVED in the user's actual game profile: after the isolated fixture passed, the user again reported no effect. They explicitly stopped debugging and requested a handoff commit on private GleamPrivate/main. Do not treat the earlier fixture result as confirmation of the user's fix.
 

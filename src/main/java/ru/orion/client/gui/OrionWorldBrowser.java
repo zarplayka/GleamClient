@@ -224,16 +224,27 @@ public final class OrionWorldBrowser {
         return menu != null && menu.screen == screen && menu.draw(graphics, mouseX, mouseY, delta);
     }
 
+    private void setActive(boolean active) {
+        //? if >=26.3 {
+        // Lumen fields do not get the vanilla widget focus that enables SDL text input.
+        if (this.active != active) client.textInputManager().onTextInputFocusChange(this, active);
+        //?}
+        this.active = active;
+    }
+
     private boolean draw(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         if (GleamMinecraft.screen(client) != screen || GleamMinecraft.overlay(client) != null
                 || client.options.narrator().get() != NarratorStatus.OFF) {
-            active = false;
+            setActive(false);
             return false;
         }
         if (!attempted) { attempted = true; initialized = view.ready(); }
         if (!initialized) return false;
         int width = screen.width, height = screen.height;
-        if (width < 1 || height < 1) return false;
+        if (width < 1 || height < 1) {
+            setActive(false);
+            return false;
+        }
         long now = System.nanoTime();
         if (now >= nextUpdate) {
             pollVanillaList(graphics, delta);
@@ -265,9 +276,10 @@ public final class OrionWorldBrowser {
             pointerY = y;
         }
         view.frame();
-        active = view.draw(graphics, 0, 0, width, height, scale, scale);
-        if (active) receive();
-        return active;
+        boolean drawn = view.draw(graphics, 0, 0, width, height, scale, scale);
+        setActive(drawn);
+        if (drawn) receive();
+        return drawn;
     }
 
     private void pollVanillaList(GuiGraphicsExtractor graphics, float delta) {
@@ -903,7 +915,7 @@ public final class OrionWorldBrowser {
     }
 
     private void dispose() {
-        active = false;
+        setActive(false);
         worldIcons.clear();
         worldStats.clear();
         if (accountWorker != null) accountWorker.close();
